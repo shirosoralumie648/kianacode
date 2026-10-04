@@ -34,7 +34,7 @@ fn snapshot_projector_keeps_cursor_retention_lag_and_owner_boundaries() {
     for marker in [
         "atomic",
         "snapshot",
-        "pagination",
+        "分页",
         "retention",
         "lag",
         "owner",

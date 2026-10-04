@@ -4,6 +4,66 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### ER-01/ER-02 source-guard ownership and test compile repair (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559`; kiana-core/tests/er01_event_contract_guard.rs; kiana-eventlog/tests/er02_identity.rs; observed ER-01 run `37181456914` and unified CI run `37188546597`
+worktree_status: integration branch `goal/roadmap-completion-20261004-01a10602`; moved aggregate_for_event source assertion to its existing events.rs owner; nil identity fixture now constructs the same all-zero RequestId through its public parser instead of an undeclared uuid import
+command_argv: read exact GitHub failures; source review of events.rs and ids.rs; target rustfmt edit; `git diff --check`; remote ER-01/ER-02 focused workflows and unified fmt/check/clippy/test shards
+cwd·environment: repository root; Linux; no local tests/build/check/clippy/smoke executed
+fixture·cassette: existing event_contract_registry_and_migration_boundary_are_source_owned assertion retained against the correct module; nil_identity_links_are_denied_before_append still requires event_command_id_invalid for the identical nil UUID; no manifest/lockfile or runtime validator change
+exit_code: original ER-01 Core guard exit 101 (aggregate_for_event absent from the wrong inspected module); original eventlog compile E0432 unresolved uuid; reviewed diff exit 0; new-source CI pending
+status_change: public validation blockers repaired at source; ER-01/ER-02 remain 🔄
+proof-level change: source only
+limitations: full event-contract and identity parity/shards remain unverified on the repaired source; model-budget event registration and durable/runtime acceptance remain separate work
+reviewer: Codex source/diff review matched marker ownership, RequestId parser behavior and unchanged nil rejection assertion
+```
+
+### PD-10 stable terminal-conflict error repair (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559`; kiana-core/src/persistence_read_model.rs; kiana-core/tests/pd10_read_model.rs; docs/roadmap/pd10-read-model-baseline.md
+worktree_status: parallel PD-10 worker produced typed-error mapping; coordinator preserved the existing outer error context and rejection assertion, corrected a new fixture that incorrectly expected a third fact after the reducer's first-conflict return, and integrated the narrowed regression coverage
+command_argv: read GitHub run `37188557818` logs; source review of project_run_state and ControlPlane::run_state; target rustfmt edit; `git diff --check`; remote `gh workflow run pd10-read-model.yml --ref goal/roadmap-completion-20261004-01a10602`
+cwd·environment: repository root and independent PD-10 worktree; Linux; tests/build/check/clippy/smoke not run locally
+fixture·cassette: original `missing_terminal_foreign_run_old_epoch_and_conflict_fail_closed` unchanged; new `terminal_conflict_preserves_stable_error_code_with_both_kinds` covers 12 ordered conflicting terminal pairs; `missing_terminal_cannot_become_completed_even_with_other_events` covers started/queued/awaiting-approval facts without a terminal
+exit_code: original GitHub PD-10 target exit 101 (2 passed, 1 failed); source/diff checks exit 0; new-source CI pending
+status_change: PD-10 remains 🔄; source adapter now returns `persistence_read_model_run:run_terminal_conflict:<kinds>` instead of an unstable Display string
+proof-level change: source only
+limitations: fresh-process reconstruction, durable projection/checkpoint storage and whole-card PD-10 acceptance remain open; added regression coverage has not yet executed remotely
+reviewer: Codex coordinator reviewed worker patch, first-conflict reducer semantics, stable error context and unchanged rejection behavior
+```
+
+### CAP-20 workflow syntax and trigger repair (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559`; .github/workflows/cap20-mcp-trust-discovery.yml; observed GitHub run `37188546597` job `111395708341` and invalid-workflow run `37188546099`
+worktree_status: parallel CI worker repaired the isolated workflow, coordinator integrated its reviewed diff into `goal/roadmap-completion-20261004-01a10602`; every fixture/compile command preserved
+command_argv: read GitHub job logs; source/diff review; `git diff --check`; GitHub unified CI executes `bash scripts/ci/validate-workflows.sh`; focused remote command `gh workflow run cap20-mcp-trust-discovery.yml --ref goal/roadmap-completion-20261004-01a10602`
+cwd·environment: repository root and isolated CI worktree; Linux/bash; no local workflow validator, tests, build/check/clippy or smoke executed
+fixture·cassette: existing MCP library/lifecycle/source-guard tests unchanged; YAML command with `harness_mcp::tests:: ` moved to a folded scalar; automatic push/root-status triggers removed to match the existing manual-feature-workflow contract
+exit_code: original GitHub workflow validator exit 1, exact YAML parser line 37 column 66; reviewed source/diff checks exit 0; new-source remote validation pending
+status_change: public CI blocker repaired at source; CAP-20 remains 🔄; no card acceptance claimed
+proof-level change: source only
+limitations: MCP trust/discovery runtime and unrelated unified CI failures remain to be verified remotely; syntax repair is not behavioral or durable proof
+reviewer: Codex coordinator reviewed Claude worker diff against the actual remote parser error and script allowlist
+```
+
+### Roadmap completion goal and parallel CI-only execution (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559` plus goal source/docs slice; docs/roadmap/step-execution-goal.md; scripts/roadmap-goal.py; .github/workflows/ci.yml; docs/roadmap.md
+worktree_status: integration branch `goal/roadmap-completion-20261004-01a10602`; pre-existing untracked PD-14 workflow preserved; PD-10 and CAP-20 repairs executed by independent Claude workers in isolated worktrees, coordinator reviewed their diffs; model-event contract worker is separately investigating ER-01
+command_argv: `python3 scripts/roadmap-goal.py --checklist --limit 8` (roadmap inventory/checklist export, no project test or runtime); Ruflo task_create/task_update; `git diff --check`; GitHub unified CI will run workflow validation, cargo fmt/check/clippy, sharded tests and desktop contracts
+cwd·environment: repository root; Linux/bash/Python; local tests/build/check/clippy/smoke/validation scripts not executed; GitHub Actions is the validation executor
+fixture·cassette: no runtime fixture for goal inventory; the CI workflow archives a dependency snapshot bound to github.sha; goal task `task-1791102524181-0iivvl` points to the whole roadmap
+exit_code: roadmap inventory/checklist export and git diff --check exit 0; new-source GitHub CI pending
+status_change: goal `goal-kiana-roadmap-completion-20261004` created/in_progress; actual queue 749 Steps, 351 indexed completed, 398 reopened/pending, 51 dependency-ready; goal's 47 percent is inherited roadmap index progress, not current global CI acceptance; no Step upgraded
+proof-level change: source only; no local_behavior/durable/live/physical promotion
+limitations: 398 Steps remain unclosed; current source has known GitHub failures, including PD-10 stable error code, CAP-20 YAML, ER-02 test dependency, ER-01 marker ownership and model.reserved registration; persisted goal/checklist is not itself an autonomous executor or completion receipt; live/platform proof still requires actual environments
+reviewer: Codex coordinator source/diff review; parallel Claude worker reports reviewed; no local runtime reviewer
+```
+
 ### UI-37 用户文档、模块图和操作 runbook（2026-09-25）
 
 source_snapshot: `7fdc8c15`（UI-36 已合并 master 基线）加 UI-37 docs/source slice；`docs/ui-entrypoints-runbook.md`; `docs/module-map.md`; `scripts/verify-ui37-docs.sh`; `.github/workflows/ui37-docs-runbook.yml`; `docs/roadmap/ui37-docs-runbook-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`

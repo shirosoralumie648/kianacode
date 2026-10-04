@@ -46,7 +46,7 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
         );
     }
     for marker in [
-        "action CAS",
+        "Action CAS",
         "idempotency",
         "ACK",
         "Unknown",

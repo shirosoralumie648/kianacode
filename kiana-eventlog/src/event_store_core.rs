@@ -23,8 +23,18 @@ pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), Por
     // them. A null legacy payload therefore stays on the compatibility path.
     if (event.aggregate_type.is_some() || event.stream_version.is_some()) && event.data.is_object()
     {
-        kiana_domain::validate_runtime_event(event)
-            .map_err(|error| PortError::Failed(format!("event_contract_{error}")))?;
+        kiana_domain::validate_runtime_event(event).map_err(|error| {
+            eprintln!(
+                "event_contract_validation_failed kind={} error={} keys={:?}",
+                event.kind,
+                error,
+                event
+                    .data
+                    .as_object()
+                    .map(|object| object.keys().collect::<Vec<_>>())
+            );
+            PortError::Failed(format!("event_contract_{error}"))
+        })?;
     }
     event
         .validate_identity_links()

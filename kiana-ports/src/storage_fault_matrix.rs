@@ -318,6 +318,9 @@ impl StorageFaultCase {
         if self.effect_confirmed && !self.effect_started {
             return Err("storage_fault_effect_confirmation_invalid".to_owned());
         }
+        if self.effect_confirmed && self.class().requires_reconciliation() {
+            return Err("storage_fault_unknown_outcome_not_fenced".to_owned());
+        }
         if self.completion_claimed || self.duplicate_effect || self.recovery_beyond_authority {
             return Err("storage_fault_case_unsafe".to_owned());
         }

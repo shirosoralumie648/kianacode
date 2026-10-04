@@ -69,6 +69,7 @@ impl ControlPlane {
             ));
         }
         self.append_event(request_id,1,"request.accepted",json!({"capability":request.capability,"operation":request.operation,"risk":request.risk})).await?;
+        eprintln!("CM-02 debug: request accepted");
         let request = match self
             .prepare_capability_action(context, request, None, false)
             .await
@@ -81,6 +82,7 @@ impl ControlPlane {
                 return Ok(CoreResponse::blocked(request_id, reason));
             }
         };
+        eprintln!("CM-02 debug: capability prepared");
         let (policy, gate) = self
             .authorize_capability_action(context, &request, None)
             .await?;
@@ -105,6 +107,7 @@ impl ControlPlane {
                 })
             }
             GateDecision::AwaitingApproval { reason } => {
+                eprintln!("CM-02 debug: authorize awaiting approval");
                 let mut sequence = 3;
                 let challenge = self
                     .stage_capability_action(

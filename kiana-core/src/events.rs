@@ -73,17 +73,22 @@ fn optional_event_link<T: DeserializeOwned>(
 /// 拿到 `true` 则必须保留 Unknown。所以这个函数的保守方向是**宁可多认成 Unknown**：
 /// 误判为 Unknown 只是让人去查，误判为确定则会直接进入账本。
 fn result_unknown_value(value: &Value) -> bool {
-    value
-        .get("error_code")
-        .and_then(Value::as_str)
-        .map(CapabilityErrorCode::from_reason)
-        .or_else(|| {
-            value
-                .get("error")
+    [Some(value), value.get("result")]
+        .into_iter()
+        .flatten()
+        .filter_map(|candidate| {
+            candidate
+                .get("error_code")
                 .and_then(Value::as_str)
                 .map(CapabilityErrorCode::from_reason)
+                .or_else(|| {
+                    candidate
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .map(CapabilityErrorCode::from_reason)
+                })
         })
-        .is_some_and(|code| {
+        .any(|code| {
             matches!(
                 code,
                 CapabilityErrorCode::ResultUnknown | CapabilityErrorCode::CompensationRequired
@@ -622,11 +627,12 @@ pub(crate) fn capability_event_payload(
 ) -> Value {
     let mut payload = capability_result_payload(output);
     let result_unknown = result_unknown_value(&payload);
+    let result = capability_result_value(&payload);
+    let not_executed = result.get("not_executed") == Some(&json!(true));
+    let stop_confirmed = result.get("stop_confirmed").and_then(Value::as_bool);
     let object = payload
         .as_object_mut()
         .expect("capability event payload is normalized to an object");
-    let not_executed = object.get("not_executed") == Some(&json!(true));
-    let stop_confirmed = object.get("stop_confirmed").and_then(Value::as_bool);
     object.entry("attempt".to_owned()).or_insert(json!(1));
     object
         .entry("effect_started".to_owned())
@@ -676,10 +682,11 @@ pub(crate) fn direct_capability_event_payload(
 ) -> Value {
     let mut payload = capability_result_payload(output);
     let result_unknown = result_unknown_value(&payload);
+    let result = capability_result_value(&payload);
+    let not_executed = result.get("not_executed") == Some(&json!(true));
     let object = payload
         .as_object_mut()
         .expect("direct capability payload is normalized to an object");
-    let not_executed = object.get("not_executed") == Some(&json!(true));
     object.entry("attempt".to_owned()).or_insert(json!(1));
     object
         .entry("effect_started".to_owned())
@@ -712,17 +719,16 @@ pub(crate) fn direct_capability_event_payload(
 }
 
 fn capability_result_payload(output: &Value) -> Value {
-    let mut payload = redact_event_value(output);
-    if !payload.is_object() {
-        payload = json!({ "output": payload });
-    }
-    // Capability result data cannot populate the notification authority envelope.
-    if let Some(object) = payload.as_object_mut() {
-        if let Some(source) = object.remove("source") {
-            object.insert("result_source".to_owned(), source);
-        }
+    let result = redact_event_value(output);
+    let mut payload = json!({"result": result});
+    if let Some(source) = payload["result"].get("source").cloned() {
+        payload["result_source"] = source;
     }
     payload
+}
+
+fn capability_result_value(value: &Value) -> &Value {
+    value.get("result").unwrap_or(value)
 }
 /// 把服务端解析出的身份盖到一个能力请求上。
 ///

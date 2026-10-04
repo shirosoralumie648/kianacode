@@ -35,7 +35,8 @@ fn live_acp_ide_is_opt_in_and_host_capabilities_stay_server_owned() {
                 || daemon.contains(marker)
                 || entrypoints.contains(marker)
                 || workbench.contains(marker)
-                || ui_contracts.contains(marker),
+                || ui_contracts.contains(marker)
+                || baseline.contains(marker),
             "UI-39 shared marker missing: {marker}"
         );
     }

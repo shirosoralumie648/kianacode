@@ -387,22 +387,26 @@ fn capability_call_ids(
 }
 
 fn capability_result_text(data: &Value) -> String {
-    let output = match data.as_object() {
-        Some(object) => {
-            let mut output = object.clone();
-            for key in CAPABILITY_EVENT_METADATA_KEYS {
-                output.remove(*key);
-            }
-            if output.len() == 1 {
-                match output.remove("output") {
-                    Some(value) => value,
-                    None => Value::Object(output),
+    let output = if let Some(result) = data.get("result") {
+        result.clone()
+    } else {
+        match data.as_object() {
+            Some(object) => {
+                let mut output = object.clone();
+                for key in CAPABILITY_EVENT_METADATA_KEYS {
+                    output.remove(*key);
                 }
-            } else {
-                Value::Object(output)
+                if output.len() == 1 {
+                    match output.remove("output") {
+                        Some(value) => value,
+                        None => Value::Object(output),
+                    }
+                } else {
+                    Value::Object(output)
+                }
             }
+            None => data.clone(),
         }
-        None => data.clone(),
     };
     match output {
         Value::String(text) => text,

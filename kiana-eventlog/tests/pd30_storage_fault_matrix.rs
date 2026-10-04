@@ -530,28 +530,37 @@ fn a_case_with_no_limitation_evidence_is_refused() {
 fn a_crash_timing_case_must_name_its_point_and_no_other_fault_may() {
     // Crash timing is the only fault on the existing `FaultInjectionPoint` timeline, so a case
     // that names a point for anything else has invented a fault the card did not ask for.
-    let named = case(
+    let named = StorageFaultCase::new(
         StorageFaultKind::KillNine,
         Some(FaultInjectionPoint::Commit),
-        StorageErrorClass::Unknown,
-        "eventlog_commit_outcome_unknown",
+        error(
+            StorageErrorClass::Unknown,
+            "eventlog_commit_outcome_unknown",
+        ),
+        AdapterKind::Jsonl,
         StorageFaultRecovery::ReconcileFromFacts,
+        StorageFaultExit::UnknownOutcome,
         true,
+        false,
+        limitation("no fault was injected; this row is a classification of a reported error"),
     );
-    assert_eq!(
-        named.validate().unwrap_err(),
-        "storage_fault_crash_point_invalid"
-    );
-    let unnamed = case(
+    assert_eq!(named.unwrap_err(), "storage_fault_crash_point_invalid");
+    let unnamed = StorageFaultCase::new(
         StorageFaultKind::CrashTiming,
         None,
-        StorageErrorClass::ResultUnknown,
-        "eventlog_flush_unconfirmed",
+        error(
+            StorageErrorClass::ResultUnknown,
+            "eventlog_flush_unconfirmed",
+        ),
+        AdapterKind::Jsonl,
         StorageFaultRecovery::RestartFromCommittedPrefix,
+        StorageFaultExit::UnknownOutcome,
         true,
+        false,
+        limitation("no fault was injected; this row is a classification of a reported error"),
     );
     assert_eq!(
-        unnamed.validate().unwrap_err(),
+        unnamed.unwrap_err(),
         "storage_fault_crash_point_invalid",
         "an unnamed crash point is not a classification of anything"
     );
@@ -576,7 +585,7 @@ fn a_tampered_matrix_is_refused() {
     unsealed.baseline_digest = "sha256:zz".to_owned();
     assert_eq!(
         unsealed.validate().unwrap_err(),
-        "storage_fault_matrix_header_invalid"
+        "storage_fault_matrix_baseline_digest_invalid"
     );
     assert_eq!(matrix.status, StorageFaultMatrixStatus::Unsafe);
     assert_eq!(STORAGE_FAULT_VERSION.major, 1);

@@ -154,7 +154,13 @@ impl ControlPlane {
                 .iter()
                 .rev()
                 .filter(|e| e.kind == "capability.completed")
-                .filter_map(|e| e.data.get("hits").and_then(Value::as_array))
+                .filter_map(|e| {
+                    e.data
+                        .get("result")
+                        .unwrap_or(&e.data)
+                        .get("hits")
+                        .and_then(Value::as_array)
+                })
                 .flatten()
             {
                 if similar_records.len() == 3 {
@@ -820,11 +826,15 @@ fn evidence_text(event: &RuntimeEvent, decision_only: bool) -> String {
             .unwrap_or_default()
             .to_owned();
     }
+    let result = event.data.get("result").unwrap_or(&event.data);
     event
         .data
         .get("text")
         .or_else(|| event.data.get("error"))
         .or_else(|| event.data.get("reason"))
+        .or_else(|| result.get("text"))
+        .or_else(|| result.get("error"))
+        .or_else(|| result.get("reason"))
         .and_then(Value::as_str)
         .map(str::to_owned)
         .unwrap_or_else(|| serde_json::to_string(&event.data).unwrap_or_default())

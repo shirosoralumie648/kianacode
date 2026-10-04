@@ -70,6 +70,8 @@ impl ControlPlane {
             .flat_map(|event| {
                 event
                     .data
+                    .get("result")
+                    .unwrap_or(&event.data)
                     .get("records")
                     .and_then(Value::as_array)
                     .into_iter()

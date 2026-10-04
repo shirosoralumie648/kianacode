@@ -1,18 +1,6 @@
 name: CAP-20 MCP trust and discovery snapshot
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - "kiana-daemon/src/harness_mcp.rs"
-      - "kiana-daemon/src/mcp_stdio.rs"
-      - "kiana-daemon/src/lib.rs"
-      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
-      - "kiana-core/tests/cap20_mcp_trust_discovery_guard.rs"
-      - "docs/roadmap/cap20-mcp-trust-discovery-baseline.md"
-      - "docs/roadmap.md"
-      - "CURRENT_STATUS.md"
-      - ".github/workflows/cap20-mcp-trust-discovery.yml"
   workflow_dispatch:
 
 permissions:
@@ -34,7 +22,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run MCP lifecycle fixtures
-        run: cargo test -p kiana-daemon --lib harness_mcp::tests:: --locked -- --test-threads=1
+        run: >-
+          cargo test -p kiana-daemon --lib harness_mcp::tests:: --locked -- --test-threads=1
       - run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
       - name: Run CAP-20 source guard
         run: cargo test -p kiana-core --test cap20_mcp_trust_discovery_guard --locked -- --test-threads=1

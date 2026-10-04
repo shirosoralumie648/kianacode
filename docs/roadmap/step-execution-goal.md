@@ -1,12 +1,44 @@
 # Goal — 走完 docs/roadmap.md 的全量 Step 队列
 
-## 当前执行目标（2026-10-04）
+## 当前执行目标（2026-10-04，本次会话）
 
-Ruflo mission：`msn_da9280fe41928026f08c5ef9`（state=`planned`，plan digest=`sha256:abad432d0dbea409b6ed6ea3769a7c64f493b218d021c1a4620e0f6707bcd022`）。
+Goal ID：`goal-kiana-roadmap-completion-20261004`。Ruflo 持久任务：
+`task-1791102524181-0iivvl`。目标是完成 `docs/roadmap.md` §1.1 的全部 Step，
+包括实现、回归、GitHub CI 验收和证据收口；当前状态为 **执行中**。
 
-按 `docs/roadmap.md` §1.1 的当前全量队列推进，不把历史候选分支或未观察的 CI 当作完成证据。当前队列登记为 761 个 Step：351 个 ✅、398 个 🔄、12 个 ⏳；每次领取前重新解析当前 `master` 的依赖和状态。第一批活动前沿为 `ER-01`、`H05`、`CO-06`、`OA-02`、`OA-03`、`PD-01`、`SC-07`；`CM-02` 在 `ER-01` 合并后领取。互不写同一边界的活动前沿可使用独立 worktree 并行，合并时逐个审 diff。
+本次源码基线为 `38cf305c839ece27595a2f28bacdd1fbdab36559`。按实际总队列表行重新盘点：
+**749 个 Step，351 个 ✅、398 个 🔄，51 个前置均已标 ✅ 的活动前沿**。
+本页旧记录中的“761 / 12 个 ⏳”与当前总队列不符，仅保留为历史记录。
+这些数字是 roadmap 索引状态，不代表当前提交已全量通过 CI。
 
-硬规则：本地不运行 `cargo test`、`cargo build`、`cargo check`、`cargo clippy` 或项目 smoke；GitHub Actions 是测试/编译权威，推送后不等待结果。每完成一个 Step，使用 `step/<id>-<slug>-<yyyymmdd>` 分支，完成 source slice、证据块和 roadmap 状态回填后独立提交，合并到 `master` 并推送 `origin/master`；不把 `source` 或 CI 触发写成 `local_behavior`、`durable`、`live` 或 `physical`。用户当前指示覆盖本文件及其他文档中的旧限制。
+用户最新指示：按 roadmap 逐步完成整个项目；本地不进行任何测试，测试全部交给
+GitHub CI；可独立推进的步骤并行；与此冲突的旧版限制性指示忽略。
+据此执行以下约定：
+
+- 本地只读源码、审 diff、编辑和格式化；不运行测试、build、cargo check/clippy、smoke、
+  项目二进制或测试/验收脚本。编译、静态门、单测、集成、故障注入和平台验证均在 GitHub Actions。
+- 每次领取前重新读取总队列。按明确硬依赖推进，最多同时处理三个互不冲突的 Step；
+  每个写者使用独立 worktree，协调者统一修改 roadmap、状态账本、共享 manifest 和 lockfile。
+- 优先修复阻塞多个 Step 的 CI 失败。每步完成源码后审查、提交并推送工作分支，触发相应 CI；
+  等待期间继续独立任务，读取回执后修复失败。历史的“推送后不等待结果”不能替代验收。
+- 只有完整退出条件满足、对应源码提交的必需 CI 成功、证据块齐备后才更新 ✅。
+  CI 触发、source guard 通过、fake/cassette 或仅定义类型均不能升级为 durable/live/physical。
+- 有失败、缺凭据、缺目标平台或未完成验收时保留 🔄 并记录具体阻塞；
+  不删断言、不跳过测试、不缩小退出条件，也不把失败任务计为完成。
+- 全部 Step 结束后仍须完成当前统一 CI、发布门、三入口一致性及目标平台验收。
+  需要真实账户/设备的步骤按 roadmap 的 opt-in 与证据要求执行，记录缺失材料。
+
+当前并行工作：PD-10 修复终态冲突稳定错误码；CI 工作流修复 CAP-20 的 YAML 和自动触发冲突；
+协调者建立可重算的 goal 清单并核对 ER-01 等活动前沿的当前 CI。
+仓库原有 PD-14 workflow 的未跟踪 WIP 保留在原工作树，不作为本次提交的一部分。
+
+查看/恢复：`python3 scripts/roadmap-goal.py` 显示当前统计与可领取步骤；
+`python3 scripts/roadmap-goal.py --checklist` 将当前队列同步到 Ruflo 的本地 checklist；
+`ruflo task status task-1791102524181-0iivvl` 查看持久任务。
+清单是派生视图，完成事实仍以 `CURRENT_STATUS.md` 绑定的提交和 CI 回执为准。
+
+历史 Ruflo mission `msn_da9280fe41928026f08c5ef9` 曾记录为 `planned`；
+当前可用 Ruflo CLI 未暴露 mission 命令，本次不把该历史记录当作已启动的执行器。
 
 
 ## 队列现状（2026-09-27 盘点）
@@ -91,8 +123,8 @@ PD-26 卡片（facts/artifact/memory/index/cache/checkpoint）、ER-29 的
 
 ## 固定节奏
 
-复现 → 分类 → 最小修复 → 审 diff + 证据 → 提交推送 → 回填完成态。
-不等 CI。红了下一轮再修。
+源码定位 → 分类 → 最小实现/修复 → 审 diff + source 证据 → 工作分支提交推送 → GitHub CI → 读取回执并修复 → 回填完成态。
+CI 运行期间推进其他独立 Step；没有对应成功回执时保持 🔄。旧的“不等 CI，红了下一轮再修”只保留为历史做法。
 
 ## 2026-09-28 进展
 

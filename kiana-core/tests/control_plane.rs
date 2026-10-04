@@ -13,7 +13,10 @@ use kiana_domain::{
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::{DefaultGateEngine, GateEngine};
 use kiana_policy::DefaultPolicyEngine;
-use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
+use kiana_ports::{
+    ApprovalStorePort, CapabilityBrokerPort, EventStorePort, ModelBudgetPort, ModelClient,
+    PortError, RunnerPort,
+};
 use kiana_runner::{KianaHarness, ScriptedModel};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
@@ -1050,6 +1053,178 @@ async fn er01_real_lifecycle_and_session_producers_conform_to_registry() {
     assert_eq!(
         assignment.data["authority_epoch"],
         lifecycle[0].data["authority_epoch"]
+    );
+}
+
+#[tokio::test]
+async fn er01_real_model_budget_denies_missing_authority_without_appending() {
+    let events = Arc::new(MemoryEventLog::new());
+    let budget = kiana_core::JournalModelBudget::new(events.clone());
+    let error = budget
+        .reserve(RunId::new(), RequestId::new(), 100)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(error, PortError::Failed(ref code) if code == "model_budget_authority_missing")
+    );
+    assert!(events.read_all().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn er01_real_model_budget_prepared_dispatch_and_settle_conform_to_registry() {
+    let harness = CoreHarness::new();
+    let context = trusted_context();
+    let project_root = "/repo";
+    let limit = kiana_domain::RuntimeBudget {
+        max_model_calls: 4,
+        max_tokens: 10_000,
+        max_wall_time_ms: 300_000,
+    };
+    let authority_value = json!({
+        "schema": "kiana.authority-revision.v1",
+        "project_root": project_root,
+        "project_trusted": true,
+        "configuration_revision": "er01-model-budget.v1",
+        "runtime_budget": limit,
+    });
+    let revision_digest = kiana_domain::json_digest(&authority_value);
+    let authority_key = kiana_domain::json_digest(&json!({"project_root": project_root}));
+    let mut authority_payload = authority_value;
+    authority_payload["revision_digest"] = json!(revision_digest);
+    harness
+        .events
+        .append(
+            RuntimeEvent::new(RequestId::new(), 1, "authority.revised", authority_payload)
+                .unwrap()
+                .with_stream_metadata("authority", authority_key, 1),
+        )
+        .await
+        .unwrap();
+    let revision = format!("1:{revision_digest}");
+    let run_id = RunId::new();
+    let role = RoleSpec::lookup(&context.role_id).unwrap();
+    harness
+        .events
+        .append(run_event(
+            context.request_id,
+            run_id,
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id, "project_root": context.project_root,
+                "role_id": role.role_id, "model_profile": role.model_profile,
+                "authority_revision": revision, "runtime_budget": limit,
+            }),
+        ))
+        .await
+        .unwrap();
+    let request_id = RequestId::new();
+    let now = u64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap();
+    // Prepare through the existing offline ModelClient port; no provider completion occurs.
+    let prepared = ScriptedModel::from_json(&json!([]))
+        .unwrap()
+        .prepare_call(
+            kiana_domain::ModelRequest {
+                messages: Vec::new(),
+                tools: Vec::new(),
+                sandbox: "read-only".to_owned(),
+            },
+            kiana_domain::ModelCallSpec {
+                call_id: RequestId::new(),
+                attempt_id: request_id,
+                model_attempt_id: Some(kiana_domain::ModelAttemptId::new()),
+                step_id: Some(kiana_domain::StepId::new()),
+                step: 1,
+                purpose: kiana_domain::ModelPurpose::Task,
+                assignment: Some(kiana_domain::ModelAssignment {
+                    schema: "kiana.model-assignment.v1".to_owned(),
+                    run_id,
+                    turn_id: kiana_domain::TurnId::new(),
+                    role_id: role.role_id.clone(),
+                    role_version: Some(role.version),
+                    catalog_version: Some(kiana_domain::SchemaVersion::new(1, 0)),
+                    prompt_hash: Some(role.prompt_hash.clone()),
+                    input_schema: Some(role.input_schema.clone()),
+                    output_schema: Some(role.output_schema.clone()),
+                    profile: role.model_profile.clone(),
+                    project_root: context.project_root.clone(),
+                    project_trusted: true,
+                    authority_revision: Some(revision),
+                    max_wall_time_ms: limit.max_wall_time_ms,
+                    runtime_budget: Some(limit),
+                }),
+                response_format: kiana_domain::ModelResponseFormat::Text,
+                replay: Vec::new(),
+                deadline_unix_ms: now + 300_000,
+            },
+        )
+        .unwrap();
+    let budget = kiana_core::JournalModelBudget::new(harness.events.clone());
+    let mut tampered = prepared.clone();
+    tampered.request_hash = "changed".to_owned();
+    let before = harness.events.read_all().await.unwrap().len();
+    assert!(budget.reserve_prepared(&tampered).await.is_err());
+    assert_eq!(harness.events.read_all().await.unwrap().len(), before);
+
+    let permit = budget.reserve_prepared(&prepared).await.unwrap();
+    budget.consume_prepared(&prepared, &permit).await.unwrap();
+    let after_dispatch = harness.events.read_all().await.unwrap().len();
+    let replay = budget
+        .consume_prepared(&prepared, &permit)
+        .await
+        .unwrap_err();
+    assert!(matches!(replay, PortError::Failed(ref code) if code == "model_permit_unavailable"));
+    assert_eq!(
+        harness.events.read_all().await.unwrap().len(),
+        after_dispatch
+    );
+    budget.settle(run_id, request_id, Some(100)).await.unwrap();
+    let events = harness.events.read_all().await.unwrap();
+    let model_events = events
+        .iter()
+        .filter(|event| event.kind.starts_with("model."))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        model_events
+            .iter()
+            .map(|event| event.kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "model.reserved",
+            "model.prepared",
+            "model.dispatching",
+            "model.settled"
+        ]
+    );
+    for event in &model_events {
+        assert!(event_kind_spec(&event.kind).is_some());
+        validate_runtime_event(event).unwrap_or_else(|error| panic!("{}: {error}", event.kind));
+    }
+    assert_eq!(model_events[1].data["prepared"], prepared.audit());
+    assert_eq!(model_events[1].data["permit"], json!(permit));
+    assert_eq!(model_events[3].data["charged_tokens"], 100);
+    assert_eq!(model_events[3].data["usage_known"], true);
+    assert_eq!(
+        model_events[0].aggregate_type.as_deref(),
+        Some("model_budget")
+    );
+    assert_eq!(
+        model_events[1].aggregate_type.as_deref(),
+        Some("model_attempt")
+    );
+    assert_eq!(
+        model_events[2].aggregate_type.as_deref(),
+        Some("model_attempt")
+    );
+    assert_eq!(
+        model_events[3].aggregate_type.as_deref(),
+        Some("model_budget")
     );
 }
 

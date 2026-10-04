@@ -1211,6 +1211,11 @@ impl StreamingRedactor {
         output
     }
 
+    /// Whether a sensitive marker has been recognized and its value is still buffered.
+    pub fn has_pending_secret(&self) -> bool {
+        self.suppression.is_some()
+    }
+
     /// Current number of retained overlap bytes. This is bounded by
     /// [`STREAM_REDACTION_BUFFER_LIMIT`] for ordinary stream processing.
     pub fn buffered_len(&self) -> usize {
