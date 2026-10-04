@@ -4214,6 +4214,21 @@ limitations: no post-fix provider CI receipt yet; the fake loopback test does no
 reviewer: source review confirmed the assignment values match the server-owned PM role descriptor and ProviderGateway profile requirement; no runtime test reviewer
 ```
 
+### CI-08 current-head route admission lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `c9c17dac` assignment fixture correction; `.github/workflows/ci08-route-admission.yml`; kiana-domain/tests/ci08_route_admission.rs; kiana-provider/tests/ci08_route_admission.rs; kiana-core/tests/ci08_route_admission.rs; docs/roadmap/ci08-route-admission-baseline.md
+worktree_status: current master contains the legal server-owned ProviderGateway assignment fixture and Legacy/network paired domain fixture; workflow re-executes domain/provider/Core route fixtures and target-scoped compile; production route admission, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run ci08-route-admission.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: exact route/config/authority/credential/account binding and drift denial, Legacy omission compatibility, fake loopback opaque account/one auth/no-secret body, Core validation-before-consume/actor-blind guard and three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CI-08 roadmap row 168 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: post-fix provider receipt is not yet observed; dynamic project gateway/config reload, cross-process permit recovery, external provider account/receipt, DNS/host pinning and live/physical effects remain open
+reviewer: source review matched the corrected server assignment and route target partition; no local runtime reviewer
+```
+
 ### CM-03 server-derived Memory scope evidence (2026-09-16)
 
 ```text
