@@ -1,19 +1,17 @@
 # Goal — 走完 docs/roadmap.md 的全量 Step 队列
 
-## 目标
+## 当前执行目标（2026-10-04）
 
-按 `docs/roadmap.md` §1.1 的 749 张 Step 总队列顺序，把整个项目做到队列收口。
+Ruflo mission：`msn_da9280fe41928026f08c5ef9`（state=`planned`，plan digest=`sha256:abad432d0dbea409b6ed6ea3769a7c64f493b218d021c1a4620e0f6707bcd022`）。
 
-用户口径（2026-09-27）：
+按 `docs/roadmap.md` §1.1 的当前全量队列推进，不把历史候选分支或未观察的 CI 当作完成证据。当前队列登记为 761 个 Step：351 个 ✅、398 个 🔄、12 个 ⏳；每次领取前重新解析当前 `master` 的依赖和状态。第一批活动前沿为 `ER-01`、`H05`、`CO-06`、`OA-02`、`OA-03`、`PD-01`、`SC-07`；`CM-02` 在 `ER-01` 合并后领取。互不写同一边界的活动前沿可使用独立 worktree 并行，合并时逐个审 diff。
 
-1. **本地不跑任何测试**。Cargo test/build/check/clippy/smoke 全部交给 GitHub Actions。
-2. **每做完一个 Step 就提交 + 推送一次**，不等 CI 结果。
-3. 文件里旧版限制性指示与当前指示冲突时，以当前指示为准。
-4. 能并行的 Step 并行做。
+硬规则：本地不运行 `cargo test`、`cargo build`、`cargo check`、`cargo clippy` 或项目 smoke；GitHub Actions 是测试/编译权威，推送后不等待结果。每完成一个 Step，使用 `step/<id>-<slug>-<yyyymmdd>` 分支，完成 source slice、证据块和 roadmap 状态回填后独立提交，合并到 `master` 并推送 `origin/master`；不把 `source` 或 CI 触发写成 `local_behavior`、`durable`、`live` 或 `physical`。用户当前指示覆盖本文件及其他文档中的旧限制。
+
 
 ## 队列现状（2026-09-27 盘点）
 
-登记 611 行：✅ 321 / 🔄 241 / ⏳ 49。未收口按前缀：
+登记 611 行（历史盘点）：✅ 321 / 🔄 241 / ⏳ 49。当前数字以本页“当前执行目标”和 `docs/roadmap.md` 为准。
 
 | 前缀 | 未收口 | 🔄 | ⏳ |
 |---|---|---|---|
@@ -35,7 +33,7 @@
 
 ## 阶段
 
-### 阶段 0：解 CI（阻塞全部后续）
+### 历史阶段 0：解 CI（已完成；不再作为本次本地验证门）
 
 - [x] 盘点工作树，发现三件在制品：CI 合并（664 个 workflow → `ci.yml`）、DEP-18 半成品、一批 rustfmt 修复
 - [x] 发现 **32 个 tracked `.rs` 未 rustfmt-clean** → `cargo fmt --all --check` 必红，每次 CI 都红
@@ -100,7 +98,7 @@ PD-26 卡片（facts/artifact/memory/index/cache/checkpoint）、ER-29 的
 
 ### 队列现状
 
-`docs/roadmap.md` §1.1 共 749 行：✅ 444 / 🔄 269 / ⏳ 36。前置全为 ✅ 且自身未收口的行有 26 张。
+`docs/roadmap.md` §1.1 当前登记 761 行：✅ 351 / 🔄 398 / ⏳ 12。前置全为 ✅ 且自身未收口的行，按每次领取前的当前解析结果确定；本页旧的 2026-09-28 数字仅保留为历史记录。
 CAP-31/32/33 的剩余项是真实平台行为（Seatbelt / Job Object / runsc），Linux CI 无法验证，
 不能诚实收口，保持未完成。
 
