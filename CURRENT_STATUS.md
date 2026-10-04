@@ -22602,6 +22602,21 @@ limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock r
 reviewer: exact GitHub job/step receipt and source/fixture review; no local runtime reviewer
 ```
 
+### PD-01 current-head storage lane refresh (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `8d93200c` ownership-aligned guard correction; `.github/workflows/pd01-storage-root.yml`; kiana-domain/src/{storage_root.rs,lib.rs}; kiana-daemon/src/storage.rs; kiana-domain/tests/pd01_storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs; docs/roadmap/persistence-storage-root-baseline.md
+worktree_status: current master contains malformed/unknown-schema/nil-id/timestamp/digest-invalid lock classification and source guard ownership correction; workflow re-executes domain/daemon/Core storage fixtures, format and scoped compile; no StorageRoot/lock semantics, manifest or lockfile changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run pd01-storage-root.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: storage root/owner namespace, create-new identity, descriptor-relative lock, malformed lock denial, valid conflict classification, domain/daemon fixtures, ownership-aligned Core guard and three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock recovery, power-loss cleanup and cross-process fencing remain open
+reviewer: source review matched lock classification/guard ownership and storage target partition; no local runtime reviewer
+```
+
 ### ER-02 malformed identity aliases and nil-link rejection (2026-10-04)
 
 ```text
