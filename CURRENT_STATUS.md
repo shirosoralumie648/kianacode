@@ -19288,6 +19288,21 @@ limitations: full legacy migration/upcast, durable InvocationLedger, cross-proce
 reviewer: source review of legacy request-aware deduplication and regression fixture; no local runtime reviewer
 ```
 
+### ER-02 legacy history sort-key compile correction (2026-10-04)
+
+```text
+source_snapshot: parent `1f1a1a0a`; failing CI head `30a0abbc`; correction `890d9585`; kiana-core/src/history.rs; docs/roadmap/event-receipt-identity-baseline.md §14
+worktree_status: sort closure recomputes `stream_version.unwrap_or(sequence)` after remote E0425; request-aware deduplication remains unchanged; no EventStore, authorization or second execution path changed
+command_argv: remote `gh run view 37171766266 --job 111345974212 --log-failed`; targeted rustfmt; `git diff --check`; push-triggered `.github/workflows/ci.yml`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: run `37171766266`, PD-01 daemon fixture compile failed at `kiana-core/src/history.rs:256` with E0425; correction commit `890d9585`; replacement unified CI `37172404477` pending
+exit_code: old-head remote compile failure observed; targeted format/diff checks 0; replacement CI pending; no local runtime exit code
+status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; proof_level=source
+proof-level change: none; compile correction does not promote runtime proof
+limitations: full legacy migration/upcast, durable InvocationLedger, cross-process ordering, terminal/result reconciliation and external effect receipts remain open; no replacement CI success is claimed
+reviewer: source review of compiler diagnostic and minimal closure-local sort-key restoration; no local runtime reviewer
+```
+
 ### SC-07 assignment project binding (2026-10-04)
 
 ```text
@@ -19316,6 +19331,21 @@ status_change: OA-02 roadmap row 093 remains `🔄`; feature_status=partial; pro
 proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: authenticated ingress propagation, provider/Broker/EventLog correlation, durable recovery links, exporter/live trace and physical evidence remain open
 reviewer: source review of request-binding validation order and deny-first malformed-context fixture; no local runtime reviewer
+```
+
+### OA-02 request-binding focused CI receipt (2026-10-04)
+
+```text
+source_snapshot: `1f1a1a0a87ae078208d44973cebeb9910d7dcee5`; source contains OA-02 request-binding validation `be15162d` and documentation `1f1a1a0a`
+worktree_status: focused workflow `oa02-correlation.yml` completed successfully for its domain and ports targets; latest follow-up compile correction `890d9585` is unrelated and was not part of this receipt
+command_argv: `gh run view 37172241908`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: run `37172241908`, job `111347403822` (`correlation`): formatting, OA-02 domain correlation fixtures, OA-02 ports boundary fixtures, and both target-scoped compile steps all succeeded
+exit_code: focused GitHub Actions run success; no local runtime exit code
+status_change: OA-02 roadmap row 093 remains `🔄`; feature_status=partial; proof_level=source
+proof-level change: none; focused domain/ports acceptance does not establish the authenticated ingress-to-EventLog runtime chain
+limitations: provider/Broker/EventLog correlation, durable recovery links, exporter, live/physical trace proof and whole-workspace green CI remain unproven
+reviewer: CI run `37172241908` exact job and step results reviewed; no local runtime reviewer
 ```
 
 ### ER-02 stable authority revision across request contexts (2026-10-03)

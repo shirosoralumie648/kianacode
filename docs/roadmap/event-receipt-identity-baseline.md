@@ -188,3 +188,24 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: this only corrects history-fold deduplication; full legacy upcast, durable InvocationLedger, cross-process ordering, terminal reconciliation and external effect receipts remain open
 reviewer: source review of request-aware legacy deduplication and deny-first regression fixture; no local runtime reviewer
 ```
+
+## 14. Legacy history sort-key compile correction (2026-10-04)
+
+The first changed-source push exposed a compile regression in the legacy-history slice:
+`event_order` was computed while constructing the deduplication key but was also referenced from
+the later sort closure, where it was out of scope. The sort closure now recomputes the same
+request-local/stream-version order key. This restores compilation without changing the
+request-aware deduplication boundary or modern ordering semantics.
+
+```text
+source_snapshot: parent `1f1a1a0a`; failing CI head `30a0abbc`; correction `890d9585`; kiana-core/src/history.rs
+worktree_status: sort closure recomputes `stream_version.unwrap_or(sequence)` locally; deduplication still includes `request_id`; no EventStore, authorization or execution-path change
+command_argv: remote `gh run view 37171766266 --job 111345974212 --log-failed`; targeted rustfmt; `git diff --check`; push-triggered `.github/workflows/ci.yml`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: run `37171766266`, PD-01 daemon fixture compile reached `kiana-core/src/history.rs:256` and failed E0425 for `event_order`; correction pushed as `890d9585`; replacement CI run `37172404477` pending
+exit_code: remote compile failure observed at the old head; targeted format/diff checks 0; replacement CI pending; no local runtime exit code
+status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; the correction only removes a compile blocker and does not establish runtime behavior
+limitations: full legacy migration/upcast, durable InvocationLedger, cross-process ordering, terminal/result reconciliation and external effect receipts remain open; no CI success is claimed for the correction yet
+reviewer: source review of the remote compiler diagnostic and minimal sort-key restoration; no local runtime reviewer
+```
