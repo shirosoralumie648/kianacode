@@ -1,7 +1,8 @@
 use kiana_domain::{
-    check_event_schema_version, event_kind_spec, event_migration, unknown_event_policy,
-    validate_event_payload, validate_runtime_event, EventKindSpec, RequestId, RuntimeEvent,
-    SchemaVersion, UnknownEventPolicy, EVENT_KIND_SPECS, RUNTIME_EVENT_SCHEMA,
+    check_event_schema_version, event_kind_spec, event_migration, resolve_event_payload,
+    unknown_event_policy, upcast_event_payload, validate_event_payload, validate_runtime_event,
+    EventKindSpec, RequestId, RuntimeEvent, SchemaVersion, UnknownEventPolicy, EVENT_KIND_SPECS,
+    RUNTIME_EVENT_SCHEMA,
 };
 use serde_json::json;
 
@@ -65,6 +66,83 @@ fn unknown_required_kind_and_schema_downgrade_fail_closed() {
         Some("legacy_run_event_v0_to_v1")
     );
     assert!(event_migration("future.opaque", 0, 1).is_none());
+}
+
+#[test]
+fn event_schema_resolution_dispatches_named_migration_and_preserves_opaque_payload() {
+    let run_id = kiana_domain::RunId::new();
+    let payload = json!({"run_id": run_id, "reason": "legacy"});
+    let migrated =
+        resolve_event_payload("run.failed", &SchemaVersion::new(0, 0), payload.clone()).unwrap();
+    assert_eq!(migrated.payload(), &payload);
+    assert_eq!(
+        upcast_event_payload("run.failed", 0, 1, payload.clone()).unwrap(),
+        payload
+    );
+    assert_eq!(
+        migrated,
+        kiana_domain::EventSchemaResolution::Migrated {
+            payload: payload.clone(),
+            migration: "legacy_run_event_v0_to_v1",
+            from: SchemaVersion::new(0, 0),
+            to: SchemaVersion::new(1, 0),
+        }
+    );
+
+    let opaque_payload = json!({"future_field": true});
+    let opaque = resolve_event_payload(
+        "future.opaque",
+        &SchemaVersion::new(99, 0),
+        opaque_payload.clone(),
+    )
+    .unwrap();
+    assert!(opaque.is_opaque());
+    assert_eq!(opaque.payload(), &opaque_payload);
+
+    assert_eq!(
+        resolve_event_payload("run.future", &SchemaVersion::new(1, 0), json!({})).unwrap_err(),
+        "unknown_required_event_kind"
+    );
+    assert_eq!(
+        upcast_event_payload("run.failed", 0, 2, json!({"run_id": run_id})).unwrap_err(),
+        "event_migration_unavailable"
+    );
+    let mut legacy_unknown = payload;
+    legacy_unknown["future_field"] = json!(true);
+    assert_eq!(
+        upcast_event_payload("run.failed", 0, 1, legacy_unknown).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
+fn event_schema_version_rejects_minor_downgrade_without_changing_generic_schema_rules() {
+    let spec = EventKindSpec {
+        kind: "fixture",
+        schema: RUNTIME_EVENT_SCHEMA,
+        version: SchemaVersion::new(1, 2),
+        owner_crate: "kiana-domain",
+        aggregate_type: "run",
+        required_ids: &[],
+        allowed_fields: &[],
+        terminal: false,
+        secret_policy: "redact_event_value_or_reject",
+        migration: None,
+    };
+    assert!(!spec.accepts_version(&SchemaVersion::new(1, 1)));
+    assert_eq!(
+        spec.validate_version(&SchemaVersion::new(1, 1))
+            .unwrap_err(),
+        "event_schema_version_downgrade"
+    );
+    assert!(spec.accepts_version(&SchemaVersion::new(1, 3)));
+    spec.validate_version(&SchemaVersion::new(1, 3)).unwrap();
+    assert!(!spec.accepts_version(&SchemaVersion::new(2, 0)));
+    assert_eq!(
+        spec.validate_version(&SchemaVersion::new(2, 0))
+            .unwrap_err(),
+        "event_schema_version_incompatible"
+    );
 }
 
 #[test]

@@ -82,9 +82,17 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     }
     for marker in [
         "EventKindSpec",
+        "EventSchemaResolution",
         "EVENT_KIND_SPECS",
         "EVENT_MIGRATIONS",
+        "accepts_version",
+        "validate_version",
+        "upcast_event_payload",
+        "event_migration_unavailable",
+        "event_migration_unimplemented",
+        "resolve_event_payload",
         "unknown_required_event_kind",
+        "event_schema_version_downgrade",
         "event_schema_version_incompatible",
         "event_payload_unknown_field",
         "validate_runtime_event",
@@ -114,7 +122,16 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
     assert!(states.contains("pub struct RuntimeEvent"));
     assert!(states.contains("pub event_id: EventId"));
     assert!(journal.contains("JOURNAL_FRAME_SCHEMA"));
-    assert!(protocol.contains("RuntimeEvent") || protocol.contains("EventKind"));
+    for marker in [
+        "EventSchemaResolution",
+        "resolve_event_payload",
+        "check_event_schema_version",
+    ] {
+        assert!(
+            protocol.contains(marker),
+            "missing protocol event boundary: {marker}"
+        );
+    }
     assert!(baseline.contains("unknown_required_event_kind_fails_closed"));
     assert!(baseline.contains("event_schema_version_cannot_downgrade"));
     assert!(baseline.contains("event_payload_unknown_field_is_not_silently_dropped"));

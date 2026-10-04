@@ -192,6 +192,63 @@ pub struct EventKindSpec {
     pub migration: Option<&'static str>,
 }
 
+impl EventKindSpec {
+    /// Return whether a payload at `incoming` can be read under this kind's schema.
+    ///
+    /// Runtime event readers are forward-compatible across additive minor versions, but they
+    /// must not interpret an older minor as if it contained fields introduced by the current
+    /// contract. A major change is handled separately by an explicit migration entry.
+    pub fn accepts_version(&self, incoming: &SchemaVersion) -> bool {
+        self.version.major == incoming.major && incoming.minor >= self.version.minor
+    }
+
+    pub fn validate_version(&self, incoming: &SchemaVersion) -> Result<(), String> {
+        if self.version.major == incoming.major && incoming.minor < self.version.minor {
+            return Err("event_schema_version_downgrade".to_owned());
+        }
+        if !self.accepts_version(incoming) {
+            return Err("event_schema_version_incompatible".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Result of resolving one event payload against the server-owned registry.
+///
+/// `Opaque` deliberately retains the original value. It is queryable evidence only and must not
+/// be folded into an authority or execution projection. `Migrated` records the named adapter that
+/// made the legacy payload readable; it does not rewrite the original event bytes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EventSchemaResolution {
+    Current {
+        payload: Value,
+    },
+    Migrated {
+        payload: Value,
+        migration: &'static str,
+        from: SchemaVersion,
+        to: SchemaVersion,
+    },
+    Opaque {
+        kind: String,
+        payload: Value,
+    },
+}
+
+impl EventSchemaResolution {
+    pub fn payload(&self) -> &Value {
+        match self {
+            Self::Current { payload }
+            | Self::Migrated { payload, .. }
+            | Self::Opaque { payload, .. } => payload,
+        }
+    }
+
+    pub const fn is_opaque(&self) -> bool {
+        matches!(self, Self::Opaque { .. })
+    }
+}
+
 const RUN_FIELDS: &[&str] = &[
     "run_id",
     "sequence",
@@ -1750,10 +1807,7 @@ pub fn check_event_schema_version(kind: &str, incoming: &SchemaVersion) -> Resul
             .err()
             .unwrap_or_else(|| "event_kind_opaque".to_owned())
     })?;
-    if !spec.version.is_compatible_with(incoming) {
-        return Err("event_schema_version_incompatible".to_owned());
-    }
-    Ok(())
+    spec.validate_version(incoming)
 }
 
 pub fn event_migration(kind: &str, from_major: u32, to_major: u32) -> Option<&'static str> {
@@ -1763,6 +1817,71 @@ pub fn event_migration(kind: &str, from_major: u32, to_major: u32) -> Option<&'s
                 kind.starts_with(&format!("{family}.")) && *from == from_major && *to == to_major
             })
         })
+    })
+}
+
+/// Apply a named legacy event upcaster without mutating the stored event.
+///
+/// The current v0 event families keep their payload shape across the v0-to-v1 envelope change, so
+/// their upcasters are intentionally identity transforms. Keeping the dispatch explicit still
+/// matters: adding a migration entry without an implementation must fail closed, and every
+/// upcaster validates the bounded current payload before it can be projected.
+pub fn upcast_event_payload(
+    kind: &str,
+    from_major: u32,
+    to_major: u32,
+    payload: Value,
+) -> Result<Value, String> {
+    let migration = event_migration(kind, from_major, to_major)
+        .ok_or_else(|| "event_migration_unavailable".to_owned())?;
+    validate_event_payload(kind, &payload)?;
+    match migration {
+        "legacy_run_event_v0_to_v1"
+        | "legacy_approval_event_v0_to_v1"
+        | "legacy_invocation_event_v0_to_v1"
+        | "legacy_action_event_v0_to_v1"
+        | "legacy_session_event_v0_to_v1" => Ok(payload),
+        _ => Err("event_migration_unimplemented".to_owned()),
+    }
+}
+
+/// Resolve a payload through the event registry without mutating the original event.
+///
+/// This is the executable migration boundary for readers and projectors. Registered current
+/// payloads are validated before use; registered legacy payloads must have a named migration and
+/// are returned with that adapter identity; unknown optional kinds are retained as opaque values;
+/// required-family unknowns and unknown fields fail closed.
+pub fn resolve_event_payload(
+    kind: &str,
+    incoming: &SchemaVersion,
+    payload: Value,
+) -> Result<EventSchemaResolution, String> {
+    let Some(spec) = event_kind_spec(kind) else {
+        unknown_event_policy(kind)?;
+        return Ok(EventSchemaResolution::Opaque {
+            kind: kind.to_owned(),
+            payload,
+        });
+    };
+
+    if incoming.major == spec.version.major {
+        check_event_schema_version(kind, incoming)?;
+        validate_event_payload(kind, &payload)?;
+        return Ok(EventSchemaResolution::Current { payload });
+    }
+
+    if incoming.major > spec.version.major {
+        return Err("event_schema_version_incompatible".to_owned());
+    }
+
+    let migration = event_migration(kind, incoming.major, spec.version.major)
+        .ok_or_else(|| "event_schema_version_incompatible".to_owned())?;
+    let payload = upcast_event_payload(kind, incoming.major, spec.version.major, payload)?;
+    Ok(EventSchemaResolution::Migrated {
+        payload,
+        migration,
+        from: *incoming,
+        to: spec.version,
     })
 }
 
