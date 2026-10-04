@@ -11457,6 +11457,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus opaque SecretRef/ProviderAccount/config snapshot, CredentialLease one-shot/expiry/purpose/audience/endpoint, CredentialResolver/SecretStore no-raw boundary, Broker consumption and recursive redaction/sentinel review; no runtime test reviewer
 ```
 
+### SC-18 focused workflow refresh (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/sc18-secret-ref.yml`; kiana-domain/src/{identity_contracts.rs,credentials.rs,redaction.rs}; kiana-domain/tests/ci07_credential_lease.rs; kiana-ports/src/lib.rs; kiana-provider/src/{credentials.rs,config.rs,transport.rs}; kiana-provider/tests/ci07_secret_store.rs; kiana-capability-broker/src/lib.rs; kiana-daemon/src/model_client.rs; kiana-core/tests/sc18_secret_ref_guard.rs; docs/roadmap/sc18-secret-ref-baseline.md
+worktree_status: focused GitHub lane now includes locked dependency fetch, format, domain/provider fixtures, Core guard and three target-scoped no-run compile steps; SecretRef/CredentialLease/SecretStore semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc18-secret-ref.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: opaque ref/provider account/config snapshot, one-shot/expiry/purpose/audience/endpoint lease binding, secret-free JSON, missing SecretStore resolution, no-raw/passthrough Broker/redaction guard and three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-18 roadmap row 212 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: daemon lease rotation/revocation, crash recovery, full secret egress audit and external/live/physical proof remain SC-19+ / OA / ER work
+reviewer: source review matched opaque credential and effect-time lease boundaries plus existing no-raw guard ownership; no local runtime reviewer
+```
+
 ### SC-19 secret rotation / revocation evidence (2026-09-18)
 
 ```text
