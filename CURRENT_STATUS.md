@@ -22617,6 +22617,21 @@ limitations: no external run rejection behavior, no persistent migration runner 
 reviewer: source review of all current `run.rejected` producers, registry dual-shape contract, aggregate selection and deny-first fixture; no local runtime reviewer
 ```
 
+### ER-01 current-head contract/producer lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er01-event-schema.yml`; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/src/events.rs; kiana-core/tests/{er01_event_contract_guard.rs,control_plane.rs}; kiana-eventlog/src/event_store_core.rs
+worktree_status: current master contains executable current/migrated/opaque schema resolution, request/run `run.rejected` contract and real ControlPlane producer target; workflow re-executes domain/Core/real-producer/EventStore matrix; no second EventStore/execution loop, manifest or lockfile changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er01-event-schema.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: schema version/upcast/opaque/unknown-field fixtures, `run.rejected` request/run reason validation, real invalid-input producer with zero Runner/Broker calls, lifecycle producer registry checks and full kiana-eventlog target; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-01 roadmap row 036 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: real deny producer and full EventStore shard may still expose producer/PD-27 gates; persistent migration runner, legacy byte rewrite, generic projector/terminal reconciliation and complete EventStore acceptance remain open
+reviewer: source review matched registry, aggregate selection, real-producer target and storage validation boundary; no local runtime reviewer
+```
+
 ### CI-07 focused lane correction (2026-10-04)
 
 ```text
