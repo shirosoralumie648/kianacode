@@ -22632,6 +22632,21 @@ limitations: ProviderBudget/EffectiveBudget remain pure in-memory contracts; quo
 reviewer: source review of conservative intersection target partition, child scope denial and no-financial-authority guard ownership; no local runtime reviewer
 ```
 
+### BQ-07 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/bq07-quota-window.yml`; kiana-domain/src/{billing_quota.rs,lib.rs,clock.rs}; kiana-domain/tests/bq07_quota_window.rs; kiana-core/tests/bq07_quota_window_guard.rs; docs/roadmap/billing-quota-window-baseline.md
+worktree_status: restored a GitHub-only BQ-07 domain quota-window/group fixture/Core guard lane with formatting and target-scoped compile; trusted-clock window/group behavior, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run bq07-quota-window.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: UTC floor/retry-after, rollback/untrusted clock denial, provider/credential/model/alias canonicalization, empty group and over-limit denial, Core trusted-clock/no-provider/no-I/O/financial guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: BQ-07 roadmap row 196 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no durable reservation/fence/CAS, fair queue, cross-process clock store or provider capacity backend; those remain BQ-08+
+reviewer: source review of trusted-clock target partition, canonical group identity and no-provider/financial-authority guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
