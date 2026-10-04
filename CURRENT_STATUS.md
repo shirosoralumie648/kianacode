@@ -11385,6 +11385,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus cancellation fact digest/state transition, cancellation token/retry/stream fence, stop confirmation/result-unknown split, unknown receipt fencing, resource quarantine and evidence-gated reconciliation review; no runtime test reviewer
 ```
 
+### SC-15 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/sc15-cancel-unknown.yml`; kiana-domain/src/{cancellation.rs,states.rs,platform.rs}; kiana-runner/src/{state_driver.rs,harness.rs}; kiana-runner/tests/h08_cancellation_guard.rs; kiana-core/src/{lifecycle.rs,dispatch.rs,sessions.rs,platform.rs,recovery.rs}; kiana-core/tests/{sc15_cancel_unknown.rs,sc15_cancel_unknown_guard.rs}; docs/roadmap/sc15-cancel-unknown-baseline.md
+worktree_status: restored a GitHub-only SC-15 Core cancellation fact/guard and Runner H08 guard lane with formatting and three target-scoped compile steps; cancellation/Unknown semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc15-cancel-unknown.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: durable cancellation intent, one-way Cancelled/ResultUnknown transition, stop confirmation, run/terminal consistency, capability stop receipt, effect-known fence, quarantine/reconciliation, forbidden false-success/automatic-retry guard and three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-15 roadmap row 209 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: external provider reconciliation, cross-process crash recovery and live/physical stop evidence remain SC-16+ / PD / ER work
+reviewer: source review matched cancellation fact/state transition, Runner fence, Unknown split and reconciliation guard target ownership; no local runtime reviewer
+```
+
 ### SC-16 quota / bounded channel / backpressure evidence (2026-09-18)
 
 ```text
