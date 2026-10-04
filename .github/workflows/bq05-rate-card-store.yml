@@ -1,0 +1,29 @@
+name: BQ-05 rate card store
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rate-card-store:
+    name: BQ-05 rate card store fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run BQ-05 ports rate-card fixtures
+        run: cargo test -p kiana-ports --test bq05_rate_card_store --locked -- --test-threads=1
+      - name: Run BQ-05 Core source guard
+        run: cargo test -p kiana-core --test bq05_rate_card_guard --locked -- --test-threads=1
+      - name: Compile BQ-05 ports target
+        run: cargo test -p kiana-ports --test bq05_rate_card_store --no-run --locked
+      - name: Compile BQ-05 Core guard target
+        run: cargo test -p kiana-core --test bq05_rate_card_guard --no-run --locked

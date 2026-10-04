@@ -22602,6 +22602,21 @@ limitations: observations remain sanitized caller inputs rather than live syscal
 reviewer: source review of scrubbed evidence target partition, safety violation precedence and no-real-system-read guard ownership; no local runtime reviewer
 ```
 
+### BQ-05 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/bq05-rate-card-store.yml`; kiana-domain/src/billing_pricing.rs; kiana-ports/src/lib.rs; kiana-ports/tests/bq05_rate_card_store.rs; kiana-core/tests/bq05_rate_card_guard.rs; docs/roadmap/billing-rate-card-store-baseline.md
+worktree_status: restored a GitHub-only BQ-05 ports RateCardStore fixture/Core guard lane with formatting and target-scoped compile; RateCard/RateCardStore behavior, manifest, lockfile and financial authority unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run bq05-rate-card-store.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: pinned provider/model lookup, cache/reasoning/audio/request/tool/effect dimension mapping, overlap/duplicate/unknown/expiry denial, card-version estimate binding, Core no-provider/no-financial-authority guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: BQ-05 roadmap row 194 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: adapter is fixture-only and non-durable; provider discovery/invoice import/currency conversion/reservation authority and durable cost ledger remain open
+reviewer: source review of RateCardStore target partition, pinned version semantics and no-financial-authority guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
