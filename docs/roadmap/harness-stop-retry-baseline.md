@@ -209,6 +209,28 @@ and Responses ContextRepair. H05 remains `partial/source`; this receipt does not
 full crate shard, automatic repair/compaction, streaming accumulator, budget, live provider or
 physical effect.
 
+## 4.8 Provider response evidence boundary (2026-10-04)
+
+The provider response parser now preserves the fact that a response was received when it rejects
+the response. Envelope/stream parser failures, incomplete or unknown stop states, refusal/length
+outcomes, malformed tool arguments and structured-output validation errors carry
+`request_sent=true` with `side_effect_state=none`; they remain `retry_class=Never` unless an
+explicit typed transport policy says otherwise. The parser boundary does not infer a capability
+effect and does not introduce an automatic repair loop.
+
+```text
+source_snapshot: `668e6773`; kiana-provider/src/response.rs; kiana-runner/tests/h05_stop_guard.rs; .github/workflows/h05-stop-diagnostic.yml
+worktree_status: provider response and stream parser failures preserve request evidence; existing typed stop/retry and no-handoff guards remain; no manifest, lockfile, transport or second execution loop changed
+command_argv: isolated `cargo fmt --all`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root cherry-pick `874c8ab2`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/home/shirosora/kiana-wt/h05-stop-retry-20261004`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: existing H05 domain/runner fixtures plus provider selector `refusal_length_empty_and_invalid_json_are_distinct`; parser checks request evidence, no side effect and no implicit retry for refusal, length, incomplete, unknown stop and malformed response cases
+exit_code: isolated format/diff checks 0; changed-source GitHub workflow pending; no local runtime exit code
+status_change: H05 remains roadmap row 047 `🔄`; `feature_status=partial`; `proof_level=source`
+proof-level_change: none; focused remote evidence for this new selector has not been observed
+limitations: automatic FormatRepair/ToolRepair/ContextRepair execution, H06 stream accumulation, H07 budget settlement, full shard/live provider, external effect and physical proof remain open
+reviewer: provider parser/error boundary and source guard reviewed; no local runtime reviewer
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。

@@ -22286,3 +22286,18 @@ proof-level_change: effect-boundary source/test coverage broadened; no durable/l
 limitations: ControlPlane preparation, budget/lease/approval transaction and post-prepare crash recovery remain unproven; external provider/connector exactly-once and unified CI remain open
 reviewer: real Broker registry, JournalPermitVerifier, MemoryEventLog CAS and handler evidence reviewed; no local runtime reviewer
 ```
+
+### H05 provider response evidence boundary (2026-10-04)
+
+```text
+source_snapshot: parent `2f2ff1ab` plus `668e6773`; kiana-provider/src/response.rs; kiana-runner/tests/h05_stop_guard.rs; .github/workflows/h05-stop-diagnostic.yml
+worktree_status: provider envelope/stream parser failures preserve request_sent=true and side_effect_state=none; refusal, length, incomplete, unknown-stop and malformed-response paths remain typed no-retry; no manifest, lockfile, transport or second execution loop changed
+command_argv: isolated `cargo fmt --all`; isolated `cargo fmt --all --check`; isolated `git diff --check`; root cherry-pick `874c8ab2`; after push `gh workflow run h05-stop-diagnostic.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/home/shirosora/kiana-wt/h05-stop-retry-20261004`; Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: existing H05 domain/runner fixtures plus provider selector `refusal_length_empty_and_invalid_json_are_distinct`; parser checks received-response evidence, no capability side effect and no implicit repair/retry
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: H05 roadmap row 047 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no remote receipt for this changed selector has been observed
+limitations: automatic repair/compaction, H06 stream accumulation, H07 budget settlement, full shard/live provider, external effect and physical proof remain open
+reviewer: provider parser and H05 source guard reviewed; no local runtime reviewer
+```
