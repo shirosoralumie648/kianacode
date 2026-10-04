@@ -2724,6 +2724,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus OA-14 domain/core trace-export static-boundary review; no runtime test reviewer
 ```
 
+### OA-14 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/oa14-trace-export.yml`; kiana-domain/src/{contracts.rs,observability.rs}; kiana-core/src/{trace_export.rs,lib.rs}; kiana-core/tests/oa14_trace_export.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: restored a GitHub-only OA-14 TraceExportSpan/local exporter lane with formatting and target-scoped compile; trace semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run oa14-trace-export.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: invalid W3C parent/trace ID, foreign link, sampled-out/no-op, low-cardinality secret redaction, capacity/closed and JSONL flush/shutdown/reopen fixtures; OA-14 no-run compile target; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: OA-14 roadmap row 273 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: exporter is process-local with no OTLP/external backend, durable queue/spool, persisted sampling policy, cross-process recovery or live trace completeness; flush only acknowledges local record handling
+reviewer: source review matched trace exporter fixture ownership and target-scoped compile; no local runtime reviewer
+```
+
 ### OA-15 AuditProjection checkpoint/rebuild evidence (2026-09-15)
 
 ```text
