@@ -12503,6 +12503,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus deadline coverage, bounded frame/bytes/notifications, JSON-RPC ID/result-error correctness, pagination cycle, server-request rejection, schema/content limits, no safe retry after sent call and shared stop supervisor review; no runtime test reviewer
 ```
 
+### CAP-21 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap21-mcp-bounded-transport.yml`; kiana-daemon/src/{mcp_stdio.rs,harness_mcp.rs,process_supervisor.rs}; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/cap21_mcp_bounded_transport_guard.rs; docs/roadmap/cap21-mcp-bounded-transport-baseline.md
+worktree_status: restored a GitHub-only CAP-21 bounded stdio MCP lane with formatting and daemon/Core target-scoped compile; transport semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap21-mcp-bounded-transport.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: P1-J4-01 lifecycle, deadline/frame/bytes/notification/JSON-RPC/pagination/server-request/schema/content bounds and ProcessSupervisor stop/Unknown guard; daemon/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-21 roadmap row 251 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: live MCP interoperability, HTTP transport, pooled process isolation and cross-process transport recovery remain later evidence
+reviewer: source review matched bounded transport guard ownership and selected daemon/Core partition; no local runtime reviewer
+```
+```
+
 ### CAP-22 MCP drift / invocation isolation evidence (2026-09-19)
 
 ```text
