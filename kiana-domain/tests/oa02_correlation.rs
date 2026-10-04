@@ -99,6 +99,31 @@ fn request_binding_rejects_forged_actor_epoch_and_scope() {
 }
 
 #[test]
+fn request_binding_rejects_structurally_invalid_context_before_identity_checks() {
+    let request = request();
+    let scope = scope(&request);
+    let root = CorrelationContext::root(&request, scope.clone(), 3, 5, None).unwrap();
+
+    let mut forged_parent = root.clone();
+    forged_parent.span_links = vec![SpanLink::new(root.current_span(), SpanLinkKind::Parent)];
+    assert_eq!(
+        forged_parent
+            .validate_for_request(&request, &scope, 3, 5)
+            .unwrap_err(),
+        "correlation_parent_link_invalid"
+    );
+
+    let mut nil_request = root;
+    nil_request.request_id = RequestId::from_uuid(Uuid::nil());
+    assert_eq!(
+        nil_request
+            .validate_for_request(&request, &scope, 3, 5)
+            .unwrap_err(),
+        "correlation_request_id_invalid"
+    );
+}
+
+#[test]
 fn run_turn_invocation_attempt_links_are_ordered_and_command_bound() {
     let request = request();
     let scope = scope(&request);

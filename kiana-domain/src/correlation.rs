@@ -615,6 +615,7 @@ impl CorrelationContext {
         authority_epoch: u64,
         data_epoch: u64,
     ) -> Result<(), String> {
+        self.validate()?;
         scope.validate()?;
         if self.request_id != request.request_id || self.correlation_id != request.request_id {
             return Err("correlation_request_mismatch".to_owned());

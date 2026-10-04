@@ -26,6 +26,11 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     assert!(events.contains("stamp_event_links"));
     assert!(correlation.contains("CausationRef"));
     assert!(correlation.contains("AttemptRef"));
+    assert!(
+        correlation.contains("pub fn validate_for_request")
+            && correlation.contains("        self.validate()?;\n        scope.validate()?;"),
+        "OA-02 request binding must validate the full context before identity checks"
+    );
     for marker in [
         "correlation_attempt_id_invalid",
         "correlation_causation_event_id_invalid",
