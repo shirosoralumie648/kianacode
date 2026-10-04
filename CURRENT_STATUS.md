@@ -11913,6 +11913,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus integrity scan/corrupt-vs-empty distinction, projection/resource/pending/Unknown rebuild, readiness degradation and no-auto-resume/no-permit/no-Broker restart boundary review; no runtime test reviewer
 ```
 
+### ER-20 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er20-restart-projector.yml`; kiana-eventlog/src/{jsonl.rs,integrity.rs}; kiana-core/src/{recovery.rs,projection.rs,resource_projection.rs,capability_attempt_projection.rs,audit_projection.rs,health.rs}; kiana-daemon/src/lib.rs; kiana-runner/src/harness.rs; kiana-ports/src/lib.rs; selected PD-06/09, ER-10, OA-11/15, daemon UI and ER-20 guard targets; docs/roadmap/er20-restart-projector-baseline.md
+worktree_status: restored a GitHub-only ER-20 restart/projector/default-pause lane with formatting and selected target-scoped compile; recovery semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er20-restart-projector.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: journal integrity/corrupt/torn-tail, projector driver, resource/audit/health/UI projections, pending/Unknown rebuild, readiness degradation and ER-20 no-auto-resume/no-permit/no-Broker guard; selected Core/daemon no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-20 roadmap row 229 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: cross-process projector durability, power-loss recovery, physical journal repair and ER-21/ER-22 proof remain open
+reviewer: source review matched integrity/projector/default-pause guard ownership and selected target partition; no local runtime reviewer
+```
+
 ### ER-21 explicit resume preflight / claim evidence (2026-09-18)
 
 ```text
