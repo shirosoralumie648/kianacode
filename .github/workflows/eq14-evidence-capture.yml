@@ -1,0 +1,29 @@
+name: EQ-14 evaluation evidence capture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-capture:
+    name: EQ-14 bounded evidence capture and flush fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run EQ-14 daemon evidence fixtures
+        run: cargo test -p kiana-daemon --test eq14_evidence_capture --locked -- --test-threads=1
+      - name: Run EQ-14 Core source guard
+        run: cargo test -p kiana-core --test eq14_evidence_capture_guard --locked -- --test-threads=1
+      - name: Compile EQ-14 daemon target
+        run: cargo test -p kiana-daemon --test eq14_evidence_capture --no-run --locked
+      - name: Compile EQ-14 Core guard target
+        run: cargo test -p kiana-core --test eq14_evidence_capture_guard --no-run --locked

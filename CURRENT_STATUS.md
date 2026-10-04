@@ -22557,6 +22557,21 @@ limitations: store remains in-memory and is not durable EvalStore/ProjectTrust/E
 reviewer: source review of controlled fixture-store target partition, digest binding and no-filesystem/operator-home boundary; no local runtime reviewer
 ```
 
+### EQ-14 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/eq14-evidence-capture.yml`; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq14_evidence_capture.rs; kiana-core/tests/eq14_evidence_capture_guard.rs; docs/roadmap/evaluation-evidence-capture-baseline.md
+worktree_status: restored a GitHub-only EQ-14 daemon evidence-capture fixture/Core guard lane with formatting and target-scoped compile; `EvalEvidenceCapture`, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run eq14-evidence-capture.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: bounded RuntimeEvent/invocation/artifact/receipt/CommandReceipt capture, redaction/size/duplicate/closed guards, flush-failure `infra_flush_unknown`/`InfraUnknown`, Core no-second-fact-source guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: EQ-14 roadmap row 186 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: capture remains bounded in-memory projection and is not attached to live EventStore/artifact/receipt observers; EQ-15 fault/restart plans and quality result persistence remain open
+reviewer: source review of evidence target partition, flush Unknown boundary and no-second-fact-source guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
