@@ -21298,6 +21298,21 @@ limitations: runtime EventStore/Receipt/Provider/Broker/TraceSink/export produce
 reviewer: exact focused job steps and target-scoped compile result reviewed; no local runtime reviewer
 ```
 
+### OA-03 Audit export redaction boundary (2026-10-04)
+
+```text
+source_snapshot: parent `6862fbab`; source `aef739b8`; kiana-core/src/audit_export.rs; kiana-core/tests/oa03_redaction_guard.rs; .github/workflows/oa03-redaction.yml; docs/roadmap/observability-audit-baseline.md §11
+worktree_status: Audit export materialization revalidates records with RedactionProfile::Export and bounded encoding; changed digest-bound records and residual sentinels fail closed; no authority, manifest, lockfile or second execution path changed
+command_argv: isolated rustfmt --edition 2021; isolated git diff --check; root cherry-pick `5896910f`; push `aef739b8`; `gh workflow run oa03-redaction.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: Core source guard and `oa03_audit_export_rejects_secret_sentinel_without_returning_content`; focused run `37174027464` pending
+exit_code: isolated format/diff checks 0; focused CI pending; no local runtime exit code
+status_change: OA-03 roadmap row 094 remains `🔄`; feature_status=partial; proof_level=source
+proof-level change: Audit export producer boundary broadened; no promotion to local_behavior, durable, live or physical
+limitations: EventLog/Receipt/Metric/Trace sink wiring, streaming split-marker coverage, arbitrary unmarked secret formats, downstream classification and durable/live export remain open
+reviewer: source review of AuditRecord digest/redaction invariants, export-format parity and deny-first sentinel fixture; no local runtime reviewer
+```
+
 ### OA-04 focused audit workflow restored (2026-10-03)
 
 ```text

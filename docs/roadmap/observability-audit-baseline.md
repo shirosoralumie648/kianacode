@@ -947,3 +947,26 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: authenticated ingress propagation through provider/Broker/EventLog, durable recovery links, exporter integration and live trace evidence remain open
 reviewer: source review of validation ordering, forged-link fixture and identity guard; no local runtime reviewer
 ```
+
+## 11. Audit export redaction boundary (2026-10-04)
+
+Audit export materialization now revalidates each `AuditRecord` through the bounded
+`RedactionProfile::Export` encoder before rendering JSONL, JSON, or CSV. A residual secret
+sentinel, encoder failure, or any transformed value is rejected as `RedactionFailed`; the latter
+preserves the existing `AuditRecord::record_digest` instead of emitting a changed object with a
+stale source digest. CSV is generated from the same validated structured value as the other
+formats, so it cannot bypass the export profile. This is a producer boundary only; it does not
+wire every EventLog/Receipt/Metric/Trace sink.
+
+```text
+source_snapshot: parent `6862fbab`; source `aef739b8`; kiana-core/src/audit_export.rs; kiana-core/tests/oa03_redaction_guard.rs; .github/workflows/oa03-redaction.yml
+worktree_status: export materialization uses RedactionProfile::Export + encode_bounded_value; changed records and residual secret sentinels fail closed; no manifest, lockfile, authority or execution-loop change
+command_argv: isolated rustfmt --edition 2021; isolated git diff --check; root cherry-pick `5896910f`; push `aef739b8`; `gh workflow run oa03-redaction.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated OA-03 worktree; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: Core source guard and `oa03_audit_export_rejects_secret_sentinel_without_returning_content`; focused run `37174027464` pending
+exit_code: isolated formatting/diff checks 0; focused CI pending; no local runtime exit code
+status_change: OA-03 roadmap row 094 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: Audit export producer boundary broadened; no local_behavior, durable, live or physical promotion
+limitations: EventLog/Receipt/Metric/Trace producer and sink integration, streaming split-marker coverage, arbitrary unmarked secret formats, downstream classification and durable/live export remain open
+reviewer: source review of AuditRecord digest/redaction invariants, export format parity and deny-first sentinel fixture; no local runtime reviewer
+```
