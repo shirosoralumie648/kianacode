@@ -1,0 +1,33 @@
+name: CAP-23 concurrency and scheduler
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  concurrency-scheduler:
+    name: CAP-23 concurrency and scheduler fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run Cell lifecycle fixtures
+        run: cargo test -p kiana-core --test p1_c02_cell_lifecycle --locked -- --test-threads=1
+      - name: Run quota backpressure source guard
+        run: cargo test -p kiana-core --test sc16_quota_backpressure_guard --locked -- --test-threads=1
+      - name: Run CAP-23 source guard
+        run: cargo test -p kiana-core --test cap23_concurrency_scheduler_guard --locked -- --test-threads=1
+      - name: Compile selected Core targets
+        run: cargo test -p kiana-core --test p1_c02_cell_lifecycle --no-run --locked
+      - run: cargo test -p kiana-core --test sc16_quota_backpressure_guard --no-run --locked
+      - run: cargo test -p kiana-core --test cap23_concurrency_scheduler_guard --no-run --locked
