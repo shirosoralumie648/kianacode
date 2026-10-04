@@ -12053,6 +12053,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus retry-class/effect-state classification, new attempt identity, budget reserve/settle ordering, deadline/backoff/exhaustion, authority re-admission and no Unknown/denied/cancel/no-idempotency retry bypass review; no runtime test reviewer
 ```
 
+### ER-25 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er25-retry-policy.yml`; kiana-domain/src/{model.rs,errors.rs,execution_identity.rs}; kiana-core/src/{capabilities.rs,dispatch.rs,model_attempt_projection.rs}; kiana-runner/src/{harness.rs,budget.rs}; kiana-ports/src/{model.rs,lib.rs}; selected H05/H07/H08/H11 Runner, CP-20/ER-14 Core and ER-25 guard targets; docs/roadmap/er25-retry-policy-baseline.md
+worktree_status: restored a GitHub-only ER-25 retry/new-attempt lane with formatting and selected target-scoped compile; retry semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er25-retry-policy.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: retry class/effect state, fresh attempt identity, budget reserve/settle, deadline/backoff/exhaustion, cancellation/Unknown/no-idempotency boundaries, H05/H07/H08/H11, CP-20, ER-14 and ER-25 source guard; selected Runner/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-25 roadmap row 234 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: provider-specific live backoff, cross-process retry durability and external effect reconciliation remain open
+reviewer: source review matched retry guard ownership, fresh attempt boundary and selected target partition; no local runtime reviewer
+```
+```
+
 ### ER-26 cursor / snapshot / slow-consumer evidence (2026-09-18)
 
 ```text
