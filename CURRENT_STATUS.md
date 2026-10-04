@@ -11722,6 +11722,21 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus authority/policy/data epoch and request/command/correlation/causation/attempt links, approval subject binding, commit/effect/verification Receipt chain, digest-only SecurityReason, stable EventLog redaction and read-only explain/no-consume boundary review; no runtime test reviewer
 ```
 
+### CP-26 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cp26-decision-trace.yml`; kiana-domain/src/{audit.rs,observability.rs,correlation.rs,security_reasons.rs}; kiana-core/src/{events.rs,redaction.rs,audit.rs,audit_projection.rs,audit_export.rs,security_context.rs,security_fence.rs,approval_binding.rs,dispatch.rs,receipts.rs}; kiana-daemon/src/execution_control.rs; kiana-entrypoints/src/provider_diagnostics.rs; selected domain/Core fixtures and cp26_decision_trace_guard; docs/roadmap/cp26-decision-trace-baseline.md
+worktree_status: restored a GitHub-only CP-26 audit/trace/redaction/Receipt lane with formatting and selected target-scoped compile; decision/audit semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cp26-decision-trace.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: OA-04 taxonomy/reducer, OA-14 trace export, OA-15 projection, OA-18 export, ER-03 redaction, ER-11 Receipt, SC-03 security reason, SC-20 redaction boundary and CP-26 cross-layer guard; selected domain/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CP-26 roadmap row 223 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: remote SIEM delivery, live provider effect correctness, durable cross-host explain latency and physical secret-store proof remain later telemetry/migration/product gates
+reviewer: source review matched audit/trace/Receipt/redaction target ownership and read-only explain boundary; no local runtime reviewer
+```
+
 ### CP-27 nonblocking storage / clock / limits evidence (2026-09-18)
 
 ```text
