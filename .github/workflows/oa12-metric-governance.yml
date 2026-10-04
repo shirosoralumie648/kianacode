@@ -1,0 +1,27 @@
+name: OA-12 metric catalog and cardinality governance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oa12:
+    name: OA-12 metric governance fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run OA-12 metric governance fixtures
+        run: cargo test -p kiana-core --test oa12_metric_governance --locked -- --test-threads=1
+      - name: Compile OA-12 metric governance target
+        run: cargo test -p kiana-core --test oa12_metric_governance --no-run --locked
