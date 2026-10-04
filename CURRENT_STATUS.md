@@ -19288,6 +19288,21 @@ limitations: full legacy migration/upcast, durable InvocationLedger, cross-proce
 reviewer: source review of legacy request-aware deduplication and regression fixture; no local runtime reviewer
 ```
 
+### SC-07 assignment project binding (2026-10-04)
+
+```text
+source_snapshot: parent `b3a21616` plus `038071b5`; kiana-daemon/src/lib.rs; kiana-core/tests/sc07_authority_guard.rs; docs/roadmap/security-authority-baseline.md
+worktree_status: context_from_assignment now rejects a foreign assignment.project_id immediately after daemon-derived ProjectIdentity and before trust/department/authority assembly; main DaemonHost::handle compatibility path remains unchanged
+command_argv: isolated rustfmt --edition 2021 --check; isolated git diff --check; staged diff check; root cherry-pick `073b6ad2`; push-triggered `.github/workflows/ci.yml` includes `sc07_authority_guard`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-sc07-authority-assignment`; Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: SC-07 source-order guard; changed-source CI pending
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: SC-07 roadmap row 118 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: DaemonHost::handle still does not consume AssignmentDirectory, server-owned OrganizationId/provisioning or durable assignment/revocation; this slice only hardens the existing assignment helper
+reviewer: source review of project identity derivation and early foreign-project denial; no local runtime reviewer
+```
+
 ### ER-02 stable authority revision across request contexts (2026-10-03)
 
 ```text

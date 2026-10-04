@@ -61,3 +61,23 @@ AssignmentDirectory 仍为内存适配器，ProjectTrustAuthority 仍读取本�
 尚无 durable CAS/revoke projector；local-user 也不是外部 authenticated principal。SC-08 负责
 authority/session epoch fence 与 refresh，SC-09 负责 GrantScope intersection；Policy/Approval/
 Secret/redaction/TOCTOU、跨进程恢复和真实 external/live/physical effect 仍未证明。
+
+## 4. 2026-10-04 assignment project binding guard
+
+`DaemonHost::context_from_assignment` now rejects a server-resolved assignment whose project ID
+does not match the daemon-derived `ProjectIdentity` before trust, department, or authority snapshot
+assembly. This keeps a foreign project assignment from reaching later authority joins and returns
+the structured `assignment_project_mismatch` failure. The SC-07 source guard pins this ordering.
+
+```text
+source_snapshot: parent `b3a21616` plus `038071b5`; kiana-daemon/src/lib.rs; kiana-core/tests/sc07_authority_guard.rs
+worktree_status: project identity is checked before trust/department/authority assembly; DaemonHost::handle still uses the compatibility role path and is intentionally not silently rewired
+command_argv: isolated rustfmt --edition 2021 --check; isolated git diff --check; staged diff check; root cherry-pick `073b6ad2`; push-triggered `.github/workflows/ci.yml` includes `sc07_authority_guard`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-sc07-authority-assignment`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: SC-07 authority guard source marker; changed-source CI pending
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: SC-07 roadmap row 118 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: `DaemonHost::handle` still lacks server-owned OrganizationId/assignment provisioning, explicit assignment enforcement and durable revoke/CAS; this slice only hardens the existing helper
+reviewer: source review of project identity derivation and assignment mismatch ordering; no local runtime reviewer
+```
