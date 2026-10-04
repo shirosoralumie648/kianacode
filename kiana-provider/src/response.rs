@@ -8,7 +8,17 @@ use std::collections::BTreeMap;
 const PROVIDER_ENVELOPE_MAX_BYTES: usize = 8 * 1024 * 1024;
 
 fn error(code: &str) -> ModelError {
-    ModelError::invalid(code)
+    // Reaching this parser means the provider request produced a response envelope or stream
+    // frame. Preserve that evidence even when the payload is malformed or has a terminal stop.
+    let mut error = ModelError::invalid(code);
+    error.request_sent = true;
+    error.side_effect_state = ModelSideEffectState::None;
+    error
+}
+
+fn response_evidence(mut error: ModelError) -> ModelError {
+    error.request_sent = true;
+    error
 }
 
 fn tool_repair_error(code: &str) -> ModelError {
@@ -493,9 +503,10 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
         }
         _ => return Err(error("provider_protocol_unsupported")),
     }
-    validate_model_calls(&calls)?;
-    let finish = ModelFinish::parse(Some(&reason), !calls.is_empty(), false)?;
-    finish.require_complete()?;
+    validate_model_calls(&calls).map_err(response_evidence)?;
+    let finish =
+        ModelFinish::parse(Some(&reason), !calls.is_empty(), false).map_err(response_evidence)?;
+    finish.require_complete().map_err(response_evidence)?;
     let structured = match &prepared.spec.response_format {
         ModelResponseFormat::Text => None,
         format => {
@@ -1255,15 +1266,16 @@ impl Accumulator {
                 tools.push(call(id, &block.name, input, prepared)?);
             }
         }
-        validate_model_calls(&tools)?;
+        validate_model_calls(&tools).map_err(response_evidence)?;
         let mut reason = self
             .reason
             .ok_or_else(|| error("provider_stop_reason_missing"))?;
         if self.protocol == ModelProtocol::OllamaChat && reason == "stop" && !tools.is_empty() {
             reason = "tool_use".to_owned();
         }
-        let finish = ModelFinish::parse(Some(&reason), !tools.is_empty(), false)?;
-        finish.require_complete()?;
+        let finish = ModelFinish::parse(Some(&reason), !tools.is_empty(), false)
+            .map_err(response_evidence)?;
+        finish.require_complete().map_err(response_evidence)?;
         let output = ModelOutput {
             text,
             tool_calls: tools,
@@ -1367,7 +1379,9 @@ pub fn replay_stream_fixture(
     {
         return Ok((reply, deltas));
     }
-    Err(ModelError::invalid("provider_stream_incomplete"))
+    Err(response_evidence(ModelError::invalid(
+        "provider_stream_incomplete",
+    )))
 }
 
 fn index(value: &Value, key: &str) -> Result<usize, ModelError> {
@@ -2357,6 +2371,9 @@ mod tests {
             let error = decode(response, &prepared).unwrap_err();
             assert_eq!(error.code, "model_transport_incomplete");
             assert_eq!(error.outcome().stop_reason, ModelStopReason::Incomplete);
+            assert!(error.request_sent);
+            assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+            assert_eq!(error.retry_class, ModelRetryClass::Never);
         }
     }
 
@@ -2391,6 +2408,9 @@ mod tests {
             let error = observed.expect("explicit incomplete stream status must fail");
             assert_eq!(error.code, "model_transport_incomplete");
             assert_eq!(error.outcome().stop_reason, ModelStopReason::Incomplete);
+            assert!(error.request_sent);
+            assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+            assert_eq!(error.retry_class, ModelRetryClass::Never);
         }
     }
 
@@ -2697,10 +2717,18 @@ mod tests {
                 ModelResponseFormat::JsonObject,
                 "model_structured_output_invalid_json",
             ),
+            (
+                serde_json::json!({"choices":[{"index":0,"message":{"role":"assistant","content":"ambiguous"},"finish_reason":"future_stop"}]}),
+                ModelResponseFormat::JsonObject,
+                "model_stop_reason_unknown",
+            ),
         ];
         for (wire, format, expected) in cases {
             let error = decode(wire, &structured_prepared(format)).unwrap_err();
             assert_eq!(error.code, expected);
+            assert!(error.request_sent, "{expected} follows a provider response");
+            assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+            assert_eq!(error.retry_class, ModelRetryClass::Never);
         }
     }
 

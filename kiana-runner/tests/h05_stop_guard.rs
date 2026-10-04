@@ -353,6 +353,8 @@ fn harness_stop_and_retry_paths_are_typed_and_fail_closed() {
         .contains("error.recovery_disposition == ModelRecoveryDisposition::TransportRetry"));
     assert!(retry_runtime.contains("unsupported_recovery_reason"));
     assert!(harness.contains("unsupported_recovery_reason(&error)"));
+    assert!(provider.contains("error.request_sent = true"));
+    assert!(provider.contains("finish.require_complete().map_err(response_evidence)"));
     for reason in [
         "model_format_repair_unavailable",
         "model_tool_repair_unavailable",

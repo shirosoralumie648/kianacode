@@ -43,6 +43,10 @@ jobs:
             mode: lib
             selector: responses_context_limit_errors_are_typed_context_repair
             label: responses_context_repair
+          - crate: kiana-provider
+            mode: lib
+            selector: refusal_length_empty_and_invalid_json_are_distinct
+            label: stop_error_request_evidence
     env:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_PROFILE_TEST_STRIP: symbols
