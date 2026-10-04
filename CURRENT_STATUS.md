@@ -22707,6 +22707,21 @@ limitations: no DaemonHost composition, fixture store, EventLog/Receipt capture,
 reviewer: source review of deny-only target partition and no-real-executor guard ownership; no local runtime reviewer
 ```
 
+### EQ-11 current-head deny lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/eq11-deny-broker.yml`; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq11_deny_broker.rs; kiana-core/tests/eq11_deny_broker_guard.rs; docs/roadmap/evaluation-deny-broker-baseline.md
+worktree_status: current master contains EQ-10 fake provider source and EQ-11 deny-by-default adapter/fixtures; workflow re-executes forbidden-effect fixtures, Core no-real-executor guard, format and scoped compile; no DaemonHost composition, manifest or lockfile changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run eq11-deny-broker.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: network/secret/MCP/payment/publish/desktop and unknown-effect stable denials, cancellation zero-dispatch, Core no-network/no-secret/no-process/no-runner guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: EQ-11 roadmap row 183 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no DaemonHost composition, fixture store, EventLog/Receipt capture, fault/restart recovery or external/live/physical effect proof; EQ-12+ remains open
+reviewer: source review matched deny category coverage, zero-dispatch boundary and Core guard ownership; no local runtime reviewer
+```
+
 ### EQ-10 focused workflow restoration (2026-10-04)
 
 ```text
