@@ -12538,6 +12538,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus config/catalog/list_changed drift, exact tool schemas, result/error/structured content validation, Unknown/no-retry after sent call, approval invalidation, resource-link no-fetch and per-invocation isolation review; no runtime test reviewer
 ```
 
+### CAP-22 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap22-mcp-drift-isolation.yml`; kiana-daemon/src/{harness_mcp.rs,mcp_stdio.rs}; kiana-core/src/approvals.rs; kiana-daemon/tests/p1_j4_01_mcp.rs; kiana-core/tests/cap22_mcp_drift_isolation_guard.rs; docs/roadmap/cap22-mcp-drift-isolation-baseline.md
+worktree_status: restored a GitHub-only CAP-22 MCP drift/result/isolation lane with formatting and daemon/Core target-scoped compile; drift semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap22-mcp-drift-isolation.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: P1-J4-01 lifecycle, config/catalog/schema/result/structured-content drift, approval invalidation, Unknown/no-retry and per-invocation ProcessSupervisor isolation guard; daemon/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-22 roadmap row 252 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: live schema interoperability, pooled connection implementation, cross-process approval invalidation and external MCP effect reconciliation remain open
+reviewer: source review matched drift/isolation guard ownership and selected daemon/Core partition; no local runtime reviewer
+```
+```
+
 ### CAP-23 concurrency / fair admission evidence (2026-09-19)
 
 ```text
