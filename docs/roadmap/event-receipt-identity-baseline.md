@@ -83,6 +83,10 @@ EventLog 的 aggregate stream version 是顺序权威；request-local `sequence`
 | `wire_approval_proof_retry_resumes_original_run` | 真实 DaemonHost/JournalApprovalStore Harness approval-resume 保留 Run root、Turn、capability request 与 invocation IDs，并核对完整 invocation projection/event IDs |
 | `invocation_projection_normalizes_and_validates_terminal_result_receipts` | dispatch/finalizer receipt 忽略边界 ID 差异、校验实际结果 digest 和 identity，并拒绝 digest/request/execution/effect-known/outcome/lifecycle drift |
 | `invocation_projection_rejects_uncommitted_terminal_receipts` | 拒绝 `committed=false` 的 `execution.result_committed` 与 `capability.completed` receipt |
+| `invocation_projection_rejects_malformed_identity_links` | projection 在折叠事实前拒绝 self-parent/self-causation 等 malformed identity links |
+| `invocation_projection_rejects_request_id_alias_drift` | capability/run/approval/permit payload 中冲突的 request-id aliases fail closed，不按首个字段静默选择 |
+| `nil_identity_links_fail_closed_but_legacy_links_remain_optional` | nil identity link values are rejected while absent optional links remain compatible for legacy events |
+| `nil_identity_links_are_denied_before_append` | EventLog append boundary rejects nil identity IDs before persistence |
 
 统一 `.github/workflows/ci.yml` 按 `scripts/ci/test-shards.json` 执行 domain/core ER-02 targets 和完整 `kiana-eventlog` crate；本地不运行测试，也不等待 CI。
 
@@ -208,4 +212,21 @@ status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; pro
 proof-level_change: none; the correction only removes a compile blocker and does not establish runtime behavior
 limitations: full legacy migration/upcast, durable InvocationLedger, cross-process ordering, terminal/result reconciliation and external effect receipts remain open; no CI success is claimed for the correction yet
 reviewer: source review of the remote compiler diagnostic and minimal sort-key restoration; no local runtime reviewer
+```
+
+## 15. Malformed identity aliases and nil-link rejection (2026-10-04)
+
+The invocation projector now validates each event's identity links before folding facts and fails closed on malformed self-links. Request identity candidates from capability, run, approval, and permit payload aliases must agree; conflicting aliases are not resolved by first-match precedence. Domain and EventLog fixtures also reject nil command/correlation/causation/parent IDs while preserving the optional-link compatibility path for legacy events that omit them.
+
+```text
+source_snapshot: `b980a180`; kiana-domain/src/states.rs; kiana-domain/tests/er02_identity.rs; kiana-core/src/invocation_projection.rs; kiana-core/tests/er02_identity.rs; kiana-core/tests/er02_identity_guard.rs; kiana-eventlog/tests/er02_identity.rs
+worktree_status: projection identity-link validation and request-alias agreement are source-enforced; nil identity links are denied before append; no authorization, EventStore, or second execution path changed
+command_argv: source review; `git diff --check`; staged diff check; after push changed-source `.github/workflows/ci.yml`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: `invocation_projection_rejects_malformed_identity_links`, `invocation_projection_rejects_request_id_alias_drift`, `nil_identity_links_fail_closed_but_legacy_links_remain_optional`, `nil_identity_links_are_denied_before_append`; changed-source CI pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: direct/Harness/approval-resume identity-chain parity, complete green ER-02 shard, full legacy upcast, durable InvocationLedger, cross-process ordering, terminal reconciliation and external effect receipts remain open
+reviewer: source review of projection alias handling, identity-link validation order, domain/EventLog append guards and deny-first fixtures; no local runtime reviewer
 ```

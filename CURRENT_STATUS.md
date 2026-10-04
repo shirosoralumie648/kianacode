@@ -22482,6 +22482,21 @@ limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock r
 reviewer: exact GitHub job/step receipt and source/fixture review; no local runtime reviewer
 ```
 
+### ER-02 malformed identity aliases and nil-link rejection (2026-10-04)
+
+```text
+source_snapshot: `b980a180`; kiana-domain/src/states.rs; kiana-domain/tests/er02_identity.rs; kiana-core/src/invocation_projection.rs; kiana-core/tests/er02_identity.rs; kiana-core/tests/er02_identity_guard.rs; kiana-eventlog/tests/er02_identity.rs
+worktree_status: projection identity-link validation and request-alias agreement are source-enforced; nil identity links are denied before append; no authorization, EventStore, or second execution path changed
+command_argv: source review; `git diff --check`; staged diff check; after push changed-source `.github/workflows/ci.yml`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: `invocation_projection_rejects_malformed_identity_links`, `invocation_projection_rejects_request_id_alias_drift`, `nil_identity_links_fail_closed_but_legacy_links_remain_optional`, `nil_identity_links_are_denied_before_append`; changed-source CI pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: direct/Harness/approval-resume identity-chain parity, complete green ER-02 shard, full legacy upcast, durable InvocationLedger, cross-process ordering, terminal reconciliation and external effect receipts remain open
+reviewer: source review of projection alias handling, identity-link validation order, domain/EventLog append guards and deny-first fixtures; no local runtime reviewer
+```
+
 ### ER-01 `run.rejected` producer contract (2026-10-04)
 
 ```text
