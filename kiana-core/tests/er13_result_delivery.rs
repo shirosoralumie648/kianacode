@@ -15,6 +15,9 @@ fn er13_result_delivery_is_committed_before_runner_and_shared_by_three_paths() {
         "result_unknown:result_delivery_unconfirmed",
         "finalize_capability_action",
         "dispatch_capability_action",
+        "committed_delivery_source",
+        "result_delivery_source_unconfirmed",
+        "result_delivery_receipt_mismatch",
         "CapabilityResult",
     ] {
         assert!(
@@ -38,6 +41,16 @@ fn er13_result_delivery_is_committed_before_runner_and_shared_by_three_paths() {
     );
     assert!(dispatch.contains("AggregateVersion::new(\"result_delivery\""));
     assert!(dispatch.contains("AggregateVersion::new(\"run\""));
+    assert!(dispatch.contains("source.version"));
+    assert!(dispatch.contains("Some(source.event.event_id)"));
+    assert!(!dispatch.contains("result.output[\"result_receipt\"]"));
+    let verify_source = dispatch
+        .find(".committed_delivery_source(run_id, turn_id, &result)")
+        .expect("committed source verification");
+    assert!(
+        verify_source < claim,
+        "source must be confirmed before delivery claim"
+    );
     assert!(capabilities.contains("self.finalize_capability_action"));
     assert!(approvals.contains(".dispatch_capability_action("));
     assert!(approvals.contains(".deliver_capability_result("));

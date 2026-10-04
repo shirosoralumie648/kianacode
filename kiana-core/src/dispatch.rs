@@ -10,9 +10,55 @@
 //! 没有它，就只能靠「我记得我批过」——而授权撤销之后，那句记忆就是漏洞。
 use super::*;
 use kiana_domain::{
-    derived_request_id, json_digest, AggregateVersion, CommitOutcome, DispatchPermit, ExecutionId,
-    InvocationId, TransitionBatch, TurnId, DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
+    derived_request_id, json_digest, AggregateVersion, CapabilityResultReceipt, CommandReceipt,
+    CommitOutcome, DispatchPermit, ExecutionId, InvocationId, TransitionBatch, TurnId,
+    DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
 };
+
+struct CommittedDeliverySource {
+    event: RuntimeEvent,
+    receipt: CapabilityResultReceipt,
+    commit: CommandReceipt,
+    version: AggregateVersion,
+}
+
+fn committed_prompt_turn(prompt: &RuntimeEvent, run_id: RunId) -> Result<TurnId, PortError> {
+    let turn_id: TurnId = serde_json::from_value(prompt.data["turn_id"].clone())
+        .map_err(|_| dispatch_error("turn_identity_invalid"))?;
+    let identity: kiana_domain::TurnIdentity = serde_json::from_value(prompt.data["turn"].clone())
+        .map_err(|_| dispatch_error("turn_identity_invalid"))?;
+    if identity.validate().is_err()
+        || turn_id.as_uuid().is_nil()
+        || identity.run_id != run_id
+        || identity.turn_id != turn_id
+        || prompt.data["run_id"] != json!(run_id)
+        || prompt.data["session_id"] != json!(identity.session_id)
+    {
+        return Err(dispatch_error("turn_identity_invalid"));
+    }
+    Ok(turn_id)
+}
+
+fn committed_result_payload(
+    permit: &DispatchPermit,
+    result: &CapabilityResult,
+    receipt: &CapabilityResultReceipt,
+    invocation: Option<Value>,
+    stop_requested: bool,
+    confirmed: bool,
+) -> Value {
+    json!({
+        "run_id":permit.run_id,"turn_id":permit.turn_id,
+        "invocation_id":permit.invocation_id,"execution_id":permit.execution_id,
+        "capability_request_id":permit.request_id,"result":result,"attempt":1,
+        "outcome_state":result.execution_state(),"outcome_ready":true,
+        "effect_started":receipt.effect_started,"effect_known":receipt.effect_known,
+        "zero_effect":receipt.zero_effect,"fenced":receipt.fenced,
+        "stop_state":if stop_requested { if confirmed {"confirmed"} else {"unconfirmed"} } else {"not_requested"},
+        "stop_requested":stop_requested,"stop_confirmed":stop_requested.then_some(confirmed),
+        "result_receipt":receipt,"invocation":invocation,
+    })
+}
 
 /// 取一个项目根目录的**文件系统身份**。
 ///
@@ -249,6 +295,158 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
 }
 
 impl ControlPlane {
+    async fn committed_delivery_source(
+        &self,
+        run_id: RunId,
+        turn_id: TurnId,
+        result: &CapabilityResult,
+    ) -> Result<CommittedDeliverySource, PortError> {
+        let prepare_id = derived_request_id("execution.prepare", &result.request_id.to_string());
+        let preparation = self
+            .events
+            .read_command(&prepare_id)
+            .await?
+            .ok_or_else(|| dispatch_error("result_unknown:result_delivery_prepare_unconfirmed"))?;
+        let mut sources = preparation
+            .versions
+            .iter()
+            .filter(|version| version.aggregate_type == "execution_permit");
+        let prepared_version = sources
+            .next()
+            .filter(|version| version.version == 1 && sources.next().is_none())
+            .ok_or_else(|| dispatch_error("result_unknown:result_delivery_prepare_invalid"))?;
+        let execution_id: ExecutionId =
+            serde_json::from_value(json!(prepared_version.aggregate_id))
+                .map_err(|_| dispatch_error("result_unknown:result_delivery_prepare_invalid"))?;
+        let stream = self
+            .events
+            .read_stream("execution_permit", &execution_id.to_string())
+            .await?;
+        let prepared = stream
+            .first()
+            .filter(|event| event.kind == "execution.prepared")
+            .ok_or_else(|| dispatch_error("result_unknown:result_delivery_prepare_invalid"))?;
+        let permit = DispatchPermit::from_json(&prepared.data["permit"])
+            .map_err(|_| dispatch_error("result_unknown:result_delivery_prepare_invalid"))?;
+        if preparation.command_id != prepare_id
+            || prepared.request_id != prepare_id
+            || !preparation.event_ids.contains(&prepared.event_id)
+            || permit.execution_id != execution_id
+            || permit.request_id != result.request_id
+            || permit.run_id != Some(run_id)
+            || permit.turn_id != Some(turn_id)
+            || prepared.data["action_digest"] != json!(permit.action_digest)
+            || stream.iter().enumerate().any(|(index, event)| {
+                event.aggregate_type.as_deref() != Some("execution_permit")
+                    || event.aggregate_id.as_deref() != Some(prepared_version.aggregate_id.as_str())
+                    || event.stream_version != Some(index as u64 + 1)
+                    || event.data["run_id"] != json!(run_id)
+                    || event.data["turn_id"] != json!(turn_id)
+                    || event.data["execution_id"] != json!(execution_id)
+                    || event.data["invocation_id"] != json!(permit.invocation_id)
+                    || event.data["capability_request_id"] != json!(result.request_id)
+                    || event.data["attempt"] != json!(1)
+            })
+        {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_source_mismatch",
+            ));
+        }
+        let mut committed = stream
+            .iter()
+            .filter(|event| event.kind == "execution.result_committed");
+        let source = committed
+            .next()
+            .ok_or_else(|| dispatch_error("result_unknown:result_delivery_source_missing"))?;
+        if committed.next().is_some() {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_source_ambiguous",
+            ));
+        }
+        let final_id = derived_request_id("execution.result", &execution_id.to_string());
+        let source_version = source.stream_version.expect("validated stream version");
+        if source.request_id != final_id
+            || source.command_id.is_some_and(|id| id != final_id)
+            || source.sequence != 1
+            || stream.last().map(|event| event.event_id) != Some(source.event_id)
+            || source.data.get("result") != Some(&json!(result))
+            || source.data["outcome_ready"] != true
+            || source.data["outcome_state"] != json!(result.execution_state())
+        {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_source_mismatch",
+            ));
+        }
+        let identity: kiana_domain::InvocationIdentity =
+            serde_json::from_value(source.data["invocation"].clone())
+                .map_err(|_| dispatch_error("result_unknown:result_delivery_source_mismatch"))?;
+        if identity.validate().is_err()
+            || identity.run_id != run_id
+            || identity.turn_id != turn_id
+            || identity.execution_id != execution_id
+            || identity.invocation_id != permit.invocation_id
+            || identity.attempt != 1
+            || source.data["invocation"] != prepared.data["invocation"]
+        {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_source_mismatch",
+            ));
+        }
+        let receipt = CapabilityResultReceipt::from_json(&source.data["result_receipt"])
+            .map_err(|_| dispatch_error("result_unknown:result_delivery_receipt_invalid"))?;
+        let expected = CapabilityResultReceipt::from_result(
+            result,
+            Some(execution_id),
+            Some(permit.invocation_id),
+            1,
+            true,
+        )
+        .map_err(|_| dispatch_error("result_unknown:result_delivery_receipt_invalid"))?;
+        if receipt != expected
+            || source.data["effect_started"] != json!(receipt.effect_started)
+            || source.data["effect_known"] != json!(receipt.effect_known)
+            || source.data["zero_effect"] != json!(receipt.zero_effect)
+            || source.data["fenced"] != json!(receipt.fenced)
+        {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_receipt_mismatch",
+            ));
+        }
+        let final_commit =
+            self.events.read_command(&final_id).await?.ok_or_else(|| {
+                dispatch_error("result_unknown:result_delivery_source_unconfirmed")
+            })?;
+        let version =
+            AggregateVersion::new("execution_permit", execution_id.to_string(), source_version);
+        let result_digest = json_digest(&json!(result));
+        let batch = TransitionBatch {
+            command_id: final_id,
+            command_digest: result_digest
+                .strip_prefix("sha256:")
+                .unwrap_or(&result_digest)
+                .to_owned(),
+            expected_versions: vec![AggregateVersion::new(
+                "execution_permit",
+                execution_id.to_string(),
+                source_version - 1,
+            )],
+            events: vec![source.clone()],
+        };
+        if final_commit.versions != vec![version.clone()]
+            || final_commit.validate_against(&batch).is_err()
+        {
+            return Err(dispatch_error(
+                "result_unknown:result_delivery_source_unconfirmed",
+            ));
+        }
+        Ok(CommittedDeliverySource {
+            event: source.clone(),
+            receipt,
+            commit: final_commit,
+            version,
+        })
+    }
+
     pub(crate) async fn deliver_capability_result(
         &self,
         run_id: RunId,
@@ -264,7 +462,7 @@ impl ControlPlane {
         let turn = run
             .iter()
             .rposition(|event| event.kind == "run.prompt")
-            .unwrap_or(0);
+            .ok_or_else(|| dispatch_error("result_unknown:result_delivery_turn_unavailable"))?;
         if run[turn..].iter().any(|event| {
             matches!(
                 event.kind.as_str(),
@@ -277,28 +475,46 @@ impl ControlPlane {
         }) {
             return Err(dispatch_error("cancelled:result_delivery_run_inactive"));
         }
+        let turn_id = committed_prompt_turn(&run[turn], run_id)
+            .map_err(|_| dispatch_error("result_unknown:result_delivery_turn_invalid"))?;
+        let source = self
+            .committed_delivery_source(run_id, turn_id, &result)
+            .await?;
         let outcome_state = result.execution_state();
-        let receipt_digest = result.output["result_receipt"]["receipt_digest"].clone();
+        let receipt_digest = &source.receipt.receipt_digest;
         let event = RuntimeEvent::new(
             command_id,
             1,
             "result.delivery_claimed",
-            json!({"run_id":run_id,
+            json!({"run_id":run_id,"turn_id":turn_id,
+            "execution_id":source.receipt.execution_id,"invocation_id":source.receipt.invocation_id,
+            "attempt":source.receipt.attempt,
             "capability_request_id":result.request_id,"result_digest":json_digest(&json!(result)),
             "receipt_digest":receipt_digest,"outcome_state":outcome_state,"outcome_ready":true,
             "delivery_policy":"single_advance"}),
         )
         .map_err(|e| dispatch_error(&e.to_string()))?
-        .with_stream_metadata("result_delivery", result.request_id.to_string(), 1);
+        .with_stream_metadata("result_delivery", result.request_id.to_string(), 1)
+        .with_identity_links(
+            Some(command_id),
+            Some(result.request_id),
+            Some(source.event.event_id),
+            None,
+        );
         let batch = TransitionBatch {
             command_id,
-            command_digest: json_digest(&json!({"run_id":run_id,"result":result})),
+            command_digest: json_digest(&json!({"run_id":run_id,"turn_id":turn_id,"result":result,
+                "source_event_digest":json_digest(&json!(source.event)),"source_commit":source.commit})),
             expected_versions: vec![
                 AggregateVersion::new("result_delivery", result.request_id.to_string(), 0),
                 AggregateVersion::new("run", run_id.to_string(), version),
+                source.version,
             ],
             events: vec![event],
         };
+        // Cancellation/source changes that win this CAS prevent the claim. A winning claim
+        // reserves one callback attempt; its acknowledgement is outside the journal transaction,
+        // so failure or a crash after claiming remains Unknown and must not trigger a retry.
         if commit_confirmed(self.events.as_ref(), batch).await? {
             return Err(dispatch_error(
                 "result_unknown:result_delivery_already_claimed",
@@ -568,7 +784,8 @@ impl ControlPlane {
                 .iter()
                 .rev()
                 .find(|event| event.kind == "run.prompt")
-                .map(|event| TurnId::from_uuid(event.request_id.as_uuid()))
+                .map(|event| committed_prompt_turn(event, run_id))
+                .transpose()?
         } else {
             None
         };
@@ -771,17 +988,21 @@ impl ControlPlane {
             .max()
             .unwrap_or(0);
         let final_id = derived_request_id("execution.result", &execution_id.to_string());
-        let outcome_state = result.execution_state();
-        let event=RuntimeEvent::new(final_id,1,"execution.result_committed",json!({
-            "run_id":run_id,"turn_id":turn_id,"invocation_id":invocation_id,"execution_id":execution_id,
-            "capability_request_id":permit.request_id,"result":result,"attempt":1,
-            "outcome_state":outcome_state,"outcome_ready":true,
-            "effect_started":true,"effect_known":!unknown,"zero_effect":false,
-            "stop_state":if stop_requested { if confirmed {"confirmed"} else {"unconfirmed"} } else {"not_requested"},
-            "stop_requested":stop_requested,"stop_confirmed":stop_requested.then_some(confirmed),"fenced":unknown,
-            "result_receipt":receipt,
-            "invocation":invocation,
-        })).map_err(|e|dispatch_error(&e.to_string()))?.with_stream_metadata("execution_permit",execution_id.to_string(),version+1);
+        let event = RuntimeEvent::new(
+            final_id,
+            1,
+            "execution.result_committed",
+            committed_result_payload(
+                &permit,
+                &result,
+                &receipt,
+                invocation,
+                stop_requested,
+                confirmed,
+            ),
+        )
+        .map_err(|e| dispatch_error(&e.to_string()))?
+        .with_stream_metadata("execution_permit", execution_id.to_string(), version + 1);
         let batch = TransitionBatch {
             command_id: final_id,
             command_digest: json_digest(&json!(result)),
@@ -801,3 +1022,7 @@ impl ControlPlane {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+#[path = "dispatch_delivery_tests.rs"]
+mod delivery_tests;
