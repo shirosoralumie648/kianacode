@@ -12573,6 +12573,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus FIFO admission, read/write/unknown footprint conservatism, authorized write scope, queue cancellation, CellRegistry budget/path ownership, cross-process lock, Unknown quarantine and no-second-execution-loop review; no runtime test reviewer
 ```
 
+### CAP-23 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap23-concurrency-scheduler.yml`; kiana-core/src/{capability_scheduler.rs,capabilities.rs,cell_registry.rs,sessions.rs}; kiana-daemon/src/execution_control.rs; kiana-runner/src/harness.rs; selected P1-C-02, SC-16 and CAP-23 guard targets; docs/roadmap/cap23-concurrency-scheduler-baseline.md
+worktree_status: restored a GitHub-only CAP-23 fair admission/scheduler lane with formatting and three Core target-scoped compile steps; scheduling semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap23-concurrency-scheduler.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: Cell lifecycle, quota/backpressure and CAP-23 FIFO read/write/unknown footprint, authorized write scope, queued cancellation, Unknown quarantine and single admission gate source guards; selected Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-23 roadmap row 253 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: scheduler state is process-local, Unknown quarantine release requires reconciliation, per-tenant fairness and durable queue recovery remain later CAP-24/automation work; external provider reconciliation is not claimed
+reviewer: source review matched scheduler guard ownership and selected Core partition; no local runtime reviewer
+```
+```
+
 ### CAP-24 invocation recovery / reconciliation evidence (2026-09-19)
 
 ```text
