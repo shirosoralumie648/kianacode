@@ -297,3 +297,25 @@ This is a fresh diagnostic receipt for the router-boundary fixture only. CO-06 r
 `feature_status=partial` and `proof_level=source`; cross-store atomicity/reconciliation, product
 original-versus-current presentation, recovery, retention/deletion, and power-loss durability are
 still unproven.
+
+## 16. Cross-store artifact commit fence (2026-10-04)
+
+Company artifact publication now checks the EventStore atomic-transition capability before staging
+an immutable artifact version. If the artifact store is present but the EventLog adapter cannot
+provide the required atomic transition, the command is rejected before blob publication. If the
+blob has been persisted and the Company EventLog commit then fails with a non-conflict error, the
+command returns `result_unknown:company_artifact_event_commit_unconfirmed` so a caller cannot see a
+false committed receipt; the existing idempotency key remains the replay/reconciliation boundary.
+
+```text
+source_snapshot: parent `fb0e3056`; source `bf1a1fbc`; kiana-core/src/company.rs; kiana-core/tests/co06_company_artifact_wiring_guard.rs
+worktree_status: artifact/EventLog capability gate is before persist_company_artifact; non-conflict commit failure after blob persistence is fenced as result_unknown; no second store, execution loop or manifest change
+command_argv: isolated rustfmt --edition 2021; isolated git diff --check; root cherry-pick `fface877`; push `bf1a1fbc`; `gh workflow run co06-artifact-evidence.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated CO-06 worktree; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `artifact_publication_requires_atomic_event_store_before_stage` and `artifact_event_commit_failure_is_fenced_as_result_unknown`; focused run `37173733587` pending
+exit_code: isolated formatting/diff checks 0; focused CI pending; no local runtime exit code
+status_change: CO-06 roadmap row 065 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: source boundary broadened; no local_behavior, durable, live or physical promotion
+limitations: this does not implement a cross-store transaction, orphan-blob cleanup/reconciliation worker, power-loss recovery, UI original/current comparison, retention/deletion or external/live durability
+reviewer: source review of capability negotiation, publication order and result_unknown fence; no local runtime reviewer
+```

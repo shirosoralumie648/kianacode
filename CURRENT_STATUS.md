@@ -22018,6 +22018,21 @@ limitations: EventLog/blob cross-store atomic commit, reconciliation/crash recov
 reviewer: exact focused job steps and artifact/company wiring boundaries reviewed; no local runtime reviewer
 ```
 
+### CO-06 cross-store artifact commit fence (2026-10-04)
+
+```text
+source_snapshot: parent `fb0e3056`; source `bf1a1fbc`; kiana-core/src/company.rs; kiana-core/tests/co06_company_artifact_wiring_guard.rs; docs/roadmap/artifact-evidence-baseline.md §16
+worktree_status: Company artifact publication checks EventStore atomic-transition capability before staging; post-blob non-conflict commit failure returns result_unknown; no second store, execution loop or manifest change
+command_argv: isolated rustfmt --edition 2021; isolated git diff --check; root cherry-pick `fface877`; push `bf1a1fbc`; `gh workflow run co06-artifact-evidence.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: `artifact_publication_requires_atomic_event_store_before_stage` and `artifact_event_commit_failure_is_fenced_as_result_unknown`; focused run `37173733587` pending
+exit_code: isolated format/diff checks 0; focused CI pending; no local runtime exit code
+status_change: CO-06 roadmap row 065 remains `🔄`; feature_status=partial; proof_level=source
+proof-level change: source boundary broadened; no promotion to local_behavior, durable, live or physical
+limitations: no cross-store transaction, orphan-blob cleanup/reconciliation worker, power-loss recovery, original/current UI comparison, retention/deletion or external/live durability
+reviewer: source review of capability negotiation, publication order and result_unknown fence; no local runtime reviewer
+```
+
 ### SC-01 focused acceptance receipt (2026-10-04)
 
 ```text
