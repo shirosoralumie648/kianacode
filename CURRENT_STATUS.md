@@ -22040,8 +22040,8 @@ source_snapshot: parent `fb0e3056`; source `bf1a1fbc`; kiana-core/src/company.rs
 worktree_status: Company artifact publication checks EventStore atomic-transition capability before staging; post-blob non-conflict commit failure returns result_unknown; no second store, execution loop or manifest change
 command_argv: isolated rustfmt --edition 2021; isolated git diff --check; root cherry-pick `fface877`; push `bf1a1fbc`; `gh workflow run co06-artifact-evidence.yml --ref master`; no local test/build/check/clippy/smoke
 cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
-fixture·cassette: `artifact_publication_requires_atomic_event_store_before_stage` and `artifact_event_commit_failure_is_fenced_as_result_unknown`; focused run `37173733587` pending
-exit_code: isolated format/diff checks 0; focused CI pending; no local runtime exit code
+fixture·cassette: run `37173733587` / head `bf1a1fbc` and replacement run `37173861604` / head `6862fbab`, scoped Company artifact/evidence job: artifact/publication source guards, domain/ports/Core/daemon artifact targets, Company wiring/history fixtures and target-scoped compiles all success
+exit_code: isolated format/diff checks 0; both focused GitHub jobs success; no local runtime exit code
 status_change: CO-06 roadmap row 065 remains `🔄`; feature_status=partial; proof_level=source
 proof-level change: source boundary broadened; no promotion to local_behavior, durable, live or physical
 limitations: no cross-store transaction, orphan-blob cleanup/reconciliation worker, power-loss recovery, original/current UI comparison, retention/deletion or external/live durability
