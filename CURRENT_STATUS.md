@@ -22482,6 +22482,21 @@ limitations: ControlPlane preparation, budget/lease/approval transaction and pos
 reviewer: real Broker registry, JournalPermitVerifier, MemoryEventLog CAS and handler evidence reviewed; no local runtime reviewer
 ```
 
+### CAP-05 current-head permit/effect lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `0947b0df` Broker effect fixtures; `.github/workflows/cap05-permit.yml`; kiana-core/src/dispatch.rs; kiana-core/tests/cap05_permit.rs; kiana-core/tests/cp13_dispatch_guard.rs; docs/roadmap/capability-permit-baseline.md
+worktree_status: current master contains real Broker/handler/CAS effect fixtures, opaque permit verifier guards and prepared-envelope correction; workflow re-executes effect/permit fixtures, CP-13 guard, format and target-scoped compile; no second dispatch path, manifest or lockfile changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap05-permit.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: unknown/empty/prepared-only refusals, confirmed permit single handler, replay/concurrent CAS winner, authority/request drift, failed/Unknown/TOCTOU commit, pre-consume cancel, forged executing and Broker-before-commit guard; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-05 roadmap row 143 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: complete ControlPlane budget/lease/approval transaction, post-prepared failure recovery, cross-process/power-loss CAS, OS spawn crash window, provider/connector exactly-once, Secret/egress and external/live/physical effects remain open
+reviewer: source review matched Broker effect fixtures to permit CAS and preserved partial card boundaries; no local runtime reviewer
+```
+
 ### H05 provider response evidence boundary (2026-10-04)
 
 ```text
