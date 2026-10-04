@@ -110,7 +110,7 @@ fn ui16_route_fixture_covers_the_deny_first_matrix() {
     let source_auth = source
         .split("fn authorize_web_request")
         .nth(1)
-        .and_then(|rest| rest.split("fn single_header").next())
+        .and_then(|rest| rest.split("fn authorize_host").next())
         .expect("source authorization");
     assert!(source_auth.contains("authorize_host(app, headers)?"));
     assert!(source_auth.contains("web_token"));

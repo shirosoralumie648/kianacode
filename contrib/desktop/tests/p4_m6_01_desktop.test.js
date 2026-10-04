@@ -59,7 +59,7 @@ test("desktop_shell_reuses_loopback_worker_and_safe_close_path", () => {
     "kiana web startup timed out",
     "createTray",
     "Keep in background",
-    "Quit stops the worker",
+    "quitGracefully",
     "before-quit",
     "shutdownComplete",
     "stopWorker(proc)",

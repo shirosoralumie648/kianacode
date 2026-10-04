@@ -1124,11 +1124,14 @@ fn safe_label(value: &str, field: &str) -> Result<(), String> {
     {
         return Err(format!("{field}_invalid"));
     }
+    // Detect actual secret-shaped labels before the generic redaction drift check so the
+    // stable reason identifies a secret rather than a merely rewriteable label.
+    scan_secret_sentinels(SecretScanChannel::Receipt, value)
+        .map_err(|_| format!("{field}_secret_detected"))?;
     if redact_text(value) != value {
         return Err(format!("{field}_not_redacted"));
     }
-    scan_secret_sentinels(SecretScanChannel::Receipt, value)
-        .map_err(|_| format!("{field}_secret_detected"))
+    Ok(())
 }
 
 fn valid_digest(value: &str, field: &str) -> Result<(), String> {
