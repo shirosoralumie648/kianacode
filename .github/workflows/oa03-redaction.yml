@@ -23,3 +23,9 @@ jobs:
         run: cargo test -p kiana-domain --test oa03_redaction --locked -- --test-threads=1
       - name: Compile OA-03 redaction target
         run: cargo test -p kiana-domain --test oa03_redaction --no-run --locked
+      - name: Run OA-03 audit export source guard
+        run: cargo test -p kiana-core --test oa03_redaction_guard --locked -- --test-threads=1
+      - name: Compile OA-03 audit export refusal target
+        run: cargo test -p kiana-core --lib oa03_audit_export_rejects_secret_sentinel_without_returning_content --no-run --locked
+      - name: Run OA-03 audit export refusal target
+        run: cargo test -p kiana-core --lib oa03_audit_export_rejects_secret_sentinel_without_returning_content --locked -- --test-threads=1

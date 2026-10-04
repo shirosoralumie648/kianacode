@@ -12,7 +12,6 @@ use kiana_domain::{
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
-use super::redaction::*;
 use super::{AuditQueryInput, ControlPlane, CoreError};
 
 const MAX_EXPORT_CONTENT_BYTES: usize = 512 * 1024;
@@ -67,16 +66,31 @@ pub enum AuditExportError {
     DeliveryInvalid(String),
 }
 
-fn enum_text<T: serde::Serialize>(value: &T) -> Result<String, AuditExportError> {
-    serde_json::to_value(value)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
+fn required_text<'a>(record: &'a Value, field: &str) -> Result<&'a str, AuditExportError> {
+    record
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or(AuditExportError::RecordsInvalid)
+}
+
+fn required_cursor(record: &Value) -> Result<u64, AuditExportError> {
+    record
+        .get("source_cursor")
+        .and_then(Value::as_u64)
         .ok_or(AuditExportError::RecordsInvalid)
 }
 
 fn redacted_record(record: &AuditRecord) -> Result<Value, AuditExportError> {
     let raw = serde_json::to_value(record).map_err(|_| AuditExportError::RecordsInvalid)?;
-    Ok(redact_event_value(&raw))
+    let profile = kiana_domain::RedactionProfile::for_signal(kiana_domain::RedactionSignal::Export);
+    let encoded = kiana_domain::encode_bounded_value(&profile, &raw)
+        .map_err(AuditExportError::RedactionFailed)?;
+    if encoded.value != raw {
+        return Err(AuditExportError::RedactionFailed(
+            "audit_export_record_changed".to_owned(),
+        ));
+    }
+    Ok(encoded.value)
 }
 
 fn csv_escape(value: &str) -> String {
@@ -116,17 +130,22 @@ fn render_content(
             let mut output = String::from(
                 "audit_id,action_kind,decision,target_kind,target_ref,source_cursor,reason_code,record_digest\n",
             );
-            for record in records {
+            for record in &redacted {
                 output.push_str(
                     &[
-                        csv_escape(&record.audit_id),
-                        csv_escape(&enum_text(&record.action_kind)?),
-                        csv_escape(&enum_text(&record.decision)?),
-                        csv_escape(&record.target_kind),
-                        csv_escape(&record.target_ref),
-                        record.source_cursor.to_string(),
-                        csv_escape(record.reason_code.as_deref().unwrap_or_default()),
-                        csv_escape(&record.record_digest),
+                        csv_escape(required_text(record, "audit_id")?),
+                        csv_escape(required_text(record, "action_kind")?),
+                        csv_escape(required_text(record, "decision")?),
+                        csv_escape(required_text(record, "target_kind")?),
+                        csv_escape(required_text(record, "target_ref")?),
+                        required_cursor(record)?.to_string(),
+                        csv_escape(
+                            record
+                                .get("reason_code")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default(),
+                        ),
+                        csv_escape(required_text(record, "record_digest")?),
                     ]
                     .join(","),
                 );
@@ -288,5 +307,38 @@ impl ControlPlane {
                 "limitations": limitations,
             }),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{redacted_record, AuditExportError};
+    use kiana_domain::{AuditActionKind, AuditDecision, AuditRecord, DataClass, EventId};
+
+    #[test]
+    fn oa03_audit_export_rejects_secret_sentinel_without_returning_content() {
+        let mut record = AuditRecord::new(
+            "audit:oa03-export",
+            AuditActionKind::Authorization,
+            AuditDecision::Accepted,
+            "server:control-plane",
+            "run",
+            "run:oa03-export",
+            1,
+            vec![EventId::new()],
+            1,
+            1,
+            DataClass::Internal,
+            "audit",
+        )
+        .expect("valid audit record");
+        record.reason = "proxy-authorization: [REDACTED]OA03_EXPORT_SECRET_SENTINEL".to_owned();
+        record.record_digest = record.digest();
+
+        let error = redacted_record(&record).unwrap_err();
+        assert_eq!(
+            error,
+            AuditExportError::RedactionFailed("redaction_secret_sentinel_detected".to_owned())
+        );
     }
 }
