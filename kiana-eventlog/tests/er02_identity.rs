@@ -2,6 +2,7 @@ use kiana_domain::{AggregateVersion, EventId, RequestId, RuntimeEvent, Transitio
 use kiana_eventlog::MemoryEventLog;
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::json;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn event_id_reuse_is_denied() {
@@ -54,6 +55,20 @@ async fn malformed_identity_links_are_denied_before_append() {
         store.append(command_without_correlation).await,
         Err(PortError::Failed(reason))
             if reason == "event_identity_links_invalid:event_command_requires_correlation"
+    ));
+}
+
+#[tokio::test]
+async fn nil_identity_links_are_denied_before_append() {
+    let store = MemoryEventLog::new();
+    let request_id = RequestId::new();
+    let nil_request = RequestId::from_uuid(Uuid::nil());
+    let mut malformed = RuntimeEvent::new(request_id, 1, "run.started", json!({})).unwrap();
+    malformed.command_id = Some(nil_request);
+    assert!(matches!(
+        store.append(malformed).await,
+        Err(PortError::Failed(reason))
+            if reason == "event_identity_links_invalid:event_command_id_invalid"
     ));
 }
 

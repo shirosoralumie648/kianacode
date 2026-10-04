@@ -1,5 +1,6 @@
 use kiana_domain::{EventId, JournalFrame, JournalFramePayload, RequestId, RuntimeEvent};
 use serde_json::json;
+use uuid::Uuid;
 
 #[test]
 fn new_events_have_request_correlation_and_explicit_links_round_trip() {
@@ -49,5 +50,40 @@ fn journal_frames_reject_identity_link_drift() {
     assert_eq!(
         frame.validate().unwrap_err(),
         "journal_frame_event_identity_invalid:event_parent_self"
+    );
+}
+
+#[test]
+fn nil_identity_links_fail_closed_but_legacy_links_remain_optional() {
+    let request_id = RequestId::new();
+    let nil_request = RequestId::from_uuid(Uuid::nil());
+    let nil_event = EventId::from_uuid(Uuid::nil());
+
+    let mut nil_command = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    nil_command.command_id = Some(nil_request);
+    assert_eq!(
+        nil_command.validate_identity_links().unwrap_err(),
+        "event_command_id_invalid"
+    );
+
+    let mut nil_correlation = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    nil_correlation.correlation_id = Some(nil_request);
+    assert_eq!(
+        nil_correlation.validate_identity_links().unwrap_err(),
+        "event_correlation_id_invalid"
+    );
+
+    let mut nil_causation = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    nil_causation.causation_event_id = Some(nil_event);
+    assert_eq!(
+        nil_causation.validate_identity_links().unwrap_err(),
+        "event_causation_id_invalid"
+    );
+
+    let mut nil_parent = RuntimeEvent::new(request_id, 1, "run.accepted", json!({})).unwrap();
+    nil_parent.parent_event_id = Some(nil_event);
+    assert_eq!(
+        nil_parent.validate_identity_links().unwrap_err(),
+        "event_parent_id_invalid"
     );
 }
