@@ -12142,6 +12142,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus phase separation, backend identity/path probe, deterministic scope/plan, required-dimension enforcement, private/env/network restrictions, no fallback and behavior_verified=false boundary review; no runtime test reviewer
 ```
 
+### CAP-07 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap07-environment-backend.yml`; kiana-ports/src/lib.rs; kiana-daemon/src/{harness_sandbox.rs,execution_control.rs,harness_capabilities.rs}; kiana-domain/src/execution_scope.rs; EQ-09 daemon/Core fixtures; CAP-03 domain scope fixture; `cap07_environment_backend_guard`; docs/roadmap/cap07-environment-backend-baseline.md
+worktree_status: restored a GitHub-only CAP-07 environment/backend/scope lane with formatting and four target-scoped compile steps; EnvironmentPort/backend semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap07-environment-backend.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: EQ-09 environment fixture/guard, CAP-03 execution scope, CAP-07 backend-plan guard for phase separation, backend identity/path, scope digest, sandbox required dimensions, private/env/network restrictions and no host fallback; four daemon/Core/domain no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-07 roadmap row 237 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: kernel/userns enforcement, non-Linux adapters, cross-host isolation and physical sandbox guarantees remain open; inspect remains behavior_verified=false
+reviewer: source review matched fail-closed backend selection, no-fallback guard and selected target partition; no local runtime reviewer
+```
+```
+
 ### CAP-08 shared PathResolver / file identity evidence (2026-09-18)
 
 ```text
