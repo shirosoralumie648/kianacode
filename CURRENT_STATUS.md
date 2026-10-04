@@ -12643,6 +12643,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus typed receipt fields, owner/data revocation, source cursor/event identity, redaction, result request-ID pairing, four-entry digest parity, bounded terminal replay and no-execution reconnect review; no runtime test reviewer
 ```
 
+### CAP-25 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap25-receipt-entrypoint.yml`; kiana-core/src/{receipts.rs,parity.rs,redaction.rs,capability_attempt_projection.rs}; kiana-domain/src/{receipt_contracts.rs,receipt_aggregation.rs}; kiana-protocol/src/lib.rs; kiana-client/src/lib.rs; kiana-daemon/src/run_stream.rs; kiana-runner/src/harness.rs; selected CP-14/ER-11/ER-12/OA-24/CP-22/Web/RunStream/ER-27 and CAP-25 guard targets; docs/roadmap/cap25-receipt-entrypoint-baseline.md
+worktree_status: restored a GitHub-only CAP-25 receipt/four-entry parity lane with formatting and selected domain/Core/entrypoint/daemon compile; receipt/parity semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap25-receipt-entrypoint.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: receipt contracts/aggregation, OA-24 parity, CP-22 protocol surfaces, Web sync, RunStream, ER-27 parity and CAP-25 guard for source facts, redaction/owner/data fences, bounded terminal replay and no-execution reconnect; selected no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-25 roadmap row 255 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: progress delivery remains disposable, external artifact stores and live SSE durability are out of scope, and physical external-effect correctness requires provider evidence
+reviewer: source review matched receipt/parity guard ownership and selected multi-crate partition; no local runtime reviewer
+```
+```
+
 ### CAP-26 capability closeout evidence (2026-09-19)
 
 ```text
