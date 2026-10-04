@@ -22542,6 +22542,21 @@ limitations: no DaemonHost composition, fixture store, EventLog/Receipt capture,
 reviewer: source review of deny-only target partition and no-real-executor guard ownership; no local runtime reviewer
 ```
 
+### EQ-13 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/eq13-initial-state.yml`; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq13_initial_state.rs; kiana-core/tests/eq13_initial_state_guard.rs; docs/roadmap/evaluation-initial-state-baseline.md
+worktree_status: restored a GitHub-only EQ-13 daemon initial-state fixture/Core guard lane with formatting and target-scoped compile; `EvalInitialStateBundle`, `EvalInitialStateStore`, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run eq13-initial-state.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: digest-bound initial-state round trip, wrong scope/path, tamper/raw-secret rejection, Core controlled-store/no-filesystem guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: EQ-13 roadmap row 185 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: store remains in-memory and is not durable EvalStore/ProjectTrust/EventLog/Receipt authority; target launch, fault/restart recovery and quality result persistence remain EQ-14+
+reviewer: source review of controlled fixture-store target partition, digest binding and no-filesystem/operator-home boundary; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text

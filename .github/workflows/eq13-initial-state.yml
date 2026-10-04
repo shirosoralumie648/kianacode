@@ -1,0 +1,29 @@
+name: EQ-13 evaluation initial state
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  initial-state:
+    name: EQ-13 digest-bound initial state fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run EQ-13 daemon initial-state fixtures
+        run: cargo test -p kiana-daemon --test eq13_initial_state --locked -- --test-threads=1
+      - name: Run EQ-13 Core source guard
+        run: cargo test -p kiana-core --test eq13_initial_state_guard --locked -- --test-threads=1
+      - name: Compile EQ-13 daemon target
+        run: cargo test -p kiana-daemon --test eq13_initial_state --no-run --locked
+      - name: Compile EQ-13 Core guard target
+        run: cargo test -p kiana-core --test eq13_initial_state_guard --no-run --locked
