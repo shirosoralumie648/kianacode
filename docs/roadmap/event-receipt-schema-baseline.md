@@ -919,6 +919,28 @@ limitations: run.rejected remains a human architecture gate because one kind has
 reviewer: exact remote receipts and source trace of modern stream metadata, legacy null frames, and cp06 producer payload
 ```
 
+## 5.37 Executable schema resolution and explicit upcast boundary
+
+The domain registry now exposes executable version checks and a single resolver that routes a
+payload to the current schema, an explicitly named v0-to-v1 upcaster, or an opaque legacy result.
+Same-major minor downgrades, incompatible major versions, unknown required kinds, unknown
+migrations and legacy fields outside the bounded contract fail closed. Opaque payloads retain their
+original bytes and are not rewritten or treated as executable authority. Domain fixtures cover the
+deny-first migration/opaque paths, and the Core guard pins the resolver/upcaster source markers.
+
+```text
+source_snapshot: parent `8d7dd3b2` plus `d4b25724`; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-protocol/src/lib.rs
+worktree_status: EventSchemaResolution and explicit upcast dispatch are integrated on master; protocol re-exports preserve the existing wire surface; no second EventStore or execution path added
+command_argv: isolated rustfmt --edition 2021; isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick `2cbae795`; no local tests/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-er01-event-schema-20261004`; Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: ER-01 migration/opaque/version/unknown-field fixtures plus Core source guard; changed-source workflow `er01-event-schema.yml` pending
+exit_code: isolated format/diff checks 0; CI pending; no local runtime exit code
+status_change: ER-01 remains row 036 `🔄` / partial / source; executable resolution is now source-backed but does not complete the card
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no `run.rejected` aggregate/schema decision, persistent migration runner, legacy byte rewrite, generic projector/terminal reconciliation or full EventStore migration integration; migration labels are now executable only for the bounded identity families
+reviewer: source review of registry dispatch, deny-first fixtures and protocol exports; no local runtime reviewer
+```
+
 ## 6. 限制与交接
 
 - 当前 `RuntimeEvent` 没有强制内嵌 schema/version 字段；registry 是 additive interpretation layer，完整 EventStore/projector 接线由 ER-02+ 完成。

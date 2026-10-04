@@ -22301,3 +22301,18 @@ proof-level_change: none; no remote receipt for this changed selector has been o
 limitations: automatic repair/compaction, H06 stream accumulation, H07 budget settlement, full shard/live provider, external effect and physical proof remain open
 reviewer: provider parser and H05 source guard reviewed; no local runtime reviewer
 ```
+
+### ER-01 executable event schema resolution (2026-10-04)
+
+```text
+source_snapshot: parent `8d7dd3b2` plus `d4b25724`; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-protocol/src/lib.rs
+worktree_status: current master contains executable current/migrated/opaque schema resolution and explicit bounded v0→v1 upcast dispatch; no second EventStore or execution loop added
+command_argv: isolated rustfmt --edition 2021; isolated cargo fmt --all --check; isolated git diff --check; root cherry-pick `2cbae795`; after push `gh workflow run er01-event-schema.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root and isolated worktree `/tmp/kiana-er01-event-schema-20261004`; Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: ER-01 migration/opaque/version/unknown-field domain fixtures and Core source guard; changed-source workflow pending
+exit_code: isolated format/diff checks 0; changed-source CI pending; no local runtime exit code
+status_change: ER-01 roadmap row 036 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: `run.rejected` aggregate/schema decision, persistent migration runner, legacy byte rewrite, generic EventStore/projector integration and terminal/result reconciliation remain open; source-only resolver coverage does not prove runtime acceptance
+reviewer: source review of registry version routing, explicit upcasters, opaque preservation and deny-first fixtures; no local runtime reviewer
+```
