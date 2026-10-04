@@ -1244,6 +1244,7 @@ CI 运行期间可领取其他独立 Step；完成后按 `CURRENT_STATUS.md` 的
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-10-04 | 修复公共 CI 阻塞：CAP-20 的 `harness_mcp::tests:: ` 命令改为 YAML folded scalar，移除违反现有 allowlist 的 push/root-status 触发；原 MCP 测试及 compile 命令全部保留，本地不运行验证，CAP-20 仍 🔄 | 待本提交 |
 | 2026-10-04 | 创建全量执行 goal `task-1791102524181-0iivvl`：重新盘点 749 个 Step（351 ✅ / 398 🔄 / 51 个可领取前沿），新增可重算依赖清单与 CI snapshot artifact；按用户指示改为 GitHub-only 验证及独立 worktree 并行，读取 CI 后修复失败再回填；未提升任何 Step 或 proof | 待本提交 |
 | 2026-10-04 | H05 provider response evidence slice：响应/流解析失败保留 `request_sent=true`、`side_effect_state=none` 与 typed no-retry 语义，新增 refusal/length/empty/invalid-json focused selector；不运行本地测试、不等待 CI，H05 仍为 `🔄 / partial / source` | `668e6773` |
 | 2026-09-30 | 修复第二十七个真实缺陷（**先有鸡还是先有蛋的死锁**，web trust 路径）：`trust_folder` 解析 session 后直接 `require_session_owner`，而后者要求 `owner_tab_id == Some(tab)` 且 `owner_active`；**从未 bootstrap 过的会话 `owner_tab_id` 是 `None`**，于是该检查永远无法通过——而 `/api/trust` 也无从取得归属，因为认领逻辑在 `claim_session_tab` 里，这条路径根本没调用它。`bootstrap`（`GET /api/bootstrap`）则是先 `claim_session_tab` 再往下走的，两条入口对「谁先建立归属」处理不一致。结果是：**一个全新会话在被信任之前无法被信任**。现于校验归属之前先认领。**归属校验并未被绕过**：`claim_session_tab` 只在 `owner_tab_id` 当前为 `None` 时写入，若会话已被别的 tab 拥有则原样保留，随后的 `require_session_owner` 仍以 `session_owner_required` 拒绝。所以本次改变的是「谁能**取得**一个尚无主的会话」，而不是「谁能**保有**一个不属于他的会话」——第二个 tab 仍无法夺走。但这也意味着：任何持有有效 token 与有效 tab id 的调用方都能认领一个无主会话，这与 `bootstrap` 早已适用的门槛相同；**若本意是「只有 bootstrap 可以建立归属」，那么这就是错的修法**，而应重新审视该用例的期望。是否转绿未经验证。`cargo fmt` 与 `cargo check -p kiana-entrypoints --all-targets` 均 exit 0；本地未运行测试，不提升任何 proof_level | 待本提交 |

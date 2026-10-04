@@ -4,6 +4,21 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### CAP-20 workflow syntax and trigger repair (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559`; .github/workflows/cap20-mcp-trust-discovery.yml; observed GitHub run `37188546597` job `111395708341` and invalid-workflow run `37188546099`
+worktree_status: parallel CI worker repaired the isolated workflow, coordinator integrated its reviewed diff into `goal/roadmap-completion-20261004-01a10602`; every fixture/compile command preserved
+command_argv: read GitHub job logs; source/diff review; `git diff --check`; GitHub unified CI executes `bash scripts/ci/validate-workflows.sh`; focused remote command `gh workflow run cap20-mcp-trust-discovery.yml --ref goal/roadmap-completion-20261004-01a10602`
+cwd·environment: repository root and isolated CI worktree; Linux/bash; no local workflow validator, tests, build/check/clippy or smoke executed
+fixture·cassette: existing MCP library/lifecycle/source-guard tests unchanged; YAML command with `harness_mcp::tests:: ` moved to a folded scalar; automatic push/root-status triggers removed to match the existing manual-feature-workflow contract
+exit_code: original GitHub workflow validator exit 1, exact YAML parser line 37 column 66; reviewed source/diff checks exit 0; new-source remote validation pending
+status_change: public CI blocker repaired at source; CAP-20 remains 🔄; no card acceptance claimed
+proof-level change: source only
+limitations: MCP trust/discovery runtime and unrelated unified CI failures remain to be verified remotely; syntax repair is not behavioral or durable proof
+reviewer: Codex coordinator reviewed Claude worker diff against the actual remote parser error and script allowlist
+```
+
 ### Roadmap completion goal and parallel CI-only execution (2026-10-04)
 
 ```text
