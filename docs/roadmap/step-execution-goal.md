@@ -30,7 +30,7 @@ GitHub CI；可独立推进的步骤并行；与此冲突的旧版限制性指�
 
 当前并行工作：PD-10 修复终态冲突稳定错误码；CI 工作流修复 CAP-20 的 YAML 和自动触发冲突；
 协调者建立可重算的 goal 清单并核对 ER-01 等活动前沿的当前 CI。
-仓库原有 `.github/workflows/pd14-artifact-store.yml` 未跟踪 WIP 保留在原工作树。
+仓库原有 PD-14 workflow 的未跟踪 WIP 保留在原工作树，不作为本次提交的一部分。
 
 查看/恢复：`python3 scripts/roadmap-goal.py` 显示当前统计与可领取步骤；
 `python3 scripts/roadmap-goal.py --checklist` 将当前队列同步到 Ruflo 的本地 checklist；
