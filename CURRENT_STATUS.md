@@ -22422,6 +22422,21 @@ limitations: automatic repair/compaction, H06 stream accumulation, H07 budget se
 reviewer: provider parser and H05 source guard reviewed; no local runtime reviewer
 ```
 
+### H05 current-head focused lane refresh (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/h05-stop-diagnostic.yml`; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider/src/{response.rs,request.rs}; provider focused selectors
+worktree_status: existing manual H05 workflow covers current typed stop/recovery and response-evidence selectors; no product behavior, manifest, lockfile or unified shard change
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run h05-stop-diagnostic.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: domain h05_model_outcome, runner h05_stop_guard, provider incomplete status/stream, FormatRepair, ToolRepair, Responses ContextRepair and refusal/length/empty/invalid-json response-evidence selectors; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: H05 roadmap row 047 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no automatic repair/compaction loop, complete unified shard, streaming accumulator, budget/provider billing, external/live or physical effect proof
+reviewer: source review matched every focused selector to current fixture names and checked no-retry/no-handoff boundary; no local runtime reviewer
+```
+
 ### ER-01 executable event schema resolution (2026-10-04)
 
 ```text
