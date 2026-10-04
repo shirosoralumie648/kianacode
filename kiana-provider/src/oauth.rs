@@ -143,7 +143,7 @@ pub(crate) enum RefreshFailure {
     Revoked,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct RawTokenResponse {
     pub access_token: String,
     pub refresh_token: Option<String>,
@@ -152,7 +152,20 @@ pub(crate) struct RawTokenResponse {
     pub token_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+impl std::fmt::Debug for RawTokenResponse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RawTokenResponse")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &"[REDACTED]")
+            .field("expires_in", &"[REDACTED]")
+            .field("scope", &"[REDACTED]")
+            .field("token_type", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawTokenWire {
     access_token: String,
@@ -164,6 +177,19 @@ struct RawTokenWire {
     scope: Option<String>,
     #[serde(default)]
     token_type: Option<String>,
+}
+
+impl std::fmt::Debug for RawTokenWire {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RawTokenWire")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &"[REDACTED]")
+            .field("expires_in", &"[REDACTED]")
+            .field("scope", &"[REDACTED]")
+            .field("token_type", &"[REDACTED]")
+            .finish()
+    }
 }
 
 fn decode_token_response(bytes: &[u8]) -> Result<RawTokenResponse, OAuthError> {
@@ -181,7 +207,7 @@ fn decode_token_response(bytes: &[u8]) -> Result<RawTokenResponse, OAuthError> {
     })
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct TokenMaterial {
     access_token: String,
     refresh_token: Option<String>,
@@ -189,11 +215,34 @@ struct TokenMaterial {
     scopes: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+impl std::fmt::Debug for TokenMaterial {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TokenMaterial")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &"[REDACTED]")
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("scopes", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[derive(Clone)]
 struct StoredTokens {
     metadata: OAuthTokenMetadata,
     access_token: String,
     refresh_token: Option<String>,
+}
+
+impl std::fmt::Debug for StoredTokens {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("StoredTokens")
+            .field("metadata", &"[REDACTED]")
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &"[REDACTED]")
+            .finish()
+    }
 }
 
 struct PendingFlow {
@@ -948,7 +997,7 @@ fn parse_token_response(
     )
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TokenFile {
     schema: String,
@@ -966,6 +1015,25 @@ struct TokenFile {
     // Older v1 files omitted this field and derive it from their remaining token material.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     refresh_digest: Option<String>,
+}
+
+impl std::fmt::Debug for TokenFile {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TokenFile")
+            .field("schema", &"[REDACTED]")
+            .field("provider_account", &"[REDACTED]")
+            .field("subject", &self.subject)
+            .field("generation", &self.generation)
+            .field("scopes", &"[REDACTED]")
+            .field("issued_at_unix_ms", &self.issued_at_unix_ms)
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("status", &self.status)
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &"[REDACTED]")
+            .field("refresh_digest", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl TokenFile {
@@ -1161,6 +1229,74 @@ mod tests {
             expires_in: Some(expires_in),
             scope: Some("model.read model.use".to_owned()),
             token_type: Some("Bearer".to_owned()),
+        }
+    }
+
+    #[test]
+    fn oauth_secret_debug_redacts_provider_and_persisted_material_at_each_layer() {
+        let access = "sentinel-ci09-access-token";
+        let refresh = "sentinel-ci09-refresh-token";
+        let scope = "sentinel-ci09-provider-scope";
+        let token_type = "sentinel-ci09-provider-token-type";
+        let encoded = serde_json::to_vec(&serde_json::json!({
+            "access_token": access,
+            "refresh_token": refresh,
+            "expires_in": 3600,
+            "scope": scope,
+            "token_type": token_type
+        }))
+        .expect("wire fixture");
+
+        let wire: RawTokenWire = serde_json::from_slice(&encoded).expect("wire decode");
+        let decoded = decode_token_response(&encoded).expect("response decode");
+        let material = TokenMaterial {
+            access_token: access.to_owned(),
+            refresh_token: Some(refresh.to_owned()),
+            expires_at_unix_ms: 4_600_000,
+            scopes: vec![scope.to_owned()],
+        };
+        let metadata = OAuthTokenMetadata::new(
+            "sentinel-ci09-provider-account",
+            OAuthSubject::Workload,
+            1,
+            vec![scope.to_owned()],
+            1_000,
+            4_600_000,
+            json_digest(&serde_json::json!(access)),
+            Some(json_digest(&serde_json::json!(refresh))),
+        )
+        .expect("metadata fixture");
+        let stored = StoredTokens {
+            metadata,
+            access_token: access.to_owned(),
+            refresh_token: Some(refresh.to_owned()),
+        };
+        let envelope = TokenFile::from_stored(&config(), &stored);
+        let persisted_bytes = serde_json::to_vec(&envelope).expect("persisted envelope");
+        let restored_envelope: TokenFile =
+            serde_json::from_slice(&persisted_bytes).expect("envelope decode");
+
+        for debug in [
+            format!("{wire:?}"),
+            format!("{decoded:?}"),
+            format!("{material:?}"),
+            format!("{stored:?}"),
+            format!("{envelope:?}"),
+            format!("{restored_envelope:?}"),
+        ] {
+            for sentinel in [
+                access,
+                refresh,
+                scope,
+                token_type,
+                "sentinel-ci09-provider-account",
+            ] {
+                assert!(
+                    !debug.contains(sentinel),
+                    "Debug output exposed {sentinel}: {debug}"
+                );
+            }
+            assert!(debug.contains("[REDACTED]"), "missing redaction: {debug}");
         }
     }
 

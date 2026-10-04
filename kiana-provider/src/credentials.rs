@@ -334,10 +334,20 @@ impl SecretStore for EnvSecretStore {
 /// Explicit API-key compatibility adapter.  New callers should provide an env/keyring/file/OS
 /// reference; this adapter keeps the existing `ProviderConfig.api_key` API working while the
 /// value remains private to the provider connection and effect boundary.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct InlineSecretStore {
     value: Arc<String>,
     revision: String,
+}
+
+impl std::fmt::Debug for InlineSecretStore {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InlineSecretStore")
+            .field("value", &"[REDACTED]")
+            .field("revision", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl InlineSecretStore {
@@ -512,6 +522,17 @@ mod tests {
             "credential_lease_replayed"
         );
         assert_eq!(material.value, "sentinel-ci07");
+    }
+
+    #[test]
+    fn inline_store_debug_redacts_secret_and_revision() {
+        let store = InlineSecretStore::new("sentinel-inline-secret-ci07".to_owned())
+            .expect("fixture value");
+        let debug = format!("{store:?}");
+
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("sentinel-inline-secret-ci07"));
+        assert!(!debug.contains(store.revision.as_str()));
     }
 
     #[test]

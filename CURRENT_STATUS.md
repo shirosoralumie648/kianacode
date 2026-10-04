@@ -22241,3 +22241,18 @@ proof-level_change: none; focused source/contract success is retained with its a
 limitations: CP-13 reserves scheduler/Cell resources before a separate execution.prepared transaction, with budget/lease and post-prepared failure recovery still open; ER-13 delivery currently claims without checking a committed execution result/typed receipt or source turn; true crash/replay recovery remains open
 reviewer: full detailed-card requirements and production helper sources reviewed; CP-13 Broker effect fixtures and ER-13 committed-source delivery repair delegated in isolated worktrees; no local runtime reviewer
 ```
+
+### CI-07 / CI-09 provider secret Debug boundary (2026-10-04)
+
+```text
+source_snapshot: parent `ac5b657d` plus this commit; isolated implementation `1825826e`; kiana-provider/src/{credentials,oauth}.rs
+worktree_status: raw-bearing InlineSecretStore, OAuth response/wire/material/stored-token/token-file Debug implementations now format fixed redaction values; their Debug traits remain available; no manifest, lockfile, transport or secret clearing behavior changed
+command_argv: after push `gh workflow run ci07-secret-store.yml --ref master` and `gh workflow run ci09-oauth-lifecycle.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root and isolated worktree /tmp/kiana-provider-secret-debug; GitHub Actions Ubuntu runners are the runtime test authority
+fixture·cassette: sentinel checks at response decoder, raw wire, token material, nested stored metadata, serialized/deserialized provider-only file envelope and compatibility inline store; no raw/provider echo field is delegated to Debug
+exit_code: changed-source CI pending; prior CI-09 lane run `37163350195` at `ac5b657d` 0, including generation/revoke/file repair fixtures; no local runtime exit code
+status_change: CI-07 / CI-09 remain 🔄 / partial / source
+proof-level_change: none; pre-Debug-fix acceptance does not prove the new fixtures
+limitations: Debug boundary only; provider-only token-file serialization intentionally retains protected material for storage; header/client copies, physical memory erasure, generic protected backend integration, full secret-leak matrix, Gateway/IdP/cross-process recovery and unified CI remain open
+reviewer: all six raw-bearing Debug types and current consumers/fixtures reviewed; no local runtime reviewer
+```

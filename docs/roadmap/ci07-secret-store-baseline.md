@@ -55,3 +55,8 @@ The previous focused lane at `15094d39`, run `37161315827`, passed before this r
 fixtures are submitted to GitHub CI after this commit; no local test/build/check/clippy/smoke
 or validation script runs. `CI-07` remains partial/source: the protected keyring/file/OS
 backends, cross-process revocation/replay and full product-chain secret-leak proof remain open.
+
+The provider's inline store and OAuth response/material/file types also replace derived Debug
+with fixed redacted fields. Formatting these objects never delegates to their token, scope,
+provider-echo or nested metadata strings. CI sentinel fixtures exercise each layer; this does
+not change protected file serialization or establish physical memory erasure.
