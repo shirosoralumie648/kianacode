@@ -13128,6 +13128,21 @@ proof-level_change: source plus static formatting/diff evidence only; no local_b
 limitations: budget intersection is intentionally conservative for distinct child subleases, the ready view is process-local/read-only, and AUT-08 still owns durable QueueStore persistence, lease/heartbeat/fence/reclaim, restart recovery and dispatch
 reviewer: Codex root implementation review plus packet digest/containment, budget/deadline, readiness reuse, deterministic ordering, duplicate claim and no-queue/no-dispatch boundary review; no runtime queue reviewer
 
+### AUT-07 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/aut07-workflow-queue-claim.yml`; kiana-domain/src/{workflow_queue_claim.rs,lib.rs}; kiana-domain/tests/aut07_workflow_queue_claim.rs; kiana-core/src/workflow_queue.rs; kiana-core/tests/{aut07_workflow_queue_ready.rs,aut07_workflow_queue_claim_guard.rs}; docs/roadmap/aut07-workflow-queue-claim-baseline.md
+worktree_status: restored a GitHub-only AUT-07 claim/ready/source-guard lane with formatting and three target-scoped compile steps; claim semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run aut07-workflow-queue-claim.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: stable WorkPacket/queue claim scope/budget/path-lock digests, parent containment, ready ordering, one-item-one-claim, dependency blocking, blocked/expired projection and widening/cycle/duplicate/expiry denial; domain/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: AUT-07 roadmap row 276 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: AUT-08 durable queue/lease/heartbeat/fence/reclaim/dispatch remains open; no durable scheduler or live effect proof
+reviewer: source review matched claim/ready fixture ownership and partial status boundary; no local runtime reviewer
+```
+
 ### AUT-08 workflow queue store lease evidence (partial, 2026-09-19)
 
 source_snapshot: 66ff865a + AUT-08 workflow queue lease/store slice; kiana-domain/src/{workflow_queue_claim,workflow_queue_lease}.rs; kiana-ports/src/lib.rs; kiana-eventlog/src/workflow_queue.rs; kiana-core/src/workflow_queue.rs; kiana-domain/tests/aut08_workflow_queue_lease.rs; kiana-eventlog/tests/aut08_workflow_queue_store.rs; kiana-core/tests/aut08_workflow_queue_guard.rs; .github/workflows/aut08-workflow-queue-store.yml; docs/roadmap/aut08-workflow-queue-store-baseline.md; docs/roadmap.md
