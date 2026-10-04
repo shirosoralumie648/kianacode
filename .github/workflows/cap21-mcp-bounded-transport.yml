@@ -1,0 +1,31 @@
+name: CAP-21 bounded stdio MCP transport
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-bounded-transport:
+    name: CAP-21 bounded MCP transport fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run MCP lifecycle fixtures
+        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
+      - name: Run CAP-21 source guard
+        run: cargo test -p kiana-core --test cap21_mcp_bounded_transport_guard --locked -- --test-threads=1
+      - name: Compile MCP lifecycle target
+        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --no-run --locked
+      - name: Compile CAP-21 source guard target
+        run: cargo test -p kiana-core --test cap21_mcp_bounded_transport_guard --no-run --locked
