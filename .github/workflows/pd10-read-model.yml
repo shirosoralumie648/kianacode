@@ -1,0 +1,31 @@
+name: PD-10 persistence read model
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-model:
+    name: PD-10 fact-only read model fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run PD-10 read model fixtures
+        run: cargo test -p kiana-core --test pd10_read_model --locked -- --test-threads=1
+      - name: Run PD-10 source guard
+        run: cargo test -p kiana-core --test pd10_read_model_guard --locked -- --test-threads=1
+      - name: Compile PD-10 fixture target
+        run: cargo test -p kiana-core --test pd10_read_model --no-run --locked
+      - name: Compile PD-10 source guard target
+        run: cargo test -p kiana-core --test pd10_read_model_guard --no-run --locked
