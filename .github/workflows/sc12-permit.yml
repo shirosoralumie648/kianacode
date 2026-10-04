@@ -1,0 +1,27 @@
+name: SC-12 permit and pending invocation boundary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  permit-boundary:
+    name: SC-12 permit fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-12 source guard
+        run: cargo test -p kiana-core --test sc12_permit_guard --locked -- --test-threads=1
+      - name: Compile SC-12 domain target
+        run: cargo test -p kiana-domain --lib --no-run --locked
+      - name: Compile SC-12 Core guard target
+        run: cargo test -p kiana-core --test sc12_permit_guard --no-run --locked

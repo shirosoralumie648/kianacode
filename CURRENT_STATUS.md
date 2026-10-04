@@ -11312,6 +11312,21 @@ limitations: full cross-process durable permit projector, TOCTOU/path/egress/sec
 reviewer: Codex root implementation review plus pending invocation sequence/context, permit action/project/authority/expiry/digest, CAS/reuse/stale epoch and no-second-loop boundary review; no runtime test reviewer
 ```
 
+### SC-12 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/sc12-permit.yml`; kiana-domain/src/{capabilities.rs,dispatch.rs}; kiana-core/src/{dispatch.rs,recovery.rs}; kiana-core/tests/sc12_permit_guard.rs; docs/roadmap/sc12-permit-baseline.md
+worktree_status: restored a GitHub-only SC-12 Core permit source-guard lane with formatting and domain/Core target-scoped compile; PendingInvocation/DispatchPermit/CAS semantics, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc12-permit.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: continuation/event-sequence binding, action/request/project/context/authority versions, approval/expiry/digest, CAS/reuse/stale-epoch deny-first source guard and domain/Core target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-12 roadmap row 206 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: full cross-process durable permit projector, TOCTOU/path/egress/secret fences and external/live/physical effect proof remain SC-13+ and PD/ER work
+reviewer: source review matched strict permit/pending contract, CAS/reuse/stale epoch boundary and single execution path; no local runtime reviewer
+```
+
 ### SC-13 path / TOCTOU boundary evidence (2026-09-18)
 
 ```text
