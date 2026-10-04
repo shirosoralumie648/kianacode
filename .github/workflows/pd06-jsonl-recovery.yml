@@ -1,0 +1,29 @@
+name: PD-06 JSONL durability and recovery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jsonl-recovery:
+    name: PD-06 JSONL recovery fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run PD-06 eventlog recovery fixtures
+        run: cargo test -p kiana-eventlog --test pd06_jsonl_recovery --locked -- --test-threads=1
+      - name: Run PD-06 Core source guard
+        run: cargo test -p kiana-core --test pd06_jsonl_guard --locked -- --test-threads=1
+      - name: Compile PD-06 eventlog target
+        run: cargo test -p kiana-eventlog --test pd06_jsonl_recovery --no-run --locked
+      - name: Compile PD-06 Core guard target
+        run: cargo test -p kiana-core --test pd06_jsonl_guard --no-run --locked

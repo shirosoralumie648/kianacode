@@ -22647,6 +22647,21 @@ limitations: no durable reservation/fence/CAS, fair queue, cross-process clock s
 reviewer: source review of trusted-clock target partition, canonical group identity and no-provider/financial-authority guard ownership; no local runtime reviewer
 ```
 
+### PD-06 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/pd06-jsonl-recovery.yml`; kiana-eventlog/src/jsonl.rs; kiana-eventlog/tests/pd06_jsonl_recovery.rs; kiana-core/tests/pd06_jsonl_guard.rs; docs/roadmap/pd06-jsonl-recovery-baseline.md
+worktree_status: restored a GitHub-only PD-06 eventlog JSONL recovery fixture/Core guard lane with formatting and target-scoped compile; JSONL writer/recovery implementation, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run pd06-jsonl-recovery.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: checksum/malformed-frame rejection, torn final-line repair, Core JournalFrame/Header, fsync/directory sync, O_APPEND/O_NOFOLLOW, flock/file identity, bounded repair and uncertain-write guard; two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: PD-06 roadmap row 200 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no physical/kill-9/multi-host durable proof; indexing/recovery, async backpressure/shutdown, projection, backup and retention remain open
+reviewer: source review of JSONL target partition, bounded tail repair and sync/lock guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
