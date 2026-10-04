@@ -1,0 +1,34 @@
+name: ER-19 process handle and fencing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-handle:
+    name: ER-19 process handle and fencing fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run resource fence fixture
+        run: cargo test -p kiana-core --test cp12_resource_guard --locked -- --test-threads=1
+      - name: Run process/output fixture
+        run: cargo test -p kiana-daemon --test h15_output_limits --locked -- --test-threads=1
+      - name: Run ER-19 source guard
+        run: cargo test -p kiana-core --test er19_process_handle_guard --locked -- --test-threads=1
+      - name: Compile ER-19 Core target
+        run: cargo test -p kiana-core --test cp12_resource_guard --no-run --locked
+      - run: cargo test -p kiana-core --test er19_process_handle_guard --no-run --locked
+      - name: Compile ER-19 daemon target
+        run: cargo test -p kiana-daemon --test h15_output_limits --no-run --locked
