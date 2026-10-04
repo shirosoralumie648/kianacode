@@ -21358,6 +21358,21 @@ limitations: EventLog/Receipt/Metric/Trace sink wiring, streaming split-marker c
 reviewer: source review of AuditRecord digest/redaction invariants, export-format parity and deny-first sentinel fixture; no local runtime reviewer
 ```
 
+### OA-03 current-head redaction lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `aef739b8` Audit export redaction correction; `.github/workflows/oa03-redaction.yml`; kiana-domain/src/{redaction.rs,audit.rs}; kiana-domain/tests/oa03_redaction.rs; kiana-core/src/audit_export.rs; kiana-core/tests/oa03_redaction_guard.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: current master contains RedactionProfile/bounded encoder contracts and export materializer revalidation; workflow re-executes domain redaction, Core export guard/refusal, format and scoped compile; no authority, manifest, lockfile or second execution path changed
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run oa03-redaction.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: cross-signal sentinel/NUL/depth/encoding/size denial, profile digest/bounded encoding, digest-bound export record mutation denial, residual-secret export refusal and target-scoped no-run compiles; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: OA-03 roadmap row 094 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: EventLog/Receipt/Metric/Trace sink wiring, streaming split-marker coverage, arbitrary unmarked secret formats, downstream classification and durable/live export remain open
+reviewer: source review matched export producer boundary, profile/encoder target partition and deny-first sentinel fixtures; no local runtime reviewer
+```
+
 ### OA-04 focused audit workflow restored (2026-10-03)
 
 ```text
