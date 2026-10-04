@@ -22617,6 +22617,21 @@ limitations: adapter is fixture-only and non-durable; provider discovery/invoice
 reviewer: source review of RateCardStore target partition, pinned version semantics and no-financial-authority guard ownership; no local runtime reviewer
 ```
 
+### BQ-06 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/bq06-budget-intersection.yml`; kiana-domain/src/{billing_budgets.rs,work_packets.rs,usage.rs}; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs; docs/roadmap/billing-budget-intersection-baseline.md
+worktree_status: restored a GitHub-only BQ-06 domain budget-intersection fixture/Core guard lane with formatting and target-scoped compile; `ProviderBudget`/`EffectiveBudget` behavior, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run bq06-budget-intersection.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: five-scope conservative minimum, child widening/usage reset, invalid provider/quota/empty intersection denial, Core no-financial/provider/runner/I/O authority guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: BQ-06 roadmap row 195 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: ProviderBudget/EffectiveBudget remain pure in-memory contracts; quota windows, UTC clock, durable reservation/CAS/fence, queue/capacity and financial billing authority remain BQ-07+
+reviewer: source review of conservative intersection target partition, child scope denial and no-financial-authority guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
