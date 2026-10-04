@@ -22676,3 +22676,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: workspace overlay remains API-level rather than per-project daemon reload; raw credentials remain bounded to the provider compatibility boundary pending CI-07; cross-process config snapshots, reload fencing, OAuth and provider/live effect proof remain open
 reviewer: source review of workflow target partition and existing resolver/guard ownership; no local runtime reviewer
 ```
+
+### PD-08 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/pd08-integrity-scan.yml`; kiana-eventlog/src/{integrity.rs,jsonl.rs,lib.rs}; kiana-eventlog/tests/pd08_integrity_scan.rs; kiana-core/tests/pd08_integrity_guard.rs; docs/roadmap/pd08-integrity-scan-baseline.md
+worktree_status: restored a GitHub-only PD-08 eventlog integrity fixture/Core guard lane with formatting and target-scoped compile; scan_jsonl/report/health behavior, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run pd08-integrity-scan.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: Empty/Ready/checksum-Corrupt/Unknown integrity reports, pause/quarantine/reconcile and health-gate denial, Core read-only/no-destructive-move-delete/no-runner/no-Broker guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: PD-08 roadmap row 202 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: no automatic quarantine move, full middle-frame repair, projector health integration, kill-9 or physical durability proof; PD-09+ remains open
+reviewer: source review of integrity classification, read-only recovery action and no-destructive-repair guard ownership; no local runtime reviewer
+```
