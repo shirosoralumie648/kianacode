@@ -12608,6 +12608,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus event-sourced invocation reconstruction, terminal conflict detection, owner/scope/epoch snapshot claim, redaction boundary, bounded retry/new attempt identity and evidence-only reconciliation review; no runtime test reviewer
 ```
 
+### CAP-24 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap24-invocation-recovery.yml`; kiana-core/src/{recovery.rs,invocation_projection.rs,capability_attempt_projection.rs,platform.rs}; kiana-domain/src/{invocation_resume.rs,model.rs,effect_observation.rs,errors.rs,event_contracts.rs}; kiana-runner/src/{harness.rs,budget.rs}; selected CO-08/H14 domain, ER-09/P2-K6/ER-24/ER-25/H13/CP-20 Core and CAP-24 guard targets; docs/roadmap/cap24-invocation-recovery-baseline.md
+worktree_status: restored a GitHub-only CAP-24 replay/resume/retry/reconciliation lane with formatting and selected domain/Core target-scoped compile; recovery semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap24-invocation-recovery.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: replay/resume, invocation projection/reliability, evidence reconciliation, retry/attempt, ledger and Unknown guards plus CAP-24 source guard for terminal conflict, owner/scope/epoch binding, redacted non-resume, bounded new attempt and evidence-only reconciliation; selected domain/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-24 roadmap row 254 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: provider-specific exactly-once is not claimed, durable cross-process queue recovery remains later automation work, and external effect reconciliation still requires human/provider evidence
+reviewer: source review matched projection/recovery guard ownership and selected domain/Core partition; no local runtime reviewer
+```
+```
+
 ### CAP-25 receipt / four-entry parity evidence (2026-09-19)
 
 ```text
