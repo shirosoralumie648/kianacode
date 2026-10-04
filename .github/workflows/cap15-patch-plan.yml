@@ -1,0 +1,31 @@
+name: CAP-15 typed patch plan and preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch-plan:
+    name: CAP-15 patch plan and preview fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run preview and commit fixture
+        run: cargo test -p kiana-daemon --lib preview_and_commit_share_the_same_plan_digest_and_affected_paths --locked -- --test-threads=1
+      - name: Run CAP-15 source guards
+        run: cargo test -p kiana-core --test cap15_patch_plan_guard --locked -- --test-threads=1
+      - name: Compile daemon library target
+        run: cargo test -p kiana-daemon --lib --no-run --locked
+      - name: Compile CAP-15 source guard target
+        run: cargo test -p kiana-core --test cap15_patch_plan_guard --no-run --locked
