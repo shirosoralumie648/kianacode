@@ -22587,6 +22587,21 @@ limitations: pure reducer is not attached to real cancellation/restart/lease wor
 reviewer: source review of deterministic fault target partition, UnknownReconcile boundary and no-real-worker guard ownership; no local runtime reviewer
 ```
 
+### EQ-16 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/eq16-boundary-evidence.yml`; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq16_boundary_evidence.rs; kiana-core/tests/eq16_boundary_evidence_guard.rs; docs/roadmap/evaluation-boundary-evidence-baseline.md
+worktree_status: restored a GitHub-only EQ-16 daemon boundary-evidence fixture/Core guard lane with formatting and target-scoped compile; `EvalBoundaryEvidence`, manifest, lockfile and execution spine unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run eq16-boundary-evidence.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: scrubbed process/command, relative file/content digest, bounded network count, allow-listed secret-pattern and unknown-pattern denial; safety findings become `SafetyViolation`; Core no-process/syscall/network/secret/raw-value/runner guard and two target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: EQ-16 roadmap row 188 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: observations remain sanitized caller inputs rather than live syscalls/process/filesystem reads; durable evidence manifest, quality gates and restart persistence remain open
+reviewer: source review of scrubbed evidence target partition, safety violation precedence and no-real-system-read guard ownership; no local runtime reviewer
+```
+
 ### CI-06 focused lane correction (2026-10-04)
 
 ```text
