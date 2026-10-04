@@ -12326,6 +12326,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus shared parser/overlay identity, read-only preview, digest/path/before-hash parity, move two-end preconditions, handler scope reuse and no-write preview boundary review; no runtime test reviewer
 ```
 
+### CAP-15 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap15-patch-plan.yml`; kiana-daemon/src/{apply_patch.rs,harness_capabilities.rs}; kiana-core/tests/cap15_patch_plan_guard.rs; docs/roadmap/cap15-patch-plan-baseline.md
+worktree_status: restored a GitHub-only CAP-15 shared patch-plan preview/commit lane with formatting and daemon/Core target-scoped compile; PlannedPatch and preview/commit semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap15-patch-plan.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: daemon preview/commit same plan digest and affected paths, Core digest/path/precondition/scope/source guards and daemon/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-15 roadmap row 245 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: binary patch/mode policy, full move destination authority projection, crash/fsync recovery and physical filesystem atomicity remain CAP-16 or later evidence
+reviewer: source review matched shared plan/no-write preview boundary and selected target partition; no local runtime reviewer
+```
+```
+
 ### CAP-16 patch transaction / recovery evidence (2026-09-19)
 
 ```text
