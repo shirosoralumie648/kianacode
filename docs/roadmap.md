@@ -309,7 +309,7 @@
 | 140 | W2 | 专项 | [`ER-14`](roadmap/event-receipt-recovery.md#step-er-14) | Event / Receipt / Recovery · Effect Receipt 与外部 provider receipt | `ER-13` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-14) |
 | 141 | W2 | 专项 | [`ER-15`](roadmap/event-receipt-recovery.md#step-er-15) | Event / Receipt / Recovery · Hook、MCP、Memory、Patch 结果统一边界 | `ER-14` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-15) |
 | 142 | W2 | 专项 | [`ER-16`](roadmap/event-receipt-recovery.md#step-er-16) | Event / Receipt / Recovery · 终态事件唯一性与 terminal 必达 | `ER-15` | ✅ | [专项卡](roadmap/event-receipt-recovery.md#step-er-16) |
-| 143 | W2 | 专项 | [`CAP-05`](roadmap/capability.md#step-cap-05) | Capability · 核验授权事实，原子领取一次执行；run `37158407122` current-head focused workflow 通过 | `CAP-03`、`CAP-04` | ✅ | [专项卡](roadmap/capability.md#step-cap-05) |
+| 143 | W2 | 专项 | [`CAP-05`](roadmap/capability.md#step-cap-05) | Capability · Broker 核验授权事实并在真实 handler 前原子领取；ControlPlane 完整准备/预算/租约事务仍待完成 | `CAP-03`、`CAP-04` | 🔄 | [专项卡](roadmap/capability.md#step-cap-05) |
 | 144 | W2 | 专项 | [`CAP-06`](roadmap/capability.md#step-cap-06) | Capability · 审批看见并绑定将被执行的最终计划 | `CAP-05` | ✅ | [专项卡](roadmap/capability.md#step-cap-06) |
 | 145 | W2 | 专项 | [`H06`](roadmap/harness.md#step-h06) | Harness · 一个流归一化器产生增量与完整响应；run `37158650125` current-head focused workflow 通过 | `H05` | ✅ | [专项卡](roadmap/harness.md#step-h06) |
 | 146 | W2 | 专项 | [`H07`](roadmap/harness.md#step-h07) | Harness · 贯通预算配置、预留与累计结算；run `37158992896` current-head focused workflow 通过 | `H05` | ✅ | [专项卡](roadmap/harness.md#step-h07) |

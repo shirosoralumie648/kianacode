@@ -22271,3 +22271,18 @@ proof-level_change: none; the earlier failure does not prove the skipped guards 
 limitations: same single-gateway reload scope; multi-project daemon/config-path/current trust revision integration, durable restart fencing and unified CI remain open
 reviewer: old fixture history and current assignment-before-preflight source order reviewed; no local runtime reviewer
 ```
+
+### CAP-05 Broker effect-boundary fixtures (2026-10-04)
+
+```text
+source_snapshot: parent `4f376d81` plus isolated implementation `b3b70459`; kiana-core/tests/cap05_permit.rs; .github/workflows/cap05-permit.yml; docs/roadmap/capability-permit-baseline.md
+worktree_status: real Broker/handler/CAS fixtures staged for integration; existing six verifier fixtures retained; no production dispatch path, manifest, lockfile or second authorization source changed
+command_argv: after push `gh workflow run cap05-permit.yml --ref master`; no local test/build/check/clippy/smoke/validation script
+cwd·environment: repository root and isolated worktree /tmp/kiana-cap05-effect-fixtures; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: unknown/empty/unknown execution IDs, prepared-only refusals, valid single handler after confirmed permit consume, replay, concurrent CAS single winner, stale authority/read-set drift, failed/Unknown/TOCTOU commit and pre-consume cancel; handler checks the same journal receipt and execution facts
+exit_code: changed-source CAP-05 CI pending; previous focused contract run `37158407122` was 0 but did not include these effect fixtures; no local runtime exit code
+status_change: CAP-05 roadmap row 143 remains 🔄; feature_status=partial; proof_level=source
+proof-level_change: effect-boundary source/test coverage broadened; no durable/live/physical promotion
+limitations: ControlPlane preparation, budget/lease/approval transaction and post-prepare crash recovery remain unproven; external provider/connector exactly-once and unified CI remain open
+reviewer: real Broker registry, JournalPermitVerifier, MemoryEventLog CAS and handler evidence reviewed; no local runtime reviewer
+```

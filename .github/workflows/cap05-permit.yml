@@ -18,7 +18,9 @@ jobs:
         run: cargo fetch --locked
       - name: Check formatting
         run: cargo fmt --all --check
-      - name: Run CAP-05 permit fixtures and guard
+      - name: Run CAP-05 verifier and Broker effect fixtures
         run: cargo test -p kiana-core --test cap05_permit --locked -- --test-threads=1
+      - name: Run shared CP-13 dispatch barrier guard
+        run: cargo test -p kiana-core --test cp13_dispatch_guard --locked -- --test-threads=1
       - name: Compile CAP-05 targets
         run: cargo check --workspace --tests --locked

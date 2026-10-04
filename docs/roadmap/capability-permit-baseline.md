@@ -62,3 +62,18 @@ behavior is claimed.
 CAP-05 proof ceiling 为 `source`：MemoryEventLog CI fixture 固化 permit identity、read-set/CAS
 和单次消费边界，未运行本地测试。真实 JSONL power-loss、跨进程 contention、OS effect spawn、
 provider/connector exactly-once 和 full approval resume 仍留待 CAP-06/12+、CP/ER/PD/INT。
+
+## 5. 2026-10-04 Broker effect-boundary fixtures
+
+The focused lane now uses the real `CapabilityBroker`, static action catalog, real
+`JournalPermitVerifier` and the same `MemoryEventLog` for both authority and handler evidence.
+The handler increments its counter only after observing the committed execution receipt and
+`dispatching`/`executing` facts. Added fixtures cover unknown/empty execution IDs, legal one-shot
+execution and replay, two contenders at the actual CAS boundary, stale authority and malformed
+read sets, failed/unknown/TOCTOU commit refusal, and cancellation before consumption. Every
+refusal asserts zero handler calls and a prepared-only execution stream.
+
+GitHub CI run `37164052536` proves the earlier resolver slice, while the CAP-05 changed-source
+workflow is dispatched after this commit. This is still `feature_status=partial` and
+`proof_level=source`: ControlPlane's full prepare/approval/budget/lease transaction, durable
+power-loss recovery, external effect reconciliation and physical/live proof remain open.
