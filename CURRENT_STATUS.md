@@ -12234,6 +12234,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus explicit environment allow/deny list, synthetic paths, `/run`/`/sys` masking, namespace/default-deny, descriptor-pinned mount retention, CLOEXEC helper boundary, no_new_privs fail-closed and MCP reuse review; no runtime test reviewer
 ```
 
+### CAP-11 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cap11-ambient-authority.yml`; kiana-daemon/src/{harness_sandbox.rs,harness_capabilities.rs,mcp_stdio.rs,execution_control.rs}; kiana-core/tests/cap11_ambient_authority_guard.rs; existing daemon library fixtures
+worktree_status: restored a GitHub-only CAP-11 sandbox environment/namespace lane with formatting and daemon/Core target-scoped compile; ambient authority/default-deny semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cap11-ambient-authority.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: synthetic environment, bwrap namespace/cap-drop/clearenv and stdio-MCP descriptor mount fixtures, CAP-11 source guard and daemon/Core no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CAP-11 roadmap row 241 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: kernel close_range/no_new_privs enforcement, bwrap runtime behavior, allowed local IPC and real network denial remain remote CI evidence; no physical isolation claim
+reviewer: source review matched explicit env/path denial, namespace plan and no_new_privs guard ownership; no local runtime reviewer
+```
+```
+
 ### CAP-12 ProcessSupervisor / bounded resource evidence (2026-09-19)
 
 ```text
