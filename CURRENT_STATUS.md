@@ -4,6 +4,21 @@
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
 
+### Roadmap completion goal and parallel CI-only execution (2026-10-04)
+
+```text
+source_snapshot: base `38cf305c839ece27595a2f28bacdd1fbdab36559` plus goal source/docs slice; docs/roadmap/step-execution-goal.md; scripts/roadmap-goal.py; .github/workflows/ci.yml; docs/roadmap.md
+worktree_status: integration branch `goal/roadmap-completion-20261004-01a10602`; pre-existing untracked PD-14 workflow preserved; PD-10 and CAP-20 repairs executed by independent Claude workers in isolated worktrees, coordinator reviewed their diffs; model-event contract worker is separately investigating ER-01
+command_argv: `python3 scripts/roadmap-goal.py --checklist --limit 8` (roadmap inventory/checklist export, no project test or runtime); Ruflo task_create/task_update; `git diff --check`; GitHub unified CI will run workflow validation, cargo fmt/check/clippy, sharded tests and desktop contracts
+cwd·environment: repository root; Linux/bash/Python; local tests/build/check/clippy/smoke/validation scripts not executed; GitHub Actions is the validation executor
+fixture·cassette: no runtime fixture for goal inventory; the CI workflow archives a dependency snapshot bound to github.sha; goal task `task-1791102524181-0iivvl` points to the whole roadmap
+exit_code: roadmap inventory/checklist export and git diff --check exit 0; new-source GitHub CI pending
+status_change: goal `goal-kiana-roadmap-completion-20261004` created/in_progress; actual queue 749 Steps, 351 indexed completed, 398 reopened/pending, 51 dependency-ready; goal's 47 percent is inherited roadmap index progress, not current global CI acceptance; no Step upgraded
+proof-level change: source only; no local_behavior/durable/live/physical promotion
+limitations: 398 Steps remain unclosed; current source has known GitHub failures, including PD-10 stable error code, CAP-20 YAML, ER-02 test dependency, ER-01 marker ownership and model.reserved registration; persisted goal/checklist is not itself an autonomous executor or completion receipt; live/platform proof still requires actual environments
+reviewer: Codex coordinator source/diff review; parallel Claude worker reports reviewed; no local runtime reviewer
+```
+
 ### UI-37 用户文档、模块图和操作 runbook（2026-09-25）
 
 source_snapshot: `7fdc8c15`（UI-36 已合并 master 基线）加 UI-37 docs/source slice；`docs/ui-entrypoints-runbook.md`; `docs/module-map.md`; `scripts/verify-ui37-docs.sh`; `.github/workflows/ui37-docs-runbook.yml`; `docs/roadmap/ui37-docs-runbook-baseline.md`; `docs/roadmap/ui-entrypoints.md`; `docs/roadmap.md`
