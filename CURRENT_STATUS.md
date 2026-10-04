@@ -11790,6 +11790,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus named schema/event/storage upcaster, legacy authority reauthorization, old-writer fence, migration capability denial, DaemonHost constructor and dependency/legacy-edge/no-direct-runner boundary review; no runtime test reviewer
 ```
 
+### CP-28 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/cp28-migration-boundary.yml`; selected domain schema/event/identity fixtures; Core schema/journal/resume/projection/dependency guards; EventLog package; daemon `eq12_daemon_spine`; entrypoint `cli_architecture`; `cp28_migration_boundary_guard`; docs/roadmap/cp28-migration-boundary-baseline.md
+worktree_status: restored a GitHub-only CP-28 migration/compatibility/bypass lane with formatting and selected target-scoped compile; migration semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run cp28-migration-boundary.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: schema/event/storage/identity fixtures, Core upcaster/JSONL/resume/projection/dependency guards, EventLog package, daemon spine, CLI architecture and CP-28 guard; selected domain/Core/EventLog/daemon/entrypoint no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: CP-28 roadmap row 225 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: production upgrade/downgrade rehearsal, cross-version multi-writer race, physical backup/restore and removal of all compatibility crates remain PD/ER/DEP work
+reviewer: source review matched migration/upcaster, legacy reauthorization, writer fence and same-spine/legacy-edge guard target ownership; no local runtime reviewer
+```
+```
+
 ### ER-17 serializable RunSnapshot / pending writes evidence (2026-09-18)
 
 ```text
