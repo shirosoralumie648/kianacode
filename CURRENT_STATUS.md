@@ -22421,3 +22421,18 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: stale lock recovery, power-loss cleanup, cross-process fencing, shared product-entry root resolution and restart identity remain open; this slice only classifies already-present lock bytes
 reviewer: source review of lock parse/validation classification and deny-first fixture; no local runtime reviewer
 ```
+
+### PD-01 storage guard marker ownership correction (2026-10-04)
+
+```text
+source_snapshot: failing head `890d9585`; correction `8d93200c`; kiana-core/tests/pd01_storage_guard.rs; docs/roadmap/persistence-storage-root-baseline.md §7
+worktree_status: Core source guard checks domain-owned schema markers in domain source and daemon-owned corrupt-lock classification in daemon source; production lock behavior unchanged
+command_argv: remote `gh run view 37172453421 --log-failed`; targeted rustfmt; `git diff --check`; push `8d93200c`; `gh workflow run pd01-storage-root.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: run `37172453421`, storage-root source guard failed because `storage_lock_corrupt` was searched in the domain source; replacement run `37173030509` pending
+exit_code: remote source-guard failure observed; targeted format/diff checks 0; replacement CI pending; no local runtime exit code
+status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; proof_level=source
+proof-level change: none; guard ownership correction does not establish runtime behavior
+limitations: stale lock recovery, power-loss cleanup, cross-process fencing, shared CLI/Web/Workbench root reuse and restart identity semantics remain open
+reviewer: source review of exact remote marker failure and ownership-aligned guard correction; no local runtime reviewer
+```

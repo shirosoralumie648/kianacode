@@ -82,3 +82,24 @@ proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: malformed metadata classification does not prove stale-lock recovery, power-loss cleanup, cross-process fencing, shared CLI/Web/Workbench root reuse or restart identity semantics
 reviewer: source review of lock conflict parsing/classification and deny-first fixture; no local runtime reviewer
 ```
+
+## 7. Storage guard marker ownership correction (2026-10-04)
+
+Focused PD-01 run `37172453421` reached the source guard and failed because the Core guard
+searched the daemon-only `storage_lock_corrupt` marker in the domain source. The guard now checks
+domain-owned schema/validation markers against `kiana-domain/src/storage.rs` and daemon-owned
+conflict classification markers against `kiana-daemon/src/storage.rs`. The production lock
+classification is unchanged.
+
+```text
+source_snapshot: failing head `890d9585`; correction `8d93200c`; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: source guard marker ownership matches the implementation boundary; no production storage, ControlPlane or execution path changed
+command_argv: remote `gh run view 37172453421 --log-failed`; targeted rustfmt; `git diff --check`; push `8d93200c`; `gh workflow run pd01-storage-root.yml --ref master`
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: run `37172453421`, job `storage-root`, `storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane` failed only on `storage_lock_corrupt` marker ownership; replacement run `37173030509` pending
+exit_code: remote source-guard failure observed; targeted format/diff checks 0; replacement CI pending; no local runtime exit code
+status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; guard correction does not promote runtime proof
+limitations: stale lock recovery, power-loss cleanup, cross-process fencing, shared product-entry root resolution and restart identity remain open
+reviewer: source review of exact remote guard failure and daemon/domain marker ownership; no local runtime reviewer
+```
