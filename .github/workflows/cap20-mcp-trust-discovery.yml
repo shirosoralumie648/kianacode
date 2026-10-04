@@ -1,6 +1,18 @@
 name: CAP-20 MCP trust and discovery snapshot
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - "kiana-daemon/src/harness_mcp.rs"
+      - "kiana-daemon/src/mcp_stdio.rs"
+      - "kiana-daemon/src/lib.rs"
+      - "kiana-daemon/tests/p1_j4_01_mcp.rs"
+      - "kiana-core/tests/cap20_mcp_trust_discovery_guard.rs"
+      - "docs/roadmap/cap20-mcp-trust-discovery-baseline.md"
+      - "docs/roadmap.md"
+      - "CURRENT_STATUS.md"
+      - ".github/workflows/cap20-mcp-trust-discovery.yml"
   workflow_dispatch:
 
 permissions:
