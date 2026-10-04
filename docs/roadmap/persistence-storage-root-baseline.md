@@ -103,3 +103,23 @@ proof-level_change: none; guard correction does not promote runtime proof
 limitations: stale lock recovery, power-loss cleanup, cross-process fencing, shared product-entry root resolution and restart identity remain open
 reviewer: source review of exact remote guard failure and daemon/domain marker ownership; no local runtime reviewer
 ```
+
+## 8. Current-head focused acceptance receipt (2026-10-04)
+
+Run `37173137916` at head `aea0d70c` completed successfully. GitHub Actions passed formatting,
+the domain storage fixtures, daemon storage fixtures, the ownership-aligned Core source guard,
+and all three target-scoped compile steps. This confirms the malformed-lock classification and
+its source guard on the current head only; it does not close the broader StorageRoot contract.
+
+```text
+source_snapshot: `aea0d70c543995ccf322bff4568d6b5e37338c06`; .github/workflows/pd01-storage-root.yml; PD-01 domain/daemon/Core sources and fixtures
+worktree_status: current-head focused workflow success; no shared manifest, lockfile, ControlPlane path or second execution loop changed
+command_argv: `gh run view 37173137916 --json headSha,status,conclusion,jobs,url`; no local test/build/check/clippy/smoke
+cwd·environment: repository root; GitHub Actions Ubuntu runner is the runtime test authority
+fixture·cassette: job `storage-root`: formatting, domain fixtures, daemon fixtures, source guard, and domain/daemon/Core target compiles all success
+exit_code: all focused remote steps success; no local runtime exit code
+status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: focused current-head evidence refreshed; no local_behavior, durable, live or physical promotion
+limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock recovery, power-loss cleanup and cross-process fencing remain open
+reviewer: exact GitHub job/step receipt and source/fixture review; no local runtime reviewer
+```

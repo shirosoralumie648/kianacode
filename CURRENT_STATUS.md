@@ -22436,3 +22436,18 @@ proof-level change: none; guard ownership correction does not establish runtime 
 limitations: stale lock recovery, power-loss cleanup, cross-process fencing, shared CLI/Web/Workbench root reuse and restart identity semantics remain open
 reviewer: source review of exact remote marker failure and ownership-aligned guard correction; no local runtime reviewer
 ```
+
+### PD-01 current-head focused acceptance receipt (2026-10-04)
+
+```text
+source_snapshot: `aea0d70c543995ccf322bff4568d6b5e37338c06`; .github/workflows/pd01-storage-root.yml; PD-01 domain/daemon/Core sources and fixtures
+worktree_status: focused current-head workflow completed successfully; no shared manifest, lockfile, ControlPlane path or second execution loop changed
+command_argv: `gh run view 37173137916 --json headSha,status,conclusion,jobs,url`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions is the runtime test authority
+fixture·cassette: job `storage-root` passed formatting, domain storage fixtures, daemon storage fixtures, ownership-aligned Core source guard, and domain/daemon/Core target compilation
+exit_code: focused remote steps all success; no local runtime exit code
+status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; proof_level=source
+proof-level change: focused current-head evidence refreshed; no promotion to local_behavior, durable, live or physical
+limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock recovery, power-loss cleanup and cross-process fencing remain open
+reviewer: exact GitHub job/step receipt and source/fixture review; no local runtime reviewer
+```
