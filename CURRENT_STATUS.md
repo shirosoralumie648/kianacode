@@ -19348,6 +19348,21 @@ limitations: DaemonHost::handle still does not consume AssignmentDirectory, serv
 reviewer: source review of project identity derivation and early foreign-project denial; no local runtime reviewer
 ```
 
+### SC-07 current-head authority lane (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `038071b5` assignment project-binding correction; `.github/workflows/sc07-authority.yml`; kiana-domain/src/{trust_snapshots.rs,assignment.rs,roles.rs,identity.rs}; kiana-domain/tests/sc07_trust_snapshots.rs; kiana-core/src/security_authority.rs; kiana-core/tests/{sc07_authority_snapshot.rs,sc07_authority_guard.rs}; docs/roadmap/security-authority-baseline.md
+worktree_status: current master contains server-owned ProjectTrust/Department/Authority snapshots and early foreign-project assignment denial; workflow re-executes domain/Core authority fixtures, source guard, format and scoped compile; DaemonHost assignment wiring, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run sc07-authority.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: trusted/untrusted snapshots, wire trust escalation denial, foreign project/root/trust revision binding, assignment project mismatch source-order guard and three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: SC-07 roadmap row 118 remains `🔄`; feature_status=partial; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: `context_from_assignment` remains disconnected from `DaemonHost::handle`; AssignmentDirectory/ProjectTrustAuthority are local compatibility adapters, server OrganizationId/provisioning, durable assignment/revocation, cross-process recovery and external/live/physical proof remain open
+reviewer: source review matched server-owned snapshot binding, assignment project check and disconnected-handle limitation; no local runtime reviewer
+```
+
 ### OA-02 request-binding validation boundary (2026-10-04)
 
 ```text
