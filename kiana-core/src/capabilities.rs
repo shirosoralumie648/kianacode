@@ -681,6 +681,7 @@ impl ControlPlane {
             .approvals
             .stage(&approval_context, request.clone(), reason)
             .await?;
+        eprintln!("CM-02 debug: approval stage returned");
         let command_id = kiana_domain::derived_request_id(
             "approval.activate_with_pause",
             &challenge.approval_id.to_string(),
@@ -702,6 +703,7 @@ impl ControlPlane {
             .approvals
             .prepare_activation(challenge.approval_id, command_id)
             .await?;
+        eprintln!("CM-02 debug: approval activation prepared");
         let (aggregate_type, aggregate_id) = match run_id {
             Some(run_id) => ("run", run_id.to_string()),
             None => ("request", event_request_id.to_string()),
@@ -791,6 +793,7 @@ impl ControlPlane {
                 events,
             })
             .await?;
+        eprintln!("CM-02 debug: approval activation commit returned");
         match outcome {
             kiana_domain::CommitOutcome::Committed { .. }
             | kiana_domain::CommitOutcome::Replayed { .. } => {}
