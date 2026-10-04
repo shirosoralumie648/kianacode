@@ -250,6 +250,7 @@ impl EventSchemaResolution {
 
 const RUN_FIELDS: &[&str] = &[
     "run_id",
+    "schema",
     "sequence",
     "session_id",
     "actor_id",
@@ -257,6 +258,8 @@ const RUN_FIELDS: &[&str] = &[
     "turn_id",
     "turn",
     "text",
+    "steps",
+    "stop_reason",
     "step",
     "step_id",
     "error",
