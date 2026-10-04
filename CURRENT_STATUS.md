@@ -11878,6 +11878,22 @@ limitations: CI result was intentionally not awaited; no local test or smoke com
 reviewer: Codex root implementation review plus immutable handle/owner/scope/authority/expiry identity, fence successor/path lease, leader-reap/stop/capture evidence, Unknown on escape/record failure and no lease-expiry release boundary review; no runtime test reviewer
 ```
 
+### ER-19 focused workflow restoration (2026-10-04)
+
+```text
+source_snapshot: current master before this step; `.github/workflows/er19-process-handle.yml`; kiana-domain/src/{job_handle.rs,resource_leases.rs,capabilities.rs}; kiana-core/src/{sessions.rs,lifecycle.rs,receipts.rs}; kiana-daemon/src/{execution_control.rs,harness_capabilities.rs}; kiana-ports/src/lib.rs; kiana-core/tests/{cp12_resource_guard.rs,er19_process_handle_guard.rs}; kiana-daemon/tests/h15_output_limits.rs; docs/roadmap/er19-process-handle-baseline.md
+worktree_status: restored a GitHub-only ER-19 process/resource/output fencing lane with formatting and three target-scoped compile steps; process handle and lease semantics, manifest and lockfile unchanged
+command_argv: `git diff --check`; staged diff check; after push `gh workflow run er19-process-handle.yml --ref master`; no local test/build/check/clippy/smoke
+cwd·environment: repository root Linux/bash; GitHub Actions Ubuntu runner is the runtime test authority; local runtime commands intentionally not run
+fixture·cassette: CP-12 resource fence, H15 process/output, immutable JobHandle/continuation/owner/scope/authority/expiry, process-group leader reap/stop/capture and Unknown/fenced Receipt guard; three target-scoped no-run compile steps; workflow pending after push
+exit_code: source/diff checks pending at commit time; GitHub runtime jobs pending/unobserved; no local runtime exit code
+status_change: ER-19 roadmap row 228 remains `🔄`; feature_status=implemented; proof_level=source
+proof-level_change: none; no local_behavior, durable, live or physical promotion
+limitations: container/Windows supervisor, power-loss and multi-host process fencing remain platform/DEP/live work
+reviewer: source review matched immutable handle, resource fence and process/output guard target ownership; no local runtime reviewer
+```
+```
+
 ### ER-20 restart projector / default pause evidence (2026-09-18)
 
 ```text
