@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-16 CI 对齐：carry-forward 后 guard 夹具与工作流修复
+
+```text
+source_snapshot: worktree fix/ci-alignment-20261016 @ a8f8cb14 + 3 commits; ~90 个 kiana-*/tests/* 守卫夹具与 8 个 docs/roadmap 基线文档；kiana-core/src/retention_deletion.rs；.github/workflows/ci.yml、cm02-memory-lifecycle.yml
+worktree_status: 全部提交于 fix/ci-alignment-20261016，随后合入 master；无 step 行状态变化（无 ✅ 提升），无 manifest/lockfile 改动
+command_argv: 本轮为 CI-only：本地未运行任何 cargo build/test/check/clippy/fmt 与 smoke；验证回执来自 push 触发的 ci.yml（run id 待回填）
+cwd·environment: 仓库根；GitHub Actions ubuntu-latest；jobs cm02-memory-review / rust-tests（kiana-core-s1..s6、kiana-daemon、kiana-entrypoints、kiana-ports、kiana-protocol、kiana-query 等）
+fixture·cassette: 修复对象为 2026-10-16 master run 38895876948 / goal run 38895825886 的失败项：~85 个 source-guard/baseline 断言漂移（marker 改名、rustfmt 换行、注释命中的假边界、digest 钉扎过期、reference/ 审计语料未入库）、DEP-26 dry-run 顺序缺陷、5 个 8 MiB 默认栈溢出（按仓库既有 RUST_MIN_STACK=32 MiB 约定修复 CI 环境，非抑制测试）
+exit_code: 本地未运行（按 2026-10-16 指示）；CI 回执待 push 后回填
+status_change: 无 roadmap 行状态变化；修复的是 carry-forward 树与守卫夹具/CI 环境的一致性，供后续 step 领取使用
+proof-level_change: none；不提升任何 proof_level，不声明 durable/live
+limitations: marker 对齐依赖静态核对（rg/读取/手工重放），未经本地编译/测试；guard 语义判断（cp18 broker 注册、er20/ui05 组合根作用域、source_guard 词法降级、dep26 顺序变更）以 CI 回执为准；`reference/` 存在时的 inventory 对比仍为已知基线漂移
+reviewer: root integration agent; 8 个并行修复子代理各自的静态复核报告
+```
+
 ### 2026-10-13 CAP-15 guard 作用域回归
 
 ```text
