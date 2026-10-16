@@ -40,6 +40,7 @@ const STRICT_ALLOWED: &[(&str, &[&str])] = &[
             "kiana-policy",
             "kiana-ports",
             "kiana-protocol",
+            "kiana-provider",
             "kiana-query",
             "kiana-runner",
             "kiana-runner-protocol",

@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn automation_baseline_keeps_a_single_control_plane_execution_spine() {
     let core = include_str!("../src/automation.rs");
@@ -9,8 +12,11 @@ fn automation_baseline_keeps_a_single_control_plane_execution_spine() {
     assert!(core.contains("commit_workflow"));
     assert!(core.contains("authorize_and_execute"));
     assert!(!core.contains("tokio::spawn(async move {"));
-    assert!(!workflow.contains("EventStore"));
-    assert!(!workflow.contains("CapabilityBroker"));
+    // Comments may describe the EventStore boundary; production workflow code must not reach
+    // into the store or the broker itself.
+    let workflow_code = source_guard::production_source(workflow);
+    assert!(!workflow_code.contains("EventStore"));
+    assert!(!workflow_code.contains("CapabilityBroker"));
     // The daemon routes by wire name; `handle_workflow_command` is `pub(crate)` in
     // kiana-core, so the daemon source never names it.
     assert!(daemon.contains("workflow.snapshot.v1"));

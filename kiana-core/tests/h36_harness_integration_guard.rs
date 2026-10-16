@@ -72,10 +72,12 @@ fn h36_matrix_keeps_surface_scenario_and_receipt_boundaries() {
             if marker == "three-entry" {
                 let surfaces = item_source(source, "pub enum HarnessSurface");
                 let baseline_lower = baseline.to_ascii_lowercase();
-                ["Cli", "Workbench", "Web", "Desktop"].into_iter().all(|surface| {
-                    surfaces.contains(surface)
-                        && baseline_lower.contains(&surface.to_ascii_lowercase())
-                })
+                ["Cli", "Workbench", "Web", "Desktop"]
+                    .into_iter()
+                    .all(|surface| {
+                        surfaces.contains(surface)
+                            && baseline_lower.contains(&surface.to_ascii_lowercase())
+                    })
             } else {
                 baseline.contains(marker)
             },

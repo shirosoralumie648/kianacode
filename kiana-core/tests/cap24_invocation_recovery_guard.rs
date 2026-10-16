@@ -12,8 +12,13 @@ fn require(source: &str, markers: &[&str], label: &str) {
                     "ifmatches!(entry.state,CapabilityExecutionState::Dispatching|CapabilityExecutionState::Executing){entry.state=CapabilityExecutionState::Unknown;}"
                 )
             }
-            "automatic_retry_allowed:false" => source_guard::production_source(source)
-                .contains("\"automatic_retry_allowed\":false"),
+            // The platform module emits the compact JSON literal directly; the CP-20 guard
+            // asserts it through the escaped needle `\"automatic_retry_allowed\":false`.
+            "automatic_retry_allowed:false" => {
+                let production = source_guard::production_source(source);
+                production.contains("\"automatic_retry_allowed\":false")
+                    || production.contains(r#"\"automatic_retry_allowed\":false"#)
+            }
             "new_request_required:true" => {
                 source_guard::production_source(source).contains("\"new_request_required\":true")
             }

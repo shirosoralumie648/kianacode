@@ -69,9 +69,11 @@ fn new_process_rebuilds_the_company_chain() {
 
     assert!(core.contains("CompanyReplayReducer::new"));
     assert!(core.contains("reducer") && core.contains(".apply(event)"));
-    assert!(core.contains("events.read_stream(COMPANY_AGGREGATE"));
+    let core_flat: String = core.split_whitespace().collect();
+    assert!(core_flat.contains("events.read_stream(COMPANY_AGGREGATE"));
     assert!(core.contains("company_view(&context"));
-    assert!(replay.contains("state.transition"));
+    let replay_flat: String = replay.split_whitespace().collect();
+    assert!(replay_flat.contains("state.transition"));
     assert!(replay.contains("runtime_event.kind != format!(\"company.{}\""));
     assert!(core.contains("company_artifact_source_revoked"));
     assert!(core.contains("company_evidence_owner_mismatch"));

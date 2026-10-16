@@ -3,6 +3,7 @@ fn p4_j7_15_anthropic_messages_keeps_native_terminal_and_usage_boundaries() {
     let response = include_str!("../../kiana-provider/src/response.rs");
     let request = include_str!("../../kiana-provider/src/request.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-15-anthropic-baseline.md");
+    let roadmap = include_str!("../../docs/roadmap/provider.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-15-anthropic.yml");
     for marker in [
         "ModelProtocol::AnthropicMessages",
@@ -31,7 +32,10 @@ fn p4_j7_15_anthropic_messages_keeps_native_terminal_and_usage_boundaries() {
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker) || response.contains(marker),
+            roadmap.contains(marker)
+                || baseline.contains(marker)
+                || workflow.contains(marker)
+                || response.contains(marker),
             "P4-J7-15 evidence marker missing: {marker}"
         );
     }

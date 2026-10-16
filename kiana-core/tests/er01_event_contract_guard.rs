@@ -618,7 +618,8 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "const RUN_CAPABILITY_BLOCKED_FIELDS: &[&str]",
         "const RUN_AWAITING_APPROVAL_IDS: &[&str] = &[\"run_id\", \"capability_request_id\", \"approval_id\"]",
         "const RUN_AWAITING_APPROVAL_FIELDS: &[&str]",
-        "Terminal closes this capability attempt only, not the enclosing run.",
+        // Behavioral anchor: the terminal capability event closes the attempt, not the run.
+        "此终态仅关闭这次 capability 尝试，不代表它所属的整个 run 结束。",
     ] {
         assert!(
             contracts.contains(marker),

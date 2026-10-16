@@ -6,6 +6,9 @@
 //! refusal is expressible, sealed, and that the contract has no path by which a weaker backend
 //! could be named in its place.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -87,7 +90,10 @@ fn backend_selection_refuses_and_names_no_substitute() {
         "fixed decision order",
     );
     // The decision must not consult the host, name a sandbox, or reach an OS. `host_target` is a
-    // supplied fact precisely so this module never goes looking.
+    // supplied fact precisely so this module never goes looking. The scan uses the production
+    // view so a doc comment that merely mentions an example backend name cannot count as naming
+    // a substitute.
+    let selection_code = source_guard::production_source(selection);
     for forbidden in [
         "std::fs",
         "std::process",
@@ -99,7 +105,7 @@ fn backend_selection_refuses_and_names_no_substitute() {
         "seatbelt",
     ] {
         assert!(
-            !selection.contains(forbidden),
+            !selection_code.contains(forbidden),
             "CAP-31/32 selection crossed the effect boundary: {forbidden}"
         );
     }

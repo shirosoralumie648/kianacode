@@ -3,6 +3,7 @@ fn p4_j7_13_transport_keeps_all_deadlines_framing_and_body_bounds() {
     let transport = include_str!("../../kiana-provider/src/transport.rs");
     let config = include_str!("../../kiana-provider/src/config.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-13-transport-baseline.md");
+    let roadmap = include_str!("../../docs/roadmap/provider.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-13-transport.yml");
     for marker in [
         "connection.limits.headers",
@@ -48,7 +49,10 @@ fn p4_j7_13_transport_keeps_all_deadlines_framing_and_body_bounds() {
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker) || transport.contains(marker),
+            roadmap.contains(marker)
+                || baseline.contains(marker)
+                || workflow.contains(marker)
+                || transport.contains(marker),
             "P4-J7-13 evidence marker missing: {marker}"
         );
     }

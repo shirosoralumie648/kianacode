@@ -55,8 +55,10 @@ fn connector_cannot_bypass_the_control_plane() {
 
     assert!(core.contains("self.authorize_and_execute(&context, request).await"));
     assert!(core.contains("arguments.insert(\"binding_snapshot\""));
-    assert!(domain.contains("adapter != \"local_fixture\""));
-    assert!(daemon.contains("source: \"local_fixture\""));
+    let adapter_allowlist =
+        "!matches!(definition.adapter.as_str(), \"local_fixture\" | \"stdio_mcp\")";
+    assert!(domain.contains(adapter_allowlist));
+    assert!(daemon.contains("receipt.source != \"local_fixture\""));
     assert!(daemon.contains("append_idempotent_expected"));
     assert!(daemon.contains("connector_reconciliation_binding_mismatch"));
     assert!(daemon.contains("connector_rate_limit_exceeded"));

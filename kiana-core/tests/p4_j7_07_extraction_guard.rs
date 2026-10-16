@@ -39,5 +39,24 @@ fn provider_extraction_keeps_one_production_gateway_and_legacy_services_test_onl
         );
     }
     assert!(!runner_manifest.contains("kiana-provider"));
-    assert!(!core_manifest.contains("kiana-provider"));
+    // kiana-core tests drive provider-backed fixtures through the dev-dependency; the runtime
+    // [dependencies] section must stay free of the provider crate.
+    assert!(
+        !runtime_dependencies(core_manifest).contains("kiana-provider"),
+        "kiana-core [dependencies] must not include kiana-provider"
+    );
+}
+
+/// Extracts the `[dependencies]` section body from a Cargo manifest.
+fn runtime_dependencies(manifest: &str) -> &str {
+    let header = "[dependencies]";
+    let start = manifest
+        .find(header)
+        .unwrap_or_else(|| panic!("manifest must declare {header}"));
+    let body_start = start + header.len();
+    let rest = &manifest[body_start..];
+    let end = rest
+        .find("\n[")
+        .map_or(manifest.len(), |offset| body_start + offset);
+    &manifest[start..end]
 }

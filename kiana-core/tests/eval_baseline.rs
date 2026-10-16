@@ -29,13 +29,13 @@ fn eval_baseline_pins_missing_quality_platform_and_migration_work() {
     for required in [
         "partial",
         "local_behavior",
-        "legacy EvalCommand",
+        "Legacy `kiana-commands::EvalCommand`",
         "provider-independent",
         "EvalStore",
         "TraceNormalizer",
         "QualityGate",
-        "scripts/eval-curated.sh",
-        "second execution loop",
+        "curated/deep/release CI lanes",
+        "second runner loop",
         "EQ-01",
     ] {
         assert!(baseline.contains(required), "baseline missing {required}");

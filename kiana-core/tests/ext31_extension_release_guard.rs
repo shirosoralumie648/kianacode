@@ -39,8 +39,7 @@ fn extension_release_gate_binds_fixed_metrics_supply_chain_and_limitations() {
 #[test]
 fn extension_release_gate_points_to_existing_ci_supply_chain_and_smoke_boundaries() {
     let release = fs::read_to_string("../scripts/release-smoke.sh").expect("release smoke");
-    let harness =
-        fs::read_to_string("../scripts/harness-golden-smoke.sh").expect("harness smoke");
+    let harness = fs::read_to_string("../scripts/harness-golden-smoke.sh").expect("harness smoke");
     let supply = fs::read_to_string("../scripts/supply-chain-scan.sh").expect("supply scan");
     let module_map = fs::read_to_string("../docs/module-map.md").expect("module map");
     for (name, source, markers) in [

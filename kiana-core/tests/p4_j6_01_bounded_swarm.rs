@@ -67,8 +67,8 @@ fn bounded_swarm_keeps_authority_before_child_dispatch_and_merge() {
     assert!(core.contains("ExecutionStatus::ResultUnknown"));
     assert!(core.contains("swarm_sibling_failed"));
     assert!(core.contains("swarm_merged"));
-    assert!(domain.contains("swarm_transition_illegal"));
-    assert!(domain.contains("review_complete"));
+    assert!(reducer.contains("swarm_transition_illegal"));
+    assert!(reducer.contains("review_complete"));
     assert!(!core.contains("broadcast::channel"));
     assert!(!core.contains("ProviderGateway"));
     assert!(!core.contains("ModelClient"));

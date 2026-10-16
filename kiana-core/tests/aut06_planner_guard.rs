@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn workflow_planner_intent_stays_pure_and_effects_return_to_control_plane() {
     let domain = include_str!("../../kiana-domain/src/automation.rs");
@@ -29,8 +32,11 @@ fn workflow_planner_intent_stays_pure_and_effects_return_to_control_plane() {
     }
     assert!(core.contains("plan_command_intent"));
     assert!(core.contains("commit_workflow"));
-    assert!(!planner.contains("EventStore"));
-    assert!(!planner.contains("CapabilityBroker"));
-    assert!(!planner.contains("SystemTime"));
-    assert!(!planner.contains("tokio::spawn"));
+    // Forbidden markers are checked against the production view: planner docs may name the
+    // EventStore boundary, but planner code must never reach for it.
+    let planner_code = source_guard::production_source(planner);
+    assert!(!planner_code.contains("EventStore"));
+    assert!(!planner_code.contains("CapabilityBroker"));
+    assert!(!planner_code.contains("SystemTime"));
+    assert!(!planner_code.contains("tokio::spawn"));
 }

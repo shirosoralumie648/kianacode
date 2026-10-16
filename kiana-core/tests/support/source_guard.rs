@@ -223,11 +223,23 @@ fn item_scope_does_not_include_an_adjacent_effect_or_literal_braces() {
 
 #[test]
 fn identifier_check_sees_standalone_names_not_longer_identifiers() {
-    assert!(contains_identifier("pub secret_value: String", "secret_value"));
-    assert!(!contains_identifier("scan_secret_value(payload)", "secret_value"));
-    assert!(!contains_identifier("scan_secret_value_with_limit(payload)", "secret_value"));
+    assert!(contains_identifier(
+        "pub secret_value: String",
+        "secret_value"
+    ));
+    assert!(!contains_identifier(
+        "scan_secret_value(payload)",
+        "secret_value"
+    ));
+    assert!(!contains_identifier(
+        "scan_secret_value_with_limit(payload)",
+        "secret_value"
+    ));
     assert!(contains_identifier("(company_accept)", "company_accept"));
-    assert!(!contains_identifier("company_acceptance_required", "company_accept"));
+    assert!(!contains_identifier(
+        "company_acceptance_required",
+        "company_accept"
+    ));
 }
 
 /// Check the report validator rather than an obsolete prose spelling of `behavior_verified`.
