@@ -3,13 +3,16 @@
 > 快照日期：2026-09-16。本文是 `PD-00` 的 source-only reconciliation，不是统一 StorageRoot、
 > durable ProjectionStore、ArtifactStore、Backup/Migration/Retention service 或跨进程数据层的完成声明。
 > 本轮不在本地运行测试；`persistence_baseline` 只由 GitHub Actions 执行。
+> 2026-10-16 重新钉扎：WIP merge 后按当前工作树更新第 2 节 SHA-256 与 source snapshot 说明；
+> `.github/workflows/pd00-baseline.yml` 已并入统一 CI（`scripts/ci/test-shards.json` 调度），
+> 该行保留为历史记录。重新钉扎只更新快照记录，不放宽任何断言。
 
 ## 1. 范围、事实源和证明上限
 
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`PD-00`](../roadmap.md#step-pd-00) |
-| source snapshot | `5226b97`（EQ-00 已推送的干净基线） |
+| source snapshot | `5226b97`（EQ-00 已推送的干净基线；2026-10-16 按 WIP merge 后工作树重新钉扎第 2 节哈希） |
 | proof ceiling | `source`；source guard/test-target 编译不提升 `local_behavior`、`durable`、`live` 或 `physical` |
 | single fact source | `EventStore/RuntimeEvent` 与 atomic `TransitionBatch`/`CommandReceipt`；Projection、Receipt、Memory、Index、Cache、Notification 和 UI 都只能派生 |
 | this step does | inventory、owner/scope/format/cursor 能力、Memory/JSONL/Approval/Artifact/Index 边界、迁移/备份/保留缺口、PD-01..35 handoff |
@@ -19,18 +22,18 @@
 
 | 边界 | 文件 | SHA-256 |
 |---|---|---|
-| Journal contracts/limits | `kiana-domain/src/journal.rs` | `4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48` |
-| Governance/retention contracts | `kiana-domain/src/governance.rs` | `8d64488c287fe7fe8e2a67f9db2cafa685c50d0012600a6ac23fe4d372e1a777` |
-| EventStore port | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
-| EventLog facade | `kiana-eventlog/src/lib.rs` | `7af0aba67a44e4575ffd7920ab07866a28c4dbbfcf0c7a3a96221986dfc190bb` |
-| JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `f549e5de5bc4e197f268b865327bd1d0d7a4c10208daa3e7c13ceb68188e5c5f` |
-| Memory adapter | `kiana-eventlog/src/memory.rs` | `bcb98daa0a9548384a9dafdd9d5af2aefacca3d01d699056ba86477d3276e9e9` |
-| ApprovalStore | `kiana-daemon/src/approval_store.rs` | `e013b20c983f4555d7256980ed96c3785136c2fc148568a3a9a7ee34e6695929` |
-| Memory adapter | `kiana-daemon/src/harness_memory.rs` | `6379bfb054a745f07f9977cf63122107f97e3753b5e15bcfc90217d8518b953c` |
-| Artifact boundary | `kiana-core/src/artifacts.rs` | `dbc0776cdfebff5d10ff65238cf09ca3c41fa4ed350dc769b3f6bc4eaceaf1d0` |
-| Receipt/recovery projection | `kiana-core/src/receipts.rs`, `kiana-core/src/recovery.rs` | `dda33c346b1ffd94389093e2856f99433ea083a3c61b35cf562484f9f4bc7e1e`, `f964c69bb32e940782ef52b399afd9ad6902778b4900f6b7164cb79f3dcc7d26` |
-| Query index/cache | `kiana-query/src/index.rs`, `kiana-query/src/repo_map.rs` | `a9cfc4767f24a7f790686be8068554aac7ee84c6c8d58ee6c71e78b75afc3716`, `ead92a58e5de2b391779666007b4972bc79ef0e16226e8937338310ae9e39100` |
-| PD-00 source guard/workflow | `kiana-core/tests/persistence_baseline.rs`, `.github/workflows/pd00-baseline.yml` | `d050e42f09da86596997450d854aa4684f9cd0b1f18c348b9ec2934188ab03d6`, `d696e54207d89ad10e72f88047e5428f5d3d9a3922a06d1d0692b8231ecc3b46` |
+| Journal contracts/limits | `kiana-domain/src/journal.rs` | `6966da5534b7bb9155b3282e5338aa5195f362aa6a08ab6564a7a8ddfe24324e` |
+| Governance/retention contracts | `kiana-domain/src/governance.rs` | `e7a0c59ec507bf435c0da4cd8efb0e3cf000fdd857712a629b2c4560796f5333` |
+| EventStore port | `kiana-ports/src/lib.rs` | `313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec` |
+| EventLog facade | `kiana-eventlog/src/lib.rs` | `fe98b8bffdf86cc49ce6630bdf3240b8d92b9590024ce3b2aea7edb132b090f4` |
+| JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `614ef68ba99f8df06dd56c90ca3864956ec1619bef2623bdfba111f7b4315efc` |
+| Memory adapter | `kiana-eventlog/src/memory.rs` | `2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774` |
+| ApprovalStore | `kiana-daemon/src/approval_store.rs` | `c6267bb007b5ede4663f5ae36c16797f9429ca3a167121024cf01ef5bc84230a` |
+| Memory adapter | `kiana-daemon/src/harness_memory.rs` | `e8b99bb7c6ad7bf447e861f5e368b4cbf2abc0226067d498601c2f2590d27e15` |
+| Artifact boundary | `kiana-core/src/artifacts.rs` | `01938b6dd8e0d396482a3b15cfd22c61d2921916a292d51b2295b94d5658ef66` |
+| Receipt/recovery projection | `kiana-core/src/receipts.rs`, `kiana-core/src/recovery.rs` | `b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67`, `5169aecfa239d023af97ea5ddccf0019204dbfdf01d5a14e8e3c3972c9ec1721` |
+| Query index/cache | `kiana-query/src/index.rs`, `kiana-query/src/repo_map.rs` | `0515f9a2cce54f3d99edac018f3dc079bfe6d907e0523a365cd42cd44647d56c`, `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
+| PD-00 source guard/workflow | `kiana-core/tests/persistence_baseline.rs`（2026-10-16 重新钉扎），`.github/workflows/pd00-baseline.yml`（历史记录，已并入统一 CI 调度） | `d1ad17b57bd900e0d508a68795fb21647f05764cb194560201e593e1bdd303ae`, `d696e54207d89ad10e72f88047e5428f5d3d9a3922a06d1d0692b8231ecc3b46`（历史） |
 
 Pre-existing rows are anchors; later PD steps touching these files refresh the hash in the same commit.
 

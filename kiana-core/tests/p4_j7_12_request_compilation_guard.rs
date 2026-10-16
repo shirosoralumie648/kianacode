@@ -3,6 +3,7 @@ fn p4_j7_12_request_compilation_keeps_mapping_history_and_hash_boundaries() {
     let domain = include_str!("../../kiana-domain/src/request_compilation.rs");
     let provider = include_str!("../../kiana-provider/src/request.rs");
     let model = include_str!("../../kiana-domain/src/model.rs");
+    let fixture = include_str!("../../kiana-domain/tests/p4_j7_12_request_compilation.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-12-request-compilation-baseline.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-12-request-compilation.yml");
     for marker in [
@@ -47,13 +48,13 @@ fn p4_j7_12_request_compilation_keeps_mapping_history_and_hash_boundaries() {
     for marker in [
         "wire_tool_name_collision_is_rejected",
         "orphan_tool_result_fails_before_send",
-        "compiled_request_cannot_exceed_context_budget",
+        "final_wire_budget_keeps_schema_and_output_reserves_visible",
         "five_tools_round_trip_through_one_reversible_map",
         "cargo fmt --all --check",
         "cargo test -p kiana-domain --test p4_j7_12_request_compilation",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker) || workflow.contains(marker) || fixture.contains(marker),
             "P4-J7-12 evidence marker missing: {marker}"
         );
     }

@@ -7,6 +7,7 @@ fn connector_cannot_bypass_the_control_plane() {
     let daemon = include_str!("../../kiana-daemon/src/connectors.rs");
     let effect = include_str!("../../kiana-domain/src/effect_observation.rs");
     let fixture = include_str!("../../kiana-domain/tests/p4_k8_01_connector.rs");
+    let baseline = include_str!("../../docs/roadmap/p4-k8-01-connector-baseline.md");
 
     for marker in [
         "ConnectorDefinition",
@@ -30,7 +31,7 @@ fn connector_cannot_bypass_the_control_plane() {
         "connector_binding_scope_mismatch",
         "connector_binding_snapshot_changed",
         "connector_final_payload_approval_required",
-        "connector_idempotency_payload_mismatch",
+        "connector_idempotency_command_digest_conflict",
         "connector.invoked",
         "connector.reconciled",
         "connector_fixture_hash_mismatch",
@@ -46,7 +47,8 @@ fn connector_cannot_bypass_the_control_plane() {
                 || commands.contains(marker)
                 || daemon.contains(marker)
                 || effect.contains(marker)
-                || fixture.contains(marker),
+                || fixture.contains(marker)
+                || baseline.contains(marker),
             "connector marker missing: {marker}"
         );
     }

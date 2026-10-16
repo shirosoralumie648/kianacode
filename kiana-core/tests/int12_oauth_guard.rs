@@ -19,7 +19,7 @@ fn int12_account_store_keeps_provider_secret_boundary_and_cas() {
         "scope_downgrade",
         "require_reauth",
         "pub fn revoke",
-        "pub fn reauth",
+        "pub fn require_reauth",
         "#[serde(deny_unknown_fields)]",
     ] {
         assert!(domain.contains(marker), "domain marker missing: {marker}");
@@ -35,6 +35,7 @@ fn int12_account_store_keeps_provider_secret_boundary_and_cas() {
     ] {
         assert!(ports.contains(marker), "port marker missing: {marker}");
     }
+    let daemon_flat: String = daemon.split_whitespace().collect();
     for marker in [
         "InMemoryOAuthAccountStore",
         "RwLock",
@@ -43,12 +44,15 @@ fn int12_account_store_keeps_provider_secret_boundary_and_cas() {
         "current.require_reauth(",
         "current.revoke(",
     ] {
-        assert!(daemon.contains(marker), "daemon marker missing: {marker}");
+        assert!(
+            daemon.contains(marker) || daemon_flat.contains(marker),
+            "daemon marker missing: {marker}"
+        );
     }
     for marker in [
         "OAuthAccountQueryPage",
         "project_oauth_accounts",
-        "raw access/refresh material",
+        "access/refresh token",
         "source_cursor",
         "stale",
     ] {

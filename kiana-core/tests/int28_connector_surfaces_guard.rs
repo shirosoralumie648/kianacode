@@ -4,10 +4,10 @@ fn connector_surface_facade_is_read_only_and_shared() {
     let core = include_str!("../src/connector_surfaces.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     for marker in [
-        "ConnectorSurface::Cli",
-        "ConnectorSurface::Web",
-        "ConnectorSurface::Workbench",
-        "ConnectorSurface::Mcp",
+        "Cli,\n",
+        "Web,\n",
+        "Workbench,\n",
+        "Mcp,\n",
         "ConnectorSurfaceQuery",
         "ConnectorSurfaceResponse",
         "read_only",

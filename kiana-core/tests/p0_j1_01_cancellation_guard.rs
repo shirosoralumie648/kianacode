@@ -6,8 +6,8 @@ fn cancellation_uses_one_fact_and_signal_chain() {
     let events = include_str!("../src/events.rs");
     let runner = include_str!("../../kiana-runner/src/harness.rs");
     for marker in [
-        "ExecutionStatus::Queued",
-        "ExecutionStatus::Cancelling",
+        "Self::Queued",
+        "Self::Cancelling",
         "RunCancellationState::Requested",
         "RunCancellationState::Stopping",
         "RunCancellationState::Cancelled",

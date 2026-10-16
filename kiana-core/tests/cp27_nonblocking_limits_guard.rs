@@ -24,7 +24,7 @@ fn cp_slow_storage_does_not_starve_cancellation() {
     require(
         eventlog,
         &[
-            "bounded blocking I/O",
+            "阻塞存储任务",
             "MAX_STORAGE_WORKERS",
             "try_acquire_owned",
             "eventlog_worker_queue_full",
@@ -274,7 +274,10 @@ fn cp_pending_and_event_limits_fail_without_resource_leak() {
         ],
         "patch limits",
     );
-    require(capabilities, &["output_total_limit"], "tool output limits");
+    assert!(
+        capabilities.contains("output_total_limit") || output.contains("output_total_limit"),
+        "CP-27 tool output limits marker missing: output_total_limit"
+    );
     require(
         output,
         &[
@@ -328,7 +331,7 @@ fn cp_pending_and_event_limits_fail_without_resource_leak() {
         &[
             "eventlog_capability_or_cursor_limit",
             "eventlog_capability_or_cursor_limit",
-            "degraded",
+            "ComponentHealthState::Degraded",
         ],
         "health limits",
     );

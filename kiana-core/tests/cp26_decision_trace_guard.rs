@@ -247,7 +247,7 @@ fn cp_secret_never_appears_in_error_event_receipt_or_explain() {
         &[
             "redaction_profile",
             "valid_digest",
-            "redaction_profile_invalid",
+            "!valid_digest(&self.redaction_profile)",
         ],
         "typed receipt redaction",
     );

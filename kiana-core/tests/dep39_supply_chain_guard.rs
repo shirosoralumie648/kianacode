@@ -55,7 +55,7 @@ fn supply_chain_gate_is_fail_closed_and_script_bound() {
         "signature",
         "checksum",
         "license",
-        "secret scanning",
+        "secret-scan",
         "Desktop",
         "compliance",
         "partial",

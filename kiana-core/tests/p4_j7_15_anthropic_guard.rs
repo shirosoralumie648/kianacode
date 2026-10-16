@@ -22,16 +22,16 @@ fn p4_j7_15_anthropic_messages_keeps_native_terminal_and_usage_boundaries() {
         );
     }
     for marker in [
-        "anthropic_stop_reason_without_message_stop_is_incomplete",
+        "anthropic_stream_requires_message_stop_and_accumulates_usage",
         "anthropic_stream_error_after_text_never_dispatches_tools",
         "anthropic_unknown_required_block_fails_closed",
-        "anthropic_text_tool_result_and_final_answer_round_trip",
-        "anthropic_usage_updates_are_cumulative",
+        "anthropic_text_tool_result_and_final_answer_decode_without_private_replay",
+        "anthropic_usage_regression_is_rejected",
         "cargo test -p kiana-provider --lib",
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker) || workflow.contains(marker) || response.contains(marker),
             "P4-J7-15 evidence marker missing: {marker}"
         );
     }

@@ -15,9 +15,9 @@ fn integrations_baseline_keeps_provider_connector_mcp_and_a2a_boundaries() {
     assert!(core.contains("binding_snapshot"));
     assert!(daemon.contains("external_effect_performed"));
     assert!(daemon.contains("local_fixture"));
-    assert!(daemon.contains("connector_idempotency_payload_mismatch"));
+    assert!(daemon.contains("connector_idempotency_command_digest_conflict"));
     assert!(mcp.contains("stdio"));
-    assert!(protocol.contains("CONNECTOR_INVOKE_OPERATION"));
+    assert!(domain.contains("CONNECTOR_INVOKE_OPERATION"));
     assert!(baseline.contains("Provider"));
     assert!(baseline.contains("Connector"));
     assert!(baseline.contains("MCP"));

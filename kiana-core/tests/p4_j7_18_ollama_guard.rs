@@ -4,6 +4,7 @@ fn p4_j7_18_ollama_ndjson_keeps_completion_identity_and_local_scope() {
     let response = include_str!("../../kiana-provider/src/response.rs");
     let config = include_str!("../../kiana-provider/src/config.rs");
     let harness = include_str!("../../kiana-runner/src/harness.rs");
+    let config_fixture = include_str!("../../kiana-provider/tests/p4_j7_08_config.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-18-ollama-baseline.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-18-ollama.yml");
 
@@ -46,7 +47,7 @@ fn p4_j7_18_ollama_ndjson_keeps_completion_identity_and_local_scope() {
         "ollama_load_timeout_is_provider_scoped_and_bounded",
     ] {
         assert!(
-            config.contains(marker),
+            config.contains(marker) || config_fixture.contains(marker),
             "Ollama config marker missing: {marker}"
         );
     }

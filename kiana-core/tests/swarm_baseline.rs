@@ -28,43 +28,43 @@ fn sha256_of(path: &Path) -> String {
 const BASELINE: &[(&str, &str)] = &[
     (
         "kiana-domain/src/swarm.rs",
-        "697c11d7c0f0be37adc5aeac6617e0920190b9c895574449994c4aec3c26ba0d",
+        "3fbcc14095e0889c407727a92816880ff3b08c4c7e1544a9f24cee4aed7b8bf1",
     ),
     (
         "kiana-domain/src/packet_graph.rs",
-        "8f56ce5fb8ba80f50aabff3e6fb6221718289437b1a511123821c0d98509c8a0",
+        "a0f862215d2df285f26191e51a89029640f0925ab1a8072f369e70b03562afeb",
     ),
     (
         "kiana-domain/src/work_packets.rs",
-        "2cc8b27f3710512b50bef970715dade5d76f27d010c77e14e3c22823d2b8b1e6",
+        "76ff85c563d13e328854003394c10e1ed01029b4e1ee29eed20e6e8233d6c93a",
     ),
     (
         "kiana-core/src/swarm.rs",
-        "71a3b50e7971cb3c3eac4fece08a8e94f4a4ca83ec3c0a6a7c1d7407460fc9bb",
+        "5d54a4e7f41c2edf1233fe0d095e86348213e759d951aa2e5f23b87ce95b0773",
     ),
     (
         "kiana-core/src/cell_registry.rs",
-        "218ae2f9efec2c173881cd5d33d41d414c7e76f9db9e130d6518bfde602d9663",
+        "575b2dab25740f4e218fb011b84dd554b1ba5a7000d56d82c69e37d5c22b6727",
     ),
     (
         "kiana-core/src/collaboration.rs",
-        "49e61cf89add855ca4fc3687104d666388477848d63397b9ea50b0404021dabf",
+        "22bfc2df7cbc267e5db4fe6e13bea72f5aa13f3145d913bd1b42896aecaa5a4e",
     ),
     (
         "kiana-ports/src/lib.rs",
-        "88ff290c7a848e45af34985c42b0f7c0fb5719f8ae42708076e73c3290706ab1",
+        "313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec",
     ),
     (
         "kiana-protocol/src/lib.rs",
-        "19b06c1e828bef31cf6fdbd52283e0bf2ed54b69ca4d1c6fed94dc385e376ace",
+        "178d8211823d9bf7c1b2d07c626edbe4ff01ea40a31c9d0601500111b005e21f",
     ),
     (
         "kiana-core/src/commands.rs",
-        "305d94e31ef5fceb494284dde0fa0b0bdfa0a31cda8d9609e890e7ca593063d8",
+        "630039c87be6dc85064c43aeea6f0129607435ae20cf91311297d2c8f79f75df",
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "f262e808ab239eed0e01c1e28aef75cb5d78b819d809c1d07592ab34d367d281",
+        "4cc8e9cfc22eaedeed1ed11bd2885336fb7e4cea3c9cf053e11a6ddf04aae772",
     ),
 ];
 
@@ -98,7 +98,7 @@ fn swarm_reconciliation_does_not_claim_durable_from_in_memory_cas() {
         .find("let committed = self.commit_swarm(&context, event)")
         .expect("swarm fact commit boundary");
     let dispatch = swarm
-        .find("self.handle_company_command(")
+        .find(".handle_company_command(")
         .expect("Company StartRun dispatch boundary");
     assert!(
         committed < dispatch,

@@ -247,7 +247,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "\"role_output_schema\": role.output_schema,",
         "json!({ \"run_id\": run_id })",
         "\"run_id\": run_id,\n                \"session_id\": context.session_id,\n                \"turn_id\": turn_id,\n                \"turn\": turn.clone(),\n                \"text\": &prompt,",
-        "\"run_id\": run_id,\n                \"session_id\": context.session_id,\n                \"turn_id\": legacy_turn.turn_id,\n                \"turn\": legacy_turn.clone(),\n                \"text\": &prompt,",
+        "\"run_id\": run_id,\n                    \"session_id\": context.session_id,\n                    \"turn_id\": legacy_turn.turn_id,\n                    \"turn\": legacy_turn.clone(),\n                    \"text\": &prompt,",
         "json!({ \"run_id\": run_id, \"text\": text })",
     ] {
         assert!(

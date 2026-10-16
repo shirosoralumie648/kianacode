@@ -32,7 +32,7 @@ fn release_preflight_binds_build_lock_targets_supply_chain_and_migration() {
     for marker in [
         "reproducible build",
         "Cargo.lock",
-        "target matrix",
+        "Target entries are unique and bounded",
         "SBOM",
         "checksum",
         "signature",

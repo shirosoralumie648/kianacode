@@ -27,6 +27,11 @@ fn provider_recovery_reuses_history_resume_and_single_execution_spine() {
             "P4-J7-27 marker missing: {marker}"
         );
     }
+    let recovery_code: String = recovery
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
     for forbidden in [
         "tokio::spawn",
         "reqwest::Client",
@@ -37,7 +42,7 @@ fn provider_recovery_reuses_history_resume_and_single_execution_spine() {
         "std::fs",
     ] {
         assert!(
-            !recovery.contains(forbidden),
+            !recovery_code.contains(forbidden),
             "provider recovery contract introduces an authority/effect path: {forbidden}"
         );
     }

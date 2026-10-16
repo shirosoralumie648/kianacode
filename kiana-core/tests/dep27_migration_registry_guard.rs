@@ -28,7 +28,7 @@ fn migration_registry_is_checksum_and_release_bound() {
     for marker in [
         "unknown migration",
         "checksum drift",
-        "重复版本",
+        "duplicate version",
         "no owner",
         "backup",
         "down migration",

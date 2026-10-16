@@ -6,7 +6,7 @@ fn p4_j7_13_transport_keeps_all_deadlines_framing_and_body_bounds() {
     let workflow = include_str!("../../.github/workflows/p4-j7-13-transport.yml");
     for marker in [
         "connection.limits.headers",
-        "connection.limits.first_event",
+        ".first_event",
         "connection.limits.idle",
         "connection.limits.total",
         "connection.limits.max_body",
@@ -39,15 +39,16 @@ fn p4_j7_13_transport_keeps_all_deadlines_framing_and_body_bounds() {
         );
     }
     for marker in [
-        "oversized_provider_frame_is_rejected_before_allocation_growth",
+        "oversized_and_truncated_frames_fail_closed",
         "heartbeat_cannot_extend_total_deadline",
         "html_success_body_is_not_an_empty_model_success",
-        "sse_and_ndjson_survive_arbitrary_utf8_chunking",
+        "sse_survives_arbitrary_utf8_chunking_and_crlf",
+        "ndjson_flushes_complete_lines_and_one_bounded_tail",
         "cargo test -p kiana-provider --lib",
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker) || workflow.contains(marker) || transport.contains(marker),
             "P4-J7-13 evidence marker missing: {marker}"
         );
     }

@@ -35,7 +35,7 @@ fn action_card_is_shared_by_all_surfaces() {
         "human_action_field_denied",
         "human_action_fields_required",
         "human_action_unavailable",
-        "approval_expired",
+        "approval.expired",
         "HumanInboxKind::Review",
         "HumanInboxKind::Acceptance",
         "HumanInboxKind::Incident",
@@ -62,7 +62,7 @@ fn action_card_is_shared_by_all_surfaces() {
     assert!(core.contains("human_action_fields_required"));
     assert!(core.contains("human_inbox_stale"));
     assert!(workbench.contains("available_decisions"));
-    assert!(web.contains("human.resolve"));
+    assert!(web.contains("crate::web_inbox::WEB_HUMAN_RESOLVE_COMMAND"));
     assert!(cli.contains("RequestEnvelope::pending_approvals"));
     assert!(dispatch.contains("approval_decision_with_proof"));
     assert!(!core.contains("CapabilityBroker"));

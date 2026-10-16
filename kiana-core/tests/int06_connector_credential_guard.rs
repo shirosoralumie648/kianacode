@@ -22,8 +22,8 @@ fn invocation_rejects_credential_overrides_and_bind_is_operator_validated() {
         .split("let binding_id")
         .next()
         .expect("invoke allowlist");
-    assert!(invoke_branch
-        .contains("\"binding_id\" | \"operation\" | \"payload\" | \"idempotency_key\""));
+    let invoke_flat: String = invoke_branch.split_whitespace().collect();
+    assert!(invoke_flat.contains("\"binding_id\"|\"operation\"|\"payload\"|\"idempotency_key\""));
     for forbidden in [
         "secret_ref",
         "credential_ref",
@@ -54,7 +54,8 @@ fn invocation_rejects_credential_overrides_and_bind_is_operator_validated() {
     assert!(bind_validation.contains("snapshot.validate().map_err(str::to_owned)?"));
     assert!(manage_branch.contains("RiskLevel::ExternalSideEffect"));
     assert!(broker.contains("consume_connector_credential_invocation"));
-    assert!(broker.contains("invocation.consume_for("));
+    let broker_flat: String = broker.split_whitespace().collect();
+    assert!(broker_flat.contains("invocation.consume_for("));
     assert!(daemon.contains("ConnectorCredentialInvocation::issue"));
     assert!(daemon.contains("consume_connector_credential_invocation"));
     assert!(daemon.contains("credential_evidence"));

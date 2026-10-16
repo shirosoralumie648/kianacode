@@ -17,7 +17,7 @@ fn repo_map_task_lens_keeps_heuristic_and_budget_boundaries() {
         "estimated_tokens",
         "omitted_paths",
         "token_budget",
-        "compiler",
+        "不是编译器证明",
         "selection_digest",
     ] {
         assert!(

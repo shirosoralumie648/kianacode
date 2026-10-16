@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn dep10_startup_coordinator_is_pure_and_ordered() {
     let domain = include_str!("../../kiana-domain/src/deployment_startup.rs");
@@ -24,6 +27,9 @@ fn dep10_startup_coordinator_is_pure_and_ordered() {
             "DEP-10 marker missing: {marker}"
         );
     }
+    let domain_code = source_guard::production_source(domain);
+    let core_code = source_guard::production_source(core);
+    let daemon_code = source_guard::production_source(daemon);
     for forbidden in [
         "std::fs",
         "std::env",
@@ -37,7 +43,9 @@ fn dep10_startup_coordinator_is_pure_and_ordered() {
         "SupervisorPort",
     ] {
         assert!(
-            !domain.contains(forbidden) && !core.contains(forbidden) && !daemon.contains(forbidden),
+            !domain_code.contains(forbidden)
+                && !core_code.contains(forbidden)
+                && !daemon_code.contains(forbidden),
             "DEP-10 startup path crossed an effect boundary: {forbidden}"
         );
     }

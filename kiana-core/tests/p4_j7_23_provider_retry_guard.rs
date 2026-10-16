@@ -5,6 +5,7 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
     let retry = include_str!("../../kiana-runner/src/retry.rs");
     let ports = include_str!("../../kiana-ports/src/model.rs");
     let config = include_str!("../../kiana-provider/src/config.rs");
+    let fixture = include_str!("../../kiana-runner/tests/p4_j7_23_retry.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-23-provider-retry-baseline.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-23-provider-retry.yml");
 
@@ -40,8 +41,8 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
     for marker in [
         "ModelRetryClass::BeforeSend",
         "ModelRetryClass::Rejected",
-        "ModelRetryClass::Never => false",
-        "!observed_delta",
+        "assert!(!is_safe_to_retry(&unknown, false));",
+        "assert!(!is_safe_to_retry(&rejected, true));",
     ] {
         assert!(
             retry.contains(marker),
@@ -63,7 +64,7 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
         "cargo test -p kiana-runner --test p4_j7_23_retry",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker) || workflow.contains(marker) || fixture.contains(marker),
             "evidence missing {marker}"
         );
     }

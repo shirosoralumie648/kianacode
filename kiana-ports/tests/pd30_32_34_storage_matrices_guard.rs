@@ -302,7 +302,9 @@ fn pd32_the_platform_matrix_names_every_platform_and_filesystem_with_a_dispositi
             "admits_durable_claim",
             "admits_expiry",
             "clock_can_expire",
-            "certifiable_by_source_suite",
+            // The PD-31 helper `certifiable_by_source_suite` is no longer called here; the matrix
+            // inlines the same rule: nothing above `LocalBehavior` is negotiable.
+            "self.proof_ceiling > ProofCeiling::LocalBehavior",
             // vocabulary that must be reused
             "StorageSecurityCapabilities",
             "StorageCapabilities",
@@ -616,7 +618,14 @@ fn pd34_a_budget_reads_the_existing_envelope_rather_than_declaring_a_second_boun
         source,
         "if self.envelope_bound != self.subject.envelope_bound(envelope) {\n            return Err(\"capacity_budget_envelope_bound_mismatch\".to_owned());\n        }",
     );
-    assert_exact_once("PD-34", source, "if budget.envelope_bound == 0 {");
+    // The zero-bound refusal in `derive` is pinned together with the code it reports, so the
+    // separate `envelope_from_budgets` skip (`if budget.envelope_bound == 0 { continue; }`) cannot
+    // satisfy this assertion.
+    assert_exact_once(
+        "PD-34",
+        source,
+        "if budget.envelope_bound == 0 {\n            return refusal(\n                budget.subject,\n                \"capacity_subject_not_bounded\",",
+    );
     // The measurement method is always declared, and it is fixed per subject so two subjects
     // cannot be measured by two different means without the difference showing in the report.
     assert_exact_once(
@@ -642,10 +651,12 @@ fn pd34_maintenance_and_a_long_reader_are_both_refused() {
         source,
         "pub const MAX_MAINTENANCE_SHARE_BPS: u16 = 10_000;",
     );
+    // `rustfmt` splits the closure, so the maintenance rejection is pinned as the backup/prune
+    // lookup body rather than a single call line.
     assert_exact_once(
         "PD-34",
         source,
-        ".find(|budget| maintenance_share_bps > budget.max_maintenance_share_bps)",
+        "budget.subject == StorageCapacitySubject::BackupPrune\n            && maintenance_share_bps > budget.max_maintenance_share_bps",
     );
     // 长 reader 阻塞 writer: a reader that held the writer is named on its own.
     assert_exact_once(

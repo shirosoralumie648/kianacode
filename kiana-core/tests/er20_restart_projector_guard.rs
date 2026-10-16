@@ -73,8 +73,19 @@ fn restart_never_auto_resumes_pending_run() {
     for source in [recovery.as_str(), projection, daemon] {
         assert!(!source.contains("auto_resume_terminal"));
         assert!(!source.contains("issue_permit("));
+    }
+    for source in [recovery.as_str(), projection] {
         assert!(!source.contains("CapabilityBroker::new"));
     }
+    // The DaemonHost composition root is the single place allowed to construct the broker
+    // (AGENTS.md: 唯一组合根); the restart/readiness path must not build another one.
+    let composition_root = item_source(daemon, "fn with_runner_events_and_authority(");
+    assert!(composition_root.contains("CapabilityBroker::new"));
+    let daemon_rest = production_source(daemon).replacen(&composition_root, "", 1);
+    assert!(
+        !daemon_rest.contains("CapabilityBroker::new"),
+        "broker construction must stay inside the DaemonHost composition root"
+    );
 }
 
 #[test]

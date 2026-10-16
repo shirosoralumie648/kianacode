@@ -16,7 +16,7 @@ fn case(
     exit_code: Option<i32>,
     receipt_digest: Option<String>,
     limitations: Vec<EvidenceLimitation>,
-) -> UiEvidenceCase {
+) -> Result<UiEvidenceCase, String> {
     UiEvidenceCase::new(
         id,
         UiSurface::Web,
@@ -34,7 +34,6 @@ fn case(
         limitations,
         "ci-reviewer",
     )
-    .expect("evidence case")
 }
 
 #[test]
@@ -54,7 +53,8 @@ fn bundle_binds_source_and_keeps_skips_explicit() {
                     code: "source_only".to_owned(),
                     detail: "CI source fixture does not prove runtime behavior".to_owned(),
                 }],
-            ),
+            )
+            .expect("evidence case"),
             case(
                 "live",
                 UiEvidenceClass::Live,
@@ -67,7 +67,8 @@ fn bundle_binds_source_and_keeps_skips_explicit() {
                     code: "no_host".to_owned(),
                     detail: "No authorized ACP or IDE host is configured".to_owned(),
                 }],
-            ),
+            )
+            .expect("evidence case"),
         ],
     )
     .expect("bundle");
@@ -76,6 +77,8 @@ fn bundle_binds_source_and_keeps_skips_explicit() {
 
 #[test]
 fn implemented_source_and_live_source_pass_are_rejected() {
+    // `UiEvidenceCase::new` validates at construction, so these cases are rejected there
+    // rather than by a later `validate()` call.
     let implemented = case(
         "implemented-source",
         UiEvidenceClass::Happy,
@@ -85,13 +88,9 @@ fn implemented_source_and_live_source_pass_are_rejected() {
         Some(0),
         None,
         Vec::new(),
-    );
-    assert_eq!(
-        implemented
-            .validate()
-            .expect_err("source cannot claim implemented"),
-        "ui_evidence_implemented_requires_behavior"
-    );
+    )
+    .expect_err("source cannot claim implemented");
+    assert_eq!(implemented, "ui_evidence_implemented_requires_behavior");
 
     let live = case(
         "live-source",
@@ -102,11 +101,9 @@ fn implemented_source_and_live_source_pass_are_rejected() {
         Some(0),
         None,
         Vec::new(),
-    );
-    assert_eq!(
-        live.validate().expect_err("live pass needs live proof"),
-        "ui_evidence_live_proof_required"
-    );
+    )
+    .expect_err("live pass needs live proof");
+    assert_eq!(live, "ui_evidence_live_proof_required");
 }
 
 #[test]

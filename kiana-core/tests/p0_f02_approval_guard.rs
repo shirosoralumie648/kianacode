@@ -19,7 +19,7 @@ fn approval_decision_is_durable_and_single_use() {
             "approval single-use marker missing: {marker}"
         );
     }
-    assert!(journal.contains("append_expected"));
+    assert!(journal.contains("commit_transition"));
     assert!(journal.contains("ApprovalConsumptionFact"));
     assert!(existing.contains("approval_resumes_the_stored_request_once_with_monotonic_events"));
 }

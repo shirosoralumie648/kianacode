@@ -58,7 +58,7 @@ fn bounded_swarm_keeps_authority_before_child_dispatch_and_merge() {
         .find("let committed = self.commit_swarm(&context, event)")
         .expect("swarm commit boundary");
     let dispatch = core
-        .find("self.handle_company_command(")
+        .find(".handle_company_command(")
         .expect("Company child dispatch boundary");
     assert!(committed < dispatch);
     assert!(core.contains("SwarmCommand::StartChild"));

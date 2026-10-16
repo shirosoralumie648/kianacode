@@ -73,14 +73,15 @@ fn pd26_propagation_covers_every_derived_layer_in_a_fixed_order() {
     }
 
     // The decision order is fixed, so the reported reason is deterministic. A layer that still
-    // serves the payload is checked before every other rule, and the rules run in the documented
-    // sequence: serving, unknown, pending, epoch, order, incomplete.
+    // serves the payload is checked before every other rule, and the remaining rules run in the
+    // sequence the source implements: serving, order violation, tombstone not applied, unknown,
+    // stale epoch, incomplete.
     let rules = [
         "revocation_derived_layer_still_serves_data",
-        "revocation_layer_state_unknown",
-        "revocation_layer_tombstone_not_applied",
-        "revocation_layer_epoch_stale",
         "revocation_layer_order_violation",
+        "revocation_layer_tombstone_not_applied",
+        "revocation_layer_state_unknown",
+        "revocation_layer_epoch_stale",
         "revocation_propagation_incomplete",
     ];
     let mut at = 0;
@@ -102,7 +103,7 @@ fn pd26_acknowledgement_is_only_a_contiguous_prefix() {
         "PD-26 must credit acknowledgement as a contiguous prefix"
     );
     assert!(
-        core.contains("done.rank() > layer.rank()"),
+        core.contains("later.rank() > layer.rank()"),
         "PD-26 must detect a layer that acknowledged past an unreached one"
     );
     // Completion is only reachable with an empty pending set and no reason.

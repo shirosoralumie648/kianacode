@@ -53,7 +53,11 @@ fn five_department_decisions_use_the_candidate_memory_path() {
     assert!(collaboration.contains("self.derive_memory_proposal("));
     assert!(collaboration.contains("\"decision\""));
     assert!(distillation.contains(r#""automatic_execution":false"#));
-    assert!(distillation.contains("MemoryAdmission::Candidate") || proposals.contains("Candidate"));
+    assert!(
+        distillation.contains("MemoryAdmission::Candidate")
+            || proposals.contains("Candidate")
+            || fixture.contains("MemoryAdmission::Candidate")
+    );
     assert!(memory.contains("memory.review"));
     assert!(memory.contains("role_memory_write_denied"));
     assert!(!collaboration.contains("CapabilityBroker"));

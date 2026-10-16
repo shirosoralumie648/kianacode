@@ -4,6 +4,9 @@
 //! 该守卫不调用 `ui_snapshot_page()`、不读取持久事件、不验证 query.owner_id 是否绑定认证主体，也不
 //! 证明游标摘要不可伪造；这些调用/身份关系不能由字符串存在性断言替代。
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn snapshot_projector_keeps_cursor_retention_lag_and_owner_boundaries() {
     // 源码守卫跨四个文档/实现面找 marker；它不是把这些模块在本测试里实际连接起来。
@@ -55,5 +58,10 @@ fn snapshot_projector_keeps_cursor_retention_lag_and_owner_boundaries() {
         );
     }
     assert!(daemon.contains("ui_snapshot_projection_unknown"));
-    assert!(!daemon.contains("CapabilityBroker::new"));
+    // DaemonHost is the single composition root and may construct the capability broker there;
+    // the UI-05 requirement is that the snapshot projector entry point itself stays a read-only
+    // projection, so the negative check is scoped to that item.
+    let projector = source_guard::item_source(daemon, "pub async fn ui_snapshot_page(");
+    assert!(projector.contains("project_ui_snapshot"));
+    assert!(!projector.contains("CapabilityBroker"));
 }

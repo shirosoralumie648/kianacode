@@ -67,8 +67,8 @@ fn duplicate_approval_reply_executes_at_most_once() {
         );
     }
     assert!(
-        approvals.find("replay_approval_decision").unwrap()
-            < approvals.find("resume_approved_invocation").unwrap()
+        approvals.find(".replay_approval_decision(").unwrap()
+            < approvals.find(".resume_approved_invocation(").unwrap()
     );
     assert!(journal.contains("ApprovalState::Consumed"));
 }

@@ -29,10 +29,10 @@ fn migration_rebuild_keeps_source_projection_index_and_receipt_bound() {
         );
     }
     for marker in [
-        "projection 越过 facts",
-        "旧 generation",
-        "index 不可重建",
-        "receipt 关联丢失",
+        "Projection lag or overrun",
+        "stale generation",
+        "index rebuild",
+        "receipt generation/source mismatch",
         "source cursor",
         "ready gate",
         "partial",

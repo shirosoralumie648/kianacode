@@ -7,7 +7,7 @@ fn entrypoint_parity_has_one_control_plane_route_and_no_local_authority_logic() 
         "EntrypointCommand",
         "EntrypointParityMatrix",
         "ENTRYPOINT_ROUTE",
-        "DaemonHost->ControlPlane",
+        "DaemonHost -> ControlPlane",
         "EntrypointDecision",
         "entrypoint_parity_denied_handler_effect",
         "context_digest",

@@ -22,15 +22,15 @@ fn p4_j7_16_openai_chat_keeps_native_sse_identity_and_finish_boundaries() {
         );
     }
     for marker in [
-        "chat_done_without_valid_choice_finish_is_incomplete",
-        "chat_interleaved_tools_cannot_swap_ids",
-        "chat_malformed_arguments_never_become_empty_object",
-        "chat_usage_only_chunk_is_retained",
+        "done_without_finish_and_late_delta_fail_closed",
+        "openai_interleaved_tool_ids_and_names_cannot_swap",
+        "malformed_openai_tool_arguments_never_become_empty_object",
+        "openai_usage_only_chunk_is_retained",
         "cargo test -p kiana-provider --lib",
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker) || workflow.contains(marker) || response.contains(marker),
             "P4-J7-16 evidence marker missing: {marker}"
         );
     }

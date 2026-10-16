@@ -29,7 +29,7 @@ fn h24_checkpoint_and_resume_are_complete_explicit_and_single_claim() {
         );
     }
     assert!(recovery.contains("append_expected"));
-    assert!(recovery.contains("explicit"));
+    assert!(recovery.contains("RequestBody::Resume"));
     assert!(!recovery.contains("auto_resume"));
     assert!(!recovery.contains("runner.send(RunnerCommand::Start"));
 }

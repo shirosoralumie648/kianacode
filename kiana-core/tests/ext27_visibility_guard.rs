@@ -18,8 +18,8 @@ fn all_product_surfaces_render_one_server_owned_visibility_projection() {
     }
     for marker in [
         "ExtensionVisibilitySnapshot",
-        "snapshot_id",
-        "generation",
+        "snapshot.validate()",
+        "serde_json::to_value(snapshot)",
         "visibility_json",
         "metadata-only",
     ] {

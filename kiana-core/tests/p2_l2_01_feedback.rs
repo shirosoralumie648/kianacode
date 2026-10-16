@@ -6,6 +6,7 @@ fn feedback_cannot_mutate_policy_or_history() {
     let domain = include_str!("../../kiana-domain/src/platform.rs");
     let baseline = include_str!("../../docs/roadmap/p2-l2-01-feedback-baseline.md");
     let quality_feedback = include_str!("../src/quality_feedback.rs");
+    let quality_gate = include_str!("../src/quality_gate.rs");
 
     for marker in [
         "FeedbackCandidate",
@@ -41,7 +42,8 @@ fn feedback_cannot_mutate_policy_or_history() {
                 || quality.contains(marker)
                 || domain.contains(marker)
                 || baseline.contains(marker)
-                || quality_feedback.contains(marker),
+                || quality_feedback.contains(marker)
+                || quality_gate.contains(marker),
             "feedback marker missing: {marker}"
         );
     }
