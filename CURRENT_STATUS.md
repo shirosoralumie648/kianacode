@@ -1,5 +1,90 @@
 # Kiana 当前状态账本
 
+### 2026-10-16 五步翻 ✅（P0-A-01a / ER-02 / EQ-10 / CM-09 / DEP-04，CI-only 口径）
+
+```text
+source_snapshot: master 派生 fix/ci-alignment-20261016 波次提交；docs/roadmap.md §1.1 行 001/037/182/320/609
+worktree_status: 五行 🔄 → ✅；各自 limitations 已写入行内；无 manifest/lockfile 变化
+command_argv: 本轮 CI-only：本地未运行 cargo/test/fmt；验证证据为树内 fixture 静态核对（两名只读审计子代理逐卡核对先拒绝/成功列）+ push 触发的 ci.yml（run 38909920028 及后续，未等待）
+cwd·environment: 仓库根；GitHub Actions ubuntu-latest
+fixture·cassette: 001=94 ID 契约/round-trip/owner==定义 crate（kiana-domain contracts tests，历史回执 105/105）+ 专属 lane；037=event_id 重用/command digest 冲突/跨 run 配对拒绝 + 入口/Harness/approval-resume 链 + guard；182=fake provider 全场景 + 512 KiB 上界 + no-network guard；320=Unicode/CJK、凭证/PII、JSON secret 拒绝/脱敏 6 fixture + Core guard；609=ops.* protocol fixture + no-effect guard + typed client 方法
+exit_code: 本地未运行；CI 回执未等待（完整 workspace 回归 2026-10-13 曾 900s 超时，2026-10-16 guard 修复推送后回执待定），无 workspace-green 声明
+status_change: 五行提升为 implemented；001 的"完整回归未通过"改写为"回执未等待"
+proof-level_change: 各步按既有选定行为维持 source/local_behavior；无 durable/live/physical 提升
+limitations: 001 完整回归回执、037 完整 shard 与 durable InvocationLedger/跨进程恢复（ER-03+）、182 的 Broker deny/证据采集/fault-restart（EQ-11/14/15）、320 生产调用点与 durable index（CM-10/11）、609 跨入口 admission（DEP-10/12/14/15、UI-07/10/31）均仍开放；均未等待 CI
+reviewer: root integration agent；两个只读审计子代理（各 6 步）
+```
+
+### 2026-10-16 BQ-05/BQ-06 缺口补齐并翻 ✅
+
+```text
+source_snapshot: kiana-domain/src/work_packets.rs、kiana-domain/tests/bq04_pricing.rs、bq06_budget_intersection.rs、kiana-ports/tests/bq05_rate_card_store.rs、kiana-core guard 两份
+worktree_status: BQ-05 row 194、BQ-06 row 195 由 🔄 提升 ✅；无 manifest/lockfile 变化
+command_argv: CI-only；本地未运行 cargo/test/fmt；静态核对（rg/读取）确认 marker 与构造器前置条件
+fixture·cassette: BQ-05 补"估算引用缺 version"拒绝：重算 digest 后 rate_card_version=0 → cost_estimate_invalid（非零对照通过）；store 拒绝 digest 自洽 version-0 卡且不落卡；BQ-06 补 remaining_tool_calls/model_calls/tokens/effects/reserved_budget 纯投影（saturating、走归一化 limit），can_reserve/can_consume/consume_model_call 复用；fixture 覆盖部分消耗/预留、单调递减、零边界、饱和、legacy 零哨兵
+exit_code: 本地未运行；CI 回执未等待
+status_change: 两步 card 先拒绝/成功列全部有树内证据
+proof-level_change: 维持 source/local_behavior；无 durable/live 提升（store 仍非 durable）
+limitations: BQ-05 的 durable projector/provider discovery/invoice/currency/reservation 属 BQ-07+/BQ-10+/BQ-22；BQ-06 的 quota window=BQ-07、durable reservation/CAS=BQ-08、财务权威未开放；FinancialBudget 拒止为结构型（类型不存在 + guard），无运行时 fixture
+reviewer: root integration agent；BQ 缺口子代理静态复核
+```
+
+### 2026-10-16 SC-07 DaemonHost assignment 强制接线（opt-in）
+
+```text
+source_snapshot: kiana-daemon/src/lib.rs（field/builder/enforce_assignment/handle 接线/错误码映射）、kiana-daemon/tests/sc07_assignment_enforcement.rs（新）
+worktree_status: row 118 保持 🔄 / partial / source；新增 opt-in 切片；无 manifest/lockfile 变化
+command_argv: CI-only；本地未运行 cargo/test/fmt；编辑前逐 API 对照（RoleAssignment::new 11 参、ProjectAssignment::new 10 参等），静态核对既有 guard marker 未破坏
+fixture·cassette: may-execute 请求在 authority sync/session binding 前经 resolve_assignment_for_project + context_from_assignment（Core SecurityAuthoritySnapshot/validate_company_assignment）；missing/role-drift/revoked/wire-trust 伪造以既有稳定码拒绝且零副作用；matching assignment 经 Core 执行成功；新增 source guard 固定调用点
+exit_code: 本地未运行；CI 回执未等待
+status_change: DaemonHost assignment 强制接线从"未接线"变为 opt-in 可用；默认宿主仍走本地兼容路径（组织来源/provisioning/默认未指派语义待决）
+proof-level_change: 保持 source；无 durable/live 提升
+limitations: 仅 with_assignment_enforcement(org) 宿主生效；读投影/UI action bridge/Continue/approval 消费点未逐边界重解析；AssignmentDirectory 仍内存适配器（无 durable CAS/revoke 投影/跨进程恢复）；生效与否取决于 upper-layer 装配调用（本切片未改装配）
+reviewer: root integration agent；SC-07 接线子代理静态复核
+```
+
+### 2026-10-16 CI-06 daemon 项目 provider 配置接线
+
+```text
+source_snapshot: kiana-daemon/src/project_provider_config.rs（新）、kiana-daemon/src/lib.rs（+1 模块行）、kiana-daemon/tests/ci06_config_resolver.rs
+worktree_status: row 166 保持 🔄 / partial / source；新增接线切片；无 manifest/lockfile 变化
+command_argv: CI-only；本地未运行 cargo/test/fmt；编译形状人工复核（unwrap_err/Debug 边界已修正），格式对照仓库既有 rustfmt 布局
+fixture·cassette: untrusted 仅存在性判断并在打开前拒绝（config_workspace_untrusted，目录/超大替换仍先拒绝）；trusted 有界读取 64 KiB+1 → config_workspace_too_large；revision drift 先于解析（config_project_trust_revision_changed）；absent overlay 回退环境；daemon 入口与 ProviderGateway::from_workspace canonical snapshot 一致；guard 固定 daemon 不引入第二解析器
+exit_code: 本地未运行；CI 回执未等待
+status_change: 项目级 provider 配置出现受信入口（新路径约定 .kiana/provider-config.json）；DaemonHost 组合根装配调用与 durable snapshot 仍开放
+proof-level_change: 保持 source；无 durable/live 提升
+limitations: 组合根未调用（model_client::from_env/from_config 未接 project root）；信任修订由调用方提供（无权威 current revision API）；无 durable ConfigSnapshotStore 生产 adapter；symlink 语义未收紧（仅 O_NONBLOCK）；legacy 测试夹具保留（guard 固定）；fixture 未本地执行
+reviewer: root integration agent；CI-06 接子代理静态复核
+```
+
+### 2026-10-16 CO-06 发布前 manifest 关联与提交后 read-back fence
+
+```text
+source_snapshot: kiana-core/src/company.rs（persist_company_artifact）、kiana-core/tests/co06_company_artifact_wiring_guard.rs、kiana-daemon/tests/co06_company_artifact_history.rs
+worktree_status: row 065 保持 🔄 / partial / source；新增发布前置 fence；无 manifest/lockfile 变化
+command_argv: CI-only；本地未运行 cargo/test/fmt；静态核对 guard 排序锚点、既有 5 个调用点强制转换与既有 fixture 期望
+fixture·cassette: stage 前固定 admitted reference/size/hash，adapter 返回漂移 manifest → company_artifact_staged_manifest_mismatch（不 commit）；commit 后同端口 read-back 不可读/漂移 → company_artifact_committed_blob_unverified（不写事实）；deny 后同 key 重试成功一次且字节一致
+exit_code: 本地未运行；CI 回执未等待
+status_change: "内容持久化后才能提交引用"成为 commit 时强制前置；不引用未关联/不可读回 manifest
+proof-level_change: 保持 source；无 durable/live 提升
+limitations: 非跨 store 原子提交（commit 成功而事实未提交的 orphan 窗口仍在）；无 orphan 扫描/GC/retention；read-back 每工件多一次 ≤16 MiB 读取（未基准）；未实现 read_artifact 的 adapter 默认 Unavailable 将 fail closed；UI 差异展示属 UI-22
+reviewer: root integration agent；CO-06 子代理静态复核
+```
+
+### 2026-10-16 H05 wire/CLI 停止与恢复分类切片
+
+```text
+source_snapshot: kiana-protocol/src/model_failure.rs（新）、kiana-protocol/src/lib.rs、kiana-entrypoints/src/model_failure_presenter.rs（新）、cli.rs/harness_run.rs 附加行、两份 fixture、h05-stop-diagnostic.yml matrix
+worktree_status: row 047 保持 🔄；新增 wire/CLI 切片；无 manifest/lockfile 与 shard map 变化
+command_argv: CI-only；本地未运行 cargo/test/fmt；稳定码逐一对齐 producer（harness.rs/retry.rs/model.rs），括号平衡与列宽静态核对
+fixture·cassette: 未知码/矛盾 outcome → model_failure_unclassified（Terminal/Never）；Cancelled/非模型错误不进入 model_failure 路径；repair disposition 保留为 *_repair_unavailable 且不执行修复；CLI/SDK 错误行渲染稳定后缀且不改变进程退出；presenter 无 DaemonHost/ControlPlane/tokio/fs 访问
+exit_code: 本地未运行；CI 回执未等待
+status_change: 停止原因/错误/重试分类首次到达 wire 与 CLI 展示面（此前仅 domain/runner/provider 内部）
+proof-level_change: 保持 source；无 durable/live 提升
+limitations: 自动 repair 执行未实现（仅分类到达）；cli_exit/http_status 仅为既有 CapabilityErrorCode 投影（进程退出码未改）；workbench/web 渲染、SDK stop_reason 硬编码与流式展示未接线；repair 独立 exit/HTTP 码需按 error-codes baseline 另议
+reviewer: root integration agent；H05 子代理静态复核
+```
+
 ### 2026-10-16 CI 对齐：carry-forward 后 guard 夹具与工作流修复
 
 ```text
