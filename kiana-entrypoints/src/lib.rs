@@ -18,6 +18,7 @@ pub mod extension_projection;
 pub mod harness_run;
 pub mod init;
 pub mod mcp;
+pub mod model_failure_presenter;
 pub mod notification_cli;
 pub mod product_command;
 pub mod provider_diagnostics;
