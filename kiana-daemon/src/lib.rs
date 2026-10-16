@@ -383,6 +383,9 @@ fn loopback_authority(value: &str) -> bool {
 /// - `principal` / `authn`：**「我是谁」**。前者是缓存下来的本地身份，后者是认证 adapter
 ///   （将来接远程身份时只换 adapter，不改这里）。
 /// - `assignment_directory`：**「谁被指派到这个项目」**，属于组织/角色目录，不属于安全边界。
+/// - `assignment_enforcement`：**可选的服务端指派强制模式**。`Some(org)` 时，会执行副作用的
+///   请求必须先由服务端 assignment 目录解析出有效指派，wire role 只能作为查询输入；
+///   `None` 保留本地兼容路径，直到组织来源/provisioning 语义有决定。
 /// - `project_authority`：**项目信任**。项目本地的 skill/plugin/hook 配置能注入指令和能力，
 ///   所以加载它们之前必须先过信任检查——这就是这个字段存在的唯一理由。
 /// - `run_stream`：给 UI 推送运行帧的**只读**通道。UI 靠它画时间线，但它不是事实来源。
@@ -400,6 +403,10 @@ pub struct DaemonHost {
     authn: LocalAuthnAdapter,
     assignment_directory: InMemoryAssignmentDirectory,
     project_authority: Arc<dyn ProjectTrustAuthority>,
+    /// Server-owned organization whose assignments must authorize each effect request. `None`
+    /// keeps the local-compatibility role path; `Some` enables the server-assignment mode set by
+    /// [`DaemonHost::with_assignment_enforcement`].
+    assignment_enforcement: Option<OrganizationId>,
     run_stream: Arc<RunStreamBus>,
     observability_queue: Arc<ObservabilityQueue>,
     workflow_service: WorkflowQueueService,
@@ -594,6 +601,7 @@ impl DaemonHost {
             authn,
             assignment_directory: InMemoryAssignmentDirectory::new(),
             project_authority,
+            assignment_enforcement: None,
             run_stream,
             observability_queue: Arc::new(
                 ObservabilityQueue::new(OBSERVABILITY_QUEUE_CAPACITY)
@@ -649,6 +657,19 @@ impl DaemonHost {
     /// registration and revocation still pass through its validated directory methods.
     pub fn assignment_directory(&self) -> InMemoryAssignmentDirectory {
         self.assignment_directory.clone()
+    }
+
+    /// Require a server-resolved assignment for every request that may execute.
+    ///
+    /// The daemon-owned assignment directory stays the only resolution source, and Core's
+    /// `SecurityAuthoritySnapshot` / `validate_company_assignment` stay the only validators; the
+    /// wire role is a lookup input that can only narrow the result. In this mode a missing,
+    /// expired, revoked or role-drifted assignment is rejected before authority synchronization,
+    /// session binding or command dispatch. Local compatibility remains the default until the
+    /// server organization/provisioning semantics are decided.
+    pub fn with_assignment_enforcement(mut self, organization_id: OrganizationId) -> Self {
+        self.assignment_enforcement = Some(organization_id);
+        self
     }
 
     /// Resolve an assignment for a filesystem project using only daemon-owned identity material.
@@ -732,6 +753,44 @@ impl DaemonHost {
         kiana_core::validate_company_assignment(&context, assignment, now_unix_ms, write)
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
         Ok(context)
+    }
+
+    /// Fail-closed admission for [`DaemonHost::with_assignment_enforcement`] hosts.
+    ///
+    /// The daemon principal and the canonicalized project identity select the assignment; the
+    /// caller's wire role is only a lookup input. Trust supplied to the authority snapshot is the
+    /// daemon's own read, never the wire bit. Validation stays in Core
+    /// (`SecurityAuthoritySnapshot` + `validate_company_assignment`); this helper only maps the
+    /// rejection to a stable reason code.
+    async fn enforce_assignment(
+        &self,
+        organization_id: OrganizationId,
+        requested_role_id: &str,
+        server_trusted: bool,
+        context: &mut RequestContext,
+    ) -> Result<(), String> {
+        let now_unix_ms = authn::LocalAuthnAdapter::now_unix_ms();
+        let assignment = self
+            .resolve_assignment_for_project(
+                &context.project_root,
+                organization_id,
+                requested_role_id,
+                now_unix_ms,
+            )
+            .await
+            .map_err(|error| assignment_rejection_code(&error))?;
+        context.project_trusted = server_trusted;
+        let validated = self
+            .context_from_assignment(
+                context.clone(),
+                &assignment,
+                Some(requested_role_id),
+                now_unix_ms,
+                false,
+            )
+            .map_err(|error| assignment_rejection_code(&error))?;
+        *context = validated;
+        Ok(())
     }
 
     /// Resolve a stable project identity from the daemon's filesystem authority.
@@ -1705,7 +1764,7 @@ impl DaemonHost {
             Ok(identity) => identity,
             Err(error) => return ResponseEnvelope::rejected(request_id, error.to_string()),
         };
-        let requested_context = RequestContext {
+        let mut requested_context = RequestContext {
             request_id,
             session_id: metadata.session_id,
             project_root: metadata.project_root,
@@ -1718,6 +1777,24 @@ impl DaemonHost {
             cell_id: None,
             path_allow: Vec::new(),
         };
+        // Server-assignment mode: effect requests must carry a daemon-resolved assignment before
+        // authority synchronization, session binding or dispatch. Denial happens here, before any
+        // effect, and never trusts the wire role/trust bits as authority.
+        if request_may_execute(&request.body) {
+            if let Some(organization_id) = self.assignment_enforcement {
+                if let Err(reason) = self
+                    .enforce_assignment(
+                        organization_id,
+                        &role.role_id,
+                        project_trusted,
+                        &mut requested_context,
+                    )
+                    .await
+                {
+                    return ResponseEnvelope::rejected(request_id, reason);
+                }
+            }
+        }
         let security_context = match self
             .core
             .resolve_security_context(
@@ -2160,6 +2237,19 @@ fn request_may_execute(body: &RequestBody) -> bool {
             _ => true,
         },
         _ => true,
+    }
+}
+
+/// Map an assignment admission failure to its stable rejection code.
+///
+/// Domain/Core reasons are already stable snake_case or `AUTH_*` codes and pass through
+/// unchanged; transport classes keep an explicit prefix so callers never have to parse
+/// `PortError::Display`.
+fn assignment_rejection_code(error: &PortError) -> String {
+    match error {
+        PortError::Failed(reason) => reason.clone(),
+        PortError::Conflict(reason) => format!("assignment_conflict:{reason}"),
+        PortError::Unavailable(reason) => format!("assignment_unavailable:{reason}"),
     }
 }
 
