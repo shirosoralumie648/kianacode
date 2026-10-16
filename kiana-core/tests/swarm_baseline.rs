@@ -36,7 +36,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/work_packets.rs",
-        "76ff85c563d13e328854003394c10e1ed01029b4e1ee29eed20e6e8233d6c93a",
+        "59b9a788b58477720b510af0d5d5fb9f6ba2b65c4573b474894e65d812bf2003",
     ),
     (
         "kiana-core/src/swarm.rs",
@@ -56,7 +56,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-protocol/src/lib.rs",
-        "178d8211823d9bf7c1b2d07c626edbe4ff01ea40a31c9d0601500111b005e21f",
+        "2cc01c142489b593ea641012d787c0c3c20eb6402096a511ab50f3bbb938d7e8",
     ),
     (
         "kiana-core/src/commands.rs",
@@ -64,7 +64,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "4cc8e9cfc22eaedeed1ed11bd2885336fb7e4cea3c9cf053e11a6ddf04aae772",
+        "adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149",
     ),
 ];
 

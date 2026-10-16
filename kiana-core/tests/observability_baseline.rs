@@ -96,7 +96,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "4cc8e9cfc22eaedeed1ed11bd2885336fb7e4cea3c9cf053e11a6ddf04aae772",
+        "adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149",
     ),
     (
         "kiana-ports/src/lib.rs",

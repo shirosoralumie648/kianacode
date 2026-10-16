@@ -23,14 +23,14 @@
 |---|---|---|
 | Swarm domain/state | `kiana-domain/src/swarm.rs` | `3fbcc14095e0889c407727a92816880ff3b08c4c7e1544a9f24cee4aed7b8bf1` |
 | Packet graph | `kiana-domain/src/packet_graph.rs` | `a0f862215d2df285f26191e51a89029640f0925ab1a8072f369e70b03562afeb` |
-| Work packet | `kiana-domain/src/work_packets.rs` | `76ff85c563d13e328854003394c10e1ed01029b4e1ee29eed20e6e8233d6c93a` |
+| Work packet | `kiana-domain/src/work_packets.rs` | `59b9a788b58477720b510af0d5d5fb9f6ba2b65c4573b474894e65d812bf2003` |
 | Swarm ControlPlane | `kiana-core/src/swarm.rs` | `5d54a4e7f41c2edf1233fe0d095e86348213e759d951aa2e5f23b87ce95b0773` |
 | Cell registry | `kiana-core/src/cell_registry.rs` | `575b2dab25740f4e218fb011b84dd554b1ba5a7000d56d82c69e37d5c22b6727` |
 | Packet collaboration | `kiana-core/src/collaboration.rs` | `22bfc2df7cbc267e5db4fe6e13bea72f5aa13f3145d913bd1b42896aecaa5a4e` |
 | Port contract | `kiana-ports/src/lib.rs` | `313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec` |
-| Protocol route | `kiana-protocol/src/lib.rs` | `178d8211823d9bf7c1b2d07c626edbe4ff01ea40a31c9d0601500111b005e21f` |
+| Protocol route | `kiana-protocol/src/lib.rs` | `2cc01c142489b593ea641012d787c0c3c20eb6402096a511ab50f3bbb938d7e8` |
 | Command route | `kiana-core/src/commands.rs` | `630039c87be6dc85064c43aeea6f0129607435ae20cf91311297d2c8f79f75df` |
-| Daemon composition | `kiana-daemon/src/lib.rs` | `4cc8e9cfc22eaedeed1ed11bd2885336fb7e4cea3c9cf053e11a6ddf04aae772` |
+| Daemon composition | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
 
 ## 2. 当前事实矩阵
 

@@ -1005,7 +1005,7 @@ impl ArtifactStorePort for FaultyArtifactStore {
                 "fixture_committed_blob_unreadable".to_owned(),
             ));
         }
-        self.inner.read_artifact(reference).await
+        ArtifactContentPort::read_artifact(&self.inner, reference).await
     }
 }
 

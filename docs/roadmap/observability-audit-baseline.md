@@ -75,12 +75,12 @@
 | Audit query schema registry（OA-16 overlay） | `kiana-domain/src/contracts.rs` | `83fb1a4a025385b1d291be4908e7f3301a9bdda8da0e110662ce49b39ae7a524` |
 | Audit query protocol DTO（OA-16 overlay） | `kiana-protocol/src/lib.rs` | `ec545dd0390d7492bf455d5824af8370afd7ca6d47969f01695856204a5fb407` |
 | Audit query client facade（OA-16 overlay） | `kiana-client/src/lib.rs` | `c9749b96fb2077ed574216390a935195d9c7a966cad7a8753abd4bc1df516136` |
-| Audit query DaemonHost route（OA-16 overlay） | `kiana-daemon/src/lib.rs` | `e7ed9167cd00c39a6c292661a7909d091d2418be3acd18494c2ef5c5458745c3` |
+| Audit query DaemonHost route（OA-16 overlay） | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
 | Audit query cursor contract（OA-17 overlay） | `kiana-domain/src/observability.rs` | `9e2f417c4cc88636c5049a74cb87d863678c6bf9d8f7309a28eb25331a106537` |
 | Audit query cursor schema registry（OA-17 overlay） | `kiana-domain/src/contracts.rs` | `8739613390c463a5d1d45eb066c6f26a52cdbf9a205ae12ea7f7d9ff794f0a49` |
 | Audit query cursor reducer（OA-17 overlay） | `kiana-core/src/audit_projection.rs` | `5ddf6d04d6ce42d9f657a65d00f40a391af69f80a4f76aa785d57e4268fcd5fd` |
 | Audit query cursor protocol（OA-17 overlay） | `kiana-protocol/src/lib.rs` | `2c5506dd9bdb9e998898fe8cb367442b7d3b71298bf6569a48ee321bf1cdaf1e` |
-| Audit query cursor DaemonHost route（OA-17 overlay） | `kiana-daemon/src/lib.rs` | `5bdb0e6a02eef8b52d636237f1c148b44a35d2772c78aed9c03a51eb802ce7e4` |
+| Audit query cursor DaemonHost route（OA-17 overlay） | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
 | Audit export/delivery contracts（OA-18 overlay） | `kiana-domain/src/observability.rs` | `305164150f974706c6398f7aa7c73897850e4540c6a7893d3a524fac9b236d3e` |
 | Audit export schema registry（OA-18 overlay） | `kiana-domain/src/contracts.rs` | `479cb9668acb51b29a9629ae60c9bd47b47cf8115020ffe9a5754a6dadd08cf5` |
 | Audit export materializer（OA-18 overlay） | `kiana-core/src/audit_export.rs` | `7294a6434b5bbf3b8f679db10b6d7e896a041a2d09693b209d4d4e07bfc6b563` |
@@ -132,8 +132,8 @@
 | Live handoff remote fixture（OA-28 overlay） | `kiana-domain/tests/oa28_live_handoff.rs` | `bfa94f6fbd059498910dea8d9a96cce6ddbedf0e72b8da3d8e0ec969b4f1d8d8` |
 | Bounded observability queue（OA-13 overlay） | `kiana-ports/src/observability_queue.rs` | `ae2d6c4b9f7b9d9f1bac0fe73e8a2471be5c40bd04145e0f5bc53f0db89345cf` |
 | Queue port exports（OA-13 overlay） | `kiana-ports/src/lib.rs` | `a539b96c0813c0f08c043dd89b4f2bcbe9fdb4d6d9f93923443821b54679e6d0` |
-| Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `e9f3ceb87fdcb7610a91dcbc7cead025fbe5e2f48300e7ce6aaf0c42fd641bde` |
-| DaemonHost health bridge（OA-11 overlay） | `kiana-daemon/src/lib.rs` | `d673fd32687057ac9653cd92114182864a477eea2d3736389d2ffd148b127ac4` |
+| Daemon queue/health bridge（OA-13 overlay） | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
+| DaemonHost health bridge（OA-11 overlay） | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
 | Capability admission/effect instrumentation（OA-09 overlay） | `kiana-core/src/capabilities.rs` | `34a78eb181ef97253ab41d254ca298e621e9ea540ccec73a0bb94fde7dfbd061` |
 | Approval effect metadata（OA-09 overlay） | `kiana-core/src/approvals.rs` | `439a602ee0463d1be33ce144d787e5b7b6cbdb19db7277de2da248aa0cf28b1e` |
 | Dispatch permit/execution boundary（OA-09 overlay） | `kiana-core/src/dispatch.rs` | `75ef963c49c89cc3848a542f3dc5a63a01e55d2321b47b1f4bb918addd22f672` |
@@ -146,7 +146,7 @@
 | JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `614ef68ba99f8df06dd56c90ca3864956ec1619bef2623bdfba111f7b4315efc` |
 | Memory adapter | `kiana-eventlog/src/memory.rs` | `2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774` |
 | RunStream projection | `kiana-daemon/src/run_stream.rs` | `34c22ff79d94f9b13bf2e531d37eb02ce1a971162ff69a7115d4c8c872b03628` |
-| Daemon composition | `kiana-daemon/src/lib.rs` | `4cc8e9cfc22eaedeed1ed11bd2885336fb7e4cea3c9cf053e11a6ddf04aae772` |
+| Daemon composition | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
 | Port contract | `kiana-ports/src/lib.rs` | `313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec`（2026-10-16 重新钉扎；原注：OA-02 correlation + OA-05 signal + OA-06 observer overlay） |
 
 ## 2. Signal matrix
