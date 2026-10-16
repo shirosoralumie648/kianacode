@@ -78,6 +78,12 @@ jobs:
     env:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_PROFILE_TEST_STRIP: "symbols"
+      # The daemon memory-review integration harness legitimately exceeds the 8 MiB
+      # default test-thread stack (no recursive call identified; see
+      # docs/roadmap/memory-lifecycle-baseline.md and CURRENT_STATUS.md 2026-10-05).
+      # The project convention for these tests is RUST_MIN_STACK=32 MiB; p0-a01a and
+      # the recorded regression receipts already use it.
+      RUST_MIN_STACK: "33554432"
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk space
@@ -162,6 +168,11 @@ jobs:
       # stay byte-identical.
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_PROFILE_TEST_STRIP: "symbols"
+      # Daemon/entrypoint integration tests (memory review, harness coding loops, CLI
+      # multi-tool loop) legitimately need more than the 8 MiB default test-thread
+      # stack; the project convention is RUST_MIN_STACK=32 MiB (p0-a01a lane and the
+      # recorded regression receipts use the same value).
+      RUST_MIN_STACK: "33554432"
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk space
