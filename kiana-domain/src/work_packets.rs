@@ -496,11 +496,36 @@ impl BudgetLease {
         }
     }
 
+    /// Remaining tool calls after cumulative usage. Underflow saturates at zero so an
+    /// over-consumed or corrupted lease can never project a widened remainder.
+    pub fn remaining_tool_calls(&self) -> u64 {
+        self.max_tool_calls.saturating_sub(self.tool_calls_used)
+    }
+
+    /// Remaining model calls under the normalized `model_call_limit` so the legacy zero sentinel
+    /// cannot be read as an unlimited remainder.
+    pub fn remaining_model_calls(&self) -> u64 {
+        self.model_call_limit().saturating_sub(self.model_calls_used)
+    }
+
+    /// Remaining tokens after cumulative usage, saturated at zero.
+    pub fn remaining_tokens(&self) -> u64 {
+        self.max_tokens.saturating_sub(self.tokens_used)
+    }
+
+    /// Remaining effects after cumulative usage, saturated at zero.
+    pub fn remaining_effects(&self) -> u32 {
+        self.max_effects.saturating_sub(self.effects_used)
+    }
+
+    /// Remaining reservation headroom under the normalized reservation limit; the
+    /// `remaining_reserved` projection backing `can_reserve`/`reserve`.
+    pub fn remaining_reserved_budget(&self) -> u64 {
+        self.reservation_limit().saturating_sub(self.reserved_budget)
+    }
+
     pub fn can_reserve(&self, amount: u64) -> bool {
-        amount
-            <= self
-                .reservation_limit()
-                .saturating_sub(self.reserved_budget)
+        amount <= self.remaining_reserved_budget()
     }
 
     pub fn reserve(&mut self, amount: u64) -> Result<(), &'static str> {
@@ -523,9 +548,9 @@ impl BudgetLease {
     }
 
     pub fn can_consume(&self, tool_calls: u64, tokens: u64, effects: u32) -> bool {
-        tool_calls <= self.max_tool_calls.saturating_sub(self.tool_calls_used)
-            && tokens <= self.max_tokens.saturating_sub(self.tokens_used)
-            && effects <= self.max_effects.saturating_sub(self.effects_used)
+        tool_calls <= self.remaining_tool_calls()
+            && tokens <= self.remaining_tokens()
+            && effects <= self.remaining_effects()
     }
 
     pub fn consume(
@@ -555,9 +580,7 @@ impl BudgetLease {
     /// Account one model call and its conservative token upper bound in the same lease used by
     /// capability calls. Unknown provider usage is never treated as a free call.
     pub fn consume_model_call(&mut self, tokens: u64) -> Result<(), &'static str> {
-        if self.model_calls_used >= self.model_call_limit()
-            || tokens > self.max_tokens.saturating_sub(self.tokens_used)
-        {
+        if self.model_calls_used >= self.model_call_limit() || tokens > self.remaining_tokens() {
             return Err("budget_lease_exceeded");
         }
         self.model_calls_used = self

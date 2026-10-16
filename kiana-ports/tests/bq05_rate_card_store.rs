@@ -194,3 +194,32 @@ async fn rate_card_store_rejects_capacity_overflow_without_growing() {
         .expect("capacity denial must retain existing cards");
     assert_eq!(retained.model_selector, "model:255");
 }
+
+#[tokio::test]
+async fn rate_card_store_rejects_zero_card_version_at_insert() {
+    let store = InMemoryRateCardStore::new();
+    // `RateCard::new` refuses version zero, so build a digest-consistent card and mutate the
+    // version to exercise the store-side deny boundary directly.
+    let mut zero_version = card(
+        RateCardId::new(),
+        1_000,
+        Some(10_000),
+        "model:zero-version",
+        1,
+    );
+    zero_version.card_version = 0;
+    zero_version.rate_card_digest = zero_version.digest();
+    assert_eq!(zero_version.validate().unwrap_err(), "rate_card_invalid");
+    assert_eq!(
+        store.insert(zero_version).await.unwrap_err().to_string(),
+        "port_failed:rate_card_invalid:rate_card_invalid"
+    );
+    assert_eq!(
+        store
+            .resolve_rate_card("provider:test", "model:zero-version", 2_000)
+            .await
+            .unwrap_err()
+            .to_string(),
+        "port_unavailable:rate_card_unknown_model"
+    );
+}

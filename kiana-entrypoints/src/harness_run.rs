@@ -854,13 +854,15 @@ fn load_work_packet(project_root: &str, packet_path: &str) -> Result<WorkPacket>
 pub fn completed_harness_result(response: ResponseEnvelope) -> Result<HarnessRunResult> {
     if response.status != ExecutionStatus::Completed {
         // as_deref 借用响应中的错误字符串；过滤空串后保留真实错误，否则返回通用 harness 失败码。
+        // H05 分类只追加稳定失败码/恢复 disposition，不改变原有成功/失败判定与退出行为。
         return Err(anyhow!(
-            "{}",
+            "{}{}",
             response
                 .error
                 .as_deref()
                 .filter(|error| !error.is_empty())
-                .unwrap_or("kiana_harness_failed")
+                .unwrap_or("kiana_harness_failed"),
+            crate::model_failure_presenter::failure_suffix(&response)
         ));
     }
     // output 是兼容投影，字段可能缺失或类型不符；文本因此回退为空串，steps 在下方回退为 1。

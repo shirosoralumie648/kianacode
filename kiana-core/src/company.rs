@@ -1127,7 +1127,10 @@ impl ControlPlane {
     /// Persist a typed Company artifact only after policy and state-transition validation. The
     /// adapter owns replay semantics: a retry with the same immutable reference and bytes returns
     /// the first stored version (including its original timestamp), while manifest drift fails.
-    /// EventLog commit remains a separate operation, so an adapter failure can leave an unreferenced
+    /// The fact may only cite a manifest that correlates with the bytes read during proof and that
+    /// stays readable through the same port after commit; both preconditions are enforced here so
+    /// a non-conforming adapter cannot publish an unverifiable reference. EventLog commit remains
+    /// a separate operation, so an adapter failure after this fence can still leave an unreferenced
     /// blob and must not be reported as an atomic cross-store transaction.
     async fn persist_company_artifact(&self, proof: &mut CompanyProof) -> Result<(), PortError> {
         let Some(store) = self.artifact_store.as_ref() else {
@@ -1143,10 +1146,33 @@ impl ControlPlane {
             .text
             .as_bytes()
             .to_vec();
+        // Pin the reference, size and digest this command is admitting before delegating to the
+        // adapter; a retry-aware adapter may return the first stored manifest (including its
+        // original timestamp) but never a different manifest for the same (artifact_id, version).
+        let admitted = version.as_ref();
+        let admitted_size = content.len() as u64;
+        let admitted_hash = kiana_domain::journal_sha256(&content);
         let persisted = store.stage_artifact_version(version, content).await?;
+        if persisted.as_ref() != admitted
+            || persisted.size_bytes != admitted_size
+            || persisted.content_hash != admitted_hash
+        {
+            return Err(company_conflict("company_artifact_staged_manifest_mismatch"));
+        }
         store
             .commit_artifact(persisted.as_ref(), Some(persisted.version))
             .await?;
+        // "Contents persisted before a reference is admitted" only holds if the committed
+        // reference can still be read back byte-identical through the same port at commit time.
+        let stored = store
+            .read_artifact(&persisted.as_ref())
+            .await
+            .map_err(|_| company_conflict("company_artifact_committed_blob_unverified"))?;
+        if stored.len() as u64 != persisted.size_bytes
+            || kiana_domain::journal_sha256(&stored) != persisted.content_hash
+        {
+            return Err(company_conflict("company_artifact_committed_blob_unverified"));
+        }
         proof.artifact_version = Some(persisted.clone());
         if let Some(artifact) = proof.artifact.as_mut() {
             artifact.typed_version = Some(persisted);

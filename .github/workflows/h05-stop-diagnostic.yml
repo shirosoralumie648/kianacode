@@ -47,6 +47,14 @@ jobs:
             mode: lib
             selector: refusal_length_empty_and_invalid_json_are_distinct
             label: stop_error_request_evidence
+          - crate: kiana-protocol
+            mode: integration
+            target: h05_model_failure_wire
+            label: h05_model_failure_wire
+          - crate: kiana-entrypoints
+            mode: integration
+            target: h05_model_failure_presenter
+            label: h05_model_failure_presenter
     env:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_PROFILE_TEST_STRIP: symbols

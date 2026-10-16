@@ -252,14 +252,19 @@ pub use kiana_domain::{
     ModelAttemptLifecycleRecord, ModelAttemptState, MODEL_ATTEMPT_EVENT_SCHEMA,
     MODEL_ATTEMPT_EVENT_VERSION, MODEL_ATTEMPT_LIFECYCLE_SCHEMA, MODEL_ATTEMPT_LIFECYCLE_VERSION,
 };
+pub use kiana_domain::{ModelError, ModelRecoveryDisposition, ModelRetryClass};
 pub use kiana_domain::{
     NotificationActionCommand, NotificationActionKind, NOTIFICATION_ACTION_COMMAND_SCHEMA,
 };
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod ops;
 pub use ops::*;
+
+mod model_failure;
+pub use model_failure::*;
 
 mod ui_contracts;
 pub use ui_contracts::*;

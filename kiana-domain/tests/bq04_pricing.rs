@@ -104,3 +104,16 @@ fn estimate_rejects_unproven_cache_and_reasoning_overlap() {
         Some(BillingUnknownReason::Unsupported)
     );
 }
+
+#[test]
+fn estimate_referencing_zero_rate_card_version_is_rejected() {
+    let mut usage = UsageVector::zero();
+    usage.input_tokens = Some(2);
+    let mut estimate = card().estimate(&usage, 0).unwrap();
+    assert!(estimate.rate_card_version > 0);
+    estimate.validate().expect("non-zero card version control case");
+
+    estimate.rate_card_version = 0;
+    estimate.estimate_digest = estimate.digest();
+    assert_eq!(estimate.validate().unwrap_err(), "cost_estimate_invalid");
+}

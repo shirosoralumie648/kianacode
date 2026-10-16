@@ -18,6 +18,11 @@ fn budget_intersection_keeps_five_scopes_separate_and_never_grants_financial_aut
         "max_project_runs",
         "provider_max_cost_micros",
         "reservation_limit_for_intersection",
+        "remaining_tool_calls",
+        "remaining_model_calls",
+        "remaining_tokens",
+        "remaining_effects",
+        "remaining_reserved_budget",
         "self.lease_id.as_uuid().is_nil()",
         "project.project_id.as_uuid().is_nil()",
     ] {

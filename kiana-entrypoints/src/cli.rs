@@ -856,16 +856,18 @@ async fn run_main(args: &[String]) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&response)?);
         if response.status != ControlPlaneStatus::Completed {
             return Err(anyhow!(
-                "run failed: {}",
-                response.error.as_deref().unwrap_or("unknown")
+                "run failed: {}{}",
+                response.error.as_deref().unwrap_or("unknown"),
+                crate::model_failure_presenter::failure_suffix(&response)
             ));
         }
         return Ok(());
     }
     if response.status != ControlPlaneStatus::Completed {
         return Err(anyhow!(
-            "run blocked: {}",
-            response.error.as_deref().unwrap_or("unknown")
+            "run blocked: {}{}",
+            response.error.as_deref().unwrap_or("unknown"),
+            crate::model_failure_presenter::failure_suffix(&response)
         ));
     }
     if !stream_output {
