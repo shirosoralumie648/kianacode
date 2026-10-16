@@ -1244,6 +1244,7 @@ CI 运行期间可领取其他独立 Step；完成后按 `CURRENT_STATUS.md` 的
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-10-16 | `CI 对齐` round 2：run 38909920028 残留 16 个 guard/格式项修复——planner/workflow `EventStore` 注释命中改注释剥离视图、cap31 seatbelt 注释剥离、rustfmt 回退（p3_i03/p4_k8_01/source_guard/ext31/h36）、eval/er01/swarm/cap24 marker 对齐现行措辞、P4-J7-13/15 证据 marker 钉到 provider.md 卡片、`dependency_boundaries` 记录 kiana-daemon→kiana-provider 既定边与 p4_j7_07 仅禁 core `[dependencies]`；不删测试、不放宽断言 | be4fceed |
 | 2026-10-16 | `H05` wire/CLI 分类切片：新增 `ModelFailureSurface`（`kiana.model-failure.v1`）、`ResponseEnvelope::model_failure()` 与 entrypoints presenter，停止码/recovery disposition/retry class 到 CLI/SDK 错误行；未知/矛盾 fail closed，repair 仅作为 `*_repair_unavailable` 到达 wire；两个 focused fixture 与 h05 workflow matrix；本地未运行测试，row 047 仍 `🔄` | f81f116a |
 | 2026-10-16 | `CI-06` daemon 项目 provider 配置接线：`kiana-daemon::project_provider_config` 经单一 `ConfigResolver` 解析 `.kiana/provider-config.json`，未信任在打开前拒绝、有界读取（64 KiB+1）、revision drift 先于解析、跨入口 canonical snapshot 一致；daemon fixture +5；本地未运行测试，row 166 仍 `🔄` | d9194062 |
 | 2026-10-16 | `SC-07` DaemonHost assignment 强制接线（opt-in）：`with_assignment_enforcement(org)` 让 may-execute 请求先经服务端 assignment + Core `SecurityAuthoritySnapshot`/`validate_company_assignment`，missing/role-drift/revoked/wire-trust 伪造在 authority sync/session binding 前以稳定码拒绝；daemon deny-first fixture 5+1；默认兼容路径与 provisioning 语义仍待决，row 118 仍 `🔄` | e0ccd125 |
