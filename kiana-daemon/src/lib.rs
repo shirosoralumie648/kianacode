@@ -90,6 +90,7 @@ mod oauth_accounts;
 mod ops_diagnostics;
 mod pre_tool_hooks;
 mod process_supervisor;
+pub mod project_provider_config;
 mod restore_verifier;
 mod run_stream;
 mod shell_plan;
