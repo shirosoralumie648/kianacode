@@ -1,6 +1,20 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn eval_deny_broker_never_has_a_real_executor_path() {
-    let runtime = include_str!("../../kiana-daemon/src/eval_runtime.rs");
+    let runtime =
+        source_guard::production_source(include_str!("../../kiana-daemon/src/eval_runtime.rs"));
+    let boundary = [
+        source_guard::item_source(&runtime, "pub struct DenyByDefaultEvalBroker"),
+        source_guard::item_source(&runtime, "impl Default for DenyByDefaultEvalBroker"),
+        source_guard::item_source(&runtime, "impl DenyByDefaultEvalBroker"),
+        source_guard::item_source(
+            &runtime,
+            "impl CapabilityBrokerPort for DenyByDefaultEvalBroker",
+        ),
+    ]
+    .join("\n");
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
     for marker in [
         "DenyByDefaultEvalBroker",
@@ -29,7 +43,7 @@ fn eval_deny_broker_never_has_a_real_executor_path() {
         "std::env::var",
     ] {
         assert!(
-            !runtime.contains(forbidden),
+            !boundary.contains(forbidden),
             "real executor marker found: {forbidden}"
         );
     }

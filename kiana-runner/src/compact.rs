@@ -61,6 +61,8 @@ pub struct CompactOutcome {
     pub tokens_after: usize,
     /// 结果中是否包含摘要消息。
     pub summary_present: bool,
+    /// Failure to retain a complete recent group; callers must stop before invoking a model.
+    pub error: Option<String>,
 }
 
 /// 在历史超过触发阈值时构建压缩上下文。
@@ -82,14 +84,17 @@ pub fn compact_if_needed(
             tokens_after: tokens_before,
             messages,
             applied: false,
+            error: None,
             tokens_before,
         };
     }
-    let compacted = CompactSummary::from_messages(&messages)
-        .and_then(|summary| {
-            build_compacted_history_with_summary(&messages, retain_tokens, &summary)
-        })
-        .unwrap_or_else(|_| messages.clone());
+    let compacted = CompactSummary::from_messages(&messages).and_then(|summary| {
+        build_compacted_history_with_summary(&messages, retain_tokens, &summary)
+    });
+    let (compacted, error) = match compacted {
+        Ok(compacted) => (compacted, None),
+        Err(error) => (messages.clone(), Some(error)),
+    };
     let tokens_after = history_tokens(&compacted);
     CompactOutcome {
         applied: compacted != messages,
@@ -99,6 +104,7 @@ pub fn compact_if_needed(
             .iter()
             .any(|message| is_summary_message(&message.text)),
         messages: compacted,
+        error,
     }
 }
 
@@ -144,7 +150,7 @@ pub fn build_compacted_history_with_summary(
     for group in groups.into_iter().rev() {
         let tokens = history_tokens(&group);
         if selected.is_empty() {
-            if tokens > remaining && max_user_tokens > 0 {
+            if tokens > remaining {
                 let reduced = truncate_latest_group(group, remaining);
                 if history_tokens(&reduced) > remaining {
                     return Err("compact_latest_group_exceeds_budget".to_owned());
@@ -186,25 +192,16 @@ fn message_groups(messages: &[ModelMessage]) -> Vec<Vec<ModelMessage>> {
 }
 
 fn truncate_latest_group(mut group: Vec<ModelMessage>, max_tokens: usize) -> Vec<ModelMessage> {
-    if max_tokens == 0 {
-        return group
-            .into_iter()
-            .filter(|message| message.role != ModelRole::User)
-            .collect();
-    }
     let Some(index) = group
         .iter()
         .rposition(|message| message.role == ModelRole::User)
     else {
         return group;
     };
-    let available = max_tokens.saturating_sub(
-        group[..index]
-            .iter()
-            .map(|message| history_tokens(std::slice::from_ref(message)))
-            .sum(),
-    );
-    let original = group[index].text.clone();
+    let original = std::mem::take(&mut group[index].text);
+    // Keep every assistant/tool message and the user-message framing. Only its text may shrink.
+    let fixed_tokens = history_tokens(&group);
+    let available = max_tokens.saturating_sub(fixed_tokens);
     group[index].text = truncate_middle_tokens(&original, available);
     group
 }
@@ -243,13 +240,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn compacted_history_keeps_recent_user_messages_and_appends_summary() {
+    fn recent_group_that_cannot_fit_is_rejected_without_dropping_tool_pairs() {
+        let messages = vec![
+            ModelMessage::user("goal"),
+            ModelMessage::assistant_with_tools(
+                "call",
+                vec![crate::model::ModelToolCall {
+                    id: "pending".to_owned(),
+                    name: "shell".to_owned(),
+                    arguments: serde_json::json!({"command":"true"}),
+                }],
+            ),
+            ModelMessage::tool("pending", "result".repeat(100)),
+        ];
+        let out = compact_if_needed(messages.clone(), 1, 4);
+        assert_eq!(
+            out.error.as_deref(),
+            Some("compact_latest_group_exceeds_budget")
+        );
+        assert!(!out.applied);
+        assert_eq!(out.messages, messages);
+    }
+
+    #[test]
+    fn truncation_accounts_for_message_framing_and_other_group_messages() {
+        let messages = vec![
+            ModelMessage::user("x".repeat(100)),
+            ModelMessage::assistant("done"),
+        ];
+        let summary = CompactSummary::from_messages(&messages).unwrap();
+        let compacted = build_compacted_history_with_summary(&messages, 5, &summary).unwrap();
+        let recent: Vec<_> = compacted
+            .into_iter()
+            .filter(|m| !is_summary_message(&m.text))
+            .collect();
+        assert!(history_tokens(&recent) <= 5);
+        assert_eq!(recent.len(), 2);
+        assert_eq!(recent[1], messages[1]);
+        assert!(!recent[0].text.is_empty());
+    }
+
+    #[test]
+    fn compacted_history_keeps_recent_group_after_validated_summary() {
         let messages = vec![
             ModelMessage::user("old-1"),
             ModelMessage::assistant("ignored assistant"),
             ModelMessage::user("keep-me-recent"),
         ];
-        let compacted = build_compacted_history(&messages, 4);
+        let compacted = build_compacted_history(&messages, 5);
         assert!(compacted
             .iter()
             .all(|message| message.role == ModelRole::User));
@@ -258,7 +296,7 @@ mod tests {
             .any(|message| message.text == "ignored assistant"));
         assert_eq!(
             compacted
-                .last()
+                .first()
                 .map(|message| is_summary_message(&message.text)),
             Some(true)
         );
@@ -286,7 +324,20 @@ mod tests {
         let out = compact_if_needed(messages, 8, 4);
         assert!(out.applied);
         assert!(out.summary_present);
-        assert!(is_summary_message(&out.messages.last().unwrap().text));
+        assert!(is_summary_message(&out.messages.first().unwrap().text));
+        let rendered = out
+            .messages
+            .first()
+            .unwrap()
+            .text
+            .strip_prefix(&format!("{SUMMARY_PREFIX}\n"))
+            .unwrap();
+        serde_json::from_str::<CompactSummary>(rendered)
+            .unwrap()
+            .validate()
+            .unwrap();
+        assert!(out.error.is_none());
+        assert!(history_tokens(&out.messages[1..]) <= 4);
         assert!(!out
             .messages
             .iter()
@@ -295,7 +346,7 @@ mod tests {
 
     #[test]
     fn compact_outcome_shrinks_large_discarded_history() {
-        let messages = vec![ModelMessage::user("a".repeat(2000))];
+        let messages = vec![ModelMessage::user("a".repeat(8000))];
         let out = compact_if_needed(messages, 200, 40);
         assert!(out.applied);
         assert!(out.summary_present);

@@ -16,7 +16,7 @@ fn extension_lifecycle_uses_control_plane_and_append_only_cas_boundaries() {
         );
     }
     for marker in [
-        "extension.manage",
+        "EXTENSION_MANAGE_OPERATION",
         "extension_mutation_fields_required",
         "expected_registry_version",
         "idempotency_key",

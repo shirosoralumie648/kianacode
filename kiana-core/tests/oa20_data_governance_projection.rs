@@ -117,8 +117,17 @@ fn governance_snapshot_does_not_expose_raw_payload_content() {
         json!({"project_root":"/repo","payload":"raw-secret"}),
     )];
     let snapshot = project_data_governance_snapshot(&policy(), "/repo", &events, 1).unwrap();
-    let encoded = serde_json::to_string(&snapshot).unwrap();
+    let encoded_value = serde_json::to_value(&snapshot).unwrap();
+    let encoded = encoded_value.to_string();
     assert!(!encoded.contains("raw-secret"));
-    assert!(!encoded.contains("payload"));
-    assert_ne!(snapshot.source_event_ids, vec![EventId::new()]);
+    assert_eq!(
+        encoded_value["observations"][0]["payload"],
+        json!("unknown")
+    );
+    assert!(encoded_value["observations"][0]
+        .as_object()
+        .unwrap()
+        .get("raw_payload")
+        .is_none());
+    assert_eq!(snapshot.source_event_ids, vec![events[0].event_id]);
 }

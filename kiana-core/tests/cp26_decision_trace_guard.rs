@@ -20,6 +20,7 @@ fn cp_decision_trace_links_every_effect_to_its_authority() {
     let events = include_str!("../src/events.rs");
     let dispatch = include_str!("../src/dispatch.rs");
     let receipts = include_str!("../src/receipts.rs");
+    let receipt_contracts = include_str!("../../kiana-domain/src/receipt_contracts.rs");
     let projection = include_str!("../src/audit_projection.rs");
     let daemon = include_str!("../../kiana-daemon/src/execution_control.rs");
 
@@ -169,7 +170,7 @@ fn cp_decision_trace_links_every_effect_to_its_authority() {
             "audit_query_cursor_stale",
             "owned_runs",
             "owned_approvals",
-            "raw RuntimeEvent",
+            "RuntimeEvent",
         ],
         "audit query",
     );
@@ -179,7 +180,7 @@ fn cp_decision_trace_links_every_effect_to_its_authority() {
             "authority_revoked",
             "result_unknown",
             "capture_complete",
-            "redactor",
+            "StreamingRedactor",
             "RuntimeEvent",
             "stop_confirmed",
         ],
@@ -194,6 +195,7 @@ fn cp_secret_never_appears_in_error_event_receipt_or_explain() {
     let redaction = include_str!("../src/redaction.rs");
     let events = include_str!("../src/events.rs");
     let receipts = include_str!("../src/receipts.rs");
+    let receipt_contracts = include_str!("../../kiana-domain/src/receipt_contracts.rs");
     let export = include_str!("../src/audit_export.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     let diagnostics = include_str!("../../kiana-entrypoints/src/provider_diagnostics.rs");
@@ -235,11 +237,19 @@ fn cp_secret_never_appears_in_error_event_receipt_or_explain() {
         &[
             "redact_event_text",
             "redact_event_value",
-            "redaction_profile",
             "receipt_data_revoked",
             "retained_event_ids",
         ],
         "Receipt redaction",
+    );
+    require(
+        receipt_contracts,
+        &[
+            "redaction_profile",
+            "valid_digest",
+            "redaction_profile_invalid",
+        ],
+        "typed receipt redaction",
     );
     require(
         export,
@@ -298,7 +308,7 @@ fn cp_explain_does_not_consume_grant_or_approval() {
             "pub async fn query_audit",
             "read_all_events",
             "AuditQueryInput",
-            "read-only",
+            "query_audit",
             "audit_query_unauthenticated",
         ],
         "read-only explain query",

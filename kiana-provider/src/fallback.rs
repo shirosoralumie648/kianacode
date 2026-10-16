@@ -102,6 +102,7 @@ pub fn validate_fallback_attempt(
     admission.validate().map_err(ModelError::invalid)?;
     if route.digest() != admission.route_digest
         || route.provider_id != admission.route.provider_id
+        || route.connection_id != admission.route.connection_id
         || route.model_id != admission.route.model_id
     {
         return Err(ModelError::invalid("fallback_route_admission_drift"));
@@ -113,4 +114,73 @@ pub fn validate_fallback_attempt(
         return Err(ModelError::invalid("fallback_permit_admission_drift"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kiana_domain::{
+        AttemptId, FallbackAttemptAdmission, ModelProtocol, RateCardId, RunId, SchemaVersion,
+    };
+
+    fn digest(seed: char) -> String {
+        format!(
+            "sha256:{}",
+            format!("{:04x}", (seed as u32) & 0xffff).repeat(16)
+        )
+    }
+
+    fn admission() -> FallbackAttemptAdmission {
+        let route = ModelRoute {
+            provider_id: "provider-b".to_owned(),
+            protocol: ModelProtocol::OpenAiChat,
+            connection_id: "backup".to_owned(),
+            model_id: "model-b".to_owned(),
+            profile: "backup".to_owned(),
+            configuration_revision: digest('r'),
+            streaming: true,
+        };
+        let mut admission = FallbackAttemptAdmission {
+            schema: kiana_domain::FALLBACK_ADMISSION_SCHEMA.to_owned(),
+            version: SchemaVersion::new(1, 0),
+            run_id: RunId::new(),
+            original_attempt_id: AttemptId::new(),
+            attempt_id: AttemptId::new(),
+            route: route.clone(),
+            route_digest: route.digest(),
+            authority_digest: digest('a'),
+            authority_epoch: 1,
+            data_boundary_digest: digest('b'),
+            budget_digest: digest('c'),
+            budget_reservation_digest: digest('d'),
+            credential_revision: digest('e'),
+            rate_card_id: RateCardId::new(),
+            rate_card_version: 1,
+            rate_card_digest: digest('f'),
+            permit_digest: digest('g'),
+            capability_digest: digest('h'),
+            admitted_at_unix_ms: 1,
+            admission_digest: String::new(),
+        };
+        admission.admission_digest = admission.digest();
+        admission
+    }
+
+    #[test]
+    fn validate_rejects_connection_identity_drift() {
+        let admission = admission();
+        let mut changed = admission.route.clone();
+        changed.connection_id = "other-connection".to_owned();
+        assert_eq!(
+            validate_fallback_attempt(
+                &admission,
+                &changed,
+                Some(admission.credential_revision.as_str()),
+                &admission.permit_digest,
+            )
+            .unwrap_err()
+            .code,
+            "fallback_route_admission_drift"
+        );
+    }
 }

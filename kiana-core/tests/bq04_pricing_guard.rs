@@ -12,6 +12,8 @@ fn pricing_contracts_are_integer_checked_and_not_billing_authority() {
         "effective_to_unix_ms",
         "rate_card_digest",
         "BillingUnknownReason::RateCardMissing",
+        "BillingUnknownReason::Unsupported",
+        "has_unproven_token_overlap",
     ] {
         assert!(pricing.contains(marker), "pricing marker missing: {marker}");
     }

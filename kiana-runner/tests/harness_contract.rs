@@ -142,7 +142,7 @@ async fn event_write_fault_stops_before_model_call() {
         .expect_err("failed event delivery must stop the runner");
     assert_eq!(
         error.to_string(),
-        "kiana_harness_failed:event_sink_failed:event_write_fault"
+        "kiana_harness_failed:runner_event_sink_failed:event_write_fault"
     );
     assert_eq!(fault.writes, 1);
     assert_eq!(calls.load(Ordering::SeqCst), 0);

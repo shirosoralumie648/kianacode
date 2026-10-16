@@ -100,8 +100,21 @@ fn verified_restore_requires_new_epochs_fences_and_quiescent_references() {
 
     let mut unverified = fact(RestoreVerificationState::Verified);
     unverified.unknown_effect_count = 1;
+    unverified.external_effects_reconciled = false;
     unverified.verification_digest = digest(&unverified);
     assert_eq!(unverified.validate(), Err("restore_verification_not_ready"));
+}
+
+#[test]
+fn restore_rejects_reconciled_claim_while_unknown_effects_remain() {
+    let mut contradictory = fact(RestoreVerificationState::Verified);
+    contradictory.unknown_effect_count = 1;
+    contradictory.verification_digest = digest(&contradictory);
+
+    assert_eq!(
+        contradictory.validate(),
+        Err("restore_unknown_effect_reconciled_mismatch")
+    );
 }
 
 #[test]

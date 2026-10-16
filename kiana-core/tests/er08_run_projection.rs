@@ -1,5 +1,5 @@
 use kiana_core::{project_run_state, RunOutcome, RunPhase, RunProjectionError};
-use kiana_domain::{RequestId, RunId, RuntimeEvent, TurnId};
+use kiana_domain::{EventId, RequestId, RunId, RuntimeEvent, TurnId};
 use serde_json::json;
 
 fn event(
@@ -129,6 +129,54 @@ fn terminal_projection_is_idempotent_and_rejects_conflicting_kinds() {
 }
 
 #[test]
+fn run_projection_rejects_event_id_content_drift_but_accepts_exact_replay() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let completed = event(
+        run_id,
+        request_id,
+        1,
+        "run.completed",
+        json!({"run_id":run_id}),
+    );
+
+    let replay = project_run_state(run_id, &[completed.clone(), completed.clone()]).unwrap();
+    assert_eq!(replay.outcome, Some(RunOutcome::Completed));
+
+    let mut drift = completed.clone();
+    drift.data = json!({"run_id":run_id,"error":"forged"});
+    assert_eq!(
+        project_run_state(run_id, &[completed.clone(), drift]),
+        Err(RunProjectionError::EventIdentityConflict {
+            event_id: completed.event_id.to_string(),
+        })
+    );
+}
+
+#[test]
+fn legacy_run_projection_preserves_append_order_without_stream_metadata() {
+    let run_id = RunId::new();
+    let completed = RuntimeEvent::new(
+        RequestId::new(),
+        5,
+        "run.completed",
+        json!({"run_id":run_id}),
+    )
+    .unwrap();
+    let prompt = RuntimeEvent::new(
+        RequestId::new(),
+        1,
+        "run.prompt",
+        json!({"run_id":run_id,"turn_id":TurnId::new()}),
+    )
+    .unwrap();
+
+    let state = project_run_state(run_id, &[completed, prompt]).unwrap();
+    assert_eq!(state.phase, RunPhase::Running);
+    assert_eq!(state.outcome, None);
+}
+
+#[test]
 fn late_effect_is_ignored_until_a_new_prompt_turn() {
     let run_id = RunId::new();
     let request_id = RequestId::new();
@@ -171,4 +219,110 @@ fn late_effect_is_ignored_until_a_new_prompt_turn() {
     let resumed = project_run_state(run_id, &continued).unwrap();
     assert_eq!(resumed.phase, RunPhase::Running);
     assert_eq!(resumed.outcome, None);
+}
+
+#[test]
+fn run_projection_rejects_aggregate_and_payload_identity_conflicts() {
+    let run_a = RunId::new();
+    let run_b = RunId::new();
+    let request_id = RequestId::new();
+
+    let aggregate_b_payload_a = event(
+        run_b,
+        request_id,
+        1,
+        "run.completed",
+        json!({"run_id": run_a}),
+    );
+    let aggregate_a_payload_b = event(
+        run_a,
+        request_id,
+        2,
+        "run.completed",
+        json!({"run_id": run_b}),
+    );
+
+    assert!(matches!(
+        project_run_state(run_a, &[aggregate_b_payload_a]),
+        Err(RunProjectionError::EventRunIdConflict)
+    ));
+    assert!(matches!(
+        project_run_state(run_a, &[aggregate_a_payload_b]),
+        Err(RunProjectionError::EventRunIdConflict)
+    ));
+}
+
+#[test]
+fn run_projection_rejects_malformed_present_identity_links_but_accepts_legacy_absence() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let nil_event_id = EventId::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+
+    let legacy = event(
+        run_id,
+        request_id,
+        1,
+        "run.completed",
+        json!({"run_id":run_id}),
+    );
+    assert_eq!(
+        project_run_state(run_id, &[legacy]).unwrap().outcome,
+        Some(RunOutcome::Completed)
+    );
+
+    let mut self_parent = event(
+        run_id,
+        request_id,
+        2,
+        "run.completed",
+        json!({"run_id":run_id}),
+    );
+    self_parent.parent_event_id = Some(self_parent.event_id);
+    assert!(matches!(
+        project_run_state(run_id, &[self_parent]),
+        Err(RunProjectionError::IdentityLinksInvalid { reason })
+            if reason == "event_parent_self"
+    ));
+
+    let mut self_causation = event(
+        run_id,
+        request_id,
+        3,
+        "run.completed",
+        json!({"run_id":run_id}),
+    );
+    self_causation.causation_event_id = Some(self_causation.event_id);
+    assert!(matches!(
+        project_run_state(run_id, &[self_causation]),
+        Err(RunProjectionError::IdentityLinksInvalid { reason })
+            if reason == "event_causation_self"
+    ));
+
+    let mut nil_parent = event(
+        run_id,
+        request_id,
+        4,
+        "run.completed",
+        json!({"run_id":run_id}),
+    );
+    nil_parent.parent_event_id = Some(nil_event_id);
+    assert!(matches!(
+        project_run_state(run_id, &[nil_parent]),
+        Err(RunProjectionError::IdentityLinksInvalid { reason })
+            if reason == "event_parent_id_invalid"
+    ));
+
+    let mut nil_causation = event(
+        run_id,
+        request_id,
+        5,
+        "run.completed",
+        json!({"run_id":run_id}),
+    );
+    nil_causation.causation_event_id = Some(nil_event_id);
+    assert!(matches!(
+        project_run_state(run_id, &[nil_causation]),
+        Err(RunProjectionError::IdentityLinksInvalid { reason })
+            if reason == "event_causation_id_invalid"
+    ));
 }

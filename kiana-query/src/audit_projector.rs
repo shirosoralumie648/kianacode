@@ -514,16 +514,7 @@ impl AuditProjectorFreshness {
     ) -> Result<Self, String> {
         let reason = derive_freshness(position, fold)?;
         let fresh = reason.is_empty();
-        // The lag view carries a reason only while it is actually behind. A view that matches on
-        // cursor but is stale on generation is not a lag, and mislabelling it as one would hide
-        // the real problem behind a message about cursors.
-        let lag = ProjectionLagView::new(
-            position.source_cursor,
-            Some(fold.source_cursor()),
-            position.generation,
-            position.data_epoch,
-            (!fresh).then_some(reason.to_owned()),
-        )?;
+        let lag = derive_lag_view(position, fold, reason)?;
         let mut view = Self {
             schema: AUDIT_PROJECTOR_FRESHNESS_SCHEMA.to_owned(),
             version: AUDIT_PROJECTOR_VERSION,
@@ -563,6 +554,9 @@ impl AuditProjectorFreshness {
         {
             return Err("audit_projector_view_binding_invalid".to_owned());
         }
+        if self.lag != derive_lag_view(position, fold, reason)? {
+            return Err("audit_projector_view_lag_binding_invalid".to_owned());
+        }
         // Fresh is written as a conjunction over "nothing fired" so an edited `fresh` cannot stand
         // on its own, and a caught-up lag may not carry a staleness reason.
         if self.fresh != reason.is_empty()
@@ -598,6 +592,28 @@ impl AuditProjectorFreshness {
             "remediation": self.remediation,
         }))
     }
+}
+
+fn derive_lag_view(
+    position: &AuditProjectionPosition,
+    fold: &AuditProjectorFold,
+    reason: &str,
+) -> Result<ProjectionLagView, String> {
+    // An equal cursor does not prove that generation or content still matches the published
+    // state. Leave that projection position unknown until a rebuild verifies those bindings.
+    let projection_cursor = if !reason.is_empty() && fold.source_cursor() == position.source_cursor
+    {
+        None
+    } else {
+        Some(fold.source_cursor())
+    };
+    ProjectionLagView::new(
+        position.source_cursor,
+        projection_cursor,
+        position.generation,
+        position.data_epoch,
+        (!reason.is_empty()).then_some(reason.to_owned()),
+    )
 }
 
 fn derive_freshness<'a>(

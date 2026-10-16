@@ -914,7 +914,7 @@ impl ActivationState {
 
     /// The one root that may take writes right now.
     pub fn writable_root(&self) -> Option<&StorageRootId> {
-        self.ready().then_some(&self.activated_storage_root)
+        (self.ready() && self.validate().is_ok()).then_some(&self.activated_storage_root)
     }
 
     pub fn validate(&self) -> Result<(), String> {

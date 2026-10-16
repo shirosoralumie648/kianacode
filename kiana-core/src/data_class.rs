@@ -509,7 +509,7 @@ pub fn derive_sink_class(field: &SinkField, sink: TelemetryChannel) -> DerivedCl
         || scan_secret_sentinels(scan_channel, &field.value).is_err()
     {
         (DataClass::Restricted, ClassBasis::SecretContent)
-    } else if is_payload_key(&field.key) {
+    } else if !field.is_label && is_payload_key(&field.key) {
         (DataClass::Restricted, ClassBasis::PayloadShape)
     } else if field.is_reference {
         (DataClass::Internal, ClassBasis::OpaqueReference)
@@ -545,7 +545,10 @@ pub fn runtime_metric_refusal(
     catalog: &MetricCatalog,
     point: &MetricPoint,
 ) -> Option<TelemetryRuntimeRefusal> {
-    let mut guard = MetricCardinalityGuard::new(catalog.clone()).ok()?;
+    let mut guard = match MetricCardinalityGuard::new(catalog.clone()) {
+        Ok(guard) => guard,
+        Err(_) => return Some(TelemetryRuntimeRefusal::PointInvalid),
+    };
     guard
         .observe(point)
         .err()
@@ -557,8 +560,8 @@ pub fn runtime_metric_refusal(
 /// Eight rules, in this order, and the order is the contract:
 ///
 /// 1. **provenance** -- a caller-asserted class is refused before anything is read
-/// 2. **shape** -- a payload key, or an identifier in a sink that admits no identifier label
-/// 3. **content** -- the derived basis is `SecretContent`
+/// 2. **content** -- the derived basis is `SecretContent`, which is unsafe in every sink
+/// 3. **shape** -- a payload key, or an identifier in a sink that admits no identifier label
 /// 4. **class** -- the derived class against the sink's ceiling
 /// 5. **export ceiling** -- the caller's declared downstream class against the sink's floor
 /// 6. **label budget** -- the label's observed value count against the sink's dimension budget
@@ -611,10 +614,25 @@ pub fn admit_field(
         return refuse(SinkAdmissionRefusal::CallerSuppliedClass);
     }
 
+    // Content findings hold in every sink and take precedence over a generic shape refusal.
+    if derived.basis == ClassBasis::SecretContent {
+        return refuse(SinkAdmissionRefusal::Shared(
+            TelemetryRefusal::UnredactedContent,
+        ));
+    }
+
+    // Payload fields remain forbidden in every sink, before the trace identifier rule.
+    if derived.basis == ClassBasis::PayloadShape {
+        return refuse(SinkAdmissionRefusal::Shared(
+            TelemetryRefusal::PayloadShapeForbidden,
+        ));
+    }
+
     // 2. Shape. A label is a dimension, so an identifier in that position is refused in the sinks
     //    that admit no identifier label -- before any content is read, so the reason names the real
     //    defect rather than a secret that happens to be inside it.
-    if field.is_label
+    if !field.is_reference
+        && (field.is_label || sink == TelemetryChannel::Trace)
         && !TelemetryChannelPolicy::admits_identifier_label(sink)
         && is_high_cardinality_label(&field.key)
     {
@@ -632,14 +650,6 @@ pub fn admit_field(
     if !field.is_label && is_payload_key(&field.key) {
         return refuse(SinkAdmissionRefusal::Shared(
             TelemetryRefusal::PayloadShapeForbidden,
-        ));
-    }
-
-    // 3. Content. `derive_sink_class` already ran both content tests; reading its basis back is how
-    //    the refusal is attributed to content rather than to shape.
-    if derived.basis == ClassBasis::SecretContent {
-        return refuse(SinkAdmissionRefusal::Shared(
-            TelemetryRefusal::UnredactedContent,
         ));
     }
 
@@ -670,7 +680,14 @@ pub fn admit_field(
         let Some(catalog) = catalog else {
             return refuse(SinkAdmissionRefusal::MetricCatalogAbsent);
         };
-        let point = metric_point_for(field, catalog)?;
+        let point = match metric_point_for(field, catalog) {
+            Ok(point) => point,
+            Err(_) => {
+                return refuse(SinkAdmissionRefusal::Runtime(
+                    TelemetryRuntimeRefusal::PointInvalid,
+                ))
+            }
+        };
         if let Some(runtime) = runtime_metric_refusal(catalog, &point) {
             return refuse(SinkAdmissionRefusal::Runtime(runtime));
         }
@@ -691,17 +708,8 @@ pub fn admit_field(
 /// A label field is checked as a label on a real catalog metric; a reference field is checked as a
 /// label-free point, because a dimension is the only thing that can grow without bound.
 fn metric_point_for(field: &SinkField, catalog: &MetricCatalog) -> Result<MetricPoint, String> {
-    // 【为什么 label 字段不能按 key 直接查 metric】
-    // `SinkField` 有两种形态：`reference` 的 key **就是 metric 名**，而 `label` 的 key 是
-    // **标签名**。此前两种都走 `catalog.metric(&field.key)`，于是 label 字段永远查不到
-    // （`"status"` 不是一个 metric 名），直接被判 `metric_unregistered`——BQ-25 的
-    // separation/round-trip 用例因此全部失败，而这个模块存在的目的恰恰是判断
-    // 「这个标签能不能进 metric」。
-    //
-    // 正确做法：标签字段要挂在一个**确实声明了该标签**的真实 metric 上；`allowed_labels`
-    // 正是为此存在，且 `MetricCatalog` 在构造时已按名字排序，选择是确定的。
-    // 找不到声明该标签的 metric 时才报 `metric_unregistered`——那意味着这个标签在任何
-    // metric 上都没有登记，确实是未注册。
+    // Labels must name a registered dimension on a real catalog metric. References carry
+    // correlation metadata only, so their label-free probe uses the first registered metric.
     let definition = if field.is_label {
         catalog.metrics.iter().find(|definition| {
             definition
@@ -710,7 +718,9 @@ fn metric_point_for(field: &SinkField, catalog: &MetricCatalog) -> Result<Metric
                 .any(|allowed| allowed == &field.key)
         })
     } else {
-        catalog.metric(&field.key)
+        // A reference is correlation metadata, not a metric name or dimension. Probe the
+        // deterministic first registered metric without attaching the reference as a label.
+        catalog.metrics.first()
     }
     .ok_or_else(|| "metric_unregistered".to_owned())?;
     let mut labels = std::collections::BTreeMap::new();

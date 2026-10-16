@@ -10,6 +10,7 @@ fn config_resolver_has_a_trust_and_revision_fence() {
         "WorkspaceProfile",
         "WORKSPACE_CONFIG_SCHEMA",
         "MAX_WORKSPACE_CONFIG_BYTES",
+        "contains_forbidden_provider_config_control",
         "config_workspace_untrusted",
         "config_workspace_schema_unsupported",
         "deny_unknown_fields",
@@ -20,6 +21,9 @@ fn config_resolver_has_a_trust_and_revision_fence() {
         "project_trust_revision",
         "configuration_snapshot",
         "config::snapshot",
+        "ProviderConfigSource",
+        "config_source",
+        "default_source",
     ] {
         assert!(
             resolver.contains(marker)
@@ -30,8 +34,14 @@ fn config_resolver_has_a_trust_and_revision_fence() {
         );
     }
     assert!(resolver.contains("if !project_trusted"));
-    assert!(resolver.contains("serde_json::from_str(raw)"));
+    assert!(resolver.contains("parse_bounded_json(raw.as_bytes())"));
+    assert!(resolver.contains("serde_json::from_value(value)"));
     assert!(resolver.contains("reqwest::Url::parse"));
+    assert!(resolver.contains("contains_forbidden_provider_config_control"));
+    assert!(provider.contains("contains_forbidden_provider_config_control"));
+    assert!(
+        provider.contains("connection.source") || provider.contains("connection.config_source")
+    );
     assert!(domain.contains("pub struct ConfigSnapshot"));
     assert!(!resolver.contains("ModelClient"));
     assert!(!resolver.contains("CapabilityBroker"));

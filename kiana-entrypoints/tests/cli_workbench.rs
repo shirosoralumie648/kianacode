@@ -136,11 +136,26 @@ fn untrusted_workbench_write_fails_closed() {
         ],
     );
     assert!(!output.status.success(), "{}", combined(&output));
-    assert!(
-        combined(&output).contains("workspace_write_requires_trusted_non_safe_profile"),
-        "{}",
-        combined(&output)
+    let response: kiana_protocol::ResponseEnvelope =
+        serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response.status, kiana_protocol::ExecutionStatus::Blocked);
+    assert_eq!(response.error.as_deref(), Some("project_untrusted"));
+    assert_eq!(
+        response.failure_code(),
+        Some(kiana_protocol::CapabilityErrorCode::ProjectUntrusted)
     );
+    assert!(response.output.is_null());
+    let path = home.join("sessions/events.jsonl");
+    if path.exists() {
+        let facts = fs::read_to_string(path).unwrap();
+        for line in facts.lines().filter(|line| !line.trim().is_empty()) {
+            let event: Value = serde_json::from_str(line).unwrap();
+            assert!(!matches!(
+                event["kind"].as_str(),
+                Some("run.started" | "run.prompt" | "execution.prepared")
+            ));
+        }
+    }
     assert!(!fixture.join("GOLDEN_PATH.txt").exists());
 }
 

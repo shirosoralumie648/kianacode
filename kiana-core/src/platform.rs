@@ -178,7 +178,10 @@ impl ControlPlane {
         arguments: &Value,
         payload: Value,
     ) -> Result<CoreResponse, CoreError> {
-        if context.permission_profile == PermissionProfile::Safe {
+        if matches!(
+            context.permission_profile,
+            PermissionProfile::Safe | PermissionProfile::Ask
+        ) {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "human_write_requires_non_safe_profile",
@@ -411,10 +414,13 @@ impl ControlPlane {
             ) {
                 continue;
             }
+            let result = event.data.get("result").unwrap_or(&event.data);
             let summary = event
                 .data
                 .get("error")
                 .or_else(|| event.data.get("reason"))
+                .or_else(|| result.get("error"))
+                .or_else(|| result.get("reason"))
                 .and_then(Value::as_str)
                 .unwrap_or(&event.kind)
                 .to_owned();
@@ -430,11 +436,13 @@ impl ControlPlane {
                 || event
                     .data
                     .get("stop_confirmed")
+                    .or_else(|| result.get("stop_confirmed"))
                     .and_then(Value::as_bool)
                     .is_some_and(|confirmed| !confirmed)
                 || event
                     .data
                     .get("error")
+                    .or_else(|| result.get("error"))
                     .and_then(Value::as_str)
                     .map(CapabilityErrorCode::from_reason)
                     .is_some_and(|code| {
@@ -449,9 +457,11 @@ impl ControlPlane {
                 unknown,
                 event.kind == "run.cancelled"
                     || event.data.get("cancelled") == Some(&Value::Bool(true))
+                    || result.get("cancelled") == Some(&Value::Bool(true))
                     || event
                         .data
                         .get("error")
+                        .or_else(|| result.get("error"))
                         .and_then(Value::as_str)
                         .map(CapabilityErrorCode::from_reason)
                         .is_some_and(|code| code == CapabilityErrorCode::Cancelled),
@@ -667,7 +677,10 @@ impl ControlPlane {
         context: &RequestContext,
         arguments: Value,
     ) -> Result<CoreResponse, CoreError> {
-        if context.permission_profile == PermissionProfile::Safe {
+        if matches!(
+            context.permission_profile,
+            PermissionProfile::Safe | PermissionProfile::Ask
+        ) {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "human_write_requires_non_safe_profile",

@@ -39,24 +39,40 @@ pub mod workbench_controller;
 pub mod workbench_render;
 pub mod workbench_review;
 
+/// 仅供 crate 测试使用的进程级环境变量互斥与作用域恢复工具。
+///
+/// Rust 测试可能并行运行，而环境变量属于整个进程；多个测试若同时改同一个键，会读到彼此的临时值。
+/// 约定测试通过这里的同一把锁读写相关键。此模块只在 test build 存在，不参与生产入口路由或授权。
 #[cfg(test)]
 pub(crate) mod test_support {
     use std::convert::Infallible;
     use std::ffi::{OsStr, OsString};
     use std::sync::{Mutex, MutexGuard, PoisonError};
 
+    /// 所有遵守该 helper 约定的测试共用的环境变量锁。
     pub(crate) struct EnvLock(Mutex<()>);
 
+    /// 持锁期间的环境变量临时覆盖；离开作用域时恢复进入前的状态。
     pub(crate) struct ScopedEnv<'a> {
+        /// 持有锁到 `ScopedEnv` drop 完成，保证恢复旧值时其他 helper 使用者仍被阻塞。
         _guard: MutexGuard<'a, ()>,
+        /// 对每个目标键保存原状态；`None` 与原来存在但值为空字符串是两种不同状态。
         values: Vec<(&'static str, Option<OsString>)>,
     }
 
     impl EnvLock {
+        /// 仅获取互斥锁，不读取或更改环境变量。
+        ///
+        /// `PoisonError` 表示先前持锁线程 panic；这里取回仍可用的 guard，并以 `Infallible` 结果保留
+        /// 可用 `?` 的调用形式，避免单个测试 panic 后使后续环境变量测试永久无法运行。
         pub(crate) fn lock(&self) -> Result<MutexGuard<'_, ()>, Infallible> {
             Ok(self.0.lock().unwrap_or_else(PoisonError::into_inner))
         }
 
+        /// 持锁并保存一组键的原始 OS 字符串值，返回 RAII 临时环境作用域。
+        ///
+        /// 锁先于读取快照获取，因此所有使用同一 `EnvLock` 的测试不会在保存/恢复之间插入写入。
+        /// 本 helper 不会阻止绕过它直接调用 `std::env::set_var` 的代码。
         pub(crate) fn scoped<'a>(&'a self, keys: &[&'static str]) -> ScopedEnv<'a> {
             let guard = self.0.lock().unwrap_or_else(PoisonError::into_inner);
             let values = keys
@@ -71,16 +87,21 @@ pub(crate) mod test_support {
     }
 
     impl ScopedEnv<'_> {
+        /// 在当前锁定作用域中读取原始 OS 值，不假设值一定是合法 UTF-8。
         pub(crate) fn var_os(&self, key: &str) -> Option<OsString> {
             std::env::var_os(key)
         }
 
+        /// 在当前进程里设置临时值；必须通过仍持锁的 `ScopedEnv` 执行，避免测试之间互相覆盖。
         pub(crate) fn set_var(&self, key: &str, value: impl AsRef<OsStr>) {
             std::env::set_var(key, value);
         }
     }
 
     impl Drop for ScopedEnv<'_> {
+        /// 以逆序恢复进入作用域前的值；原来不存在的键会删除，而非留下空字符串。
+        ///
+        /// `Drop` 在普通离开作用域和 panic 展开时都会运行。该实现先完成恢复，再释放 `_guard`。
         fn drop(&mut self) {
             for (key, value) in self.values.iter().rev() {
                 match value {
@@ -91,11 +112,13 @@ pub(crate) mod test_support {
         }
     }
 
+    /// 返回本测试进程内唯一的环境变量互斥锁。
     pub(crate) fn env_lock() -> &'static EnvLock {
         static LOCK: EnvLock = EnvLock(Mutex::new(()));
         &LOCK
     }
 
+    /// 对全局测试锁启动一段指定键的临时覆盖作用域。
     pub(crate) fn scoped_env(keys: &[&'static str]) -> ScopedEnv<'static> {
         env_lock().scoped(keys)
     }
@@ -106,6 +129,7 @@ pub(crate) mod test_support {
         use std::sync::{mpsc, Arc};
         use std::thread;
 
+        /// 覆盖原先已设置与原先不存在的两种恢复路径。
         #[test]
         fn scoped_env_restores_existing_and_missing_values() {
             let key = "KIANA_TEST_SCOPED_ENV_RESTORE";
@@ -133,6 +157,7 @@ pub(crate) mod test_support {
             assert_eq!(std::env::var_os(key), None);
         }
 
+        /// 确认某测试线程 panic 污染 Mutex 后，helper 仍会回收锁并继续恢复环境值。
         #[test]
         fn scoped_env_recovers_after_lock_poisoning() {
             let key = "KIANA_TEST_SCOPED_ENV_POISON";
@@ -158,6 +183,8 @@ pub(crate) mod test_support {
             assert_eq!(std::env::var_os(key), None);
         }
 
+        /// 先让 writer 持锁写临时值，再启动 reader，最后释放 writer；最终读到 baseline 用来检查 RAII 恢复。
+        /// ⚠ `reader.is_finished()` 的即时检查不能单独证明 reader 已进入锁等待，阶段边界由同步通道协调。
         #[test]
         fn scoped_env_serializes_environment_readers_and_writers() {
             let key = "KIANA_TEST_SCOPED_ENV_SERIALIZATION";

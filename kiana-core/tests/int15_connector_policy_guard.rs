@@ -22,6 +22,7 @@ fn connector_risk_policy_gate_approval_stays_on_control_plane_path() {
         "connector_policy_epoch_mismatch",
         "connector_authority_epoch_mismatch",
         "connector_final_payload_approval_required",
+        "connector_fixture_hash_valid",
         "final_payload_digest",
         "authorize_and_execute",
         "stage_capability_action",
@@ -38,6 +39,8 @@ fn connector_risk_policy_gate_approval_stays_on_control_plane_path() {
     }
     assert!(core.contains("self.authorize_and_execute(&context, request).await"));
     assert!(core.contains("connector_payload_sha256(payload)"));
+    assert!(domain.contains("crate::connector_fixture_hash_valid(&self.payload_digest)"));
+    assert!(domain.contains("!valid_digest(&self.approval_digest)"));
     assert!(policy.contains("evaluate_connector_admission"));
     assert!(policy.contains("DefaultPolicyEngine"));
     assert!(approvals.contains("stage_capability_action"));

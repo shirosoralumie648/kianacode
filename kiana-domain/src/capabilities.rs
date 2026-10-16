@@ -1,3 +1,37 @@
+//! # 文件职责
+//!
+//! 本文件承载 capability 执行主链中跨 crate 共用的 Domain 数据：请求、授权 envelope、结果、
+//! 结果回执、审批快照、监督租约，以及交还模型的工具观察。它定义数据形状和纯校验/映射规则，
+//! 不在这里执行 shell、文件写入、网络请求或用户审批。
+//!
+//! # 核心调用链
+//!
+//! ```text
+//! Runner 将模型工具调用映射成 CapabilityRequest
+//!   -> Core 规范化 operation/参数/风险并构造服务端 ExecutionScope
+//!   -> Policy / Gate / approval 完成判断，Core 包成 AuthorizedCapabilityRequest
+//!   -> Capability Broker 派发 handler 并返回 CapabilityResult
+//!   -> Core 规范化结果、构造 CapabilityResultReceipt 并写入 EventLog
+//!   -> Harness 从 CapabilityResult 构造 ToolObservation
+//!   -> 模型只看到有界、标记为 untrusted 的结果摘要
+//! ```
+//!
+//! 主要上游是 `kiana-runner/src/tools.rs` 与 Core 的 capability 准备/审批/dispatch；主要下游
+//! 是 `kiana-capability-broker` 的 handler contract、EventLog 结果投影和 `KianaHarness`。
+//! 审批挂起时，`PendingInvocation` 会随 `RunSnapshot` 保存；恢复后必须由 Core 重新绑定，不可
+//! 直接将快照里的 request 交给 Broker。`CapabilityGrant` 是旧的轻量 grant 值，复杂授权与
+//! 撤销账本还要继续读 `grant_authority.rs` / Policy。
+//!
+//! # 重要信任边界
+//!
+//! `CapabilityRequest.risk`、`ExecutionScope`、`AuthorizedCapabilityRequest` 和结果摘要都是
+//! 数据字段，不会单靠类型存在就证明已授权或已执行。授权权威在 ControlPlane 的策略、Gate、
+//! approval、permit 与 Broker 校验链；执行结果是否成功与外部效果是否确定也分开记录。
+//! `ToolObservation` 是模型可读反馈，必须保留 `untrusted=true`，它不能为下一次请求增加权限。
+//!
+//! Serde 是 Rust 的序列化库：本文件的 `Serialize` / `Deserialize` 在 Rust 结构体和 JSON 等
+//! 外部格式间转换；结构校验、身份认证和授权判断是另外的步骤，不能由反序列化替代。
+
 use crate::{
     allow_list_covers, json_digest, normalize_role_path, redact_text, ApprovalId,
     ApprovalPlanPreview, BudgetLeaseId, CapabilityEffectState, CapabilityErrorCode,
@@ -8,33 +42,30 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+/// 结构化进程/停止/效果维度的 schema 名称。
 pub const CAPABILITY_RESULT_DIMENSIONS_SCHEMA: &str = "kiana.capability-result-dimensions.v1";
+/// 历史 capability outcome 载荷使用的 schema 名称。
 pub const CAPABILITY_OUTCOME_SCHEMA: &str = "kiana.capability-outcome.v1";
+/// 结果回执的 schema 名称。
 pub const CAPABILITY_RESULT_RECEIPT_SCHEMA: &str = "kiana.capability-result-receipt.v1";
+/// 当前结果回执合同版本。
 pub const CAPABILITY_RESULT_RECEIPT_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+/// 交给模型的有限工具观察 schema 名称。
 pub const TOOL_OBSERVATION_SCHEMA: &str = "kiana.tool-observation.v1";
+/// 当前工具观察合同版本。
 pub const TOOL_OBSERVATION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
-/// 工具输出摘要的上限：8192 字节。
+/// 工具观察摘要的长度上限常量，数值为 8 KiB（8192）。
 ///
-/// 【为什么工具输出需要摘要而不是全文】
-/// 一次 `cat` 一个大文件、一次 `grep` 整个仓库，输出可以是几十兆。
-/// 全量塞进事件流，会把 EventLog 撑爆，并且让任何读这条事件的人
-/// （包括投影和日志系统）都要处理一个巨大的字符串。
-///
-/// 【为什么是 8K 而不是更小或更大】
-/// 它要能装下「足够定位问题的那部分」：一个报错栈、一个失败断言、
-/// 几行上下文。低于 2K 会开始切掉有用的东西；高于 32K 之后，
-/// 多出来的内容对定位问题的帮助迅速衰减，而存储成本线性上升。
-/// 8K 是这个权衡点。
-///
-/// 【⚠ 截断必须是显式的】
-/// 被截断的内容要让读者知道被截断了。一段看起来完整的输出、
-/// 实际上少了一半，会把人引向错误的结论——这比直接报错更糟。
+/// `ToolObservation::from_result()` 用它限制 Unicode 字符数量，`validate()` 则用同一常量限制
+/// UTF-8 字节数量；字符和字节不是同一单位，因此多字节文本截取后仍可能超过校验上限。
+/// 这段代码没有附加“内容已截断”的标记，也没有在源码中说明 8 KiB 的选择依据；这里记录
+/// 实际单位和行为，避免把未写明的设计理由当作事实。
 pub const TOOL_OBSERVATION_MAX_SUMMARY: usize = 8 * 1024;
 
-/// Process evidence is intentionally separate from the capability effect.  A process can exit
-/// cleanly while an external effect remains unknown, and an unconfirmed stop is not a successful
-/// cancellation.
+/// 单次能力调用对应的直接子进程状态。
+///
+/// 它只描述进程本身，不代表外部效果状态：进程退出时远端写入仍可能未知；
+/// 未确认进程停止也不能据此把取消认定为成功。
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// 被执行的那个子进程，现在处于什么状态。
@@ -45,9 +76,13 @@ pub const TOOL_OBSERVATION_MAX_SUMMARY: usize = 8 * 1024;
 /// 它必须有一个自己的取值，因为把它塞进 `NotStarted` 或 `Exited`
 /// 都是在凭空做一个没有证据的判断。
 pub enum CapabilityProcessState {
+    /// 有证据表明执行尚未启动。
     NotStarted,
+    /// 已启动且当前仍在运行。
     Running,
+    /// 已观察到进程退出；退出码另由 `CapabilityResultDimensions.exit_code` 表示。
     Exited,
+    /// 无法确认进程当前或最终状态；不能把它推断成未启动或已退出。
     Unknown,
 }
 
@@ -75,18 +110,32 @@ pub enum CapabilityProcessState {
 /// 有了这一组结构化取值，判定就只依赖枚举，文案可以自由改。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 将一次能力结果拆成可供机器稳定判断的低基数状态维度。
+///
+/// 它把“子进程状态、是否请求/确认停止、外部效果是否成功/失败/未知”与可读错误文本分开。
+/// 调用方用枚举做状态归约，不能从 `CapabilityResult.output` 的错误文案猜测生命周期。
 pub struct CapabilityResultDimensions {
+    /// 维度合同名称，必须匹配当前 schema。
     pub schema: String,
+    /// 直接进程是否未启动、运行中、已退出或结果未知。
     pub process: CapabilityProcessState,
+    /// 是否没有请求停止、已确认停止、停止未确认或停止状态未知。
     pub stop: CapabilityStopState,
+    /// 外部效果尚未开始、已开始、成功、失败或结果未知。
     pub effect: CapabilityEffectState,
+    /// 子进程退出码；没有可确认退出状态时为空。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    /// 机器可识别的失败分类；成功结果通常为空。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_code: Option<CapabilityErrorCode>,
 }
 
 impl CapabilityResultDimensions {
+    /// 拒绝几个不可能或相互矛盾的维度组合。
+    ///
+    /// `NotStarted` 不能带退出码；效果未知时通常要求进程也未知，除非失败码明确是
+    /// `ResultUnknown`。该校验只检查字段之间的合同，不查询 handler、子进程或现实外部系统。
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema != CAPABILITY_RESULT_DIMENSIONS_SCHEMA {
             return Err("capability_result_dimensions_schema_invalid");
@@ -103,6 +152,10 @@ impl CapabilityResultDimensions {
         Ok(())
     }
 
+    /// 把更细的进程/停止/效果维度归并成旧生命周期使用的单一执行状态。
+    ///
+    /// `effect` 是主判定依据；`NotStarted` 只有在停止已确认或错误码为 Cancelled 时归为
+    /// Cancelled，否则归为 Failed。该投影会丢失部分细节，调用方需要审计时应同时保留原维度。
     pub fn execution_state(&self) -> CapabilityExecutionState {
         match self.effect {
             CapabilityEffectState::Succeeded => CapabilityExecutionState::Succeeded,
@@ -122,36 +175,63 @@ impl CapabilityResultDimensions {
     }
 }
 
-/// Digest-only result evidence shared by direct, Harness and approval-resume finalizers.
+/// 结果回执是跨 Core 结果提交、Harness 和审批恢复流程共用的摘要型证据 DTO。
 ///
-/// The business output stays in the event's redacted payload; this envelope fixes the lifecycle
-/// dimensions and prevents a success/unknown or started/zero-effect contradiction from being
-/// reconstructed differently by each projection.
+/// 原始业务 output 留在调用方管理的事件载荷中；回执只保存结果摘要、生命周期维度和效果标记，
+/// 让不同投影使用同一份结构化分类。它的自摘要可以检测字段变化，但不替代 EventLog 提交回执，
+/// 也不单独证明摘要对应的现实效果确已发生。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilityResultReceipt {
+    /// 回执合同名称。
     pub schema: String,
+    /// 回执合同版本。
     pub version: SchemaVersion,
+    /// 回执所绑定的原 capability 请求 ID。
     pub request_id: RequestId,
+    /// 可选执行 ID；某些调用链尚未分配执行记录时为空。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_id: Option<ExecutionId>,
+    /// 可选模型/工具 invocation ID。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invocation_id: Option<InvocationId>,
+    /// 此次结果属于第几次 attempt；0 被视为无效。
     pub attempt: u32,
+    /// handler 报告是否成功；校验器还会要求成功对应已知的 Succeeded effect。
     pub success: bool,
+    /// 从 CapabilityResult 派生的进程/停止/效果分类。
     pub dimensions: CapabilityResultDimensions,
+    /// 完整传入 CapabilityResult 的内容摘要；回执不保存其 output 正文。
     pub result_digest: String,
+    /// handler 侧是否可能已经开始外部效果。
     pub effect_started: bool,
+    /// 外部效果是否可确认。
     pub effect_known: bool,
+    /// 是否确认没有产生任何效果。
     pub zero_effect: bool,
+    /// 是否已设置防止旧执行继续生效的围栏。
     pub fenced: bool,
+    /// 若请求过停止，是否确认停止；没有停止请求时可以为空。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stop_confirmed: Option<bool>,
+    /// 调用方声明该结果边界已经提交；本类型自身不访问 EventLog 验证此值。
     pub committed: bool,
+    /// 对其余回执字段计算的无密钥摘要。
     pub receipt_digest: String,
 }
 
 impl CapabilityResultReceipt {
+    /// 从已经由 handler/Core 整理过的 CapabilityResult 构造并自校验回执。
+    ///
+    /// 【输入/输出】输入为结果、可选 execution/invocation ID、非零 attempt 和调用方的 committed
+    /// 声明；成功返回只带摘要和维度的回执。
+    ///
+    /// 【核心流程】提取并验证 dimensions -> 从 output 的约定布尔字段推导 started/known/zero/fenced
+    /// 与 stop 状态 -> 对完整 CapabilityResult 计算 result_digest -> 计算 receipt_digest -> validate。
+    ///
+    /// 【失败情况】result 无法转成 JSON、dimensions 自相矛盾、ID/attempt/效果字段冲突或摘要无效时
+    /// 返回 Err。构造过程不提交事件、不核实 committed、不确认现实世界效果；外层 Core 负责持久化
+    /// 并在后续投影中把回执与事件来源绑定。
     pub fn from_result(
         result: &CapabilityResult,
         execution_id: Option<ExecutionId>,
@@ -212,6 +292,10 @@ impl CapabilityResultReceipt {
         Ok(receipt)
     }
 
+    /// 将事件中的 JSON 回执反序列化为强类型值并立即校验。
+    ///
+    /// JSON 仅是持久化/传输表示；未知字段会被 serde 拒绝。这里验证字段和回执自摘要，不会比较
+    /// EventLog 事件身份，后者必须由使用回执的 Core/Projection 完成。
     pub fn from_json(value: &Value) -> Result<Self, String> {
         let receipt: Self = serde_json::from_value(value.clone())
             .map_err(|_| "capability_result_receipt_decode_failed".to_owned())?;
@@ -219,6 +303,10 @@ impl CapabilityResultReceipt {
         Ok(receipt)
     }
 
+    /// 检查回执头部、ID、效果标记、维度、digest 格式及自身摘要。
+    ///
+    /// 成功要求 effect 已知且为 Succeeded；未知效果必须 fenced；zero_effect 与 effect_started
+    /// 不能同时为真。该方法不读取 result_digest 对应的原始结果，因此不能证明原结果内容或提交事实。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != CAPABILITY_RESULT_RECEIPT_SCHEMA
             || !self
@@ -250,6 +338,9 @@ impl CapabilityResultReceipt {
         Ok(())
     }
 
+    /// 计算回执摘要；显式列出参与字段，故 `receipt_digest` 不会递归哈希自身。
+    ///
+    /// 这是无密钥内容摘要，用于检测回执字段变化，不是服务端签名或真实性证明。
     pub fn digest(&self) -> String {
         json_digest(&serde_json::json!({
             "schema": self.schema,
@@ -271,6 +362,9 @@ impl CapabilityResultReceipt {
     }
 }
 
+/// 检查摘要文本是否具有 `sha256:` 加 64 位十六进制的固定形状。
+///
+/// 这里不重算摘要，也不验证签名；真实性/内容绑定由调用此 helper 的具体 DTO 校验负责。
 fn validate_digest(value: &str, field: &str) -> Result<(), String> {
     let Some(hex) = value.strip_prefix("sha256:") else {
         return Err(format!("{field}_invalid"));
@@ -283,23 +377,41 @@ fn validate_digest(value: &str, field: &str) -> Result<(), String> {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// 兼容路径使用的轻量 capability grant。
+///
+/// 它把能力类别、operation、资源/路径列表、过期时间和可选审批 ID 放在一起；当前派生 grant
+/// 的 authority ledger 与多维 scope 在 `grant_authority.rs` / Policy 中有更完整的合同。该值
+/// 本身不签名、不查询有效期，也不直接授权 Broker 执行。
 pub struct CapabilityGrant {
+    /// grant schema 名称，必须匹配固定常量。
     pub schema: String,
+    /// 当前 grant 的唯一引用 ID。
     pub grant_id: CapabilityGrantId,
+    /// 被授予的能力类别。
     pub capability: CapabilityKind,
+    /// 被允许的规范 operation 名称。
     pub operation: String,
+    /// 可选的资源名称限制。
     #[serde(default)]
     pub resources: Vec<String>,
+    /// 可选的路径允许列表；当前校验只确认每条路径可规范化。
     #[serde(default)]
     pub paths: Vec<String>,
+    /// Unix 毫秒过期时间；本 DTO 的 `validate()` 只要求非零，不会对照当前时间。
     pub expires_at_unix_ms: u64,
+    /// 可选地记录授予该 grant 的审批 ID。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_id: Option<ApprovalId>,
+    /// 子 grant 是否可继续派生。
     #[serde(default)]
     pub delegation_allowed: bool,
 }
 
 impl CapabilityGrant {
+    /// 检查旧 grant 的 schema、operation、过期时间形状和路径文本是否可规范化。
+    ///
+    /// 这不是“当前有效”判定：函数没有 `now` 输入，不检查资源列表、grant ID 是否为 nil、
+    /// approval 是否真实存在，也不验证签发者；这些必须由持有权威状态的上层完成。
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema.trim() != CAPABILITY_GRANT_SCHEMA {
             return Err("capability_grant_invalid");
@@ -317,6 +429,10 @@ impl CapabilityGrant {
         Ok(())
     }
 
+    /// 检查 child 在能力、operation、过期时间、委派、资源和路径这些字段上是否受限于 self。
+    ///
+    /// 这是局部包含判断，不比较主体、项目、父 ID、签发人或 authority epoch；Cell/GrantAuthority
+    /// 调用方还要检查自己的身份和父子链合同。返回 false 是普通“不包含”，不会产生错误或副作用。
     pub fn contains(&self, child: &Self) -> bool {
         self.capability == child.capability
             && self.operation == child.operation
@@ -332,6 +448,12 @@ impl CapabilityGrant {
                 .all(|path| allow_list_covers(&self.paths, path))
     }
 
+    /// 对单个请求做兼容 grant 的 operation/path 快速匹配。
+    ///
+    /// 除精确 capability+operation 外，`Other("coding")/builder.packet` 还可匹配固定的五种
+    /// coding operation。随后提取 `path`/patch 目标并要求都被 grant 路径列表覆盖；若未提取到
+    /// 路径，本函数不会因路径维度拒绝。此 helper 不接收当前时间、不检查 grant 有效期、资源列表、
+    /// principal 或 project，也不授予新授权；调用者必须先/同时执行完整 grant 与身份校验。
     pub fn allows_request(&self, request: &CapabilityRequest) -> bool {
         let exact_scope =
             self.capability == request.capability && self.operation == request.operation;
@@ -354,17 +476,28 @@ impl CapabilityGrant {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+/// Cell/agent 运行期间的心跳与重试监督参数。
+///
+/// Cell registry、swarm 和恢复合同会携带此值；它声明监督节奏与最大重试数，不会自己创建
+/// timer、检测进程存活或执行 retry。
 pub struct SupervisionLease {
+    /// lease schema 名称。
     pub schema: String,
+    /// 监督租约的稳定 ID。
     pub lease_id: SupervisionLeaseId,
+    /// 预期心跳间隔秒数，不能为 0。
     pub heartbeat_interval_seconds: u64,
+    /// 视作 stalled 前的阈值秒数，必须不小于心跳间隔。
     pub stall_threshold_seconds: u64,
+    /// 允许的重试总次数；0 表示不允许重试。
     pub retry_limit: u32,
+    /// 当前已经消耗的重试次数；不得超过 retry_limit。
     #[serde(default)]
     pub retries_used: u32,
 }
 
 impl SupervisionLease {
+    /// 验证监督字段之间的基本关系；不实际等待心跳或运行重试。
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.schema.trim() != SUPERVISION_LEASE_SCHEMA {
             return Err("supervision_lease_invalid");
@@ -382,6 +515,9 @@ impl SupervisionLease {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// 面向模型/工具的结构化命令意图。
+///
+/// 这是一个“接下来想做什么”的数据值，只有后续控制面和命令分发器接受后才会触发执行；
+/// 构造该对象本身没有权限检查和副作用。
 pub struct CommandIntent {
     /// 命令注册名。
     pub name: String,
@@ -402,6 +538,9 @@ impl CommandIntent {
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// 能力请求所属的资源类别。
+///
+/// 该枚举帮助 Core/Policy 找到适用规则；枚举值本身不是 grant。`Other` 代表扩展字符串，只有
+/// 明确识别并配置策略的上层才可以放行，不能把未知类别当默认允许。
 pub enum CapabilityKind {
     /// 查询、索引或只读上下文能力。
     Query,
@@ -428,6 +567,9 @@ pub enum CapabilityKind {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// 能力请求的风险标签。
+///
+/// 它随请求进入 Core，是动作声明的一部分；Domain action contract 会检查操作所需风险下限，
+/// Core 还会结合 sandbox/上下文规范化，不能因为请求写了 `ReadOnly` 就跳过策略或审批。
 pub enum RiskLevel {
     #[default]
     /// 只读或本地无副作用操作。
@@ -442,19 +584,22 @@ pub enum RiskLevel {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// 交给 policy/gate/broker 链路审核的能力请求。
+///
+/// Runner 通常从模型工具调用构造它，内部 command/adapter 也可创建；接下来 Core 会先规范化
+/// operation 与参数、清除调用方提供的旧 scope，再按服务端身份和 ScopeSet 重新准备。Broker
+/// 最终收到的是已完成授权流程的请求副本，并会在派发前重验其规范形状和 scope 绑定。
 pub struct CapabilityRequest {
     /// 请求唯一 ID。
     pub request_id: RequestId,
-    /// 能力类别。
+    /// 请求涉及的资源/执行类别；用于路由和策略匹配，不是权限本身。
     pub capability: CapabilityKind,
-    /// broker 使用的精确操作键。
+    /// Broker/动作目录使用的规范 operation 键。
     pub operation: String,
-    /// 原始结构化参数；策略和 handler 必须分别校验。
+    /// 原始结构化参数；Core 会规范化，策略和具体 handler 仍要检查各自需要的约束。
     pub arguments: Value,
-    /// 请求声明的风险级别，不能由模型单方面提升为授权。
+    /// 请求声明的风险级别；较高风险不会自行获得授权，较低风险也不能绕过 action contract。
     pub risk: RiskLevel,
-    /// Server-derived execution scope; callers may omit it before ControlPlane preparation but
-    /// cannot use a supplied value as authority.
+    /// Core 准备阶段生成的服务端执行范围快照；入口可先留空，调用方提供的值不能当授权依据。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_scope: Option<ExecutionScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -469,7 +614,17 @@ pub struct CapabilityRequest {
 }
 
 impl CapabilityRequest {
-    /// 创建默认 ReadOnly 风险的能力请求。
+    /// 创建一个尚未准备/授权的请求。
+    ///
+    /// 【调用者】Runner 的模型工具映射和多种 Core command/adapter 会在进入统一授权链前创建它。
+    ///
+    /// 【输入/输出】接受请求 ID、能力类别、operation 名称和 JSON 参数；返回风险字段为 ReadOnly、
+    /// execution scope / Cell / grant / budget 引用均为空的请求。
+    ///
+    /// 【重要边界】默认风险只是构造时的占位声明，不表示操作已经经过风险评估，更不表示可执行。
+    /// 后续 Core 必须规范化请求、按服务端上下文重新构造 scope，再进入 policy/gate/approval。
+    ///
+    /// 【副作用】纯内存构造；不读取权限、不登记事件、不调用 Broker。
     pub fn new(
         request_id: RequestId,
         capability: CapabilityKind,
@@ -489,15 +644,23 @@ impl CapabilityRequest {
         }
     }
 
-    /// 设置请求风险并返回 builder 风格值。
+    /// 设置请求声明的风险标签并返回 builder 风格值。
+    ///
+    /// 这只修改 DTO 字段，不进行风险推导或授权；Domain action contract/Core 仍须核对操作要求。
     pub fn with_risk(mut self, risk: RiskLevel) -> Self {
         self.risk = risk;
         self
     }
 }
 
-/// Extract path-like inputs for scope intersection and policy checks. This is intentionally
-/// conservative: unrecognized command syntax yields no inferred path rather than a wider scope.
+/// 从结构化参数中提取可用于路径 scope 求交和策略检查的路径文本。
+///
+/// 【输入/输出】读取 `arguments.path` 字符串，以及 Patch 中 `*** Add/Update/Delete File:` 和
+/// `*** Move to:` 行；返回 trim 后的非空文本，保留发现顺序。
+///
+/// 【限制】这不是 shell 语法分析器，也不识别任意工具私有字段；未知命令语法不会推断路径。
+/// 返回值还未 canonicalize，Core 会继续规范化并在失败时拒绝授权。调用方不得把“没提取到路径”
+/// 解释为已证明没有文件访问，因为某些操作目标可能藏在此函数未识别的参数格式中。
 pub fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
     let mut paths = Vec::new();
     if let Some(path) = request
@@ -532,6 +695,9 @@ pub fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 /// 用户对一次待审批请求的决定。
+///
+/// 此枚举仅表示用户选择 Approve 或 Deny；Core 还要验证 challenge、请求摘要、过期时间、nonce
+/// 和当前策略状态，收到 Approve 文本本身不等于已经创建 permit。
 pub enum ApprovalDecision {
     /// 同意当前精确请求。
     Approve,
@@ -541,6 +707,9 @@ pub enum ApprovalDecision {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// 一次性审批挑战及其绑定证明材料。
+///
+/// Core 签发 challenge 时把它绑定到 request ID、request_hash、服务端风险、过期时间和策略版本；
+/// 用户返回选择后，Core 需要重新验证这些字段，再决定是否继续授权。它不是可重复使用的 permit。
 pub struct ApprovalChallenge {
     /// 挑战 schema 标识。
     pub schema: String,
@@ -567,6 +736,9 @@ pub struct ApprovalChallenge {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// 待审批请求及其挑战的组合。
+///
+/// 这是尚未完成授权的传输/存储对象。UI 可展示 challenge，但不能因为拿到 `request` 就绕过审批
+/// 状态机把它送进 Broker。
 pub struct PendingApproval {
     /// 给 UI/调用方展示并回传的挑战。
     pub challenge: ApprovalChallenge,
@@ -579,6 +751,10 @@ pub struct PendingApproval {
 ///
 /// 该类型由 core 写入受控 RunSnapshot；审批通过后仍需重新绑定 challenge、上下文、
 /// sandbox 和事件序号，不能直接把其中的请求交给 broker。
+///
+/// 各 ID 分别指向业务 Run、外层协议请求、审批事件流请求和待处理 capability 请求；它们用途
+/// 不同，恢复时不能互相替代。`resume_binding` 是服务端续接绑定，可在旧 checkpoint 缺省，
+/// 但重建前仍要验证受保护的审批材料。
 pub struct PendingInvocation {
     /// 待决定的审批 ID。
     pub approval_id: ApprovalId,
@@ -604,7 +780,10 @@ pub struct PendingInvocation {
     pub resume_binding: Option<InvocationResumeBinding>,
 }
 
-/// A display projection of a challenge; available decisions are server-owned.
+/// ApprovalChallenge 的面向界面展示投影；可选决定由服务端提供。
+///
+/// 它可以含权限 profile、参数副本和脱敏 plan preview，但这些显示字段都不是可执行 request。
+/// `expected_version` 供乐观并发检查使用；如果调用方带入版本，adapter 不能静默忽略它。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApprovalView {
     #[serde(default)]
@@ -613,38 +792,57 @@ pub struct ApprovalView {
     pub operation: String,
     pub arguments: Value,
     pub available_decisions: Vec<ApprovalDecision>,
-    /// Server-owned approval aggregate version for optimistic-concurrency retries.  Legacy
-    /// adapters may omit it; a caller that supplies a version must then be rejected by that
-    /// adapter rather than having the assertion silently ignored.
+    /// 服务端审批聚合版本，用于并发更新时的乐观版本比较。
+    /// 旧 adapter 可不提供；若调用方提供版本，adapter 必须比较它，不能静默忽略。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_version: Option<u64>,
-    /// Redacted final plan projection; this is display-only and never executable material.
+    /// 已脱敏的最终计划展示投影，只用于显示，绝不能作为可执行材料。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plan_preview: Option<ApprovalPlanPreview>,
 }
 
-/// A quiescent runner checkpoint. The control plane alone persists/restores it.
+/// Runner 在安全静止点生成的 checkpoint，由 ControlPlane 独占持久化和恢复。
+///
+/// 它包含 runner 状态摘要、上下文和可选 pending invocation；恢复前 Core 必须校验 schema、
+/// 摘要、身份、事件序号与审批绑定。checkpoint 是恢复输入，不是第二个状态权威，也不能单独
+/// 驱动工具执行。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RunSnapshot {
+    /// 可选的 cell 状态快照，旧 checkpoint 可省略。
     #[serde(default)]
     pub cell_state: Option<Value>,
+    /// 可选的数据版本标记；其具体解析和新鲜度由恢复流程负责。
     #[serde(default)]
     pub data_epoch: Option<String>,
+    /// 可选的 authority 修订标记，恢复时不能只因字段存在就认定权限仍有效。
     #[serde(default)]
     pub authority_revision: Option<String>,
+    /// checkpoint schema 名称。
     pub schema: String,
+    /// 被暂停/恢复的 Run 身份。
     pub run_id: RunId,
+    /// 当时的请求上下文快照；恢复时需要与当前服务端身份/权限重新绑定。
     pub context: RequestContext,
+    /// 当时使用的 sandbox 档位。
     pub sandbox: String,
+    /// 当时角色提示内容的摘要，用于检测恢复所依赖提示是否漂移。
     pub role_prompt_hash: String,
+    /// Runner 状态数据；须与 runner_state_digest 一起校验。
     pub runner_state: Value,
+    /// runner_state 的内容摘要。
     pub runner_state_digest: String,
+    /// 若暂停时正在等待审批，则保存对应的待处理 invocation。
     pub pending_invocation: Option<PendingInvocation>,
+    /// ControlPlane 标记该快照是否允许恢复；仍需通过完整恢复校验。
     pub resumable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// 已由 ControlPlane 生成授权 ID 的能力请求。
+///
+/// Core 在授权链成功后创建该 envelope 并交给 Broker。它不是 Rust 类型层面的不可伪造 token：
+/// 字段可反序列化，`new()` 只拒绝空 ID；真正授权依赖可信 Core 调用路径、permit/策略结果以及
+/// Broker 对请求和执行范围的再次验证。
 pub struct AuthorizedCapabilityRequest {
     /// core 生成的非空授权记录 ID。
     pub authorization_id: String,
@@ -653,7 +851,10 @@ pub struct AuthorizedCapabilityRequest {
 }
 
 impl AuthorizedCapabilityRequest {
-    /// 创建授权请求；空授权 ID 直接拒绝，防止 broker 接受匿名执行。
+    /// 创建带非空授权 ID 的传输 envelope。
+    ///
+    /// 该检查只防止空字符串；它不查询 authorization store、不证明 ID 真实存在，也不验证 request
+    /// 已通过 policy/gate/approval。生产调用应限制在 Core 的已授权路径，Broker 仍需执行自己的边界检查。
     pub fn new(
         authorization_id: impl Into<String>,
         request: CapabilityRequest,
@@ -671,10 +872,14 @@ impl AuthorizedCapabilityRequest {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// capability handler 返回给控制平面的结构化结果。
+///
+/// Broker handler 报告 `success/output/evidence_refs`；Core 会再规范化、结合取消/效果信息并
+/// 生成回执。`success=false` 不必然代表零副作用；`output` 是诊断 JSON，不应被下游用子串匹配
+/// 代替结构化错误分类。
 pub struct CapabilityResult {
     /// 对应原能力请求 ID。
     pub request_id: RequestId,
-    /// handler 是否报告成功；`false` 仍可能伴随部分副作用。
+    /// handler 是否报告成功；`false` 仍可能伴随部分副作用，`true` 也要结合 effect 维度理解。
     pub success: bool,
     /// handler 输出或结构化错误。
     pub output: Value,
@@ -684,7 +889,10 @@ pub struct CapabilityResult {
 }
 
 impl CapabilityResult {
-    /// Stable classification of a failed handler result. A successful result has no code.
+    /// 将失败结果的 `error_code` 或 `error` 文字映射为稳定机器错误分类。
+    ///
+    /// 成功结果没有 failure code；失败时优先读取 `error_code`，不存在时再读取 `error`，最后
+    /// 用固定的 `execution_failed` 作为 fallback。展示文案仍留在 output，不应反过来充当接口。
     pub fn failure_code(&self) -> Option<crate::CapabilityErrorCode> {
         if self.success {
             return None;
@@ -700,7 +908,7 @@ impl CapabilityResult {
         ))
     }
 
-    /// 创建成功结果；不会自动添加证据引用。
+    /// 创建 handler 报告成功的结果；不会自动添加证据引用或效果证明。
     pub fn success(request_id: RequestId, output: Value) -> Self {
         Self {
             request_id,
@@ -710,8 +918,14 @@ impl CapabilityResult {
         }
     }
 
-    /// Derive the machine-readable process/stop/effect dimensions from a normalized result.
-    /// Error details remain diagnostic text and cannot change lifecycle classification.
+    /// 从结果中的结构化字段推导进程/停止/效果维度，供回执、投影和 Runner 使用。
+    ///
+    /// 【核心流程】先确定 failure code、`not_executed` 和取消；再推导 stop 状态与可表示为 i32
+    /// 的 exit_code；然后分别归约 process 和 effect。`ResultUnknown` 或 `effect_known=false` 优先
+    /// 变成 Unknown；取消时只有“确认停止且明确没有开始效果”才可归为 NotStarted，其余维持 Unknown。
+    ///
+    /// 【为什么分开状态】子进程退出不代表远端写入/支付等外部效果成功；收到取消也不代表动作已停。
+    /// 错误文案只供诊断，不能改变这里的机器分类。此函数只读 output，不确认现实效果或写入事件。
     pub fn dimensions(&self) -> CapabilityResultDimensions {
         let failure_code = self.failure_code();
         let not_executed = self.output.get("not_executed") == Some(&Value::Bool(true));
@@ -739,6 +953,7 @@ impl CapabilityResult {
         } else {
             CapabilityProcessState::Unknown
         };
+        // cancellation 可能发生在外部动作已经发出之后；只有 adapter 明确确认尚未开始，才能断言零效果。
         let effect = if failure_code == Some(CapabilityErrorCode::ResultUnknown)
             || self.output.get("effect_known") == Some(&Value::Bool(false))
         {
@@ -768,7 +983,9 @@ impl CapabilityResult {
         }
     }
 
-    /// Map a normalized capability result to the lifecycle state used by all projections.
+    /// 把结果维度进一步折叠成投影共用的单一生命周期状态。
+    ///
+    /// 这是有损汇总；需要判断停止确认、退出码或外部效果时应保留并检查 `dimensions()`。
     pub fn execution_state(&self) -> CapabilityExecutionState {
         self.dimensions().execution_state()
     }
@@ -783,11 +1000,10 @@ impl CapabilityResult {
         }
     }
 
-    /// Construct a failed result while retaining optional diagnostic detail.
+    /// 构造带稳定错误码前缀的失败结果，并可追加人类可读诊断细节。
     ///
-    /// The canonical prefix is always stable; callers may append a detail
-    /// suffix for logs and receipts without changing retry or authorization
-    /// decisions.
+    /// `failure_code()` 可以从 canonical 前缀识别分类；冒号后的 detail 只用于诊断，不应影响
+    /// retry 或授权分支。该 helper 不代表 handler 没有产生副作用。
     pub fn failure_with_code(
         request_id: RequestId,
         code: crate::CapabilityErrorCode,
@@ -801,50 +1017,90 @@ impl CapabilityResult {
     }
 }
 
-/// Classification delivered to the model after a capability result.  It is an observation, not
-/// an authorization decision; the Broker/Core still decide whether any future intent may run.
+/// Harness 发给模型的有限结果状态。
+///
+/// 它是对一次已返回结果的分类，不是授权决定；未来的工具意图仍需由 Core 和 Broker 重新检查。
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Harness 发给模型的有限结果状态；它描述已观察到的结果，不会批准未来工具调用。
 pub enum ToolObservationStatus {
+    /// handler 在 `CapabilityResult` 中报告成功；此状态本身不保证 effect 已知。
+    /// 当前 Harness 调用 `from_result()` 前会单独拒绝 effect 未知的结果。
     Succeeded,
+    /// 已知失败，且允许模型尝试修正输入/计划。
     FailedKnown,
+    /// 策略或授权拒绝；模型不能用自动重试绕过授权。
     Denied,
+    /// 已取消且确认效果尚未开始。
     CancelledNotStarted,
+    /// 外部效果未知或无法确认；应进入恢复/对账边界。
     Unknown,
+    /// 结果仍未最终确定。
     Pending,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// 模型可采取的受限修复提示；它不是权限或重试许可。
 pub enum ToolObservationRepair {
+    /// 当前不建议基于此观察自动修复。
     None,
+    /// 可以尝试修复已知执行/参数错误，但下一次请求仍须完整返回 Core 授权链。
     ModelRepair,
 }
 
-/// Bounded, data-only feedback for a model tool message.  Raw output is summarized and marked
-/// untrusted; it can never add a grant, permission, or execution scope to the next request.
+/// 一次模型工具消息对应的有限、纯数据反馈。
+///
+/// 原始 output 会被转为摘要并标记为不可信；这个 DTO 不携带 grant 或执行 scope，不能为下一次请求
+/// 新增权限。下游仍必须把后续请求送回 Core 授权链。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolObservation {
+    /// 观察合同名和版本。
     pub schema: String,
     pub version: SchemaVersion,
+    /// 对应的 capability request 与模型 tool call ID。
     pub request_id: RequestId,
     pub call_id: String,
+    /// 给模型看的稳定结果分类。
     pub status: ToolObservationStatus,
+    /// 是否允许模型尝试修正请求。
     pub repair: ToolObservationRepair,
+    /// 若结果含可表示的进程退出码则保留。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    /// 脱敏并限制长度的 output 片段；仍被标记为 untrusted。
     pub summary: String,
+    /// 原始结构化 output 的内容摘要，供比对而不是展示全文。
     pub output_digest: String,
+    /// 可选完整输出/证据引用；本 DTO 不自行读取该引用。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub full_output_ref: Option<String>,
+    /// 可选机器失败分类。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_code: Option<CapabilityErrorCode>,
+    /// 从 CapabilityResult 派生的外部效果状态。
     pub effect: CapabilityEffectState,
+    /// 必须为 true，提醒模型将摘要视为不可信工具输出。
     pub untrusted: bool,
 }
 
 impl ToolObservation {
+    /// 把一次能力结果压缩成 Harness 可放入模型对话的有界观察。
+    ///
+    /// 【调用者】`KianaHarness` 收到 capability result、核对当前 pending tool 并确认 effect 可知后调用。
+    ///
+    /// 【数据流】result.output -> JSON 文本 -> `redact_text()` -> 最多取摘要字符 -> 计算原 output digest
+    /// 与第一条 evidence ref -> 计算 status/repair -> `validate()` -> `model_text()` 编码给模型。
+    ///
+    /// 【失败情况】call_id 为空/过长、JSON 编码失败或最终观察校验失败时返回 Err；Harness 会将其
+    /// 转成 run failure，而不会把未验证摘要继续送给模型。
+    ///
+    /// 【信任边界】摘要来源于工具 output，始终设置 `untrusted=true`；ModelRepair 只允许尝试修正，
+    /// 不会跳过下一次 Core policy/gate/approval。Unknown 与 Denied 不给自动修复标志。
+    ///
+    /// ⚠ 摘要用 `.chars().take(...)` 限制 Unicode 字符数，但 `validate()` 用 `String::len()` 限制
+    /// UTF-8 字节数。含多字节字符的长输出可能在这里被截成字符数上限后仍超出字节上限，随后验证失败。
     pub fn from_result(
         call_id: impl Into<String>,
         result: &CapabilityResult,
@@ -890,6 +1146,7 @@ impl ToolObservation {
         };
         let encoded = serde_json::to_string(&result.output)
             .map_err(|_| "tool_observation_output_encode_failed".to_owned())?;
+        // 先脱敏再截断，避免摘要泄露已识别的敏感文本；截断单位是字符而不是字节。
         let summary = redact_text(&encoded)
             .chars()
             .take(TOOL_OBSERVATION_MAX_SUMMARY)
@@ -913,6 +1170,10 @@ impl ToolObservation {
         Ok(observation)
     }
 
+    /// 校验模型观察的 schema、ID、长度、digest 外形、状态组合与 untrusted 标记。
+    ///
+    /// 该方法不重算 output_digest、不读取 full_output_ref，也无法证明 summary 已正确脱敏；它只校验
+    /// DTO 自身的结构边界。来源可信度仍由 Harness/Core 的调用顺序保证。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != TOOL_OBSERVATION_SCHEMA
             || self.version != TOOL_OBSERVATION_VERSION
@@ -946,6 +1207,10 @@ impl ToolObservation {
         Ok(())
     }
 
+    /// 验证后把观察编码成模型可读 JSON 文本。
+    ///
+    /// 只输出有界摘要和 digest 元数据，不把授权/执行 scope 填入模型上下文；失败时返回编码错误，
+    /// 不会自动回退到未经校验的字符串。
     pub fn model_text(&self) -> Result<String, String> {
         self.validate()?;
         serde_json::to_string(&json!({
@@ -969,16 +1234,29 @@ impl ToolObservation {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "decision", rename_all = "snake_case")]
+/// Policy 对一个能力请求给出的粗粒度结论。
+///
+/// 它表达策略层的 Allow、Ask 或 Deny；Core 还会组合 Gate、审批和其他约束，只有完整授权链
+/// 成功后才可能派发请求。PolicyDecision 本身不执行工具。
 pub enum PolicyDecision {
+    /// 策略允许继续，并附带供后续授权流程使用的 ID。
     Allow { authorization_id: String },
+    /// 策略要求额外处理，通常进入审批或 Gate 分支。
     Ask { reason: String },
+    /// 策略拒绝请求，并保留可供上层映射的原因。
     Deny { reason: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "decision", rename_all = "snake_case")]
+/// Gate 与 Policy 合并后，Core 用于选择下一步分支的结果。
+///
+/// `Allowed` 仍只是授权链中的结论数据；调用方还要构造/验证授权 envelope，并由 Broker 做派发前检查。
 pub enum GateDecision {
+    /// Gate 允许进入后续授权或执行准备，并携带授权 ID。
     Allowed { authorization_id: String },
+    /// 需要等待人工审批或其他 Gate 条件完成。
     AwaitingApproval { reason: String },
+    /// Gate 拒绝继续，并保留拒绝原因。
     Denied { reason: String },
 }

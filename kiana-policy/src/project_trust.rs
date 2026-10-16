@@ -16,8 +16,8 @@
 //! `kiana-daemon` 通过 `kiana-skills` 自己的信任类型（`SourceTrust`）来加载资源，
 //! 并不经过本文件的 `ProjectTrustResolution`。
 //!
-//! 所以本文件现在是一份**已实现、已测试、但未接线**的策略值类型。
-//! 它的规则是对的、测试是过的，但还没有接到真正的加载路径上。
+//! 所以本文件现在是一份**已实现、仓内有测试覆盖、但未接入生产加载路径**的策略值类型。
+//! 源码和测试只能说明这套判定逻辑存在，不能说明当前加载器实际使用了它。
 //!
 //! 这不改变下面那些设计说明的价值 —— 读懂它有助于理解信任模型的整体设计，
 //! 也为将来接线提供参考。但不要以为"现在加载 skill 会走这里"。
@@ -53,13 +53,13 @@
 //! 而且文件系统状态难以复现，出问题时无法判断是判定错了还是环境变了。
 //! 纯函数版本只需要构造输入，就能覆盖所有边界情况。
 //!
-//! **② 摘要代替真实路径**
+//! **② DTO 保存摘要字段，而不保存真实路径**
 //! 所有的根都用 `project_root_digest`（项目根摘要）和 `root_digest`（资源根摘要）
 //! 表示，**不是真实路径字符串**。
 //!
-//! 这有两个好处：一是路径本身可能含敏感信息，进摘要后不泄漏到事件日志；
-//! 二是路径可能被软链接、同形字符等方式欺骗，
-//! 而"先规范化再摘要"的流程由适配器保证，判定层拿到的已经是唯一的身份。
+//! 摘要字段避免把路径明文直接放进这个 DTO；但 SHA-256 不是加密或匿名化，
+//! 路径候选空间较小时仍可能被字典猜测。适配器负责规范化后再求摘要，
+//! 本模块只检查摘要格式，不会验证适配器是否真的完成规范化。
 //!
 //! **③ 三种"不确定"都变成 Deny**
 //! 文件头最后一句 "Unknown, conflicting and untrusted roots are deny decisions"。
@@ -94,71 +94,23 @@ use serde_json::json;
 use std::collections::BTreeSet;
 
 /// 信任根记录的 schema 标识符。
-/// 信任根记录的 schema 标识符。
 pub const PROJECT_TRUST_ROOT_SCHEMA: &str = "kiana.project-trust-root.v1";
 /// 信任判定结果的 schema 标识符。
-/// 信任判定结果的 schema 标识符。
 pub const PROJECT_TRUST_RESOLUTION_SCHEMA: &str = "kiana.project-trust-resolution.v1";
-/// 信任策略版本。
 /// 信任策略版本。
 pub const PROJECT_TRUST_POLICY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 /// 一次判定最多能带多少个候选信任根。
 ///
-/// 【为什么是 64】
-/// 正常情况下候选只有 0–2 条。上限 64 是给"配置写错导致堆积"留的余量，
-/// 同时防止有人构造几万个候选来做暴力匹配 —— 那会变成一个放大攻击面。
-/// 一次判定最多能带多少个候选信任根。
-///
-/// 【为什么是 64】
-/// 正常情况下候选只有 0–2 条。上限 64 是给"配置写错导致堆积"留的余量，
-/// 同时防止有人构造几万个候选来做暴力匹配 —— 那会变成一个放大攻击面。
+/// 本源码只能确认它是单次判定接受候选列表的硬上限：超过后返回
+/// `project_trust_root_limit`。这个上限也界定后续校验、过滤和排序要处理的输入规模；
+/// 精确取 64 的业务依据无法仅从本文件确认。
 pub const MAX_PROJECT_TRUST_ROOTS: usize = 64;
 
-/// 校验一个字符串字段：非空、不超长、不含空字节。
+/// 检查字段不能为空、不能超过字节上限，且不能包含 NUL 字节。
 ///
-/// 【作用】
-/// 三合一的基础字段检查。三个条件各防一类问题：
-/// - 空（含纯空白）—— 必填字段没填；
-/// - 超长 —— 防止超长字符串撑爆存储或日志；
-/// - 含空字节（`\0`）—— **防止路径截断攻击**。
-///
-/// 【⚠ 为什么要专门拦空字节】
-/// 空字节是 C 字符串的终止符。如果路径被传给某个底层 C 库，
-/// `"safe/path\0/../../etc/passwd"` 会被截断成 `"safe/path"` 通过检查，
-/// 而实际访问的却是后面的内容。
-/// 虽然 Rust 字符串内部没有这个问题，但只要数据可能流向 FFI 或外部工具，
-/// 就应该在数据入口拦住。
-///
-/// 【⚠ 为什么用 `value.len()` 而不是字符数】
-/// `len()` 返回**字节数**。这对"防止超长"是更严格的检查 ——
-/// 一个多字节字符算 2–4 个字节。
-/// 用字节计数不会切坏合法文本，因为 UTF-8 的字符边界不会落在多字节序列中间。
-///
-/// 【失败情况】
-/// 返回 `Err("{field}_invalid")`，字段名由调用方传入，便于定位是哪个字段出问题。
-/// 校验一个字符串字段：非空、不超长、不含空字节。
-///
-/// 【作用】
-/// 三个条件各防一类问题：
-/// - 空（含纯空白）—— 必填字段没填；
-/// - 超长 —— 防止超长字符串撑爆存储或日志；
-/// - 含空字节（`\0`）—— **防止路径截断攻击**。
-///
-/// 【⚠ 为什么要专门拦空字节】
-/// 空字节是 C 字符串的终止符。如果路径被传给某个底层 C 库，
-/// `"safe/path\0/../../etc/passwd"` 会被截断成 `"safe/path"` 通过检查，
-/// 而实际访问的却是后面的内容。
-/// 虽然 Rust 字符串内部没有这个问题，但只要数据可能流向 FFI 或外部工具，
-/// 就应该在数据入口拦住。
-///
-/// 【⚠ 为什么用 `value.len()` 而不是字符数】
-/// `len()` 返回**字节数**。这对"防止超长"是更严格的检查 ——
-/// 一个多字节字符算 2–4 个字节。
-/// 用字节计数不会切坏合法文本，因为 UTF-8 的字符边界不会落在多字节序列中间。
-///
-/// 【失败情况】
-/// 返回 `Err("{field}_invalid")`，字段名由调用方传入，
-/// 便于定位到底是哪个字段出了问题。
+/// 上限按 `str::len()` 的 UTF-8 字节数计算，不是字符数。NUL 检查可防止该字段随后
+/// 被交给按 C 字符串处理的边界时发生截断；本函数自身不访问路径、文件系统或 FFI。
+/// 任一条件失败都返回带调用方字段名的 `"{field}_invalid"`。
 fn nonempty(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
         return Err(format!("{field}_invalid"));
@@ -170,30 +122,13 @@ fn nonempty(value: &str, field: &str, max: usize) -> Result<(), String> {
 ///
 /// 【作用】
 /// 只查格式（`sha256:` 前缀 + 64 位十六进制），不查内容。
-/// 内容比对由调用方重算摘要后进行。
+/// 对应内容的重算比较由调用方校验逻辑执行。摘要一致只能说明字段间自洽，不能证明记录
+/// 由可信方签发；能同时改内容和摘要的一方仍可构造另一份自洽记录。
 ///
 /// 【为什么固定 64 个字符】
 /// SHA-256 输出 32 字节，十六进制表示正好 64 个字符。
 /// 长度不符就说明这不是一个 SHA-256 摘要。
 ///
-/// 【与 `grant_scope.rs` 里的同名函数的关系】
-/// 两个文件各有一份 `valid_digest`，逻辑相同。
-/// 这不是疏忽 —— `kiana-policy` 内部不共用工具函数，
-/// 每个模块自带校验器是这里的既有风格。修改时两处都要看。
-/// 校验一个摘要字符串的**格式**。
-///
-/// 【作用】
-/// 只查格式（`sha256:` 前缀 + 64 位十六进制），不查内容。
-/// 内容比对由调用方重算摘要之后进行。
-///
-/// 【为什么固定 64 个字符】
-/// SHA-256 输出 32 字节，十六进制表示正好 64 个字符。
-/// 长度不符就说明这不是一个 SHA-256 摘要。
-///
-/// 【与 `grant_scope.rs` 里的同名函数的关系】
-/// 两个文件各有一份 `valid_digest`，逻辑完全相同。
-/// 这不是疏忽 —— `kiana-policy` 内部不共用工具函数，
-/// 每个模块自带校验器是这里的既有风格。修改时两处都要看。
 fn valid_digest(value: &str, field: &str) -> Result<(), String> {
     let Some(hex) = value.strip_prefix("sha256:") else {
         return Err(format!("{field}_invalid"));
@@ -207,13 +142,12 @@ fn valid_digest(value: &str, field: &str) -> Result<(), String> {
 /// 信任的三个来源层级。
 ///
 /// 【作用】
-/// 区分"信任声明来自哪里"。三个层级的权限大小不同，
+/// 区分"信任声明来自哪里"，而不是比较三种来源的权限大小，
 /// 详见 [`ProjectTrustScope::priority`]。
 ///
 /// 【三个层级的实际含义】
 ///
-/// - `User` —— 用户级。指用户自己配置的目录（比如全局 `~/.claude/skills`）。
-///   这层的内容由用户亲自放置，信任度最高。
+/// - `User` —— 用户级来源，例如用户配置的全局资源目录。
 /// - `KianaHome` —— Kiana 自身目录。指 `KIANA_HOME` 环境变量指向的目录。
 /// - `Project` —— 项目级。指当前工作目录里的 `.claude/skills`、`.kiana/plugins`。
 ///   ⚠ **这层最危险**，因为它随仓库一起被克隆下来 ——
@@ -233,42 +167,11 @@ pub enum ProjectTrustScope {
 }
 
 impl ProjectTrustScope {
-    /// 各级别的优先级数值，**数值越大优先级越高**。
+    /// 返回该来源层级对应的数值，供 `resolve()` 的排序键使用。
     ///
-    /// 【为什么项目级优先级最高（30 > 20 > 10）】
-    /// 这里的优先级只在**同一次判定的多条候选之间**用于排序
-    /// （见 [`ProjectTrustResolution::resolve`] 的排序逻辑）。
-    /// 由于候选已经被过滤成同一个 scope，这个字段实际上极少起决定作用。
-    ///
-    /// ⚠ 但它的**方向**很重要：它表达的是"更贴近当前上下文的层级优先"。
-    /// 项目级资源离用户当前操作最近，所以给它最高数值。
-    /// 如果将来放宽了 scope 过滤（允许跨 scope 比较），这个方向就是对的。
-    ///
-    /// 【为什么是 10/20/30 而不是 0/1/2】
-    /// 留出间隔是为了将来插入新层级时不必重排。
-    /// 用 0 起步会让"最小值"和"未设置"难以区分。
-    ///
-    /// 【`const fn` 的含义】
-    /// `const fn` 可以在编译期求值，调用它不产生任何运行时代码。
-    /// 这类纯查表函数标注 `const` 是恰当的。
-    /// 各级别的优先级数值，**数值越大优先级越高**。
-    ///
-    /// 【为什么项目级优先级最高（30 > 20 > 10）】
-    /// 这里的优先级只在**同一次判定的多条候选之间**用于排序
-    /// （见 [`ProjectTrustResolution::resolve`] 的排序逻辑）。
-    /// 由于候选已经被过滤成同一个 scope，这个字段实际上极少起决定作用。
-    ///
-    /// ⚠ 但它的**方向**很重要：它表达的是"更贴近当前上下文的层级优先"。
-    /// 项目级资源离用户当前操作最近，所以给它最高数值。
-    /// 如果将来放宽了 scope 过滤（允许跨 scope 比较），这个方向就是对的。
-    ///
-    /// 【为什么是 10/20/30 而不是 0/1/2】
-    /// 留出间隔是为了将来插入新层级时不必重排。
-    /// 用 0 起步会让"最小值"和"未设置"难以区分。
-    ///
-    /// 【`const fn` 的含义】
-    /// `const fn` 可以在编译期求值，调用它不产生任何运行时代码。
-    /// 这类纯查表函数标注 `const` 是恰当的。
+    /// `resolve()` 会先筛选 `scope == requested_scope`，所以一次判定里的候选 scope 都相同；
+    /// 当前排序中的 priority 键不会区分这些候选。实际排序结果由 revision 和 root_digest 决定。
+    /// 不要把这个数值误读为跨用户级、项目级信任的覆盖规则。
     pub const fn priority(self) -> u8 {
         match self {
             Self::User => 10,
@@ -305,7 +208,9 @@ pub enum ProjectTrustState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectTrustDecision {
+    /// 判定允许该 scope 下的资源继续进入加载器。
     Allow,
+    /// 判定拒绝；具体原因由 `ProjectTrustResolution::reason` 提供。
     Deny,
 }
 
@@ -318,13 +223,10 @@ pub enum ProjectTrustDecision {
 /// - **状态**：`state`（可信/不可信/未知）、`revision`（第几次修改）。
 /// - **审计**：`audit_ref`、`root_record_digest`。
 ///
-/// 【⚠ `audit_ref` 绝对不能是真实路径】
-/// 字段注释里写得很明确："never a raw path or trust-file payload"
-/// （绝不是原始路径，也不是信任文件的原始内容）。
-/// 它只是一个**脱敏后的引用标记**，
-/// 让人能追溯"这条信任是谁、在什么时候、通过什么方式建立的"，
-/// 但不会把文件系统布局泄漏进事件日志。
-/// 如果这里填了真实路径，一个项目的目录结构就可能被记录并传播。
+/// 【`audit_ref` 的边界】
+/// 按字段契约它应是稳定、脱敏的审计引用，不能放真实路径或信任文件原文。
+/// 但本类型只检查它非空、长度受限且不含 NUL；校验不会证明内容已脱敏，
+/// 也不会解析出操作者、时间或来源。写入方必须负责提供合规引用。
 pub struct ProjectTrustRoot {
     pub schema: String,
     pub version: SchemaVersion,
@@ -382,12 +284,11 @@ impl ProjectTrustRoot {
     /// `project_root_digest` 和 `root_digest` 都必须是合法的 SHA-256 格式。
     ///
     /// **③ `audit_ref`**
-    /// 有内容、不超 256 字节、无控制字符。
+    /// 有内容、不超 256 字节且不含 NUL。其他控制字符和真实路径内容不在此 helper 的检查范围内。
     ///
     /// **④ 摘要自洽**
-    /// 重算摘要与存储值比对。防的是**内容被改**：
-    /// 有人拿到一条合法的 Trusted 记录，把 `state` 改成 Untrusted 再改回去，
-    /// 或者反过来 —— 摘要对不上，改动被发现。
+    /// 重算摘要并与存储值比对，可发现内容变化后没有同步更新摘要的情况。
+    /// 这不是签名或 MAC：若修改者能同时重算并替换摘要，本方法不能证明记录来源可信。
     ///
     /// 【⚠ 不要给这里的检查"精简"掉】
     /// 这个函数看起来分支很多，容易让人想合并。
@@ -437,8 +338,8 @@ impl ProjectTrustRoot {
 ///
 /// 【作用】
 /// 不只是给出一个 Allow/Deny，
-/// 还记录了**判定过程本身**：有哪些候选、选了哪条、结论是什么、原因是什么。
-/// 这份记录会进事件账本，事后可以完整复盘"当时为什么放行/拒绝"。
+/// 还携带候选、选择结果、结论和原因，供调用方检查或记录。
+/// 当前仓内未发现生产调用者，因此不能说它已经进入事件账本或形成可复盘的运行记录。
 ///
 /// 【为什么 `selected_scope` 和 `selected_root_digest` 是 `Option`】
 /// 因为**拒绝时可能根本没有选中任何一条**
@@ -449,13 +350,21 @@ impl ProjectTrustRoot {
 pub struct ProjectTrustResolution {
     pub schema: String,
     pub version: SchemaVersion,
+    /// 本次判定针对的项目根摘要，由调用方提供。
     pub project_root_digest: String,
+    /// 要求匹配的来源层级；`resolve()` 只保留同层候选。
     pub requested_scope: ProjectTrustScope,
+    /// 通过项目摘要和 scope 过滤后的候选，并按 `resolve()` 的规则排序。
     pub candidates: Vec<ProjectTrustRoot>,
+    /// 命中时的来源层级；没有可选记录时为 `None`。
     pub selected_scope: Option<ProjectTrustScope>,
+    /// 命中记录的 root_digest；没有可选记录时为 `None`。
     pub selected_root_digest: Option<String>,
+    /// 信任结果；只有 Trusted 状态映射为 Allow。
     pub decision: ProjectTrustDecision,
+    /// 稳定原因码，供调用方区分缺失、冲突、未知与明确拒绝。
     pub reason: String,
+    /// 本结果字段的 JSON 摘要；它不等同于签名或来源认证。
     pub resolution_digest: String,
 }
 
@@ -599,44 +508,27 @@ impl ProjectTrustResolution {
     /// 【作用】
     /// 给加载器用的便捷方法。等价于 `decision == Allow`。
     ///
-    /// 【⚠ 它只看结论，不看其他字段】
-    /// 这里**没有**再检查 `selected_scope` 是否存在。
-    /// 这看起来是个疏漏，其实不是 ——
-    /// 完整性由 [`ProjectTrustResolution::validate`] 保证：
-    /// 如果结论是 Allow 却没选中任何记录，
-    /// 校验会以 `project_trust_allow_selection_missing` 失败。
-    /// 而 `resolve` 在返回前一定会调用 `validate()`，
-    /// 所以能走到调用方手里的对象，结论和选中记录必然是自洽的。
+    /// ⚠ 本方法只读 `decision`，不会自动调用 `validate()`。
+    /// 由 `resolve()` 返回的对象在返回前已校验；但 DTO 同时支持反序列化且字段公开，
+    /// 因此外部读入或手工构造的值必须先显式调用 `validate()`，再把 `true` 当作可信判定。
     pub fn allows_loading(&self) -> bool {
         self.decision == ProjectTrustDecision::Allow
     }
 
     /// 校验这个判定结果结构是否自洽。
     ///
-    /// 【核心检查 —— 六组】
+    /// 【核心检查 —— 七组】
     ///
     /// **① 头部**：schema 匹配、版本兼容。
     ///
     /// **② 项目摘要格式**合法。
     ///
-    /// **③ 候选的 scope 必须全部等于 requested_scope**
-    /// 这条检查是 `resolve` 里那个过滤条件的**事后验证**。
-    /// 如果有人手工构造了一个混了别的 scope 候选的判定结果，这里会拒绝。
-    /// 换句话说：过滤规则不只写在生成端，还写在**校验端**。
-    /// 两端都写，才能防止有人绕过 `resolve` 直接造一个对象出来。
-    ///
-    /// 候选数量同样不能超过 64。
+    /// **③ 候选数量受限，且 scope 必须等于 requested_scope**。
     ///
     /// **④ 每条候选各自校验**
     ///
-    /// **⑤ 结论与理由必须一致**
-    /// 两条交叉检查：
-    /// - 结论是 Allow 但没选中任何记录 → `project_trust_allow_selection_missing`；
-    /// - 结论是 Deny 但原因却是 `project_trust_allowed` → `project_trust_deny_reason_invalid`。
-    ///
-    /// 第二条防的是"结论和理由自相矛盾"这种数据损坏。
-    /// 这种数据正常流程产生不出来，只能来自手工构造或存储损坏 ——
-    /// 正因为它不该出现，所以一旦出现就说明有问题，必须拒绝。
+    /// **⑤ 有限的结论/理由约束**：Allow 必须带 selected 字段；Deny 不能使用
+    /// `project_trust_allowed` 这个原因码。
     ///
     /// **⑥ 选中的摘要必须在候选里存在**
     /// 如果 `selected_root_digest` 指向一条不存在的记录 → `project_trust_selected_root_missing`。
@@ -645,10 +537,11 @@ impl ProjectTrustResolution {
     /// **⑦ 自身摘要自洽**
     /// 重算摘要与存储值比对。
     ///
-    /// 【⚠ 不要精简这里的检查】
-    /// 这个函数是判定结果的**最后一道关卡**。
-    /// 前面所有检查都可以被绕过（只要有人能构造对象），
-    /// 只有这个函数保证"拿到的判定结果本身是可信的"。
+    /// ⚠ 这只是结构和摘要一致性检查，不是授权来源认证，也不重跑完整决策。
+    /// 它不会确认候选的 `project_root_digest` 都等于结果头部的项目摘要，
+    /// 不会确认 `selected_scope` 与所选候选对应，也不会验证 decision 与所选 state 一致。
+    /// `resolve()` 自己会按项目摘要筛选并从状态计算 decision；直接反序列化或手工构造 DTO 时，
+    /// 不能把 `validate()` 当作这些语义关系的替代检查。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != PROJECT_TRUST_RESOLUTION_SCHEMA
             || !self

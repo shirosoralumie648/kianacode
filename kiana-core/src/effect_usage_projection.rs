@@ -48,7 +48,13 @@ pub fn project_effect_usage(
         if !TERMINAL_EFFECT_EVENTS.contains(&event.kind.as_str()) {
             continue;
         }
-        let Some(value) = event.data.get("effect_usage") else {
+        let value = event.data.get("effect_usage").or_else(|| {
+            event
+                .data
+                .get("result")
+                .and_then(|result| result.get("effect_usage"))
+        });
+        let Some(value) = value else {
             continue;
         };
         let usage = EffectUsageObservation::from_json(value)
@@ -91,7 +97,17 @@ pub fn project_effect_usage(
             ("lease_digest", usage.lease_digest.as_str()),
             ("resource_digest", usage.resource_digest.as_str()),
         ] {
-            if let Some(observed) = event.data.get(field).and_then(serde_json::Value::as_str) {
+            let observed = event
+                .data
+                .get(field)
+                .or_else(|| {
+                    event
+                        .data
+                        .get("result")
+                        .and_then(|result| result.get(field))
+                })
+                .and_then(serde_json::Value::as_str);
+            if let Some(observed) = observed {
                 if observed != expected {
                     return Err(EffectUsageProjectionError::IdentityMismatch(
                         field.to_owned(),

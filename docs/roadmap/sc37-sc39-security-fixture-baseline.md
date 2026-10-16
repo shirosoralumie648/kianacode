@@ -133,8 +133,23 @@ evidence: kiana-domain/tests/sc37_sc39_security_fixtures.rs,
           kiana-core/tests/sc38_property_replay.rs,
           kiana-core/tests/sc39_red_team_corpus.rs,
           kiana-core/tests/sc37_sc39_security_fixture_guard.rs
-local_execution: not run — the task forbids local `cargo test`; compile/lint only
-reviewer: unassigned — no local runtime test reviewer
+local_execution: bounded local selectors are recorded below; whole-card proof remains source
+reviewer: root integration agent; focused SC-39 and combined fixture review
+```
+
+## Current-head local receipt (2026-10-06)
+
+```text
+source_snapshot: current dirty worktree; kiana-domain security fixture contracts and SC-37/38/39 integration fixture
+worktree_status: SC-37, SC-38 and SC-39 remain roadmap rows 707–709 🔄; stale fixture ordering/resealing errors were corrected
+command_argv: `cargo test -p kiana-domain --test sc37_sc39_security_fixtures --locked --offline -- --test-threads=1`; `cargo test -p kiana-domain --test sc37_sc39_security_fixtures sc39_ --locked --offline -- --test-threads=1`; `cargo test -p kiana-domain --test int13_secret_redaction --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo build/test worker, one Rust test thread, stripped non-incremental test profile; combined SC-37/38/39 30/30 in 0.89s/max RSS 251188 KiB (~245 MiB), SC-39 selector 9/9 in 0.23s/max RSS 83160 KiB (~81 MiB), INT-13 4/4 in 0.21s/max RSS 83440 KiB (~81 MiB), 0 swaps; `/tmp/kiana-roadmap-20261006-sc37-sc39-final.{log,resources}`, `/tmp/kiana-roadmap-20261006-sc39-focused.{log,resources}`, `/tmp/kiana-roadmap-20261006-int13.{log,resources}`
+fixture·cassette: deny matrix, seeded property/replay corpus and attack corpus; all 30 focused fixtures pass after preserving stale digests, matching corpus/case seeds, and asserting constructor fail-closed behavior
+exit_code: all commands 0
+status_change: selected SC-37/38/39 and INT-13 behavior recorded as `local_behavior`; no whole-card promotion
+proof-level_change: selected source fixtures → local_behavior; no durable/live/physical promotion
+limitations: no live Broker/provider/MCP/plugin, adaptive or multi-turn red-team, fuzz campaign, durable replay, cross-process proof or compliance certification
+reviewer: root integration agent; read-only SC-37/38 fixture audit; focused SC-39 review
 ```
 
 ## Registration owed by the integration owner

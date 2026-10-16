@@ -46,7 +46,7 @@ fn shared_claim_contract_accepts_one_scoped_packet_claim() {
 #[test]
 fn queue_claim_rejects_cycle_duplicate_and_parallel_overflow() {
     assert_eq!(
-        contract(WorkflowQueueClaimStatus::Ready, 1, 1, false, false)
+        contract(WorkflowQueueClaimStatus::Ready, 2, 1, false, false)
             .expect_err("parallel overflow"),
         "workflow_queue_parallel_limit_exceeded"
     );

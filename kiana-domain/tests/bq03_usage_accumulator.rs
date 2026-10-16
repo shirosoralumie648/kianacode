@@ -1,8 +1,17 @@
+//! BQ-03 snapshot/delta/final 累计器的内存行为 fixture。
+//!
+//! 测试把多条合成 NormalizedUsage 交给同一个 attempt accumulator，观察累计值、sequence 去重/冲突、
+//! 快照包含关系、溢出和 Final 后关闭。该 reducer 当前没有持久化或跨进程恢复测试。
+
 use kiana_domain::{
     AttemptId, NormalizedUsage, RunId, UsageAccumulator, UsageApplyOutcome, UsageConfidence,
     UsageId, UsageObservation, UsageSource, UsageVector,
 };
 
+/// 在指定 attempt 内构造带 sequence 的合成观测。
+///
+/// 输入 token 字段使用调用者给出的 Option 以覆盖未知/零/正数；每次 helper 都生成新的 RunId，而 accumulator
+/// 当前只按 attempt_id 检查边界，因此这些 fixture 不证明同一 attempt 的 run_id 一致性。
 fn usage(
     attempt_id: AttemptId,
     observation: UsageObservation,
@@ -38,6 +47,7 @@ fn usage(
 }
 
 #[test]
+/// 按 cumulative Snapshot → Delta → Final 折叠，确认增量参与累计、Final 保存最终总值并关闭状态。
 fn snapshot_delta_final_accumulate_with_sequence_dedup() {
     let attempt = AttemptId::new();
     let snapshot = usage(attempt, UsageObservation::Snapshot, 1, Some(10), Some(2));
@@ -63,6 +73,8 @@ fn snapshot_delta_final_accumulate_with_sequence_dedup() {
 }
 
 #[test]
+/// 同一序号同一 digest 返回 Duplicate；同序号不同内容冲突，低序号回退失败，下降快照不能覆盖已知值。
+/// 所有错误都来自内存 reducer，不涉及 EventLog 的全局 sequence 校验。
 fn sequence_duplicate_conflict_regression_and_containment_fail_closed() {
     let attempt = AttemptId::new();
     let snapshot = usage(attempt, UsageObservation::Snapshot, 1, Some(10), Some(2));
@@ -102,6 +114,8 @@ fn sequence_duplicate_conflict_regression_and_containment_fail_closed() {
 }
 
 #[test]
+/// 验证 Delta 没有累计基线、checked addition 溢出和 Final 后新增观测三种拒绝。
+/// 当前 fixture 用更大的新 sequence 测 post-final；没有验证完全相同的 Final 消息重投递行为。
 fn unknown_delta_base_overflow_and_post_final_are_rejected() {
     let attempt = AttemptId::new();
     let delta = usage(attempt, UsageObservation::Delta, 1, Some(1), Some(0));

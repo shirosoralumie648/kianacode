@@ -74,3 +74,15 @@ fn company_assignment_guard_rejects_expiry_and_actor_or_role_drift() {
         "assignment_role_mismatch"
     );
 }
+
+#[test]
+fn company_assignment_guard_rejects_zero_valid_from_snapshot() {
+    let (mut assignment, context) = fixture();
+    assignment.valid_from_unix_ms = 0;
+    assignment.resolution_digest = assignment.digest();
+
+    assert_eq!(
+        validate_company_assignment(&context, &assignment, 100, false).unwrap_err(),
+        "assignment_invalid"
+    );
+}

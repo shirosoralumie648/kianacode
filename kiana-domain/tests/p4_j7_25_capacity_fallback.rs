@@ -81,6 +81,21 @@ fn abandoned_half_open_probe_reopens_for_a_fresh_cooldown() {
     );
 }
 
+#[test]
+fn observe_failure_overflow_does_not_leave_a_half_updated_breaker() {
+    let mut breaker = ProviderCircuitBreaker::new("config.v1", 1, 100).expect("breaker");
+    let before = breaker.clone();
+
+    assert_eq!(
+        breaker.observe_failure(u64::MAX).unwrap_err(),
+        "provider_circuit_open_until_overflow"
+    );
+    assert_eq!(breaker, before);
+    breaker
+        .validate()
+        .expect("overflow must preserve a valid state");
+}
+
 fn original_route() -> ModelRoute {
     ModelRoute {
         provider_id: "provider-a".to_owned(),

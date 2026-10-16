@@ -232,7 +232,7 @@ impl DeploymentConfigSnapshot {
             || self
                 .sources
                 .windows(2)
-                .any(|pair| pair[0].precedence >= pair[1].precedence)
+                .any(|pair| pair[0].precedence > pair[1].precedence)
         {
             return Err("deployment_config_source_order_invalid".to_owned());
         }

@@ -1,5 +1,8 @@
 //! CAP-23 source guard for fair admission, conservative footprints and cancellation fencing.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -101,9 +104,10 @@ fn admission_is_bounded_fair_and_never_an_execution_loop() {
         ],
         "CAP-23 acceptance card",
     );
-    assert!(!scheduler.contains("CapabilityBroker"));
-    assert!(!scheduler.contains("tokio::spawn"));
-    assert!(!scheduler.contains("model loop"));
+    let scheduler_code = source_guard::production_source(scheduler);
+    assert!(!scheduler_code.contains("CapabilityBroker"));
+    assert!(!scheduler_code.contains("tokio::spawn"));
+    assert!(!scheduler_code.contains("model loop"));
 }
 
 #[test]

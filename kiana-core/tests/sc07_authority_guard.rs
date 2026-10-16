@@ -2,6 +2,7 @@
 fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
     let authority = include_str!("../src/security_authority.rs");
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
+    let assignment = include_str!("../../kiana-domain/src/assignment.rs");
     let domain = include_str!("../../kiana-domain/src/trust_snapshots.rs");
     for marker in [
         "SecurityAuthoritySnapshot",
@@ -54,6 +55,21 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
             && daemon.contains("assignment.project_id != project.project_id")
             && daemon.contains("authority\n            .validate_request(&context, &project)"),
         "daemon assignment helper must reject foreign projects before authority validation"
+    );
+    for marker in [
+        "role_assignment_identity_invalid",
+        "project_assignment_identity_invalid",
+        "resolved_assignment_identity_invalid",
+    ] {
+        assert!(
+            assignment.contains(marker),
+            "assignment identity marker missing: {marker}"
+        );
+    }
+    assert!(
+        assignment.contains("self.assignment_id.as_uuid().is_nil()")
+            && authority.contains("self.assignment.validate()?"),
+        "authority snapshots must inherit nil assignment identity denial"
     );
     for marker in [
         "ProjectTrustSnapshot",

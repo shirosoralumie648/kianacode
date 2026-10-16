@@ -617,6 +617,7 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         CompanyCommand::ReviewPacket { .. } | CompanyCommand::RecordReview { .. } => &["reviewer"],
         CompanyCommand::DecideAcceptance { .. } => &["reviewer", "sponsor"],
         CompanyCommand::PrepareDelivery { .. }
+        | CompanyCommand::ConfirmDelivery { .. }
         | CompanyCommand::ApproveDelivery { .. }
         | CompanyCommand::Deliver { .. }
         | CompanyCommand::CloseProject { .. }

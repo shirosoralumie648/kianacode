@@ -1,3 +1,7 @@
+//! CP-03 Domain 动作目录与准备请求合同测试。
+//!
+//! 用例直接构造领域 DTO，验证注册描述、操作风险下限、请求归一化和摘要合同；不会调用
+//! ControlPlane、Broker 或 OS handler。因此这些断言锁定 Domain 边界，不单独证明请求已获授权。
 use kiana_domain::{
     capability_action_contract, capability_action_descriptor, capability_action_digest,
     normalize_capability_action, operator_only_action, parse_bounded_json, validate_action_catalog,
@@ -6,6 +10,7 @@ use kiana_domain::{
 };
 use serde_json::json;
 
+/// 固定操作目录必须为每个 operation 提供完整描述、schema 边界与 handler binding 版本。
 #[test]
 fn action_catalog_has_complete_server_owned_descriptors() {
     validate_action_catalog().unwrap();
@@ -31,6 +36,7 @@ fn action_catalog_has_complete_server_owned_descriptors() {
     assert_eq!(ACTION_CATALOG_SCHEMA, "kiana.action-catalog.v1");
 }
 
+/// 伪造 ReadOnly 不能降低 patch、MCP 调用或 Memory 写入在目录中声明的最低风险。
 #[test]
 fn forged_readonly_risk_cannot_downgrade_registered_effect() {
     let cases = [
@@ -60,6 +66,7 @@ fn forged_readonly_risk_cannot_downgrade_registered_effect() {
     }
 }
 
+/// descriptor 决定 capability kind；合法 kind 可通过，错误 kind 必须被合同拒绝。
 #[test]
 fn spec_kind_drives_policy_for_preview_and_mcp_handshake() {
     let cases = [
@@ -93,6 +100,7 @@ fn spec_kind_drives_policy_for_preview_and_mcp_handshake() {
     }
 }
 
+/// 动态风险规则按 sandbox 与 transaction action 区分只读、写入和高风险恢复。
 #[test]
 fn spec_risk_rules_preserve_sandbox_and_operator_action_floors() {
     let workspace_write = CapabilityRequest::new(
@@ -138,6 +146,7 @@ fn spec_risk_rules_preserve_sandbox_and_operator_action_floors() {
     );
 }
 
+/// PreparedAction 对 preview/execution 共用同一归一化请求，并固定 catalog 与 action 摘要。
 #[test]
 fn cp_preview_and_execution_use_identical_action() {
     let request = CapabilityRequest::new(
@@ -161,6 +170,7 @@ fn cp_preview_and_execution_use_identical_action() {
     assert_ne!(prepared.request(), &request);
 }
 
+/// 原始 JSON 重复键与零 timeout 都必须在形成可执行准备动作前失败关闭。
 #[test]
 fn duplicate_json_and_invalid_numeric_arguments_fail_closed() {
     let duplicate = br#"{"command":"printf ok","command":"rm -rf /"}"#;

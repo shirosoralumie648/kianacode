@@ -1,7 +1,7 @@
 use super::*;
 use kiana_domain::RunId;
 use serde_json::Value;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RunPhase {
@@ -25,6 +25,14 @@ pub enum RunOutcome {
 pub enum RunProjectionError {
     #[error("run terminal conflict: {}", kinds.join(", "))]
     TerminalConflict { kinds: Vec<String> },
+    #[error("run_event_run_id_conflict")]
+    EventRunIdConflict,
+    #[error("run_event_run_id_invalid")]
+    EventRunIdInvalid,
+    #[error("run_event_identity_conflict:{event_id}")]
+    EventIdentityConflict { event_id: String },
+    #[error("run_identity_links_invalid:{reason}")]
+    IdentityLinksInvalid { reason: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,22 +53,30 @@ fn outcome_for_kind(kind: &str) -> Option<RunOutcome> {
     }
 }
 
-fn event_run_id(event: &RuntimeEvent) -> Option<RunId> {
-    let payload_run_id = event
-        .data
-        .get("run_id")
-        .and_then(Value::as_str)
-        .and_then(RunId::parse_str);
-    if payload_run_id.is_some() {
-        return payload_run_id;
-    }
-    match (
+fn event_run_id(event: &RuntimeEvent) -> Result<Option<RunId>, RunProjectionError> {
+    let aggregate_run_id = match (
         event.aggregate_type.as_deref(),
         event.aggregate_id.as_deref(),
     ) {
-        (Some("run"), Some(aggregate_id)) => RunId::parse_str(aggregate_id),
+        (Some("run"), Some(aggregate_id)) => {
+            Some(RunId::parse_str(aggregate_id).ok_or(RunProjectionError::EventRunIdInvalid)?)
+        }
+        (Some("run"), None) => return Err(RunProjectionError::EventRunIdInvalid),
         _ => None,
+    };
+    let payload_run_id = match event.data.get("run_id") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(value)) => {
+            Some(RunId::parse_str(value).ok_or(RunProjectionError::EventRunIdInvalid)?)
+        }
+        Some(_) => return Err(RunProjectionError::EventRunIdInvalid),
+    };
+    if let (Some(aggregate_run_id), Some(payload_run_id)) = (aggregate_run_id, payload_run_id) {
+        if aggregate_run_id != payload_run_id {
+            return Err(RunProjectionError::EventRunIdConflict);
+        }
     }
+    Ok(payload_run_id.or(aggregate_run_id))
 }
 
 fn event_error(event: &RuntimeEvent) -> Option<String> {
@@ -78,26 +94,41 @@ pub fn project_run_state(
     let mut outcome = None;
     let mut error = None;
     let mut terminal_kinds = BTreeSet::new();
-    let mut seen_keys = HashSet::new();
+    let mut seen_events = HashMap::new();
 
-    let mut ordered_events = events
-        .iter()
-        .enumerate()
-        .filter(|(_, event)| event_run_id(event).is_some_and(|event_run_id| event_run_id == run_id))
-        .collect::<Vec<_>>();
+    let mut ordered_events = Vec::new();
+    for (index, event) in events.iter().enumerate() {
+        event
+            .validate_identity_links()
+            .map_err(|reason| RunProjectionError::IdentityLinksInvalid { reason })?;
+        if event_run_id(event)?.is_some_and(|event_run_id| event_run_id == run_id) {
+            ordered_events.push((index, event));
+        }
+    }
     // Stream versions are comparable only within one aggregate. read_all supplies
     // durable append order for mixed run, packet, invocation and approval facts.
-    let same_stream = ordered_events.first().is_none_or(|(_, first)| {
-        ordered_events.iter().all(|(_, event)| {
-            event.aggregate_type == first.aggregate_type && event.aggregate_id == first.aggregate_id
-        })
+    let same_stream = ordered_events.first().is_some_and(|(_, first)| {
+        first.aggregate_type.is_some()
+            && first.aggregate_id.is_some()
+            && first.stream_version.is_some()
+            && ordered_events.iter().all(|(_, event)| {
+                event.aggregate_type == first.aggregate_type
+                    && event.aggregate_id == first.aggregate_id
+                    && event.stream_version.is_some()
+            })
     });
     if same_stream {
+        // Request-local sequence is not an aggregate version; legacy/mixed inputs preserve append order.
         ordered_events
             .sort_by_key(|(index, event)| (event.stream_version.unwrap_or(event.sequence), *index));
     }
     for (_, event) in ordered_events {
-        if !seen_keys.insert(event.event_id) {
+        if let Some(previous) = seen_events.insert(event.event_id, event) {
+            if previous != event {
+                return Err(RunProjectionError::EventIdentityConflict {
+                    event_id: event.event_id.to_string(),
+                });
+            }
             continue;
         }
         // Continue opens a new turn on the same run; its outcome supersedes the previous turn.
@@ -273,6 +304,18 @@ impl ControlPlane {
             RunProjectionError::TerminalConflict { kinds } => CoreError::Port(PortError::Failed(
                 format!("run_terminal_conflict:{}", kinds.join(",")),
             )),
+            RunProjectionError::EventRunIdConflict => {
+                CoreError::Port(PortError::Failed("run_event_run_id_conflict".to_owned()))
+            }
+            RunProjectionError::EventRunIdInvalid => {
+                CoreError::Port(PortError::Failed("run_event_run_id_invalid".to_owned()))
+            }
+            RunProjectionError::EventIdentityConflict { event_id } => CoreError::Port(
+                PortError::Failed(format!("run_event_identity_conflict:{event_id}")),
+            ),
+            RunProjectionError::IdentityLinksInvalid { reason } => CoreError::Port(
+                PortError::Failed(format!("run_identity_links_invalid:{reason}")),
+            ),
         })
     }
 }

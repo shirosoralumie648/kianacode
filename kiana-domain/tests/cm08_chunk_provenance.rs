@@ -1,9 +1,16 @@
+//! CM-08 Domain ChunkSet provenance 合同测试。
+//!
+//! 测试手工构造 chunk、range 和 digest，不调用 Query 分块器，也不读取 source 文件。
+//! 它验证 byte 连续性/重叠拒绝和拼接结果；不能证明 source digest 或行号来自真实源文本。
+
 use kiana_domain::*;
 
+/// 生成外形合法的摘要 fixture，不表示真实 SHA-256 输入内容。
 fn digest(value: char) -> String {
     format!("sha256:{}", value.to_string().repeat(64))
 }
 
+/// 按给定 byte 区间和父分组构造 SourceChunk 测试值。
 fn chunk(start: u64, end: u64, content: &str, parent_chunk_id: Option<String>) -> SourceChunk {
     SourceChunk {
         schema: SOURCE_CHUNK_SCHEMA.to_owned(),
@@ -20,6 +27,7 @@ fn chunk(start: u64, end: u64, content: &str, parent_chunk_id: Option<String>) -
 }
 
 #[test]
+/// 连续的两段可按顺序重建原文，并保留共享语义 parent id。
 fn chunk_ranges_reconstruct_source_and_preserve_parent_adjacency() {
     let parent = digest('e');
     let set = ChunkSet::new(
@@ -44,6 +52,7 @@ fn chunk_ranges_reconstruct_source_and_preserve_parent_adjacency() {
 }
 
 #[test]
+/// 两个 chunk 的 byte range 重叠时，ChunkSet 必须拒绝双重计算的 source evidence。
 fn overlapping_chunks_do_not_double_count_evidence() {
     let error = ChunkSet::new(
         "README.md",

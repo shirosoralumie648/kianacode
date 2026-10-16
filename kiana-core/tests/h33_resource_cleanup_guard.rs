@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source};
+
 #[test]
 fn cleanup_contract_and_existing_supervisors_keep_unknown_isolated() {
     let domain = include_str!("../../kiana-domain/src/resource_cleanup.rs");
@@ -56,7 +60,13 @@ fn cleanup_contract_and_existing_supervisors_keep_unknown_isolated() {
 fn cleanup_does_not_equate_host_drop_with_confirmed_stop() {
     let domain = include_str!("../../kiana-domain/src/resource_cleanup.rs");
     let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
-    assert!(domain.contains("result_unknown"));
+    let observe = compact_code(&item_source(domain, "pub fn observe("));
+    assert!(observe.contains("self.status=if(!self.requires_stop_confirmation||stop_confirmed)&&effect_known{CleanupResourceStatus::Released}else{CleanupResourceStatus::IsolatedUnknown}"));
+    let validate = compact_code(&item_source(domain, "pub fn validate("));
+    assert!(validate.contains("self.status==CleanupResourceStatus::Released"));
+    assert!(validate
+        .contains("self.requires_stop_confirmation&&!self.stop_confirmed||!self.effect_known"));
+    assert!(validate.contains("cleanup_resource_invalid"));
     assert!(domain.contains("stop_confirmed"));
     assert!(supervisor.contains("ProcessGroupState::Unknown"));
     assert!(supervisor.contains("confirmed"));

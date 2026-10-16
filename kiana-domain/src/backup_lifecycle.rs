@@ -478,7 +478,7 @@ impl BackupChain {
                 let Some(parent) = by_id.get(parent_id.as_str()) else {
                     return Err("backup_chain_parent_missing".to_owned());
                 };
-                if parent.covered_from_cursor != entry.covered_from_cursor {
+                if parent.source_cursor != entry.covered_from_cursor {
                     return Err("backup_chain_parent_cursor_mismatch".to_owned());
                 }
             }

@@ -523,7 +523,7 @@ fn a_tampered_report_is_refused() {
 fn a_malformed_benchmark_summary_is_refused_rather_than_dropped() {
     // A summary is the DEP-17 measurement record. Dropping a malformed one would make a report
     // look measured with fewer samples than it claims.
-    let broken = BenchmarkSummary::new(BenchmarkOperation::Append, 10, 5, 20, 2, 1_024, 1)
+    let broken = BenchmarkSummary::new(BenchmarkOperation::Append, 10, 5, 20, 30, 1_024, 1)
         .expect("the summary is well formed")
         .clone();
     let mut tampered = broken;

@@ -24,8 +24,38 @@ pub fn sanitize_command_output(command: &str, output: &str) -> String {
     match serde_json::from_str::<Value>(output) {
         Ok(value) => serde_json::to_string_pretty(&sanitize_auth_status(&value))
             .unwrap_or_else(|_| kiana_protocol::redact_text(output)),
-        Err(_) => kiana_protocol::redact_text(output),
+        Err(_) => sanitize_auth_text(output),
     }
+}
+
+fn sanitize_auth_text(output: &str) -> String {
+    output
+        .split_inclusive('\n')
+        .map(|part| {
+            let (line, ending) = part
+                .strip_suffix('\n')
+                .map_or((part, ""), |line| (line, "\n"));
+            if let Some((key, value)) = line.split_once(':') {
+                // These compatibility fields carry presence markers, never credential values.
+                // Only exact closed markers survive; an unexpected value is wholly redacted.
+                if matches!(
+                    key,
+                    "api_key" | "oauth_access_token" | "oauth_refresh_token"
+                ) {
+                    let marker = match value.trim() {
+                        "set" => "set",
+                        "missing" => "missing",
+                        "none" => "none",
+                        "configured" => "configured",
+                        "redacted" => "redacted",
+                        _ => "[REDACTED]",
+                    };
+                    return format!("{key}: {marker}{ending}");
+                }
+            }
+            kiana_protocol::redact_text(part)
+        })
+        .collect()
 }
 
 /// Render one server-owned provider diagnostics snapshot for CLI, Workbench, Web and Desktop.

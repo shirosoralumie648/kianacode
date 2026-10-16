@@ -79,6 +79,22 @@ fn estimate_is_card_version_bound_and_has_dimension_lines() {
 }
 
 #[test]
+fn overlapping_usage_is_unknown_before_cost_lines_are_emitted() {
+    let mut value = usage(UsageConfidence::Known);
+    value.vector.cache_read_tokens = Some(4);
+    value.vector.reasoning_output_tokens = Some(2);
+    value.usage_digest = value.digest();
+    let breakdown = CostBreakdown::from_usage(&value, Some(&card()), 1, 2_000).unwrap();
+    assert!(matches!(
+        breakdown.kind,
+        CostBreakdownKind::Unknown {
+            reason: BillingUnknownReason::Unsupported
+        }
+    ));
+    assert!(breakdown.lines.is_empty());
+}
+
+#[test]
 fn missing_card_or_partial_usage_is_unknown_and_never_zero() {
     let known = usage(UsageConfidence::Known);
     let missing = CostBreakdown::from_usage(&known, None, 1, 2_000).expect("unknown cost");
@@ -164,8 +180,13 @@ fn measured_requires_card_and_complete_usage_but_serializes_only_receipt() {
     assert!(measured.rate_card_id.is_none());
     let encoded = serde_json::to_value(&measured).expect("encoded");
     assert!(encoded.get("provider_receipt").is_none());
-    assert_eq!(encoded["kind"]["provider_receipt"], "provider-receipt-1");
+    assert_eq!(
+        encoded["kind"]["measured"]["provider_receipt"],
+        "provider-receipt-1"
+    );
     assert!(encoded.get("rate_card_id").is_none());
+    let decoded: CostBreakdown = serde_json::from_value(encoded).expect("measured round trip");
+    assert_eq!(decoded, measured);
 }
 
 #[test]

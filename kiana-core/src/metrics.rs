@@ -104,15 +104,22 @@ fn numeric(data: &Value, names: &[&str]) -> Option<u64> {
 }
 
 fn has_error(event: &RuntimeEvent) -> bool {
-    event.data.get("error").is_some_and(|error| match error {
-        Value::Null => false,
-        Value::String(value) => !value.trim().is_empty(),
-        _ => true,
-    }) || event.kind.contains("failed")
+    let result = event.data.get("result").unwrap_or(&event.data);
+    event
+        .data
+        .get("error")
+        .or_else(|| result.get("error"))
+        .is_some_and(|error| match error {
+            Value::Null => false,
+            Value::String(value) => !value.trim().is_empty(),
+            _ => true,
+        })
+        || event.kind.contains("failed")
         || event.kind.contains("failure")
 }
 
 fn unknown_effect(event: &RuntimeEvent) -> bool {
+    let result = event.data.get("result").unwrap_or(&event.data);
     matches!(
         event.kind.as_str(),
         "run.result_unknown" | "capability.result_unknown" | "execution.result_unknown"
@@ -124,6 +131,7 @@ fn unknown_effect(event: &RuntimeEvent) -> bool {
         || event
             .data
             .get("error")
+            .or_else(|| result.get("error"))
             .and_then(Value::as_str)
             .map(CapabilityErrorCode::from_reason)
             .is_some_and(|code| {

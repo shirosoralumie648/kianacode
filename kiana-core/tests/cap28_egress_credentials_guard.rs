@@ -1,5 +1,8 @@
 //! CAP-28 source guard for controlled egress and minimum credential injection.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -20,13 +23,39 @@ fn egress_and_credentials_are_server_bound_and_deny_first() {
     let provider_config = include_str!("../../kiana-provider/src/config.rs");
     let transport = include_str!("../../kiana-provider/src/transport.rs");
     let oauth = include_str!("../../kiana-provider/src/oauth.rs");
-    let daemon = include_str!("../../kiana-daemon/src/model_client.rs");
+    let daemon = &[
+        source_guard::production_source(include_str!("../../kiana-daemon/src/model_client.rs")),
+        source_guard::production_source(include_str!("../../kiana-provider/src/lib.rs")),
+        source_guard::production_source(include_str!("../../kiana-provider/src/config.rs")),
+        source_guard::production_source(include_str!("../../kiana-provider/src/request.rs")),
+    ]
+    .concat();
+    let model_route = source_guard::item_source(
+        include_str!("../../kiana-daemon/src/model_client.rs"),
+        "pub(crate) fn from_config(",
+    );
+    assert!(model_route.contains("kiana_provider::ProviderGateway::from_env"));
+    assert!(model_route.contains("UnavailableModel::new"));
+    let locked_client = source_guard::item_source(
+        include_str!("../../kiana-provider/src/config.rs"),
+        "fn connection_with_credential_env(",
+    );
+    let client_code = source_guard::compact_code(&locked_client);
+    assert!(client_code.contains("reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).no_proxy().retry(reqwest::retry::never())"));
     let sc14 = include_str!("sc14_network_policy_guard.rs");
     let sc18 = include_str!("sc18_secret_ref_guard.rs");
     let sc19 = include_str!("sc19_secret_rotation_guard.rs");
-    let ci07 = include_str!("ci07_secret_store.rs");
+    let ci07 = &[
+        include_str!("ci07_secret_store.rs"),
+        include_str!("../../kiana-provider/tests/ci07_secret_store.rs"),
+    ]
+    .concat();
     let ci09 = include_str!("ci09_oauth_guard.rs");
-    let baseline = include_str!("../../docs/roadmap/cap28-egress-credentials-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cap28-egress-credentials-baseline.md"),
+        include_str!("../../docs/roadmap/capability.md"),
+    ]
+    .concat();
 
     require(
         network,
@@ -200,16 +229,29 @@ fn egress_and_credentials_are_server_bound_and_deny_first() {
         credentials,
         identity,
         ports,
+        broker,
+        include_str!("../../kiana-daemon/src/model_client.rs"),
+    ] {
+        assert!(
+            !source_guard::production_source(source).contains("reqwest::Client"),
+            "CAP-28 unmediated HTTP client outside provider connection"
+        );
+    }
+    for source in [
+        network,
+        credentials,
+        identity,
+        ports,
         provider_config,
         transport,
         broker,
         daemon,
     ] {
+        let source = source_guard::production_source(source);
         for forbidden in [
             "access_token: String",
             "refresh_token: Option<String>",
             "credential: Option<String>",
-            "reqwest::Client",
             "ToSocketAddrs",
         ] {
             assert!(

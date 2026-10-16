@@ -2,6 +2,7 @@
 fn int11_https_boundary_is_deny_first_and_pure_before_dispatch() {
     let domain = include_str!("../../kiana-domain/src/connector_https.rs");
     let ports = include_str!("../../kiana-ports/src/connector_https.rs");
+    let connector = include_str!("../../kiana-ports/src/connector.rs");
     let core = include_str!("../src/connectors.rs");
     let daemon = include_str!("../../kiana-daemon/src/connectors.rs");
 
@@ -40,17 +41,25 @@ fn int11_https_boundary_is_deny_first_and_pure_before_dispatch() {
             "INT-11 port marker missing: {marker}"
         );
     }
+    for marker in [
+        "validate_for_binding",
+        "validate_for(",
+        "effect_target_digest",
+        "connector_credential_audience",
+        "CONNECTOR_CREDENTIAL_PURPOSE",
+    ] {
+        assert!(
+            connector.contains(marker),
+            "INT-11 connector binding marker missing: {marker}"
+        );
+    }
     for marker in ["ControlPlane", "connector", "project_trusted"] {
         assert!(
             core.contains(marker),
             "INT-11 core route marker missing: {marker}"
         );
     }
-    for marker in [
-        "connector_transport_not_supported",
-        "local_fixture",
-        "external_effect_performed",
-    ] {
+    for marker in ["local_fixture_only", "external_effect_performed"] {
         assert!(
             daemon.contains(marker),
             "INT-11 daemon compatibility marker missing: {marker}"

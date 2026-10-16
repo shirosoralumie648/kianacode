@@ -1,7 +1,7 @@
 # UI-33 reconnect/replay/gap/crash recovery 基线
 
-> 快照日期：2026-09-25。Rust 验收由 GitHub Actions 执行；本步骤不在本地运行测试、build、
-> check、clippy 或 smoke，且不等待 CI 结果。
+> 历史快照：2026-09-25 创建时，Rust 验收计划由 GitHub Actions 执行。该历史约定不是当前限制；
+> 当前 head 的受限本地验证见下文。
 
 ## Recovery plan 与 fence
 
@@ -26,3 +26,15 @@ fresh remote run 会覆盖 repository-wide fmt dependency；该远程结果 pend
 `feature_status=implemented`; `proof_level=source`。未证明真实 browser/PTY/Electron/ACP reconnect、
 daemon kill/restart、EventLog durable projector、跨进程 command query/effect counter、provider/Broker/
 external effect 或 live/physical recovery；CI 结果保持 pending/unobserved。
+
+## Current-head local fixture validation (2026-10-06)
+
+`cargo test -p kiana-client --test ui33_recovery --locked --offline -- --test-threads=1` passed
+3/3 tests (2.75s, max RSS 447,236 KiB, no swap). The fixture guard now checks that “gap updates
+remain blocked” is an accepted recovery property and that silently continuing across a gap remains
+denied. The `RecoveryFence` behavior was not changed.
+
+This verifies the focused client contract locally. Daemon restart, durable projection rebuild,
+browser/PTY/Electron reconnect and external effects remain untested. ACP resume semantics also remain
+open because UI-33 requires explicit snapshot hydration while the UI-39 baseline currently treats
+explicit resume as sufficient.

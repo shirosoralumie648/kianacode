@@ -920,6 +920,7 @@ impl CompanyCommand {
             Self::ReviewPacket { .. } | Self::RecordReview { .. } => &["reviewer"],
             Self::DecideAcceptance { .. } => &["reviewer", "sponsor"],
             Self::PrepareDelivery { .. }
+            | Self::ConfirmDelivery { .. }
             | Self::ApproveDelivery { .. }
             | Self::Deliver { .. }
             | Self::CloseProject { .. }

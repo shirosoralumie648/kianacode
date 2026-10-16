@@ -1,13 +1,12 @@
-/// ResumeConversation screen — pick a past session to resume.
-///
-/// TypeScript reference: `reference/src/screens/ResumeConversation.tsx`
-///
-/// Shows a list of log files/sessions sorted by mtime (most recent first).
-/// The user can:
-///   - navigate with ↑/↓ or j/k
-///   - press / to search by title or session id
-///   - press Enter to resume the selected session
-///   - press Esc to cancel (returns to REPL with no action)
+//! 旧 TUI 的 session 恢复选择器，只负责过滤、选择和展示会话摘要。
+//!
+//! 进入时由 `App` 发出 `LoadResumeSessions`，entrypoints adapter 调用 SDK 列表接口；有 cwd 元数据时按
+//! 当前工作目录过滤，若整批 session 都没有 cwd 元数据则保留 SDK 返回的全部条目，再转换为 `SessionEntry`。
+//! 该 screen 不读取日志文件，也不执行恢复；Enter 只返回
+//! `ResumeSession(session_id)`，随后 App/adapter 再异步读取该 session 的详情和消息。
+//!
+//! 当前渲染顺序沿用 adapter 传入的顺序；本模块没有按 mtime 排序。搜索匹配标题、session ID 和时间文本。
+//! 这个兼容 TUI 已 park，不属于 DaemonHost 主执行路径。
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -19,28 +18,42 @@ use ratatui::{
 
 use crate::app::AppScreen;
 
-/// A selectable conversation entry (simplified from the TS LogOption type).
+/// adapter 为选择器准备的一条会话摘要，不包含完整消息或恢复 checkpoint。
 #[derive(Debug, Clone)]
 pub struct SessionEntry {
+    /// 供 SDK 后续查询会话详情的唯一会话标识，不是列表位置。
     pub session_id: String,
+    /// 外层提供的会话标题；screen 不自行从消息推导标题。
     pub title: String,
+    /// 外层提供的更新时间展示文本；此模块只用于显示和搜索。
     pub timestamp: String,
+    /// 外层统计的消息数，仅作摘要展示，不代表可恢复性校验。
     pub message_count: usize,
 }
 
+/// Resume screen 交给 App 的导航/恢复意图。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResumeEvent {
+    /// 用户取消浏览时切回指定页面。
     SwitchScreen(AppScreen),
+    /// 把所选 session ID 交给 App 和 adapter 继续加载完整会话。
     ResumeSession(String),
 }
 
+/// 会话选择页状态；列表只保存摘要，搜索结果由原列表下标映射得到。
 #[derive(Debug)]
 pub struct ResumeState {
+    /// adapter 已加载且按工作目录过滤后的会话摘要，顺序由 adapter/SDK 输入决定。
     pub sessions: Vec<SessionEntry>,
+    /// 当前过滤结果中的索引；不是 session ID。
     pub selected: usize,
+    /// Ratatui 列表绘制用的选中项与视口状态。
     pub list_state: ListState,
+    /// 外层加载器正在读取会话目录/列表时展示 loading 提示。
     pub loading: bool,
+    /// 即时过滤条件，会匹配标题、ID 和 timestamp。
     pub search_query: String,
+    /// 当前是否接收搜索输入；清空查询后仍可能退出搜索模式。
     pub search_active: bool,
 }
 
@@ -60,7 +73,11 @@ impl Default for ResumeState {
 }
 
 impl ResumeState {
-    /// Handle a key event.  Returns the next screen to switch to (if any).
+    /// 解释一次按键：先处理活动搜索框，再处理取消、筛选列表导航和确认恢复。
+    ///
+    /// 【调用者】`App::handle_key()` 仅在 ResumeConversation screen 活动时调用。
+    /// 【输出】Enter 返回被选会话的 ID，App 把它交给异步 adapter；Esc 在搜索模式下第一次清空查询，
+    /// 再按一次才离开 screen。空过滤结果没有可选 session，因此 Enter 返回 None。
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<ResumeEvent> {
         if self.search_active {
             match key.code {
@@ -88,7 +105,7 @@ impl ResumeState {
 
         match key.code {
             KeyCode::Esc => {
-                // Cancel → back to REPL without resuming
+                // 退出选择器只切回 REPL，不会清除、取消或恢复任何 session。
                 return Some(ResumeEvent::SwitchScreen(AppScreen::Repl));
             }
             KeyCode::Char('/') => {
@@ -130,11 +147,13 @@ impl ResumeState {
         None
     }
 
+    /// 用 adapter 返回的新摘要列表替换旧数据，并修复可能已经越界的选择索引。
     pub fn load_sessions(&mut self, sessions: Vec<SessionEntry>) {
         self.sessions = sessions;
         self.normalize_selection();
     }
 
+    /// 将过滤结果中的 selected 映射回原始摘要；没有匹配项时阻止产生恢复事件。
     pub fn selected_session(&self) -> Option<&SessionEntry> {
         self.filtered_indices()
             .get(self.selected)
@@ -170,6 +189,7 @@ impl ResumeState {
     }
 
     fn filtered_indices(&self) -> Vec<usize> {
+        // 只保存命中项在原列表中的位置，使列表渲染和 session ID 查找共用同一排序。
         let query = self.search_query.trim().to_ascii_lowercase();
         if query.is_empty() {
             return (0..self.sessions.len()).collect();
@@ -191,6 +211,7 @@ fn session_matches_query(entry: &SessionEntry, query: &str) -> bool {
 pub struct ResumeScreen;
 
 impl ResumeScreen {
+    /// 把加载提示、空结果、搜索结果或会话摘要绘制到当前 frame；不触碰 SDK。
     pub fn draw(frame: &mut Frame, state: &mut ResumeState) {
         let area = frame.area();
 
@@ -220,6 +241,7 @@ impl ResumeScreen {
             return;
         }
 
+        // state.selected 是过滤后的位置；filtered_sessions 也按该位置构建，保证高亮与 ID 对齐。
         let filtered_sessions = state.filtered_sessions();
         if filtered_sessions.is_empty() {
             let para = Paragraph::new(format!(

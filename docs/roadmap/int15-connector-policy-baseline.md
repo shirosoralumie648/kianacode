@@ -24,6 +24,16 @@ approval, and R4 is default deny.
   R2 grant, R3 once approval/digest and R4 default deny. No connector adapter or second execution
   loop was added.
 
+## Current-head payload digest encoding correction (2026-10-08)
+
+`connector_payload_sha256` and the ControlPlane's `final_payload_digest` are deliberately bare
+64-hex SHA-256 values, while older binding snapshots may use the historical `sha256:<hex>` form.
+`ConnectorOnceApproval::validate` now accepts both forms for `payload_digest` through the shared
+`connector_fixture_hash_valid` helper, while `approval_digest` remains strict `sha256:<hex>`.
+Malformed payload digests remain denied. The INT-15 domain target is green at 6/6, including the
+existing R3 final-payload/one-shot fixture and the bare/prefixed boundary fixture; the Core source
+guard is green at 1/1.
+
 ## CI-only evidence
 
 GitHub Actions runs the domain/policy fixtures, Core source guard, formatting and workspace test
@@ -42,3 +52,7 @@ reservation/CAS, effect-time authority/data fencing, provider receipts, external
 live/physical connector outcomes remain later INT/CP/ER/PD work. Operation-name classification is
 conservative for the existing binding projection; richer INT-03 operation contracts can provide
 their server-owned declared risk without widening the caller surface.
+
+The digest compatibility correction is still a local validation boundary: it does not prove durable
+approval consumption, external delivery, provider receipt reconciliation or live/physical connector
+behavior.

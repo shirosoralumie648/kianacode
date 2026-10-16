@@ -70,6 +70,19 @@ fn isolated_home() -> PathBuf {
     home
 }
 
+fn trusted_read_fixture(label: &str) -> (PathBuf, PathBuf) {
+    let cwd = unique_dir(label);
+    fs::create_dir_all(cwd.join(".git")).unwrap();
+    let home = isolated_home();
+    let trust = kiana_in(&cwd, &home, &["trust", "."]);
+    assert!(
+        trust.status.success(),
+        "isolated fixture trust failed: {}",
+        combined(&trust)
+    );
+    (cwd, home)
+}
+
 fn kiana_in(cwd: &Path, home: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_kiana"))
         .current_dir(cwd)
@@ -121,8 +134,7 @@ fn run_routes_through_kiana_harness_and_reports_brokered_result() {
     let script = harness_script(
         r#"[{"text":"running ls","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"ls"}}]},{"text":"architecture mapped"}]"#,
     );
-    let cwd = unique_dir("cwd");
-    let home = isolated_home();
+    let (cwd, home) = trusted_read_fixture("cwd");
     let output = kiana_with_script(
         &cwd,
         &home,
@@ -151,8 +163,7 @@ fn run_streams_each_delta_by_default_before_terminal_receipt() {
     let script = harness_script(
         r#"[{"text":"first chunk","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"sleep 1"}}]},{"text":" second chunk"}]"#,
     );
-    let cwd = unique_dir("stream-cwd");
-    let home = isolated_home();
+    let (cwd, home) = trusted_read_fixture("stream-cwd");
     // 不传 --stream：覆盖 §8 决定的默认流式路径。
     let mut child = kiana_command_with_script(&cwd, &home, &script, &["run", "stream it"])
         .stdout(Stdio::piped())
@@ -211,9 +222,10 @@ fn run_streams_each_delta_by_default_before_terminal_receipt() {
 #[test]
 fn run_json_keeps_machine_output_clean_with_stream_flag() {
     let script = harness_script(r#"[{"text":"machine output"}]"#);
+    let (cwd, home) = trusted_read_fixture("stream-json-cwd");
     let output = kiana_with_script(
-        &unique_dir("stream-json-cwd"),
-        &isolated_home(),
+        &cwd,
+        &home,
         &script,
         &["run", "--json", "--stream", "hello"],
     );
@@ -229,12 +241,8 @@ fn run_without_stream_keeps_final_only_human_output() {
     let script = harness_script(
         r#"[{"text":"interim","tool_calls":[{"id":"c1","name":"shell","arguments":{"command":"true"}}]},{"text":"final text"}]"#,
     );
-    let output = kiana_with_script(
-        &unique_dir("no-stream-cwd"),
-        &isolated_home(),
-        &script,
-        &["run", "--no-stream", "hello"],
-    );
+    let (cwd, home) = trusted_read_fixture("no-stream-cwd");
+    let output = kiana_with_script(&cwd, &home, &script, &["run", "--no-stream", "hello"]);
 
     assert!(output.status.success(), "{}", combined(&output));
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -245,11 +253,8 @@ fn run_without_stream_keeps_final_only_human_output() {
 
 #[test]
 fn run_without_model_fails_closed() {
-    let output = kiana_in(
-        &unique_dir("cwd"),
-        &isolated_home(),
-        &["run", "--json", "hello"],
-    );
+    let (cwd, home) = trusted_read_fixture("cwd");
+    let output = kiana_in(&cwd, &home, &["run", "--json", "hello"]);
     assert!(!output.status.success());
     let combined = combined(&output);
     assert!(
@@ -454,20 +459,36 @@ fn untrusted_workspace_write_does_not_create_file() {
         ],
     );
     assert!(!output.status.success(), "{}", combined(&output));
-    assert!(
-        combined(&output).contains("workspace_write_requires_trusted_non_safe_profile"),
-        "{}",
-        combined(&output)
+    let response: kiana_protocol::ResponseEnvelope =
+        serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response.status, kiana_protocol::ExecutionStatus::Blocked);
+    assert_eq!(response.error.as_deref(), Some("project_untrusted"));
+    assert_eq!(
+        response.failure_code(),
+        Some(kiana_protocol::CapabilityErrorCode::ProjectUntrusted)
     );
+    assert!(response.output.is_null());
+    let path = home.join("sessions/events.jsonl");
+    if path.exists() {
+        let facts = fs::read_to_string(path).unwrap();
+        for line in facts.lines().filter(|line| !line.trim().is_empty()) {
+            let event: Value = serde_json::from_str(line).unwrap();
+            assert!(!matches!(
+                event["kind"].as_str(),
+                Some("run.started" | "run.prompt" | "execution.prepared")
+            ));
+        }
+    }
     assert!(!fixture.join("GOLDEN_PATH.txt").exists());
 }
 
 #[test]
 fn run_json_prints_session_and_run_ids() {
     let script = harness_script(r#"[{"text":"architecture mapped"}]"#);
+    let (cwd, home) = trusted_read_fixture("cwd");
     let output = kiana_with_script(
-        &unique_dir("cwd"),
-        &isolated_home(),
+        &cwd,
+        &home,
         &script,
         &["run", "--json", "map the architecture"],
     );
@@ -480,9 +501,10 @@ fn run_json_prints_session_and_run_ids() {
 
 #[test]
 fn continue_unknown_session_fails_closed() {
+    let (cwd, home) = trusted_read_fixture("cwd");
     let output = kiana_in(
-        &unique_dir("cwd"),
-        &isolated_home(),
+        &cwd,
+        &home,
         &[
             "run",
             "--json",
@@ -684,9 +706,10 @@ fn packet_parent_path_fails_closed() {
 
 #[test]
 fn cancel_unknown_session_fails_closed() {
+    let (cwd, home) = trusted_read_fixture("cwd");
     let output = kiana_in(
-        &unique_dir("cwd"),
-        &isolated_home(),
+        &cwd,
+        &home,
         &[
             "run",
             "--json",

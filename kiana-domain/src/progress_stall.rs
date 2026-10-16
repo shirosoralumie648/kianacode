@@ -242,7 +242,7 @@ impl ProgressTracker {
         let progressed = previous
             .map(|previous| input.evidence.progressed_from(previous))
             .transpose()?
-            .unwrap_or(true);
+            .unwrap_or(!input.empty_turn);
         let cycle_detected = self.history.len() >= 2
             && self.history[self.history.len() - 2].evidence_digest
                 == input.evidence.evidence_digest

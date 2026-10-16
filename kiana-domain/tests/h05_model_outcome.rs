@@ -99,7 +99,10 @@ fn recovery_dispositions_are_typed_and_survive_error_round_trips() {
         ModelRecoveryDisposition::Terminal,
     ] {
         let error = if disposition == ModelRecoveryDisposition::TransportRetry {
-            ModelError::transport("provider_http_429", ModelRetryClass::Rejected, true)
+            let mut error =
+                ModelError::transport("provider_http_429", ModelRetryClass::Rejected, true);
+            error.side_effect_state = ModelSideEffectState::None;
+            error
         } else {
             ModelError::invalid("classified_failure")
         }
@@ -115,6 +118,32 @@ fn recovery_dispositions_are_typed_and_survive_error_round_trips() {
         let decoded: kiana_domain::ModelOutcome = serde_json::from_value(encoded).unwrap();
         assert_eq!(decoded.recovery_disposition, disposition);
     }
+}
+
+#[test]
+fn model_outcome_rejects_transport_retry_with_unknown_post_send_effect() {
+    let outcome = ModelError::transport(
+        "provider_response_lost_after_send",
+        ModelRetryClass::Rejected,
+        true,
+    )
+    .outcome();
+
+    assert_eq!(
+        outcome.recovery_disposition,
+        ModelRecoveryDisposition::TransportRetry
+    );
+    assert!(outcome.request_sent);
+    assert_eq!(outcome.side_effect_state, ModelSideEffectState::Unknown);
+    assert_eq!(outcome.phase, "transport");
+    assert_eq!(outcome.retry_class, ModelRetryClass::Rejected);
+    assert_eq!(
+        outcome
+            .validate()
+            .expect_err("unknown post-send retry must fail closed")
+            .code,
+        "model_outcome_invalid"
+    );
 }
 
 #[test]
@@ -147,6 +176,37 @@ fn model_turn_event_contract_accepts_typed_recovery_outcome() {
     });
     assert_eq!(payload["outcome"]["recovery_disposition"], "format_repair");
     kiana_domain::validate_event_payload("run.model_turn", &payload).unwrap();
+}
+
+#[test]
+fn model_turn_event_contract_rejects_invalid_nested_outcome() {
+    let cases = [
+        ("phase", serde_json::json!("")),
+        ("side_effect_state", serde_json::json!("unknown")),
+        ("recovery_disposition", serde_json::json!("transport_retry")),
+    ];
+    for (field, value) in cases {
+        let mut outcome =
+            serde_json::to_value(ModelError::invalid("malformed").outcome()).expect("outcome");
+        match field {
+            "phase" => outcome["phase"] = value,
+            "side_effect_state" => outcome["side_effect_state"] = value,
+            "recovery_disposition" => {
+                outcome["recovery_disposition"] = value;
+                outcome["phase"] = serde_json::json!("validation");
+            }
+            _ => unreachable!(),
+        }
+        let payload = serde_json::json!({
+            "run_id": RunId::new(),
+            "outcome": outcome,
+        });
+        assert_eq!(
+            kiana_domain::validate_event_payload("run.model_turn", &payload)
+                .expect_err("malformed nested model outcome must fail closed"),
+            "event_model_outcome_invalid"
+        );
+    }
 }
 
 #[test]

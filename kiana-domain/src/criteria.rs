@@ -239,10 +239,14 @@ impl CriterionCoverageGraph {
                     && !self.pending_required.contains(id)
                     && !self.links.iter().any(|link| {
                         link.parent_id == *id
-                            && matches!(
-                                link.relation,
-                                CriterionRelation::Covers | CriterionRelation::Refines
-                            )
+                            && match link.relation {
+                                CriterionRelation::Covers | CriterionRelation::Refines => true,
+                                CriterionRelation::Verifies => {
+                                    matches!(entry.target, AcceptanceTarget::Packet(_))
+                                        && link.validate().is_ok()
+                                        && self.entries.contains_key(&link.child_id)
+                                }
+                            }
                     })
                 {
                     Some(*id)

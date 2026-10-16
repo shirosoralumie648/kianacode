@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, production_source};
+
 #[test]
 fn cp09_approval_material_keeps_preview_non_executable_and_rechecks_authority() {
     let journal = include_str!("../../kiana-daemon/src/journal_approvals.rs");
@@ -15,7 +19,8 @@ fn cp09_approval_material_keeps_preview_non_executable_and_rechecks_authority() 
         "subject.material.validate",
     ] {
         assert!(
-            journal.contains(marker) || material.contains(marker),
+            compact_code(journal).contains(&marker.split_whitespace().collect::<String>())
+                || compact_code(material).contains(&marker.split_whitespace().collect::<String>()),
             "CP-09 marker missing: {marker}"
         );
     }
@@ -24,7 +29,7 @@ fn cp09_approval_material_keeps_preview_non_executable_and_rechecks_authority() 
     assert!(approvals.contains("pending_invocations"));
     for forbidden in ["raw secret value", "direct Broker", "authorize_and_execute"] {
         assert!(
-            !material.contains(forbidden),
+            !production_source(material).contains(forbidden),
             "approval material must not contain {forbidden}"
         );
     }

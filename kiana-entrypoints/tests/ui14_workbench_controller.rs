@@ -154,6 +154,9 @@ fn open_action_respects_wire_target_and_idempotency_bounds() {
     let wire = open.clone().into_protocol(json_digest(&open.payload));
     wire.validate().unwrap();
     assert!(wire.idempotency_key.len() <= 256);
+    controller
+        .record_action_result(open.command_id, UiActionDisposition::Applied)
+        .unwrap();
     assert_eq!(
         controller.dispatch(WorkbenchIntent::Open {
             workspace: "w".repeat(257),

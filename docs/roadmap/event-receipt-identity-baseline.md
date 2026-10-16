@@ -1,15 +1,15 @@
 # ER-02 identity, correlation, causation, and ordering baseline
 
-> 快照日期：2026-09-16。本文记录 ER-02 的稳定 ID 关联和 legacy 兼容边界；本地不运行测试，运行时夹具仅在 GitHub Actions 执行。
+> 快照日期：2026-10-05。本文记录 ER-02 的稳定 ID 关联和 legacy 兼容边界；当前 head 增加受资源约束的本地 focused receipt，仍不宣称 durable/live/physical。
 
 ## 1. 目标与证明上限
 
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`ER-02`](event-receipt-recovery.md#step-er-02) |
-| source snapshot | `863b30f`（ER-01 event registry 后的干净基线） |
-| feature_status | `partial`（identity-link, EventStore, and ID-aware projection source slices exist; full entrypoint parity and a clean complete ER-02 CI receipt remain unproven） |
-| proof_level | `source`；静态编译不提升为 local_behavior/durable/live/physical |
+| source snapshot | current dirty worktree after ER-01 local closure and ER-02 fixture corrections |
+| feature_status | `partial`（identity-link/EventStore/projection plus direct and Core approval focused behavior are verified; DaemonHost/Harness parity and complete CI receipt remain unproven） |
+| proof_level | `local_behavior` for the focused selectors; no durable/live/physical claim |
 | canonical path | command/request → RuntimeEvent correlation/causation/parent links → aggregate stream version → Invocation/Run/Receipt projection |
 | this step does | 区分 command/request/session/run/turn/invocation/execution/attempt/event ID owner，新增可选 links，默认 correlation=request_id，拒绝 self-link，投影按 run/request ID 配对而非 sequence |
 | this step does not | 不把 correlation 当授权，不用 request-local sequence 代替 aggregate version，不改写 legacy JSONL，不宣称全量 legacy upcast 或跨进程 durable recovery |
@@ -46,7 +46,7 @@ hash 是源码漂移锚点；旧事件的缺失字段保持兼容，不因索引
 
 现有 `kiana-domain::CorrelationContext` 负责 trace/span、scope、command/request、Run/Turn/Invocation/Execution、Attempt、causation 和 source cursor 的值校验。Trace/foreign parent 只是关联输入；principal、ProjectTrust、policy、grant、approval、budget 和 permit 仍由 ControlPlane/Domain authority 产生。`CausationRef::Attempt` 必须与同一 run/turn/invocation/execution/command scope 匹配，不能按字符串或 sequence 猜测。
 
-EventLog 的 aggregate stream version 是顺序权威；request-local `sequence` 只用于一个请求中的展示/兼容排序。跨请求、跨 run 的结果必须携带 `run_id`/`capability_request_id`/invocation or execution IDs，projection 先校验 run binding，再折叠 terminal/result。
+EventLog 的 aggregate stream version 是顺序权威；带 aggregate metadata 的新 append 必须同时提供非空 `aggregate_type`、非空 `aggregate_id` 和正数 `stream_version`。三者全缺的 legacy event 保持兼容；部分 tuple 或 version 0 在 EventLog 写入边界拒绝。request-local `sequence` 只用于一个请求中的展示/兼容排序。跨请求、跨 run 的结果必须携带 `run_id`/`capability_request_id`/invocation or execution IDs，projection 先校验 run binding，再折叠 terminal/result。
 
 ## 4. Projection and legacy rules
 
@@ -77,7 +77,11 @@ EventLog 的 aggregate stream version 是顺序权威；request-local `sequence`
 | `idempotent_replay_rejects_correlation_id_drift` | 相同幂等键 replay 拒绝 correlation ID 单独漂移 |
 | `idempotent_replay_rejects_causation_event_id_drift` | 相同幂等键 replay 拒绝 causation event ID 单独漂移 |
 | `idempotent_replay_rejects_parent_event_id_drift` | 相同幂等键 replay 拒绝 parent event ID 单独漂移 |
+| `idempotent_replay_rejects_redaction_or_artifact_metadata_drift` | 相同幂等键 replay 拒绝脱敏 profile、payload 可恢复性、data epoch 或 artifact 引用漂移 |
 | `cross_run_result_cannot_pair_by_sequence` | 同 sequence/同 capability ID 的 foreign run result 不配对 |
+| `zero_stream_version_is_denied_before_append` | aggregate stream version 0 在写入前以稳定错误拒绝 |
+| `partial_stream_metadata_is_denied_before_append` | 缺失或空白 aggregate type/id 的不完整 tuple 在写入前拒绝 |
+| `positive_stream_metadata_is_accepted` | 合法非空 aggregate tuple 与正数 stream version 仍可写入 |
 | `event_identity_links_and_projection_use_stable_ids_not_request_sequence` | domain/core source guard |
 | `direct_capability_events_keep_request_identity_without_run_scope` | direct 成功事件保持 request/correlation/capability request ID，不合成 Run/Turn |
 | `wire_approval_proof_retry_resumes_original_run` | 真实 DaemonHost/JournalApprovalStore Harness approval-resume 保留 Run root、Turn、capability request 与 invocation IDs，并核对完整 invocation projection/event IDs |
@@ -94,6 +98,11 @@ EventLog 的 aggregate stream version 是顺序权威；request-local `sequence`
 source guard 锁定 storage validator 与幂等 replay 的 identity-link 比较。拒绝路径仍只在
 GitHub Actions 验证。
 
+当前 head 进一步将 `redaction_profile`、`payload_recoverable`、`data_epoch` 与
+`artifact_refs` 纳入幂等 replay 的 payload equality。相同业务 payload 携带不同治理或工件
+边界时返回 `event_idempotency_key_payload_mismatch`，并保持 EventLog 只有一条事实；fresh
+`event_id` 仍允许合法幂等重试，不作为 replay equality 字段。
+
 ## 6. 限制与交接
 
 - RuntimeEvent identity links 是 optional additive fields；现有大量 legacy events 尚未强制携带 schema/version/command/causation/parent，完整 upcaster 和 writer gate 属于后续 ER/CP-28。
@@ -101,6 +110,21 @@ GitHub Actions 验证。
 - EventStore CAS/duplicate guard 在内存/JSONL 适配器有 source/局部行为证据，但不证明掉电、网络文件系统、跨主机或外部 effect exactly-once。
 - Projection 过滤能阻止跨 run 错配，但完整 InvocationLedger、attempt retry/reconcile、result delivery、retention/delete 和 Receipt correctness 仍需 ER-03+、CP-07+、PD/SC。
 - 本地只做格式、workspace test-target 静态编译和 diff 检查；不提升 local_behavior/durable/live/physical。
+
+## 6.1 Current-head focused local receipt (2026-10-05)
+
+```text
+source_snapshot: current dirty worktree after ER-01 local closure and ER-02 fixture corrections
+worktree_status: ER-02 remains roadmap row 037 🔄; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 /usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/er02-core-regression.resources bash -lc 'cargo test -p kiana-core --test control_plane capability_policy_and_broker_failures_preserve_event_order --locked --offline -- --test-threads=1; cargo test -p kiana-core --test control_plane direct_capability_events_keep_request_identity_without_run_scope --locked --offline -- --test-threads=1; cargo test -p kiana-core --test control_plane approval_resumes_the_stored_request_once_with_monotonic_events --locked --offline -- --test-threads=1; cargo test -p kiana-core --test er02_identity --locked --offline -- --test-threads=1; cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1; cargo test -p kiana-eventlog --test er02_identity --locked --offline -- --test-threads=1'`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile; 4.29s user, 0.86s system, 553284 KiB peak RSS, 0 swaps
+fixture·cassette: Core direct identity 1/1; Core approval resume/replay 1/1; broker failure preserves `ResultUnknown`/`capability.result_unknown` 1/1; Core ER-02 identity 3/3; Core guard 1/1; EventLog ER-02 identity 9/9
+exit_code: 0
+status_change: focused direct/approval/EventLog identity behavior recorded; roadmap card remains 🔄 because cross-surface parity is incomplete
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: real DaemonHost/Harness approval proof roundtrip, complete green CI shard, full legacy upcast/projector terminal reconciliation, durable InvocationLedger/cross-process ordering, and external effect receipts remain open; full workspace test remains non-green/resource-intensive
+reviewer: integration agent; focused local identity/approval reviewer
+```
 
 ## 7. Latest readable CI receipt (2026-10-02)
 
@@ -229,4 +253,110 @@ status_change: ER-02 roadmap row 037 remains `🔄`; feature_status=partial; pro
 proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: direct/Harness/approval-resume identity-chain parity, complete green ER-02 shard, full legacy upcast, durable InvocationLedger, cross-process ordering, terminal reconciliation and external effect receipts remain open
 reviewer: source review of projection alias handling, identity-link validation order, domain/EventLog append guards and deny-first fixtures; no local runtime reviewer
+```
+
+## 16. Current-head DaemonHost approval-resume parity receipt (2026-10-05)
+
+The real `DaemonHost` approval path now has a bounded local receipt for both cancellation
+and proof-retry continuation. The proof validator reports request-hash and nonce mismatches
+independently. The continuation fixture uses the existing `memory.write` cassette in
+`instance-scratch`: the original `apply_patch` cassette correctly reaches `ResultUnknown` under
+the read-only sandbox, so using it would test the deny path rather than an approval-resume
+success. The fixture selects approval facts from the Run aggregate (the journal stream has a
+separate command identity), verifies the redacted `ExecutionScope` boundary, and projects the
+complete invocation event stream including `result.delivery_claimed`.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/approvals.rs; kiana-core/src/invocation_projection.rs; kiana-daemon/tests/daemon_host.rs; ER-02 identity fixtures
+worktree_status: ER-02 remains roadmap row 037 🔄; no automatic commit/push/merge/rebase; unrelated WIP preserved
+command_argv: bounded serial selectors: `cargo test -p kiana-core --test control_plane capability_policy_and_broker_failures_preserve_event_order`; `direct_capability_events_keep_request_identity_without_run_scope`; `approval_resumes_the_stored_request_once_with_monotonic_events`; `cargo test -p kiana-core --test er02_identity`; `cargo test -p kiana-core --test er02_identity_guard`; `cargo test -p kiana-eventlog --test er02_identity`; `cargo test -p kiana-daemon --test daemon_host approval`, all `--locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; serial daemon/control-plane execution; per-target max RSS 554540/85632/85740/330096/132596/83472/712920 KiB; all observed swap counters 0
+fixture·cassette: Core broker/direct/approval 1/1 each; Core ER-02 identity 3/3; Core guard 1/1; EventLog ER-02 identity 9/9; DaemonHost approval filter 2/2 (`cancel_after_awaiting_approval_rejects_later_approve`, `wire_approval_proof_retry_resumes_original_run`); invalid request hash denied before dispatch; valid proof resumes the original Run/Turn/request/invocation identity; cancellation returns structured `approval_cancelled`; persisted scope fencing token is `[REDACTED]` and is not reconstructed
+exit_code: all seven commands 0
+status_change: DaemonHost/Harness identity and approval-resume parity is recorded as focused `local_behavior`; ER-02 whole card remains `feature_status=partial`, roadmap row 037 🔄
+proof-level_change: focused Core/EventLog/DaemonHost selectors `source` → `local_behavior`; no durable/live/physical promotion
+limitations: no complete green CI shard, full workspace test remains non-green/resource-intensive, legacy upcast and terminal reconciliation remain bounded, durable InvocationLedger/cross-process ordering/restart recovery and external effect receipts remain open
+reviewer: integration agent; focused Core/EventLog/DaemonHost identity and approval reviewer
+```
+
+## 17. Aggregate stream metadata validation receipt (2026-10-07)
+
+The shared EventLog append validator now rejects partial aggregate metadata and zero stream
+versions before registry validation, CAS/conflict checks, idempotent replay, or storage mutation.
+Legacy events with all three fields absent remain accepted. The RED resource sample was captured
+by the audit agent but its stdout log was not retained; the current-head GREEN logs and resource
+reports below are reproducible in the repository.
+
+```text
+source_snapshot: current dirty worktree; kiana-eventlog/src/event_store_core.rs and tests/er02_identity.rs
+worktree_status: ER-02 remains roadmap row 037 🔄 / feature_status=partial; selected aggregate-metadata rejection is local_behavior; no manifest/lockfile or execution path change
+command_argv: RED and GREEN `cargo test -p kiana-eventlog --test er02_identity --locked --offline -- --test-threads=1`; GREEN re-run `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`; `git diff --check`; `cargo fmt --all --check`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, 32 MiB stack, stripped/non-incremental test profile; RED agent-reported max RSS 471884 KiB; current EventLog/Core re-run max RSS 83560/85568 KiB; all measured runs 0 swaps
+fixture·cassette: RED agent reported the zero/partial metadata denial fixtures failed before fix; the RED total is not asserted because its stdout was not retained. Current GREEN EventLog 12/12 includes version zero, missing type/id, blank type/id, valid positive version and legacy no-metadata cases; Core guard 1/1; current GREEN logs/resources `/tmp/kiana-roadmap-20261007-er02-final/{eventlog,core}.{log,resources}`; only RED resource file remains at `/tmp/kiana-roadmap-20261006-er02-stream-red.resources`
+exit_code: RED agent-reported 101; current EventLog/Core GREEN re-runs 0; format/diff 0
+status_change: selected EventLog aggregate-order validation is local_behavior; ER-02 whole card remains partial/source
+proof-level_change: selected EventLog append boundary source → local_behavior; no durable/live/physical promotion
+limitations: no complete ER-02 shard, full workspace green, durable InvocationLedger, cross-process recovery, terminal reconciliation or external effect receipt is established
+reviewer: root integration agent; read-only ER-02 audit; local EventLog/Core fixture review
+```
+
+## 18. Direct append top-level identity denial (2026-10-08)
+
+Memory and JSONL legacy append planning now rejects nil `RuntimeEvent.event_id` and
+`request_id` before idempotency/CAS/index mutation, aligning direct append with the existing
+TransitionBatch and JournalFrame identity boundaries.
+
+```text
+source_snapshot: current dirty worktree; kiana-eventlog/src/journal_core.rs; kiana-eventlog/tests/er02_identity.rs; kiana-core/tests/er02_identity_guard.rs
+worktree_status: ER-02 row 037 remains 🔄 / feature_status=partial / proof_level=source; selected direct-append identity denial now local_behavior; no manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-eventlog --test er02_identity nil_top_level_event_identity_is_denied_before_append --locked --offline -- --exact --test-threads=1`; GREEN EventLog `cargo test -p kiana-eventlog --test er02_identity --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; compile-only RED correction max RSS 4065232 KiB / 87% CPU; behavior RED max RSS 277280 KiB / 44% CPU; EventLog GREEN max RSS 428204 KiB / 96% CPU; Core guard final rerun max RSS 131820 KiB / 68% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-er02-{red,red2,eventlog,core}.{log,resources}`
+fixture·cassette: RED accepted nil event_id/request_id and failed expected `event_identity_invalid`; GREEN EventLog 13/13 and Core guard 1/1; rejected events leave `read_all()` empty
+exit_code: initial RED compile 101 (fixture type correction); behavior RED 101 expected; GREEN EventLog/Core 0
+status_change: selected direct append identity denial moves source → local_behavior; whole ER-02 remains feature_status=partial, proof_level=source
+proof-level_change: direct append top-level identity source → local_behavior; no durable/live/physical promotion
+limitations: complete ER-02 shard, legacy upcast, durable InvocationLedger, cross-process ordering/recovery, terminal reconciliation and external effect receipts remain open
+reviewer: root integration agent with ER-02 read-only EventLog audit; focused identity reviewer
+```
+
+## 19. Entrypoint-to-DaemonHost identity chain receipt (2026-10-13)
+
+`harness_run::run_envelope_on_host` now has a real local fixture that starts from the public
+entrypoint wrapper, builds the paired `KianaClient`/`RequestMetadata`, sends through
+`LocalDaemonTransport`, and reads the resulting facts from the same `DaemonHost`. The fixture
+checks one request and correlation identity across `run.authorized`, `run.prompt`, `run.completed`,
+and `run.receipt`, along with the returned `run_id`. It does not use a synthetic projection or a
+second execution path.
+
+```text
+source_snapshot: current dirty worktree; kiana-entrypoints/src/harness_run.rs; kiana-entrypoints/src/lib.rs; kiana-daemon/src/lib.rs; docs/roadmap/event-receipt-identity-baseline.md
+worktree_status: ER-02 row 037 remains 🔄 / feature_status=partial; the supplied-Host Harness wrapper identity chain is local_behavior; no manifest/lockfile or execution path change
+command_argv: `cargo test -p kiana-entrypoints --lib harness_run::tests::run_envelope_on_host_preserves_event_identity_chain --locked --offline -- --exact --test-threads=1`; `cargo test -p kiana-entrypoints --lib --locked --offline --no-fail-fast -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental locked/offline test profile; serial launcher rejects overlapping Cargo/rustc/rust-lld
+fixture·cassette: trusted temporary project, isolated KIANA_HOME and one scripted text response; identity selector 1/1; full entrypoint library 459/459; each selected run/correlation event and response share the returned request_id and run_id
+exit_code: identity 0; entrypoint library 0; fmt/diff 0; identity max RSS 4060016 KiB / 89% CPU / 0 swap; library max RSS 4071508 KiB / 85% CPU / 0 swap
+status_change: supplied-Host entrypoint identity boundary moves source → local_behavior; ER-02 remains partial and row 037 stays 🔄
+proof-level_change: wrapper-to-local-DaemonHost behavior is locally verified; no durable/live/physical promotion
+limitations: this fixture uses the in-memory Host EventStore and does not cover pending approval restart, run_owned_harness fresh-Host identity, durable InvocationLedger, cross-process ordering/recovery, complete green ER-02 shard or external effect receipts
+reviewer: root integration agent with read-only ER-02 entrypoint audit; focused Harness identity reviewer
+```
+
+## 20. Legacy invocation append-order fence (2026-10-13)
+
+Invocation projection no longer treats legacy events with absent aggregate metadata as one
+comparable stream. Sorting by `stream_version` is now limited to inputs whose aggregate type, ID,
+and stream version are all present and consistent; legacy or mixed inputs retain EventLog append
+order, so request-local `sequence` cannot reorder facts across requests.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/invocation_projection.rs; kiana-core/tests/er02_identity.rs
+worktree_status: ER-02 row 037 remains 🔄 / feature_status=partial; selected legacy append-order behavior is local_behavior; no durable ledger, manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-core --test er02_identity legacy_invocation_events_preserve_append_order_without_stream_metadata --locked --offline -- --exact --test-threads=1`; GREEN same selector; full `er02_identity`; `er02_identity_guard`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo/compiler job and one Rust test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental locked/offline profile; RED max RSS 4100792 KiB / 92% CPU, GREEN 331344 KiB / 105% CPU, full identity 84696 KiB / 28% CPU, guard 135744 KiB / 55% CPU, all observed swap counters 0; receipts under `/tmp/kiana-roadmap-20261010-evidence/er02-legacy-order-{red2,green2}.*` and `er02-{identity-4,guard}.*`
+fixture·cassette: five legacy `RuntimeEvent::new` facts for one run and request, including a legal requested→decision→prepared→executing→completed path; append order intentionally conflicts with request-local sequence; RED returned `invocation_request_missing`, GREEN projects `Succeeded`; full identity 4/4 and guard 1/1
+exit_code: RED 101 expected; exact GREEN/full/guard 0; `cargo fmt --all --check`, `git diff --check` and workflow validator 0
+status_change: legacy invocation append-order protection moves source → local_behavior; whole ER-02 remains feature_status=partial, proof_level=source
+proof-level_change: in-memory legacy projector ordering source → local_behavior; no durable/live/physical promotion
+limitations: durable InvocationLedger, cross-process ordering/recovery, terminal reconciliation, complete CI shard, legacy upcast coverage and external effect receipts remain open
+reviewer: root integration agent with ER-02 read-only projection audit; focused legacy ordering reviewer
 ```

@@ -319,6 +319,16 @@ impl ControlPlane {
         Box::pin(self.handle_command_inner(context, intent))
     }
 
+    /// `handle_command` 返回的 boxed future 的实际路由主体。
+    ///
+    /// 【为什么拆成两层】命令矩阵很大，直接让公开函数返回完整的 async future 会让编译器
+    /// 生成的状态机过大，甚至在真正执行第一个授权分支前耗尽测试/宿主线程栈；外层只负责
+    /// boxing，内层保留顺序明确的路由逻辑。
+    ///
+    /// 【阅读方式】从上到下看分支顺序：特权/运维前置检查先挡住不合适的身份，纯判定命令
+    /// 直接返回结论，需要副作用的命令调用专用 handler 或 `authorize_and_execute`，最后的
+    /// architecture/unknown fallback 记录拒绝事件。新增分支必须保持这种“路由归属”和“授权
+    /// 执行”分离，否则命令可能在没有统一策略/审批的情况下产生副作用。
     async fn handle_command_inner(
         &self,
         context: RequestContext,
@@ -737,6 +747,9 @@ impl ControlPlane {
             // 判定不可被记录是一个**业务结论**，不是协议错误，所以同样走 blocked，并把模块的
             // 稳定 reason code 原样带出去——调用方要靠它区分「跳过了步骤」和「证据被重放」。
             return match incident.evaluate(&state, &action) {
+                Ok(report) if report.status == SecurityIncidentReportStatus::Rejected => {
+                    Ok(CoreResponse::blocked(context.request_id, report.reason))
+                }
                 Ok(report) => Ok(CoreResponse::completed(
                     context.request_id,
                     json!({
@@ -869,6 +882,10 @@ impl ControlPlane {
                 .handle_extension_management(&intent.name, context, intent.arguments)
                 .await;
         }
+        // 上下文查询必须在这里汇入 Core 的专用规范化入口，而不是由 entrypoint 或 Daemon
+        // 直接读取路径。`handle_context_query` 会把用户 operation/options 转成稳定的 Query
+        // capability，再经过 policy/gates/approval/Broker，最后才由 daemon adapter 访问文件。
+        // 因此这个分支只负责命令归属；它不应添加第二套路径校验、授权判断或模型循环。
         if intent.name == CONTEXT_QUERY_COMMAND {
             return self.handle_context_query(context, intent.arguments).await;
         }
@@ -948,6 +965,9 @@ impl ControlPlane {
             }
             return Ok(response);
         }
+        // 到达这里说明前面的专用命令分支都没有接管该名称。仍先记录接收事实，再拒绝未信任
+        // 项目或未注册命令；这样“未知命令被拒绝”与“入口根本没到 ControlPlane”在 EventStore
+        // 中可以区分，也避免把未注册命令静默当成成功。
         let request_id = context.request_id;
         self.append_event(
             request_id,

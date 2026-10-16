@@ -13,6 +13,7 @@ fn dep04_ops_protocol_has_no_execution_authority() {
         "authority_epoch",
         "ops_scope_mismatch",
         "ops_idempotency_conflict",
+        "ops_result_unknown_operation_invalid",
     ] {
         assert!(protocol.contains(marker), "DEP-04 marker missing: {marker}");
     }

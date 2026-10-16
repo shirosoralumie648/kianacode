@@ -322,7 +322,7 @@ impl ConnectorOnceApproval {
             || !nonempty(&self.approval_id)
             || !nonempty(&self.binding_id)
             || !nonempty(&self.operation)
-            || !valid_digest(&self.payload_digest)
+            || !crate::connector_fixture_hash_valid(&self.payload_digest)
             || self.authority_epoch == 0
             || self.policy_epoch == 0
             || self.expires_at_unix_ms == 0

@@ -1,9 +1,14 @@
+//! CAP-02 有界 JSON、schema 和 canonical action input 的 Domain 合同测试。
+//!
+//! 这些 fixture 在领域层直接传入 JSON bytes/Value，锁定 parser、归一化与摘要规则；它们不
+//! 调用真实 provider、ControlPlane 或 Broker。跨层 `include_str!` 检查另见 Core source guard。
 use kiana_domain::{
     canonical_action_input_digest, normalize_capability_action, parse_bounded_json, CapabilityKind,
     CapabilityRequest, PreparedAction, RequestId, RiskLevel, TOOL_JSON_MAX_DEPTH,
 };
 use serde_json::{Map, Value};
 
+// 统一构造最小 shell action；请求 ID 每次不同，用来确认 canonical input digest 不依赖顶层 ID。
 fn shell(arguments: Value) -> CapabilityRequest {
     CapabilityRequest::new(
         RequestId::new(),
@@ -14,6 +19,7 @@ fn shell(arguments: Value) -> CapabilityRequest {
     .with_risk(RiskLevel::ReadOnly)
 }
 
+/// 键顺序和 null 删除后语义相同的输入应得到相同 canonical digest。
 #[test]
 fn equivalent_json_inputs_have_the_same_digest() {
     let first = shell(
@@ -35,6 +41,7 @@ fn equivalent_json_inputs_have_the_same_digest() {
     );
 }
 
+/// 改变实际执行命令后摘要必须变化，避免把不同副作用当成同一输入。
 #[test]
 fn execution_affecting_input_changes_change_digest() {
     let mut first = shell(serde_json::json!({"command":"printf one"}));
@@ -47,6 +54,7 @@ fn execution_affecting_input_changes_change_digest() {
     );
 }
 
+/// MCP 新旧工具名同时出现但指向不同工具时必须拒绝，不能选择其中一个继续执行。
 #[test]
 fn conflicting_mcp_tool_aliases_are_rejected() {
     let mut request = CapabilityRequest::new(
@@ -62,6 +70,7 @@ fn conflicting_mcp_tool_aliases_are_rejected() {
     );
 }
 
+/// 过深参数在 dispatch 前拒绝；普通 `$ref` JSON 可解析，但本地 schema 合同不允许外部引用。
 #[test]
 fn schema_depth_and_reference_limits_fail_before_dispatch() {
     let mut nested = serde_json::json!(true);
@@ -78,6 +87,7 @@ fn schema_depth_and_reference_limits_fail_before_dispatch() {
     .is_err());
 }
 
+/// 检查互相矛盾的字符串、数组、数值和整数区间均由 schema 合同拒绝。
 #[test]
 fn contradictory_schema_bounds_are_rejected_before_dispatch() {
     let cases = [
@@ -139,6 +149,7 @@ fn contradictory_schema_bounds_are_rejected_before_dispatch() {
     }
 }
 
+/// 为边界测试反向确认非空区间可接受，包括 inclusive/exclusive 端点和类型联合。
 #[test]
 fn nonempty_schema_bound_edges_are_accepted() {
     let cases = [
@@ -197,6 +208,7 @@ fn nonempty_schema_bound_edges_are_accepted() {
     }
 }
 
+/// 原始 JSON 中重复对象键必须在 serde 折叠成单个 Value 之前被识别。
 #[test]
 fn duplicate_json_object_fields_are_rejected_before_value_collapse() {
     let duplicate = br#"{"command":"printf ok","command":"rm -rf /"}"#;
@@ -206,6 +218,7 @@ fn duplicate_json_object_fields_are_rejected_before_value_collapse() {
     assert!(error.contains("json_duplicate_key"));
 }
 
+/// caller 伪造 actor/project/role 只改变待准备输入，不会自动成为服务端授权上下文。
 #[test]
 fn reserved_authority_fields_are_not_a_server_grant() {
     let base = shell(serde_json::json!({"command":"printf ok"}));

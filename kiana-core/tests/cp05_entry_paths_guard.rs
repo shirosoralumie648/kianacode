@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::compact_code;
+
 #[test]
 fn capability_entry_paths_share_one_authorization_pipeline() {
     let approvals = include_str!("../src/approvals.rs");
@@ -23,17 +27,17 @@ fn capability_entry_paths_share_one_authorization_pipeline() {
     }
     assert!(approvals.contains("decision_context"));
     assert!(approvals.contains("Some((approval_id, &validated.challenge.reason))"));
-    assert!(approvals.contains("self.prepare_capability_action"));
+    assert!(compact_code(approvals).contains("self.prepare_capability_action"));
     assert!(approvals.contains(".dispatch_capability_action("));
-    assert!(capabilities.contains("self.prepare_capability_action_cancellable"));
-    assert!(capabilities.contains("self.authorize_capability_action_cancellable"));
-    assert!(capabilities.contains("self.dispatch_authorized"));
-    assert!(capabilities.contains("self.finalize_capability_action"));
+    assert!(compact_code(capabilities).contains("self.prepare_capability_action_cancellable"));
+    assert!(compact_code(capabilities).contains("self.authorize_capability_action_cancellable"));
+    assert!(compact_code(capabilities).contains("self.dispatch_authorized"));
+    assert!(compact_code(capabilities).contains("self.finalize_capability_action"));
     assert!(lifecycle.contains("broker_harness_capability"));
     assert!(lifecycle.contains("RunnerEvent::CapabilityRequested"));
     assert!(dispatch.contains("ExecutionPermitVerifierPort"));
     assert!(dispatch.contains("verify_and_consume"));
-    assert!(!capabilities.contains("self.capabilities.execute"));
+    assert!(!compact_code(capabilities).contains("self.capabilities.execute"));
     assert!(baseline.contains("cp_three_entry_paths_have_identical_authorization_semantics"));
     assert!(baseline.contains("prepare → authorize → stage/dispatch → finalize"));
     assert!(baseline.contains("result_unknown"));

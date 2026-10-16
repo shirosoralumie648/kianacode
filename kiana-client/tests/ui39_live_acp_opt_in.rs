@@ -4,10 +4,10 @@ use kiana_client::{
     LiveAcpTransport, ACP_INITIALIZE_SCHEMA, ACP_PERMISSION_SCHEMA, ACP_PROTOCOL_V1,
     LIVE_ACP_OPT_IN_SCHEMA,
 };
-use kiana_domain::SessionId;
+use kiana_domain::{ExecutionStatus, RunId, SessionId};
 use kiana_protocol::{
-    UiFeedFrameKind, UiFeedFrameV1, UiHostCapability, UiHostCapabilityDisposition, UiSurface,
-    UI_FEED_FRAME_SCHEMA, UI_HOST_CAPABILITY_SCHEMA,
+    UiFeedFrameKind, UiFeedFrameV1, UiHostCapability, UiHostCapabilityDisposition, UiSnapshot,
+    UiSurface, PROTOCOL_SCHEMA, UI_FEED_FRAME_SCHEMA, UI_HOST_CAPABILITY_SCHEMA,
 };
 use serde_json::json;
 use std::fs;
@@ -70,6 +70,24 @@ fn frame(sequence: u64, terminal: bool) -> UiFeedFrameV1 {
         terminal,
         event: Some(json!({"session_id":"session-39","sequence":sequence})),
         gap: None,
+    }
+}
+
+fn snapshot(sequence: u64, status: ExecutionStatus) -> UiSnapshot {
+    UiSnapshot {
+        schema: PROTOCOL_SCHEMA.to_owned(),
+        cursor: kiana_protocol::UiCursor {
+            epoch: "epoch-39".to_owned(),
+            sequence: 99,
+        },
+        session_id: "session-39".to_owned(),
+        run_id: Some(RunId::new()),
+        stream_cursor: Some(kiana_protocol::UiCursor {
+            epoch: "epoch-39".to_owned(),
+            sequence,
+        }),
+        status: Some(status),
+        pending_actions: vec![],
     }
 }
 
@@ -214,6 +232,17 @@ fn disconnect_and_feed_gap_remain_unknown_until_reconnect() {
         .resume_session(&id, &digest('d'), "epoch-39")
         .unwrap();
     assert!(resumed.snapshot_required);
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+    assert!(!session.evidence().unwrap().reconnect_verified);
+    assert!(matches!(
+        session.update(frame(2, false)),
+        Err(LiveAcpError::Adapter(
+            kiana_client::AcpAdapterError::ReconcileRequired
+        ))
+    ));
+    session
+        .hydrate_snapshot(&id, &digest('d'), &snapshot(1, ExecutionStatus::Running))
+        .unwrap();
     assert_eq!(session.state(), LiveAcpState::Attached);
     assert!(session.evidence().unwrap().reconnect_verified);
 }
@@ -244,6 +273,10 @@ fn feed_gap_cannot_be_cleared_by_handler_reinstallation() {
     session
         .resume_session(&id, &digest('d'), "epoch-39")
         .unwrap();
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+    session
+        .hydrate_snapshot(&id, &digest('d'), &snapshot(1, ExecutionStatus::Running))
+        .unwrap();
     assert_eq!(session.state(), LiveAcpState::Attached);
     assert!(matches!(
         session.update(frame(2, false)).unwrap(),
@@ -265,4 +298,128 @@ fn source_adapter_has_no_external_process_or_network_authority() {
             "forbidden source marker: {forbidden}"
         );
     }
+}
+
+#[test]
+fn live_resume_plan_keeps_unknown_until_server_snapshot_is_hydrated() {
+    let mut session = LiveAcpSession::start(opt_in()).unwrap();
+    let id = attach(&mut session);
+    session.update(frame(1, false)).unwrap();
+    session.disconnect();
+    session.install_feed_handler().unwrap();
+    let plan = session
+        .resume_session(&id, &digest('d'), "epoch-39")
+        .unwrap();
+    assert!(plan.snapshot_required);
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+    assert!(!session.evidence().unwrap().reconnect_verified);
+    assert!(matches!(
+        session.update(frame(2, false)),
+        Err(LiveAcpError::Adapter(
+            kiana_client::AcpAdapterError::ReconcileRequired
+        ))
+    ));
+}
+
+#[test]
+fn failed_live_hydration_preserves_unknown_and_never_promotes_external_proof() {
+    let mut session = LiveAcpSession::start(opt_in()).unwrap();
+    let id = attach(&mut session);
+    session.update(frame(1, false)).unwrap();
+    session.disconnect();
+    session.install_feed_handler().unwrap();
+    session
+        .resume_session(&id, &digest('d'), "epoch-39")
+        .unwrap();
+    for status in [ExecutionStatus::Running, ExecutionStatus::ResultUnknown] {
+        let candidate = snapshot(1, status);
+        if status == ExecutionStatus::Running {
+            assert_eq!(
+                session.hydrate_snapshot(&id, &digest('e'), &candidate),
+                Err(LiveAcpError::Adapter(
+                    kiana_client::AcpAdapterError::SessionOwnerMismatch
+                ))
+            );
+        } else {
+            assert_eq!(
+                session.hydrate_snapshot(&id, &digest('d'), &candidate),
+                Err(LiveAcpError::Adapter(
+                    kiana_client::AcpAdapterError::ReconcileRequired
+                ))
+            );
+        }
+        assert_eq!(session.state(), LiveAcpState::Unknown);
+        let evidence = session.evidence().unwrap();
+        assert_eq!(evidence.status, kiana_protocol::UiLiveHostStatus::Unknown);
+        assert!(!evidence.reconnect_verified);
+        assert!(!evidence.host_capabilities[0].direct_effect);
+    }
+    assert!(matches!(
+        session.new_session(SessionId::new("replacement"), digest('d'), "epoch-39"),
+        Err(LiveAcpError::Adapter(
+            kiana_client::AcpAdapterError::ReconcileRequired
+        ))
+    ));
+    assert!(matches!(
+        session.initialize(AcpInitializeRequest {
+            schema: ACP_INITIALIZE_SCHEMA.to_owned(),
+            protocol: ACP_PROTOCOL_V1.to_owned(),
+            client_name: "editor-host".to_owned(),
+            client_version: "1.2.3".to_owned(),
+            capabilities: vec![],
+        }),
+        Err(LiveAcpError::Adapter(
+            kiana_client::AcpAdapterError::ReconcileRequired
+        ))
+    ));
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+    session
+        .hydrate_snapshot(&id, &digest('d'), &snapshot(2, ExecutionStatus::Running))
+        .unwrap();
+    assert_eq!(session.state(), LiveAcpState::Attached);
+    let evidence = session.evidence().unwrap();
+    assert_eq!(evidence.status, kiana_protocol::UiLiveHostStatus::OptedIn);
+    assert!(evidence.reconnect_verified);
+    assert!(!evidence.host_capabilities[0].direct_effect);
+    assert!(matches!(
+        session.update(frame(3, false)).unwrap(),
+        AcpUpdateDisposition::Accepted { sequence: 3, .. }
+    ));
+    assert!(matches!(
+        session.update(frame(5, false)).unwrap(),
+        AcpUpdateDisposition::Gap { .. }
+    ));
+    assert_eq!(session.state(), LiveAcpState::Unknown);
+    assert!(!session.evidence().unwrap().reconnect_verified);
+}
+
+#[test]
+fn idle_reconnect_restores_the_display_without_claiming_live_verification() {
+    let mut session = LiveAcpSession::start(opt_in()).unwrap();
+    let id = attach(&mut session);
+    session.disconnect();
+    session.install_feed_handler().unwrap();
+    session
+        .resume_session(&id, &digest('d'), "epoch-39")
+        .unwrap();
+    let idle = UiSnapshot {
+        schema: PROTOCOL_SCHEMA.to_owned(),
+        cursor: kiana_protocol::UiCursor {
+            epoch: "epoch-39".to_owned(),
+            sequence: 0,
+        },
+        session_id: id.to_string(),
+        run_id: None,
+        stream_cursor: None,
+        status: None,
+        pending_actions: vec![],
+    };
+    session.hydrate_snapshot(&id, &digest('d'), &idle).unwrap();
+    assert_eq!(session.state(), LiveAcpState::Attached);
+    let evidence = session.evidence().unwrap();
+    assert!(evidence.reconnect_verified);
+    assert_eq!(evidence.status, kiana_protocol::UiLiveHostStatus::OptedIn);
+    assert!(!evidence.update_observed);
+    assert!(!evidence.prompt_routed);
+    assert!(!evidence.host_capabilities[0].direct_effect);
 }

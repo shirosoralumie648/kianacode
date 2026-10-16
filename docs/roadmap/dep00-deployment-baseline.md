@@ -79,3 +79,18 @@ document rather than leave the guard asserting a stale inventory.
 
 The two command crates named in the inventory above are written with the CJK separator the
 source guard matches on: kiana-tools`、`kiana-commands.
+
+## Current-head refresh (2026-10-05)
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 with a dirty integration worktree
+worktree_status: 30 status entries are intentionally preserved; no commit/push/merge/rebase or WIP deletion
+command_argv: inventory command recorded at `/tmp/kiana-roadmap-20261005-evidence/dep00-inventory-final.txt`; `git diff --check`; roadmap inventory JSON refresh
+cwd·environment: repository root Linux/bash; source-only inventory, no deployment side effect
+fixture·cassette: `docs/module-map.md`, `CURRENT_STATUS.md`, 18 release/package/provenance scripts, `kiana-daemon/src/lib.rs`, 18 EventLog source modules, domain/protocol contract and migration anchors, `.github/workflows/dep00-deployment-baseline.yml`
+exit_code: inventory command 0; diff check 0; current roadmap helper 0
+status_change: DEP-00 roadmap state promoted from 🔄 to ✅; inventory and gap classification refreshed against current head
+proof-level_change: source-only; no durable/live/physical deployment proof
+limitations: this is an inventory handoff, not a deployment profile, operation journal, backup/restore, supervisor, health/admission or cross-process fencing implementation; those remain DEP-01+
+reviewer: integration agent; source inventory review
+```

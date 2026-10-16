@@ -1,3 +1,15 @@
+//! 统一模型请求到 provider wire body 的编译器。
+//!
+//! 上游是 `kiana-runner` 生成的 `ModelRequest`、`ModelCallSpec` 和模型工具 schema；下游
+//! 是 `ProviderGateway::complete_admitted` 调用的 transport。这里按 `ModelProtocol` 选择
+//! Anthropic、OpenAI Chat/Responses、Ollama 或 Gemini 的请求形状，同时保留统一的 route、
+//! request hash、工具目录摘要和 token budget。
+//!
+//! 编译阶段只构造请求，不访问网络，也不消费 permit。它会先拒绝非法历史、未支持的工具
+//! 或结构化输出、未准入的图片引用、过大的 wire body 和 legacy network route。生成的
+//! `PreparedModelCall` 在返回前封存并校验，之后还必须经过 provider gateway 的 admission、
+//! 凭据代次和配置路由检查才能发送。
+
 use crate::config::Connection;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use kiana_domain::*;
@@ -20,6 +32,7 @@ fn tool_map(tools: &[Value], names: &ToolNameMap) -> Result<Vec<Value>, ModelErr
         Ok(json!({"name":wire,"description":tool["description"].as_str().unwrap_or(""),"parameters":parameters}))
     }).collect()
 }
+/// 编译普通模型请求；图片输入默认为空，未带独立 admission 的附件会被拒绝。
 pub(crate) fn compile(
     connection: &Connection,
     request: ModelRequest,

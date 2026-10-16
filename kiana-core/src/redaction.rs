@@ -79,7 +79,7 @@ mod event_redaction_tests {
         let run_id = RunId::new();
         let payload = capability_event_payload(&json!(["one", "two"]), &request, &context, run_id);
 
-        assert_eq!(payload["output"], json!(["one", "two"]));
+        assert_eq!(payload["result"], json!(["one", "two"]));
         assert_eq!(payload["run_id"], json!(run_id));
         assert_eq!(payload["capability_request_id"], json!(request.request_id));
         assert_eq!(payload["operation"], "search");
@@ -91,7 +91,7 @@ mod event_redaction_tests {
             CapabilityRequest::new(RequestId::new(), CapabilityKind::Query, "search", json!({}));
         let payload = direct_capability_event_payload(&json!("found"), &request);
 
-        assert_eq!(payload["output"], "found");
+        assert_eq!(payload["result"], "found");
         assert_eq!(payload["capability_request_id"], json!(request.request_id));
         assert_eq!(payload["capability"], "query");
         assert_eq!(payload["operation"], "search");

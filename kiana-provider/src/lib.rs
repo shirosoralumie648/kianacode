@@ -1,4 +1,15 @@
-//! One admitted model attempt. No Agent loop, tool execution, hidden retries or legacy runtime edges.
+//! Provider gateway：把一次已准入的模型调用发送到上游服务商。
+//!
+//! 本 crate 位于 `kiana-daemon::model_client` 注入的 `ModelClient` 实现之后、具体 HTTP
+//! transport 之前。它接收 `kiana-domain` 的统一 `ModelRequest`，由 `request` 模块编译成
+//! provider wire body，再由 `transport` 发出，最后由 `response` 归一化为 `ModelReply`。
+//! 它不创建 Agent loop、不执行模型工具，也不替代 `kiana-core` 的策略和审批。
+//!
+//! `ProviderGateway` 只允许经过 `prepare_call`、预算 admission、凭据/配置代次校验后才
+//! 进入 `complete_admitted`。直接调用便捷的 `complete` / `complete_prepared` 会显式拒绝，
+//! 防止调用方绕过模型调用预算、路由围栏和执行前的凭据检查。daemon 也可以注入
+//! `ScriptedModel` 或 `UnavailableModel`；本 crate 的 gateway 源码存在不等于当前状态账本
+//! 已证明 live provider 成功。
 mod capacity;
 mod config;
 mod connector_quota;
@@ -33,6 +44,11 @@ pub use usage_adapters::{
     normalize_provider_usage, MAX_PROVIDER_USAGE_TOKENS, PROVIDER_USAGE_ADAPTER_SCHEMA,
 };
 
+/// 持有已解析 provider 连接和容量状态的网关。
+///
+/// `state` 以异步读写锁保护当前配置快照：准备调用时读取同一代配置，workspace reload
+/// 只能在写锁边界替换候选快照。已准入请求会在网络 effect 前重新确认路由、凭据代次和
+/// permit，避免配置热更新把一个旧请求悄悄送到新连接。
 pub struct ProviderGateway {
     state: tokio::sync::RwLock<GatewayState>,
 }
@@ -187,6 +203,10 @@ impl GatewayState {
     }
 }
 impl ProviderGateway {
+    /// 从显式配置和进程环境解析 provider，构造第一代连接快照。
+    ///
+    /// 该方法只解析配置，不发网络请求；配置无效、协议不支持或凭据边界不满足时返回
+    /// 结构化 `ModelError`，不会创建一个“先运行再猜”的半有效网关。
     pub fn from_env(config: ProviderConfig) -> Result<Self, ModelError> {
         let resolved = resolver::ConfigResolver::resolve(config)?;
         Self::from_resolution(resolved)
@@ -316,6 +336,11 @@ impl ProviderGateway {
 }
 #[async_trait]
 impl ModelClient for ProviderGateway {
+    /// 只准备统一模型请求，不执行网络 effect。
+    ///
+    /// `prepare_call` 会读取当前连接快照并调用 request compiler，返回带 request hash、
+    /// route、工具目录摘要和 token budget 的 `PreparedModelCall`。真正发送必须再经过
+    /// admission 与 permit 校验。
     fn prepare_call(
         &self,
         request: ModelRequest,
@@ -328,6 +353,7 @@ impl ModelClient for ProviderGateway {
         ModelRequestContext::for_request(request)
     }
     async fn complete(&self, _request: ModelRequest) -> Result<ModelOutput, String> {
+        // 这个便利接口没有携带模型调用 permit，拒绝它比隐式绕过预算更安全。
         Err("provider_requires_model_admission".to_owned())
     }
     async fn complete_prepared(
@@ -344,6 +370,8 @@ impl ModelClient for ProviderGateway {
         admission: &dyn ModelBudgetPort,
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
     ) -> Result<ModelReply, ModelError> {
+        // 这里是唯一进入 provider transport 的边界：先锁住配置代次，再校验 permit、
+        // 凭据 revision 和预算，最后才把已经封存的 wire body 交给 transport。
         prepared.validate()?;
         // Validate the allow-listed instrumentation view at the provider boundary.  The value is
         // deliberately not built from wire_body or response content; the runner persists the

@@ -1,5 +1,8 @@
 //! CAP-31 partial guard: Linux code must not be reported as macOS behavior.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn macos_backend_scope_is_explicitly_unverified_until_target_ci_exists() {
     let ports = include_str!("../../kiana-ports/src/lib.rs");
@@ -45,7 +48,18 @@ fn macos_backend_scope_is_explicitly_unverified_until_target_ci_exists() {
         "target macOS CI",
     ] {
         assert!(
-            baseline.contains(marker),
+            match marker {
+                "behavior_verified=false" =>
+                    source_guard::platform_report_has_evidence_fence(platform),
+                "target macOS CI" =>
+                    baseline.contains("target-machine receipt")
+                        && baseline.contains("source guard only")
+                        && baseline.contains("| proof_level | `source`;"),
+                "no fake success" =>
+                    source_guard::platform_report_has_evidence_fence(platform)
+                        && baseline.contains("fixture data, not evidence"),
+                _ => baseline.contains(marker),
+            },
             "CAP-31 limitation marker missing: {marker}"
         );
     }

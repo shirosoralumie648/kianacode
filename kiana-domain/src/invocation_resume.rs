@@ -1,9 +1,22 @@
-//! Server-owned bindings for pausing and resuming one Harness invocation.
+//! Harness 能力调用在审批暂停前后保持同一身份的领域合同。
 //!
-//! A pending approval is not a permission to run an arbitrary request later. The continuation
-//! must point back to the same Run/Turn/Step/Invocation, the same normalized parameters and
-//! catalog, and the same owner/authority snapshot. This value contains only typed identities
-//! and digests; the executable request remains the protected approval material.
+//! 【系统位置与数据流】
+//! ```text
+//! Runner 形成工具批次、Turn/Step 和 pending queue 摘要
+//!   -> Core 收到能力请求并判定需要审批
+//!   -> 当前模块从请求、RequestContext、sandbox 和 queue 摘要生成绑定
+//!   -> Core 把绑定与 approval.requested / run.awaiting_approval 一起记录
+//!   -> 恢复时重载受保护请求材料并重新校验绑定、策略和授权
+//!   -> 获批后沿原 CapabilityResult 回到 Runner 的 drive_run
+//! ```
+//!
+//! 本模块只定义可序列化身份材料和纯数据校验，不保存可执行能力请求、不批准请求，也不
+//! 驱动 Runner。执行请求仍由 Core 的受保护审批材料保存；有序待执行队列由 Runner 的
+//! checkpoint 管理，所以队列摘要只在恢复 checkpoint 时由 Runner 对照，Domain 无法单独
+//! 从此 DTO 重建它。
+//!
+//! SHA-256 摘要没有密钥，只用于发现材料不一致，不认证签发者。真正是否允许继续仍由
+//! Core 每次恢复时重新检查审批证明、当前策略、authority、取消状态和 dispatch permit。
 
 use crate::{
     canonical_action_input_digest, capability_action_catalog_digest, json_digest,
@@ -13,9 +26,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+/// 用于持久化事件中识别恢复绑定对象的稳定类型名。
 pub const INVOCATION_RESUME_BINDING_SCHEMA: &str = "kiana.invocation-resume-binding.v1";
+/// 当前绑定合同版本；校验采用兼容版本关系，而不是要求版本字符串手工相等。
 pub const INVOCATION_RESUME_BINDING_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
+// 所有摘要字段统一采用 `sha256:` 加 64 位十六进制的外形，实际绑定关系由下方 digest 重算。
 fn valid_digest(value: &str, field: &str) -> Result<(), String> {
     let Some(hex) = value.strip_prefix("sha256:") else {
         return Err(format!("{field}_invalid"));
@@ -26,6 +42,8 @@ fn valid_digest(value: &str, field: &str) -> Result<(), String> {
     Ok(())
 }
 
+// 请求参数中的 turn_id/step_id 是 JSON 值；在提取前反序列化成强类型，避免把任意文本
+// 当作合法执行身份。键缺失代表请求未显式提供该身份，格式错误则不能静默降级为 None。
 fn parse_id_checked<T>(arguments: &Value, key: &str) -> Result<Option<T>, String>
 where
     T: for<'de> serde::Deserialize<'de>,
@@ -38,33 +56,74 @@ where
         .map_err(|_| format!("invocation_resume_{key}_invalid"))
 }
 
-/// Immutable identity and authority facts needed to resume a paused invocation.
+/// Core 恢复一条等待审批的原始 Invocation 时必须重新对照的身份快照。
+///
+/// 【职责与调用者】
+/// `kiana-core::capabilities` 在 Gate 返回 AwaitingApproval 时构造它，并与审批请求事实一同
+/// 持久化；`kiana-core::recovery` 在恢复/批准路径重载请求后调用 `validate_against()`。
+/// 它不是新的权限，也不包含命令正文；校验通过后 Core 仍须重新 prepare、authorize 并取得
+/// dispatch permit，随后把原结果交回 Runner。
+///
+/// 【核心不变量】
+/// 同一绑定必须继续指向原 Run、Turn、Step、请求/Invocation、参数、catalog、authority epoch、
+/// owner/session、project 和 sandbox。`event_request_id` 是事件流游标，可在显式恢复命令中
+/// 重新绑定；`pending_batch_digest` 则由 Runner 对照恢复 checkpoint，因为只有 Runner 拥有
+/// 有序 pending queue。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct InvocationResumeBinding {
+    /// DTO 类型标签，避免不同事件载荷被误解为恢复绑定。
     pub schema: String,
+    /// 可兼容读取的合同版本。
     pub version: SchemaVersion,
+    /// 发生暂停的 Harness Run；将恢复限制在原运行实例。
     pub run_id: RunId,
+    /// 当前绑定所在的事件请求流 ID；显式 resume 命令会有新的游标 ID。
     pub event_request_id: RequestId,
+    /// 原始模型轮次；可从请求参数或 ExecutionScope 取得。
     pub turn_id: Option<TurnId>,
+    /// 原始步骤身份；在请求显式携带时绑定，否则为 None。
     pub step_id: Option<StepId>,
+    /// 从原 request_id 派生的 Invocation ID，保证恢复不是新的能力调用。
     pub invocation_id: InvocationId,
+    /// 原能力请求 ID；参数摘要以该请求为输入计算。
     pub request_id: RequestId,
+    /// 规范化能力动作及参数的摘要，用于发现审批等待期间请求内容漂移。
     pub parameter_digest: String,
+    /// 请求所依据的 capability action catalog 摘要。
     pub catalog_digest: String,
+    /// 请求准备时的 authority epoch；恢复还要与当前执行范围比较。
     pub authority_epoch: u64,
+    /// 发起请求的 actor；在审批恢复时必须仍与调用上下文相同。
     pub owner_id: String,
+    /// 发起请求的 session，防止其他会话消费该绑定。
     pub session_id: SessionId,
+    /// project root/trust/role/department 上下文的内容摘要。
     pub project_digest: String,
+    /// sandbox 文本的摘要；恢复时必须使用同一执行隔离配置。
     pub sandbox_digest: String,
-    /// Digest of the declared pending batch at the time this invocation was emitted.
+    /// Runner 发出本 Invocation 时剩余有序工具批次的摘要；Domain 不拥有队列本身。
     pub pending_batch_digest: String,
+    /// 对上面所有绑定字段计算的无密钥摘要；不构成来源认证或授权证明。
     pub binding_digest: String,
 }
 
 impl InvocationResumeBinding {
-    /// Build a binding from the server-prepared request. `pending_batch_digest` is supplied by
-    /// the Runner because only it owns the ordered remaining queue.
+    /// 从服务端准备好的请求和执行上下文创建暂停绑定。
+    ///
+    /// 【调用者】Core 在请求被 Gate 判定为 AwaitingApproval 后调用，随后把返回值交给审批
+    /// 持久化逻辑；Runner 提供待处理批次摘要，因为 Domain/Core 这里没有队列所有权。
+    ///
+    /// 【输入】`run_id` 和 `event_request_id` 标识暂停所属 Run 与事件流；`request` 是原始
+    /// CapabilityRequest；`context` 提供 actor/session/project/role 等身份；`sandbox` 是原执行
+    /// 隔离配置；`pending_batch_digest` 是 Runner 对剩余有序调用队列计算的摘要。
+    ///
+    /// 【输出/失败】成功返回带 `binding_digest` 的不可变身份快照。缺少 actor、turn/step JSON
+    /// 身份无法解析、请求动作摘要无法生成或最终 DTO 校验失败时返回稳定错误；Core 会将其
+    /// 转成能力动作错误并结束该请求的审批准备，不会因此直接派发能力。
+    ///
+    /// 【为什么拆分队列职责】Runner 是待处理调用顺序的唯一所有者；在这里复制队列会产生
+    /// 第二份事实来源。Core 绑定它提供的摘要，恢复时再由 Runner checkpoint 校验摘要与队列。
     pub fn from_request(
         run_id: RunId,
         event_request_id: RequestId,
@@ -129,6 +188,13 @@ impl InvocationResumeBinding {
         Ok(binding)
     }
 
+    /// 校验 DTO 版本、必需 ID、身份字段格式、各摘要格式及整体绑定摘要。
+    ///
+    /// 【调用者】构造器在生成后调用；Core 从审批事件或快照反序列化后也应先调用，之后再
+    /// 用 `validate_against()` 与当前重载请求和上下文对照。
+    /// 【失败】字段/版本格式异常返回 `invocation_resume_binding_header_invalid` 或对应摘要
+    /// 格式错误；字段被改动但摘要未同步时返回 `invocation_resume_binding_digest_mismatch`。
+    /// 【边界】只验证 DTO 内部一致性，不查询审批 Store、Runner 队列、当前时钟或权限权威。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != INVOCATION_RESUME_BINDING_SCHEMA
             || !self
@@ -163,9 +229,17 @@ impl InvocationResumeBinding {
         Ok(())
     }
 
-    /// Recompute all values that can be checked at approval resume. The queue digest is not
-    /// recomputed here because the Runner owns the checkpointed queue; it is checked when that
-    /// checkpoint is restored.
+    /// 将持久化绑定与审批恢复时重新载入的请求、上下文和 sandbox 逐项比较。
+    ///
+    /// 【调用者】Core 在恢复待审批 Invocation、重新准备/授权和 dispatch 之前调用。
+    /// 【输入】原 Run 与事件流请求 ID、受保护材料解出的 CapabilityRequest、当前恢复上下文、
+    /// 以及 sandbox。成功只表示这些可在 Core 侧重算的身份与暂停前一致，不代表授权通过。
+    /// 【失败】绑定本身无效时返回 `validate()` 的错误；任何身份、参数、目录、权限版本、owner、
+    /// session、project 或 sandbox 变化返回 `invocation_resume_binding_changed`，Core 会拒绝
+    /// 这次恢复而不把变更后的请求当成原审批内容派发。
+    ///
+    /// pending batch 摘要在此处不重算：Runner 持有有序 checkpoint 队列，必须在恢复该队列时
+    /// 独立比较。把队列校验挪到 Domain 会错误地让领域 DTO 冒充队列事实所有者。
     pub fn validate_against(
         &self,
         run_id: RunId,
@@ -219,9 +293,13 @@ impl InvocationResumeBinding {
         Ok(())
     }
 
-    /// Move the continuation cursor to a freshly committed resume command. The invocation,
-    /// parameter and authority identities remain unchanged; only the event stream cursor is
-    /// intentionally rebased by ControlPlane recovery.
+    /// 将事件流游标改绑到已提交的显式恢复命令，同时保持原 Invocation 身份不变。
+    ///
+    /// 【调用者】ControlPlane recovery 在接续同一个 pending approval 时调用。
+    /// 【输入/输出】新 `event_request_id` 必须非 nil；成功后只替换事件流请求 ID、重算绑定摘要，
+    /// 返回校验结果。空 ID 返回 `invocation_resume_event_request_invalid`。
+    /// 【容易误改】这里不能同步替换 `request_id`、Invocation、参数或 authority 字段；它们表示
+    /// 原先获批的动作。若把 resume command 当作新能力请求，审批身份就会漂移。
     pub fn rebind_event_request(&mut self, event_request_id: RequestId) -> Result<(), String> {
         if event_request_id.as_uuid().is_nil() {
             return Err("invocation_resume_event_request_invalid".to_owned());
@@ -231,6 +309,10 @@ impl InvocationResumeBinding {
         self.validate()
     }
 
+    /// 按固定字段集合生成整体绑定摘要，不把 `binding_digest` 自身纳入输入。
+    ///
+    /// 它用于在恢复时发现序列化材料被改动；由于摘要无密钥，不能认证事件写入者，也不能
+    /// 单独代替 ApprovalProof、Core authority 或 DispatchPermit。
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,

@@ -38,7 +38,7 @@ fn approved_and_published_release_states_require_distinct_evidence() {
         SupplyChainReleaseDisposition::Approved,
         None,
         false,
-        Vec::new(),
+        vec!["Approval is recorded; no publication was performed".to_owned()],
     )
     .expect("approved handoff");
     approved.validate().expect("approved validates");
@@ -101,7 +101,7 @@ fn approved_handoff_requires_typed_operator_approval() {
         SupplyChainReleaseDisposition::Approved,
         None,
         false,
-        Vec::new(),
+        vec!["Approval is recorded; no publication was performed".to_owned()],
     )
     .expect("approved handoff");
     value.operator_approval_ref = Some("operator-approval".to_owned());

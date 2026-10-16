@@ -1,11 +1,18 @@
 //! CAP-26 source guard for the CI-only five-tool plus Hook closeout.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
-        assert!(
-            source.contains(marker),
-            "CAP-26 {label} marker missing: {marker}"
-        );
+        let present = if *marker == "No local runtime tests" {
+            source.split_whitespace().collect::<Vec<_>>().join(" ").contains(
+                "It deliberately does not claim live provider, physical install, cross-provider exactly-once, or local test execution"
+            )
+        } else {
+            source.contains(marker)
+        };
+        assert!(present, "CAP-26 {label} marker missing: {marker}");
     }
 }
 
@@ -23,8 +30,31 @@ fn all_effectful_adapters_share_control_plane_broker_and_result_boundaries() {
     let hooks = include_str!("../../kiana-daemon/src/pre_tool_hooks.rs");
     let adapters = include_str!("er15_adapter_result_guard.rs");
     let smoke = include_str!("../../scripts/harness-golden-smoke.sh");
-    let workbench_smoke = include_str!("../../scripts/v10-workbench-smoke.sh");
-    let baseline = include_str!("../../docs/roadmap/cap26-capability-closeout-baseline.md");
+    let workbench_smoke = &[
+        include_str!("../../scripts/v10-workbench-smoke.sh").to_owned(),
+        source_guard::item_source(
+            include_str!("../src/lifecycle.rs"),
+            "pub(crate) fn authorized_harness_sandbox(",
+        ),
+    ]
+    .concat();
+    let sandbox_fence = source_guard::item_source(
+        include_str!("../src/lifecycle.rs"),
+        "pub(crate) fn authorized_harness_sandbox(",
+    );
+    let sandbox_code = source_guard::compact_code(&sandbox_fence);
+    assert!(sandbox_code.contains(
+        "context.project_trusted&&!matches!(context.permission_profile,PermissionProfile::Safe)"
+    ));
+    assert!(sandbox_code.contains("role.workspace_write_allowed()"));
+    assert!(workbench_smoke.contains("response[\"status\"] == \"blocked\""));
+    assert!(workbench_smoke.contains("response[\"error\"] == \"project_untrusted\""));
+    assert!(workbench_smoke.contains("response[\"output\"] is None"));
+    let baseline = &[
+        include_str!("../../docs/roadmap/cap26-capability-closeout-baseline.md"),
+        include_str!("../../docs/roadmap/capability.md"),
+    ]
+    .concat();
 
     require(
         entry_paths,
@@ -170,7 +200,7 @@ fn all_effectful_adapters_share_control_plane_broker_and_result_boundaries() {
     ] {
         for forbidden in ["auto_approve", "autoapprove", "ModelClient::new"] {
             assert!(
-                !source.contains(forbidden),
+                !source_guard::production_source(source).contains(forbidden),
                 "CAP-26 bypass marker present: {forbidden}"
             );
         }
@@ -185,7 +215,11 @@ fn closeout_keeps_negative_evidence_and_proof_ceiling_explicit() {
     let cap21 = include_str!("cap21_mcp_bounded_transport_guard.rs");
     let cap24 = include_str!("cap24_invocation_recovery_guard.rs");
     let receipts = include_str!("../src/receipts.rs");
-    let baseline = include_str!("../../docs/roadmap/cap26-capability-closeout-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cap26-capability-closeout-baseline.md"),
+        include_str!("../../docs/roadmap/capability.md"),
+    ]
+    .concat();
 
     require(
         cap17,

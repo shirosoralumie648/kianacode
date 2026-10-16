@@ -1,6 +1,6 @@
 use kiana_domain::{
     AggregateVersion, CapabilityKind, CapabilityRequest, DispatchPermit, ExecutionId, InvocationId,
-    RequestContext, DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
+    RequestContext, RequestId, DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
 };
 use serde_json::json;
 
@@ -66,4 +66,27 @@ fn dispatch_permit_rejects_tampered_digest_or_authority_read_set() {
         .push(duplicate.authority_versions[0].clone());
     duplicate.permit_digest = duplicate.digest();
     assert!(duplicate.validate().is_err());
+}
+
+#[test]
+fn dispatch_permit_rejects_invocation_request_mismatch_even_with_valid_digest() {
+    let (mut permit, _) = permit();
+    permit.invocation_id = InvocationId::new();
+    permit.permit_digest = permit.digest();
+
+    assert_eq!(
+        permit.validate().unwrap_err(),
+        "dispatch_permit_invocation_request_mismatch"
+    );
+}
+
+#[test]
+fn dispatch_permit_keeps_harness_context_request_independent() {
+    let (mut permit, request) = permit();
+    permit.context.request_id = RequestId::new();
+    permit.permit_digest = permit.digest();
+
+    assert!(permit
+        .validate_for_request(&request, &permit.project_identity, 500)
+        .is_ok());
 }

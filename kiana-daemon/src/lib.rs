@@ -139,14 +139,15 @@ use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     project_ui_snapshot, AuthenticatedPrincipalRef, CapacityInput, CapacityReport, CommandIntent,
-    ComponentHealth, ComponentHealthState, CredentialRecoveryProjection, DepartmentSpec,
-    DeploymentAdmissionDecision, DeploymentAdmissionInput, HealthAggregationInput,
-    HealthAggregationReport, HealthProbeKind, HealthSnapshot, IdentityMigration, IncidentInput,
-    IncidentReport, LifecycleEvidenceBundle, OperatorEvidenceSnapshot, OpsDiagnosticsInput,
-    OpsDiagnosticsMode, OpsDiagnosticsReport, OrganizationId, PermissionProfile, ProjectIdentity,
-    ProjectTrustSnapshot, ReconcileInput, ReconcileReport, RequestContext, ResolvedAssignment,
-    RoleSpec, RunId, RuntimeEvent, ShutdownInput, ShutdownReport, StartupCoordinatorReport,
-    StartupCoordinatorRequest, UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
+    ComponentHealth, ComponentHealthState, CorrelationContext, CorrelationScope,
+    CredentialRecoveryProjection, DepartmentSpec, DeploymentAdmissionDecision,
+    DeploymentAdmissionInput, HealthAggregationInput, HealthAggregationReport, HealthProbeKind,
+    HealthSnapshot, IdentityMigration, IncidentInput, IncidentReport, LifecycleEvidenceBundle,
+    OperatorEvidenceSnapshot, OpsDiagnosticsInput, OpsDiagnosticsMode, OpsDiagnosticsReport,
+    OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot, ReconcileInput,
+    ReconcileReport, RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
+    ShutdownInput, ShutdownReport, StartupCoordinatorReport, StartupCoordinatorRequest,
+    UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -290,7 +291,28 @@ pub fn validate_protected_ingress(metadata: &RequestMetadata) -> Result<(), Port
             }
         }
     }
+    if let Some(traceparent) = metadata.traceparent.as_deref() {
+        kiana_domain::TraceParent::parse(traceparent)
+            .map_err(|error| PortError::Failed(format!("ingress_traceparent_invalid:{error}")))?;
+    }
     Ok(())
+}
+
+/// Build the server-owned correlation root after authentication and authority resolution.
+///
+/// The optional transport parent is deliberately link-only: `CorrelationContext::from_request`
+/// creates a fresh server trace/span and records the foreign parent without allowing it to alter
+/// actor, project, session, or epoch values.
+pub fn build_ingress_correlation_context(
+    request: &RequestContext,
+    project: &ProjectIdentity,
+    authority_epoch: u64,
+    data_epoch: u64,
+    traceparent: Option<&str>,
+) -> Result<CorrelationContext, PortError> {
+    let scope = CorrelationScope::new(request.session_id.clone(), None, Some(project.project_id));
+    CorrelationContext::from_request(request, scope, authority_epoch, data_epoch, traceparent)
+        .map_err(|error| PortError::Failed(format!("ingress_correlation_invalid:{error}")))
 }
 
 /// 判断一个 authority 字符串是不是**本机回环地址**。
@@ -1620,6 +1642,7 @@ impl DaemonHost {
             }
         }
         let metadata = request.metadata;
+        let traceparent = metadata.traceparent.clone();
         let permission_profile =
             effective_permission_profile(&request.body, metadata.permission_profile);
         if let RequestBody::ApprovalDecision(decision) = &request.body {
@@ -1715,6 +1738,15 @@ impl DaemonHost {
             Ok(context) => context,
             Err(reason) => return ResponseEnvelope::rejected(request_id, reason),
         };
+        if let Err(error) = build_ingress_correlation_context(
+            &context,
+            &project_identity,
+            security_context.authority_epoch,
+            security_context.data_epoch,
+            traceparent.as_deref(),
+        ) {
+            return ResponseEnvelope::rejected(request_id, error.to_string());
+        }
         if request_may_execute(&request.body) {
             let configuration_revision = kiana_domain::json_digest(&serde_json::json!({
                 "project_identity":project_identity,"role_catalog":kiana_domain::RoleCatalog::builtin(),"department_catalog":kiana_domain::DepartmentCatalog::builtin(),"local_roles":self.principal.allowed_roles,
@@ -1929,12 +1961,26 @@ impl DaemonHost {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct LocalModelConfig {
     pub provider: Option<String>,
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub model: Option<String>,
+}
+
+impl std::fmt::Debug for LocalModelConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Endpoints may contain userinfo, query or fragment credentials, including invalid URLs.
+        // Keep option presence visible without formatting either sensitive value.
+        formatter
+            .debug_struct("LocalModelConfig")
+            .field("provider", &self.provider)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field("base_url", &self.base_url.as_ref().map(|_| "[REDACTED]"))
+            .field("model", &self.model)
+            .finish()
+    }
 }
 
 /// Harness runtime inputs resolved when a daemon is composed.
@@ -2121,13 +2167,17 @@ fn effective_permission_profile(
     declared: PermissionProfile,
 ) -> PermissionProfile {
     match body {
-        RequestBody::Run(request) => permission_profile_for_sandbox(request.sandbox.as_deref()),
-        RequestBody::Continue(request) => {
-            permission_profile_for_sandbox(request.sandbox.as_deref())
+        RequestBody::Run(request) => {
+            permission_profile_for_sandbox(request.sandbox.as_deref(), declared)
         }
-        RequestBody::Spawn(request) => permission_profile_for_sandbox(request.sandbox.as_deref()),
+        RequestBody::Continue(request) => {
+            permission_profile_for_sandbox(request.sandbox.as_deref(), declared)
+        }
+        RequestBody::Spawn(request) => {
+            permission_profile_for_sandbox(request.sandbox.as_deref(), declared)
+        }
         RequestBody::Symposium(request) => {
-            permission_profile_for_sandbox(request.sandbox.as_deref())
+            permission_profile_for_sandbox(request.sandbox.as_deref(), declared)
         }
         RequestBody::ApprovalDecision(_)
         | RequestBody::Resume(_)
@@ -2144,10 +2194,39 @@ fn effective_permission_profile(
     }
 }
 
-fn permission_profile_for_sandbox(sandbox: Option<&str>) -> PermissionProfile {
+fn permission_profile_for_sandbox(
+    sandbox: Option<&str>,
+    declared: PermissionProfile,
+) -> PermissionProfile {
     match sandbox.map(str::trim) {
+        Some("workspace-write" | "workspace_write" | "workspace")
+            if declared == PermissionProfile::Ask =>
+        {
+            PermissionProfile::Ask
+        }
         Some("workspace-write" | "workspace_write" | "workspace") => PermissionProfile::Balanced,
         _ => PermissionProfile::Safe,
+    }
+}
+
+#[cfg(test)]
+mod permission_profile_tests {
+    use super::*;
+
+    #[test]
+    fn ask_declaration_survives_workspace_write_sandbox_resolution() {
+        assert_eq!(
+            permission_profile_for_sandbox(Some("workspace-write"), PermissionProfile::Ask),
+            PermissionProfile::Ask
+        );
+    }
+
+    #[test]
+    fn unspecified_sandbox_keeps_safe_default() {
+        assert_eq!(
+            permission_profile_for_sandbox(None, PermissionProfile::Ask),
+            PermissionProfile::Safe
+        );
     }
 }
 
@@ -2185,6 +2264,11 @@ mod tests {
             harness_with_config(config).config(),
             RuntimeConfig {
                 max_steps_per_turn: 5,
+                budget: HarnessBudgetConfig {
+                    source: HarnessBudgetSource::Environment,
+                    max_model_steps_per_turn: 5,
+                    ..HarnessBudgetConfig::default()
+                },
                 ..RuntimeConfig::default()
             }
         );
@@ -2205,6 +2289,10 @@ mod tests {
             harness_with_config(config).config(),
             RuntimeConfig {
                 wall_time_budget: Some(Duration::from_secs(1)),
+                budget: HarnessBudgetConfig {
+                    source: HarnessBudgetSource::Environment,
+                    ..HarnessBudgetConfig::default()
+                },
                 ..RuntimeConfig::default()
             }
         );

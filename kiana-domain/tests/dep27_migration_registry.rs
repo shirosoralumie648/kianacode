@@ -72,7 +72,9 @@ fn registry_rejects_duplicate_checksum_version_gap_and_down_migration() {
     );
 
     let mut gap = base.clone();
-    gap.steps[1].from_format_version = 9;
+    // Each step is forward-only; only continuity between the two steps is invalid.
+    gap.steps[1] = step(2, 3, 4, DIGEST_B);
+    gap.steps[1].validate().unwrap();
     gap.registry_digest = gap.digest();
     assert_eq!(
         gap.validate().unwrap_err(),

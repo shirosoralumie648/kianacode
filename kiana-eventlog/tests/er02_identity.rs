@@ -2,7 +2,6 @@ use kiana_domain::{AggregateVersion, EventId, RequestId, RuntimeEvent, Transitio
 use kiana_eventlog::MemoryEventLog;
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::json;
-use uuid::Uuid;
 
 #[tokio::test]
 async fn event_id_reuse_is_denied() {
@@ -62,7 +61,7 @@ async fn malformed_identity_links_are_denied_before_append() {
 async fn nil_identity_links_are_denied_before_append() {
     let store = MemoryEventLog::new();
     let request_id = RequestId::new();
-    let nil_request = RequestId::from_uuid(Uuid::nil());
+    let nil_request = RequestId::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
     let mut malformed = RuntimeEvent::new(request_id, 1, "run.started", json!({})).unwrap();
     malformed.command_id = Some(nil_request);
     assert!(matches!(
@@ -70,6 +69,89 @@ async fn nil_identity_links_are_denied_before_append() {
         Err(PortError::Failed(reason))
             if reason == "event_identity_links_invalid:event_command_id_invalid"
     ));
+}
+
+#[tokio::test]
+async fn nil_top_level_event_identity_is_denied_before_append() {
+    let nil = EventId::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    for nil_event_id in [true, false] {
+        let store = MemoryEventLog::new();
+        let mut event = RuntimeEvent::new(RequestId::new(), 1, "opaque", json!({})).unwrap();
+        if nil_event_id {
+            event.event_id = nil;
+        } else {
+            event.request_id = RequestId::parse_str(&nil.to_string()).unwrap();
+            event.correlation_id = None;
+        }
+        assert!(matches!(
+            store.append(event).await,
+            Err(PortError::Failed(reason)) if reason == "event_identity_invalid"
+        ));
+        assert!(store.read_all().await.unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn zero_stream_version_is_denied_before_append() {
+    let store = MemoryEventLog::new();
+    let event = RuntimeEvent::new(RequestId::new(), 1, "opaque", serde_json::Value::Null)
+        .unwrap()
+        .with_stream_metadata("run", "run-zero", 0);
+    assert!(matches!(
+        store.append(event).await,
+        Err(PortError::Failed(reason)) if reason == "event_stream_metadata_invalid"
+    ));
+    assert!(store.read_all().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn partial_stream_metadata_is_denied_before_append() {
+    let store = MemoryEventLog::new();
+    let request_id = RequestId::new();
+    let mut missing_id = RuntimeEvent::new(request_id, 1, "opaque", serde_json::Value::Null)
+        .unwrap()
+        .with_stream_metadata("run", "run-partial", 1);
+    missing_id.aggregate_id = None;
+    assert!(matches!(
+        store.append(missing_id).await,
+        Err(PortError::Failed(reason)) if reason == "event_stream_metadata_invalid"
+    ));
+
+    let mut missing_type = RuntimeEvent::new(request_id, 1, "opaque", serde_json::Value::Null)
+        .unwrap()
+        .with_stream_metadata("run", "run-partial", 1);
+    missing_type.aggregate_type = None;
+    assert!(matches!(
+        store.append(missing_type).await,
+        Err(PortError::Failed(reason)) if reason == "event_stream_metadata_invalid"
+    ));
+
+    let empty_type = RuntimeEvent::new(request_id, 1, "opaque", serde_json::Value::Null)
+        .unwrap()
+        .with_stream_metadata("  ", "run-partial", 1);
+    assert!(matches!(
+        store.append(empty_type).await,
+        Err(PortError::Failed(reason)) if reason == "event_stream_metadata_invalid"
+    ));
+
+    let empty_id = RuntimeEvent::new(request_id, 1, "opaque", serde_json::Value::Null)
+        .unwrap()
+        .with_stream_metadata("run", "", 1);
+    assert!(matches!(
+        store.append(empty_id).await,
+        Err(PortError::Failed(reason)) if reason == "event_stream_metadata_invalid"
+    ));
+    assert!(store.read_all().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn positive_stream_metadata_is_accepted() {
+    let store = MemoryEventLog::new();
+    let event = RuntimeEvent::new(RequestId::new(), 1, "opaque", serde_json::Value::Null)
+        .unwrap()
+        .with_stream_metadata("run", "run-positive", 1);
+    store.append(event).await.unwrap();
+    assert_eq!(store.read_all().await.unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -117,6 +199,38 @@ async fn idempotent_replay_rejects_causation_event_id_drift() {
 #[tokio::test]
 async fn idempotent_replay_rejects_parent_event_id_drift() {
     assert_identity_link_drift_denied(IdentityLink::ParentEventId).await;
+}
+
+#[tokio::test]
+async fn idempotent_replay_rejects_redaction_or_artifact_metadata_drift() {
+    let store = MemoryEventLog::new();
+    let request_id = RequestId::new();
+    let first = RuntimeEvent::new(request_id, 1, "run.completed", json!({"run_id":"run-1"}))
+        .unwrap()
+        .with_redaction_metadata(
+            format!("sha256:{}", "a".repeat(64)),
+            false,
+            Some(7),
+            vec!["artifact:one".to_owned()],
+        )
+        .with_idempotency_key("er02-metadata-key");
+    store.append_idempotent(first).await.unwrap();
+
+    let drifted = RuntimeEvent::new(request_id, 1, "run.completed", json!({"run_id":"run-1"}))
+        .unwrap()
+        .with_redaction_metadata(
+            format!("sha256:{}", "b".repeat(64)),
+            false,
+            Some(8),
+            vec!["artifact:two".to_owned()],
+        )
+        .with_idempotency_key("er02-metadata-key");
+    assert!(matches!(
+        store.append_idempotent(drifted).await,
+        Err(PortError::Conflict(reason))
+            if reason == "event_idempotency_key_payload_mismatch"
+    ));
+    assert_eq!(store.read_all().await.unwrap().len(), 1);
 }
 
 #[derive(Clone, Copy)]

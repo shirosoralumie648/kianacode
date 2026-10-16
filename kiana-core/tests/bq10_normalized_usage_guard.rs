@@ -1,11 +1,15 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn normalized_usage_adapter_is_a_bounded_observation_boundary() {
-    let provider = include_str!("../../kiana-provider/src/usage_adapters.rs");
-    let usage = include_str!("../../kiana-provider/src/usage.rs");
+    let provider =
+        source_guard::production_source(include_str!("../../kiana-provider/src/usage_adapters.rs"));
+    let usage = source_guard::production_source(include_str!("../../kiana-provider/src/usage.rs"));
     for marker in [
         "PROVIDER_USAGE_ADAPTER_SCHEMA",
         "normalize_provider_usage",
-        "requested_model_id.clone()",
+        "prepared.route.model_id.clone()",
         "provider_usage_total_inconsistent",
         "UsageConfidence::Partial",
         "BillingUnknownReason::ProviderUnreported",
@@ -13,7 +17,11 @@ fn normalized_usage_adapter_is_a_bounded_observation_boundary() {
     ] {
         assert!(provider.contains(marker), "BQ-10 marker missing: {marker}");
     }
-    assert!(usage.contains("Missing provider usage remains `Unknown`"));
+    let normalization = source_guard::compact_code(&source_guard::item_source(
+        &usage,
+        "pub fn normalize_model_reply(",
+    ));
+    assert!(normalization.contains("None=>(None,None,UsageConfidence::Unknown,Some(BillingUnknownReason::ProviderUnreported),)"));
     for marker in [
         "cache_read_tokens: None",
         "reasoning_output_tokens: None",

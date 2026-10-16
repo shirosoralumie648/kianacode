@@ -4459,6 +4459,11 @@ mod tests {
             .join("\n")
             + "\n";
         fs::write(&path, body).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        }
         path
     }
 
@@ -4723,7 +4728,7 @@ mod tests {
             .as_str()
             .expect("run id")
             .to_owned();
-        let runtime_events = host.persisted_events().await.unwrap().unwrap();
+        let runtime_events = host.ui_events().await.unwrap().unwrap();
         let ledger_events = app.read_session_ledger().await.unwrap().0;
         assert_eq!(ledger_events.len(), runtime_events.len());
         for (runtime, ledger) in runtime_events.iter().zip(&ledger_events) {
@@ -4892,7 +4897,8 @@ mod tests {
         assert!(PAGE.contains("readOnly = !!s.read_only;"));
         assert!(PAGE.contains("promptEl.disabled = readOnly;"));
         assert!(PAGE.contains("document.getElementById('trustBtn').disabled = readOnly;"));
-        assert!(PAGE.contains("历史会话只读；新建 Thread 后才能继续。"));
+        assert!(PAGE.contains("st.textContent = '历史 · '"));
+        assert!(PAGE.contains("human_actions_allowed"));
         assert!(PAGE.contains("if (readOnly)"));
     }
 
@@ -5021,9 +5027,15 @@ mod tests {
         assert!(gap_handler < error_handler);
         assert!(error_handler < event_stream);
         assert!(PAGE[gap_handler..error_handler]
-            .contains("markStreamIncomplete(gap.reason || 'stream_gap')"));
+            .contains("requestStreamHydrate(gap.reason || 'stream_gap')"));
         assert!(PAGE[error_handler..event_stream]
-            .contains("markStreamIncomplete(payload.error || 'stream_error')"));
+            .contains("requestStreamHydrate(payload.error || 'stream_error')"));
+        let hydrate = PAGE
+            .find("async function requestStreamHydrate")
+            .expect("snapshot hydration helper");
+        assert!(PAGE[hydrate..gap_handler].contains("markStreamIncomplete(reason || 'stream_gap')"));
+        assert!(PAGE[hydrate..gap_handler].contains("closeEventStream(true)"));
+        assert!(PAGE[hydrate..gap_handler].contains("await refresh()"));
         assert!(PAGE.contains("source.addEventListener('stream_gap', handleStreamGap);"));
         assert!(PAGE.contains("source.addEventListener('stream_error', handleStreamError);"));
         assert!(PAGE.contains("'Builder · 不完整 / 已中断'"));
@@ -5098,7 +5110,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let host = Arc::new(DaemonHost::with_env_harness().unwrap());
         let app = WebApp::new(
-            host,
+            host.clone(),
             root.clone(),
             "workspace-write".to_owned(),
             ROLE_BUILDER.to_owned(),
@@ -5132,7 +5144,7 @@ mod tests {
             .await
             .unwrap();
         assert!(page.contains("Kiana"));
-        assert!(page.contains("DaemonHost"));
+        assert!(page.contains("receipt authoritative"));
         assert!(page.contains("信任此文件夹"));
         assert!(page.contains("第一次用") || page.contains("Ask Kiana"));
         assert!(page.contains("thread") || page.contains("Threads"));
@@ -5142,7 +5154,21 @@ mod tests {
             .and_then(|value| value.split('\'').next())
             .expect("web token")
             .to_owned();
-        let auth = |request: reqwest::RequestBuilder| request.header("x-kiana-web-token", &token);
+        let auth = |request: reqwest::RequestBuilder| {
+            let cursor = host.ui_cursor();
+            request
+                .header("x-kiana-web-token", &token)
+                .header("x-kiana-ui-tab", "unit-tab")
+                .header("x-kiana-ui-epoch", &cursor.epoch)
+                .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+                .header("x-kiana-action-id", uuid::Uuid::new_v4().to_string())
+                .header("x-kiana-action-target", "workspace")
+        };
+        let bootstrap = auth(client.get(format!("http://{addr}/api/bootstrap")))
+            .send()
+            .await
+            .unwrap();
+        assert!(bootstrap.status().is_success());
 
         let run: Value = auth(
             client

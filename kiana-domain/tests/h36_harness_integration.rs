@@ -156,6 +156,31 @@ fn live_closeout_does_not_count_desktop_without_state_receipt() {
     desktop.desktop_state_receipt = false;
     desktop.result_unknown = false;
     desktop.case_digest = desktop.digest();
+    assert_eq!(
+        desktop.validate().unwrap_err(),
+        "harness_integration_desktop_receipt_missing"
+    );
+    value.matrix_digest = value.digest();
+    assert_eq!(
+        value.validate().unwrap_err(),
+        "harness_integration_desktop_receipt_missing"
+    );
+    assert!(value
+        .live_closeout_blockers()
+        .iter()
+        .any(|blocker| blocker == "matrix_invalid"));
+
+    // Missing desktop evidence remains an explicit unfinished case, never a verified claim.
+    let desktop = value
+        .cases
+        .iter_mut()
+        .find(|case| {
+            case.surface == HarnessSurface::Desktop && case.scenario == HarnessScenario::ShortTask
+        })
+        .expect("desktop short-task case");
+    desktop.status = HarnessCaseStatus::NotImplemented;
+    desktop.reason = "Desktop state receipt is still missing".to_owned();
+    desktop.case_digest = desktop.digest();
     value.matrix_digest = value.digest();
     value.validate().unwrap();
     assert!(value

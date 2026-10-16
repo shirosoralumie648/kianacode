@@ -825,7 +825,9 @@ impl RunStreamRunner {
     fn prepare(&self, command: &RunnerCommand) {
         if matches!(
             command,
-            RunnerCommand::Start { .. } | RunnerCommand::Continue { .. }
+            RunnerCommand::Start { .. }
+                | RunnerCommand::Continue { .. }
+                | RunnerCommand::Resume { .. }
         ) {
             self.bus.begin_turn(command.run_id());
         }

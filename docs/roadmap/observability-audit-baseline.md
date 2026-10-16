@@ -970,3 +970,193 @@ proof-level_change: Audit export producer boundary broadened; no local_behavior,
 limitations: EventLog/Receipt/Metric/Trace producer and sink integration, streaming split-marker coverage, arbitrary unmarked secret formats, downstream classification and durable/live export remain open
 reviewer: source review of AuditRecord digest/redaction invariants, export format parity and deny-first sentinel fixture; no local runtime reviewer
 ```
+
+## 12. Current-head focused OA-02 local receipt (2026-10-05)
+
+The current worktree passes the OA-02 domain and ports correlation selectors locally: strict
+traceparent parsing, server-derived roots, request/scope/actor/epoch binding, causation and
+attempt links, and forged/nil/self-link denial are covered by 8/8 domain tests and 4/4 ports
+tests. The ER-02 identity guard also passes. Production search still finds no authenticated
+ingress construction or propagation through run/turn/invocation/provider/Broker/EventLog, so the
+whole OA-02 card remains open.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/correlation.rs; kiana-domain/tests/oa02_correlation.rs; kiana-ports/src/lib.rs; kiana-ports/tests/oa02_correlation_port.rs; kiana-core/tests/er02_identity_guard.rs
+worktree_status: OA-02 remains roadmap row 093 `🔄`; no runtime ingress/span bridge, exporter, manifest, lockfile or second execution loop was added
+command_argv: `/usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/oa02-domain.resources cargo test -p kiana-domain --test oa02_correlation --locked --offline -- --test-threads=1`; `/usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/oa02-ports.resources cargo test -p kiana-ports --test oa02_correlation_port --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo/test threads; domain max RSS 266076 KiB (~259.8 MiB), ports max RSS 250252 KiB (~244.4 MiB), ER-02 guard max RSS 132372 KiB (~129.3 MiB), all with 0 swaps
+fixture·cassette: OA-02 domain 8/8; ports 4/4; ER-02 validation-order guard 1/1; production `rg` audit found no runtime `CorrelationContext::from_request`, `CorrelationContextPort` or `DomainCorrelationContextPort` construction outside contract tests/guards
+exit_code: all three local targets exited 0; domain elapsed 0.82s, ports elapsed 1.22s, guard elapsed 0.46s
+status_change: focused OA-02 contract behavior recorded as `local_behavior`; roadmap row 093 and whole card remain `🔄` / `feature_status=partial` / `proof_level=source`
+proof-level_change: focused domain/ports selectors `source` → `local_behavior`; no whole-card promotion
+limitations: authenticated ingress→run→turn→invocation→provider→Broker→EventLog propagation, durable recovery links, exporter integration, complete CI shard, live trace and physical proof remain open
+reviewer: integration agent with read-only OA-02 audit; focused local correlation reviewer
+```
+
+## 13. Current-head focused OA-03 local receipt (2026-10-05)
+
+The current worktree passed the OA-03 redaction matrix and export boundary locally: domain 6/6,
+Core source guard 1/1 and the Core audit-export refusal fixture 1/1. The card remains
+`partial/source`; these selectors do not prove that every EventLog/Receipt/Metric/Trace producer
+or streaming split path uses the profile, nor that downstream durable/live exports are safe.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/tests/oa03_redaction.rs; kiana-core/tests/oa03_redaction_guard.rs; kiana-core/src/audit_export.rs
+worktree_status: OA-03 remains roadmap row 094 `🔄`; no second redaction system, manifest, lockfile or execution loop added
+command_argv: serial bounded `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test oa03_redaction_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --lib oa03_audit_export_rejects_secret_sentinel_without_returning_content --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo/test threads; 8.71s elapsed, 7.49s user, 0.86s system, max RSS 969124 KiB (~946.4 MiB), swaps 0; existing warning volume unchanged
+fixture·cassette: domain 6/6; Core source guard 1/1; audit export refusal 1/1; log `/tmp/kiana-roadmap-20261005-evidence/oa03-focused.log`, resources `/tmp/kiana-roadmap-20261005-evidence/oa03-focused.resources`
+exit_code: all three local targets exited 0
+status_change: selected OA-03 redaction/export behavior recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, roadmap row 094 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: complete producer/sink coverage, EventLog/Receipt/Metric/Trace runtime wiring, streaming split-marker boundaries, arbitrary unmarked secrets, downstream classification, durable/live export and physical proof remain open
+reviewer: integration agent; focused local redaction/export reviewer
+```
+
+## 14. Current-head OA-03 full-format refusal receipt (2026-10-07)
+
+The audit export unit boundary now has a single reusable record fixture and verifies that a
+secret-bearing record is rejected before each supported renderer is allowed to produce JSONL,
+JSON or CSV content. `AuditRecord::validate` rejects the unredacted reason as `RecordsInvalid`,
+while the existing direct `redacted_record` test continues to pin the lower-level
+`RedactionFailed("redaction_secret_sentinel_detected")` behavior. The test-only change does not
+alter redaction policy or add a sink.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/audit_export.rs; kiana-core/tests/oa03_redaction_guard.rs; kiana-domain/tests/oa03_redaction.rs; kiana-domain/tests/int13_secret_redaction.rs
+worktree_status: OA-03 row 094 remains 🔄 / feature_status=partial; shared redaction profile remains the only encoder; no manifest, lockfile or second execution path
+command_argv: Core unit `cargo test -p kiana-core --lib audit_export::tests::oa03_audit_export_rejects_secret_sentinel --locked --offline -- --test-threads=1`; domain `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; domain full-channel `cargo test -p kiana-domain --test int13_secret_redaction --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test oa03_redaction_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, 32 MiB test stack, stripped/non-incremental profile; Core full-format 7.53s/96% CPU/max RSS 968,616 KiB; domain OA-03 0.73s/101% CPU/max RSS 269,264 KiB; INT-13 0.60s/105% CPU/max RSS 240,324 KiB; Core guard 14.97s/91% CPU/max RSS 1,196,328 KiB; all completed runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261007-oa03/{core-export-formats-final2,domain-oa03,domain-int13,core-guard}.{log,resources}`
+fixture·cassette: shared valid `AuditRecord` with a secret-bearing reason; renderer loop rejects JSONL/JSON/CSV 3/3 inside a 2-test unit target; existing domain OA-03 6/6, INT-13 4/4 and Core source guard 1/1 remain green. A first over-specific selector ran 0 tests and an initial assertion expected a lower-level redaction error; both were corrected and the module-prefix rerun passed 2/2.
+exit_code: all final selectors, fmt and diff 0; no separate RED production behavior because this slice adds regression coverage for an existing fail-closed path; intermediate incorrect assertion exit 101 is retained in `/tmp/kiana-roadmap-20261007-oa03/core-export-formats-final.log`
+status_change: selected full-format audit-export refusal evidence moves source → local_behavior; whole OA-03 remains `feature_status=partial`, `proof_level=source`, roadmap row 094 🔄
+proof-level_change: local renderer refusal and existing scanner fixtures are locally verified; no durable/live/physical promotion
+limitations: EventLog/Receipt/Metric/Trace/Artifact producer/sink integration, streaming split-marker use at every runtime boundary, arbitrary unmarked secret formats, downstream data-class ceilings, durable/live export and physical proof remain open
+reviewer: root integration agent with OA-03 read-only audit; no human release reviewer
+```
+
+## 15. Malformed JSON-like secret-key denial (2026-10-08)
+
+`encode_bounded_text` now fails closed when a bounded value looks like a JSON object/array, cannot
+be parsed, and contains a quoted sensitive key followed by a colon. This closes the fallback that
+returned malformed `{"token": "...",}` text unchanged; ordinary malformed structured text without
+a sensitive key still follows the legacy text redaction path.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/redaction.rs; kiana-domain/tests/oa03_redaction.rs; kiana-core/tests/oa03_redaction_guard.rs
+worktree_status: OA-03 row 094 remains 🔄 / feature_status=partial / proof_level=source; bounded text encoding denies malformed JSON-like sensitive keys before returning original text; no runtime stream sink, manifest/lockfile or second redaction system
+command_argv: RED `cargo test -p kiana-domain --test oa03_redaction malformed_json_like_secret_key_is_rejected_without_original_fallback --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test oa03_redaction_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 262428 KiB / 43% CPU; final domain GREEN max RSS 83356 KiB / 17% CPU; Core guard max RSS 85412 KiB / 29% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED `{"token": "oa03-malformed-json-sentinel",}` returned the original text; GREEN domain 7/7 preserves profile, nested secret, numeric metric, approval and hyphenated-key coverage while denying the malformed quoted key; Core guard 1/1 locks the helper and stable `redaction_secret_sentinel_detected`
+exit_code: RED 101 expected; domain/Core/fmt/diff 0
+status_change: selected malformed JSON-like secret-key denial moves source → local_behavior; whole OA-03 remains partial/source
+proof-level_change: local bounded encoder refusal only; no durable/live/physical promotion
+limitations: runtime stream renderer still needs complete profile/split-marker/URL-userinfo/JWT wiring; EventLog/Receipt/Metric/Trace sink coverage, arbitrary unmarked secrets, classification ceilings and durable/live export remain open
+reviewer: root integration agent with OA-03 read-only redaction audit; focused bounded-encoder reviewer
+```
+
+## 16. OA-02 source cursor builder revalidation (2026-10-08)
+
+`CorrelationContext::with_source_cursor` now validates the complete cloned context before it
+returns. A caller cannot use this builder to re-emit a context containing a forbidden `Parent`
+link or a self-link; a valid external W3C parent remains represented as `ForeignParent` and is
+preserved.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/correlation.rs; kiana-domain/tests/oa02_correlation.rs; kiana-core/tests/er02_identity_guard.rs
+worktree_status: OA-02 row 093 remains 🔄 / feature_status=partial / proof_level=source; selected source-cursor builder invariant is locally verified; no ingress/provider/Broker/EventLog bridge or second execution path
+command_argv: RED `cargo test -p kiana-domain --test oa02_correlation source_cursor_builder_revalidates_forged_links_and_preserves_foreign_parent --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test oa02_correlation --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 260180 KiB / 35% CPU; cached domain GREEN max RSS 83364 KiB / 16% CPU; Core guard max RSS 85528 KiB / 36% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED forged Parent link was accepted by `with_source_cursor(7)`; GREEN domain 9/9 and Core guard 1/1; stable `correlation_parent_link_invalid`, with valid ForeignParent success and preservation asserted
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected OA-02 source-cursor builder validation moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: builder output validation source → local_behavior; no durable/live/physical promotion
+limitations: authenticated ingress→provider→Broker→EventLog correlation, recovery/durable links, exporters/sinks and physical trace proof remain open; ForeignParent remains link-only and never conveys authority
+reviewer: root integration agent with OA-02 read-only correlation audit; focused builder reviewer
+```
+
+## 17. OA-07 EventId replay identity fence (2026-10-08)
+
+`project_span_lifecycle` now keeps exact `RuntimeEvent` replays idempotent while rejecting any
+same-`event_id` envelope, kind or payload drift with `span_event_identity_conflict:<event_id>`.
+This prevents a malformed direct projector input from silently discarding a changed committed fact;
+EventStore duplicate rejection and durable/live exporter work remain outside this slice.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/span_projection.rs; kiana-core/tests/oa07_span_lifecycle.rs
+worktree_status: OA-07 row remains 🔄 / feature_status=implemented / proof_level=source; selected span projector replay identity is locally verified; no EventStore mutation or exporter path
+command_argv: RED `cargo test -p kiana-core --test oa07_span_lifecycle span_projection_rejects_event_id_content_drift_but_accepts_exact_replay --locked --offline -- --exact --nocapture --test-threads=1`; GREEN `cargo test -p kiana-core --test oa07_span_lifecycle --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 1200100 KiB / 90% CPU; GREEN 1197180 KiB / 95% CPU; all runs reported 0 swaps
+fixture·cassette: RED HashSet dedup silently accepted same-event-id terminal payload drift; GREEN OA-07 4/4 preserves exact replay and rejects drift with stable identity conflict
+exit_code: RED 101 expected; GREEN 0
+status_change: selected OA-07 span EventId identity moves source → local_behavior; whole card remains implemented/source
+proof-level_change: direct span projector replay identity source → local_behavior; no durable/live/physical promotion
+limitations: OA-08 model-attempt projector, EventStore durable duplicate enforcement, checkpoint/restart/recovery, exporter/live backend and physical trace proof remain open
+reviewer: root integration agent with OA-07/OA-08 projection audit; focused span replay reviewer
+```
+
+## 18. OA-08 model-attempt EventId replay identity fence (2026-10-08)
+
+`project_model_attempts` now keeps exact `RuntimeEvent` replays idempotent while rejecting any
+same-`event_id` envelope, kind or payload drift with
+`model_attempt_event_identity_conflict:<event_id>`. This aligns model-attempt telemetry with the
+OA-07 span and ER-08 run projector fences without claiming EventStore or exporter durability.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/model_attempt_projection.rs; kiana-core/tests/oa08_model_instrumentation.rs
+worktree_status: OA-08 remains 🔄 / feature_status=implemented / proof_level=source; selected projector replay identity is locally verified; no provider ingress or durable sink change
+command_argv: RED selector; GREEN selector; full OA-08 target `cargo test -p kiana-core --test oa08_model_instrumentation --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 1200720 KiB / 82% CPU; selector GREEN 1196084 KiB / 92% CPU; full target 84232 KiB / 38% CPU; all runs reported 0 swaps
+fixture·cassette: successful model-turn event duplicated exactly and then changed only in terminal finish while retaining the same EventId; exact duplicate yields one record, drift returns stable identity conflict; OA-08 target 4/4
+exit_code: RED 101 expected; selector/full GREEN 0
+status_change: selected OA-08 model-attempt replay identity moves source → local_behavior; whole card remains implemented/source
+proof-level_change: direct model-attempt projector replay identity source → local_behavior; no durable/live/physical promotion
+limitations: provider/model/stream ingress, EventStore duplicate enforcement, checkpoint/restart/recovery, exporter/live backend and physical trace proof remain open
+reviewer: root integration agent with OA-07/OA-08 projection audit; focused model-attempt replay reviewer
+```
+
+## 19. OA-02 authenticated ingress traceparent boundary (2026-10-13)
+
+`RequestMetadata` now accepts an optional W3C `traceparent` for protected ingress. The daemon
+validates the header before ControlPlane admission, then constructs a fresh server-owned
+`CorrelationContext` after the authenticated security snapshot is resolved. The foreign parent is
+recorded only as a `ForeignParent` span link; actor, project/session scope, authority epoch and data
+epoch continue to come from server-owned values. This slice intentionally does not change the
+existing EventLog `append_event(request_id, ...)` boundary and therefore does not claim the full
+run-to-provider/Broker/EventLog typed span bridge.
+
+```text
+source_snapshot: current dirty worktree; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-daemon/tests/ci04_ingress.rs; kiana-domain/src/ui_snapshot.rs
+worktree_status: OA-02 row 093 remains 🔄 / feature_status=partial; optional traceparent ingress validation and server-root construction are locally verified; no manifest/lockfile, second execution path, automatic commit/push/merge/rebase or worktree deletion
+command_argv: RED `cargo test -p kiana-daemon --test ci04_ingress --locked --offline -- --test-threads=1` first exposed a fixture json_digest type error; GREEN `cargo test -p kiana-daemon --test ci04_ingress --locked --offline -- --test-threads=1`; Protocol `cargo test -p kiana-protocol --lib --locked --offline -- --test-threads=1`; Domain `cargo test -p kiana-domain --test oa02_correlation --locked --offline -- --test-threads=1`; Ports `cargo test -p kiana-ports --test oa02_correlation_port --locked --offline -- --test-threads=1`; Daemon library `cargo test -p kiana-daemon --lib --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; 32 MiB Rust test stack; stripped/non-incremental locked/offline profile; resource samples are under `/tmp/kiana-roadmap-20261010-evidence/oa02-{ingress-green,protocol-green2,domain,ports,daemon-lib}.{log,resources}`; all completed runs reported 0 swaps
+fixture·cassette: invalid `00-not-a-traceparent` is rejected as `port_failed:ingress_traceparent_invalid:traceparent_invalid`; valid W3C parent creates a fresh trace with one `ForeignParent` link while preserving `local-user`, authority epoch 7 and data epoch 11; protocol metadata round-trip retains the new optional field; ingress 3/3, protocol 11/11, domain 9/9, ports 4/4, daemon library 136/136
+exit_code: final ingress/protocol/domain/ports/daemon selectors 0; an intermediate protocol run was blocked by two pre-existing missing `UiSnapshotPageCursor::validate` and `UiSnapshotQuery::validate` declarations in the dirty `ui_snapshot.rs`; restoring those function boundaries left their existing validation bodies unchanged and the final protocol run passed
+status_change: selected OA-02 authenticated ingress traceparent boundary moves source → local_behavior; whole card remains partial/source because typed context is not yet carried through run/turn/invocation/provider/Broker/EventLog and no durable/live exporter proof exists
+proof-level_change: strict ingress denial, foreign-parent link-only construction and metadata compatibility are locally verified; no durable/live/physical promotion
+limitations: no protocol-to-typed-context persistence, provider/Broker/EventLog sink wiring, restart/recovery link replay, W3C exporter, or external/physical trace proof; `traceparent` remains correlation metadata and never grants authority
+reviewer: root integration agent with OA-02 read-only correlation audit; focused ingress/domain/ports reviewers
+```
+
+## 20. OA-03 bounded streaming URL/JWT redaction (2026-10-13)
+
+`StreamingRedactor` now carries a bounded candidate state for URL authority and JWT shapes across
+chunk boundaries. A candidate is held only up to `STREAM_REDACTION_BUFFER_LIMIT` (64 bytes); a
+delimiter emits either the original non-secret candidate or `[REDACTED]`, and an overlong candidate
+fails closed to the fixed marker while the stream remains bounded. The regression covers a URL
+userinfo split, a JWT split at the final segment, and an `eyJ` prefix split. Existing marker/value
+streaming behavior remains green. This closes the previously observed leak where complete-text
+`redact_text()` handled URL/JWT shapes but `StreamingRedactor::push()` passed split chunks through.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/redaction.rs
+worktree_status: OA-03 row 094 remains 🔄 / feature_status=partial / proof_level=source; selected bounded streaming URL/JWT behavior is local_behavior; no manifest/lockfile, second redaction system or execution loop
+command_argv: RED URL selector `cargo test -p kiana-domain --lib redaction::tests::streaming_redactor_masks_url_userinfo_split_across_chunks --locked --offline -- --exact --test-threads=1`; GREEN URL/JWT/prefix selectors; streaming target `cargo test -p kiana-domain --lib redaction::tests::streaming_redactor --locked --offline -- --test-threads=1`; regression `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; all Cargo launches used one build/compiler job, one Rust test thread, 32 MiB test stack, stripped/non-incremental locked/offline profile; URL/JWT/prefix compile samples peaked at 3591904–3594232 KiB and 96–97% CPU, streaming target cache-hit 81744 KiB / 60% CPU, OA-03 domain regression 4113920 KiB / 91% CPU; every completed run reported 0 swaps
+fixture·cassette: RED split URL originally returned `fetch https://stream-user:stream-pass@example.test/path`; GREEN emits `fetch https://[REDACTED]@example.test/path`; split JWT and split `eyJ` prefix emit `response [REDACTED] tail`; streaming target 8/8 including the overlong-candidate bound; OA-03 bounded-redaction target 7/7; full kiana-domain lib 144/144; INT-13 redaction 4/4; Core OA-03 guard 1/1
+exit_code: RED 101 expected; all final selectors, INT-13/Core regressions, fmt and diff 0
+status_change: selected StreamingRedactor URL/JWT split boundary moves source → local_behavior; whole OA-03 remains partial/source and roadmap row 094 remains 🔄
+proof-level_change: bounded in-memory stream behavior source → local_behavior only; no durable/live/physical promotion
+limitations: all runtime producers and sinks are not yet proven to use the complete profile, candidate heuristics remain shape-based, arbitrary unmarked secrets and JSON stream parsing remain outside this slice, and EventLog/Receipt/Metric/Trace/exporter durable/live integration remains open
+reviewer: root integration agent with OA-03 streaming audit; focused red/green redaction reviewer
+```

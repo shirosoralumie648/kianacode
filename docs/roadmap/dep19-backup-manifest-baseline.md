@@ -1,8 +1,8 @@
 # DEP-19 - Backup manifest, chunk and integrity baseline
 
 > Snapshot date: 2026-09-27. This slice defines the verifiable description of a quiesced snapshot.
-> Local Cargo test/build/check/clippy/smoke commands are intentionally not run; GitHub Actions owns
-> fixtures and affected-target checks.
+> The local-test restriction recorded for the 2026-09-27 snapshot session was superseded by the
+> user's current authorization for bounded local roadmap tests; current-head evidence follows.
 
 ## Scope and proof ceiling
 
@@ -51,3 +51,18 @@ quiesce a store, read or hash a byte, write a manifest, restore a root, verify a
 schedule a backup. `kiana_ports::BackupStorePort` still takes an untyped manifest value; binding it
 to this type, and producing manifests from real bytes, remains later work. No RPO/RTO claim is made
 here — that belongs to DEP-24.
+
+## Current-head local receipt (2026-10-06)
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/redaction.rs and dep19_backup_manifest fixtures
+worktree_status: DEP-19 remains roadmap row 688 🔄; shared sentinel scanner now rejects sk-prefixed API keys inside logical references
+command_argv: `cargo test -p kiana-domain --test dep19_backup_manifest --locked --offline -- --test-threads=1`; `cargo test -p kiana-domain --test int13_secret_redaction --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; DEP-19 cached run 0.53s/max RSS 242220 KiB (~237 MiB), 0 swaps; first compile 52.75s/max RSS 4090216 KiB (~3.90 GiB), 0 swaps; `/tmp/kiana-roadmap-20261006-dep19-{final,redaction}.resources`
+fixture·cassette: DEP-19 8/8 and INT-13 4/4; `artifact/sk-...` is classified as `backup_chunk_reference_secret_detected`; shared redaction regression stays green
+exit_code: both commands 0; `git diff --check` 0
+status_change: none; local behavior closes the shared scanner defect but not the DEP-19 backup lifecycle
+proof-level_change: selected secret-reference refusal source → local_behavior; no durable/live/physical promotion
+limitations: no quiesce, real-byte hashing, backup-store binding, signature verification, restore, schedule, RPO/RTO, or evidence that all secret formats are covered
+reviewer: root integration agent; DEP-19 security audit agent; focused regression review
+```

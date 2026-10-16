@@ -393,6 +393,9 @@ impl AdapterConformance {
         if self.adapter == AdapterKind::Memory && self.capabilities.durable_commits {
             return Err("adapter_declaration_memory_cannot_be_durable".to_owned());
         }
+        if self.adapter.is_reserved() && self.proof_ceiling != ProofCeiling::Source {
+            return Err("adapter_declaration_proof_ceiling_not_certifiable".to_owned());
+        }
         if !self.proof_ceiling.certifiable_by_source_suite() {
             return Err("adapter_declaration_proof_ceiling_not_certifiable".to_owned());
         }
@@ -640,16 +643,25 @@ pub fn conformance_batch(
         command_id,
         1,
         "run.started",
-        json!({ "aggregate": aggregate_id }),
+        json!({ "run_id": aggregate_id }),
     )
     .expect("conformance event is well formed")
     .with_stream_metadata("run", aggregate_id, 1)
     .with_idempotency_key(idempotency_key);
+    let second_event = RuntimeEvent::new(
+        command_id,
+        2,
+        "run.started",
+        json!({ "run_id": aggregate_id }),
+    )
+    .expect("conformance event is well formed")
+    .with_stream_metadata("run", aggregate_id, 2)
+    .with_idempotency_key(format!("{idempotency_key}:second"));
     TransitionBatch {
         command_id,
         command_digest: std::iter::repeat_n(digest_char, 64).collect(),
         expected_versions: vec![AggregateVersion::new("run", aggregate_id, 0)],
-        events: vec![event],
+        events: vec![event, second_event],
     }
 }
 
@@ -693,7 +705,7 @@ where
         if observed == declaration.capabilities {
             ConformanceRow::passed(ConformanceCheck::DeclarationMatchesAdapter)
         } else {
-            ConformanceRow::refused(
+            ConformanceRow::refused_code(
                 ConformanceCheck::DeclarationMatchesAdapter,
                 "adapter_declaration_capabilities_mismatch",
             )
@@ -883,7 +895,7 @@ where
                     .map(|event| event.sequence)
                     .collect::<Vec<_>>();
                 let ordered = sequences.windows(2).all(|pair| pair[0] < pair[1]);
-                if ordered && events.len() == 1 {
+                if ordered && events.len() == fresh.events.len() {
                     ConformanceRow::passed(ConformanceCheck::StreamReadAgreesWithCommitOrder)
                 } else {
                     ConformanceRow::refused_code(

@@ -508,7 +508,14 @@ fn redact_and_strip_controls(value: &str) -> String {
             break;
         };
         redacted.push_str(&clean[cursor..marker_index]);
-        let value_start = marker_index + marker.len();
+        let mut value_start = marker_index + marker.len();
+        if marker == "authorization:" {
+            // Preserve horizontal header spacing while consuming both scheme and credentials.
+            while value_start < clean.len() && matches!(clean.as_bytes()[value_start], b' ' | b'\t')
+            {
+                value_start += 1;
+            }
+        }
         redacted.push_str(&clean[marker_index..value_start]);
         let mut value_end = value_start;
         if marker == "authorization:" {

@@ -748,6 +748,7 @@ impl CorrelationContext {
         }
         let mut next = self.clone();
         next.source_cursor = Some(source_cursor);
+        next.validate()?;
         Ok(next)
     }
 

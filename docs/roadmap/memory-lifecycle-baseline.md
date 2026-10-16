@@ -1,6 +1,6 @@
 # CM-02 MemoryRecord lifecycle and legacy import baseline
 
-> 快照日期：2026-10-02。本文记录 CM-02 的 MemoryRecord 生命周期/provenance 字段和 v1 legacy import；本地不运行测试，运行时夹具仅由 GitHub Actions 执行。
+> 快照日期：2026-10-02。本文记录 CM-02 的 MemoryRecord 生命周期/provenance 字段和 v1 legacy import；历史条目保留原证据边界，当前本地回归见文末最新证据块。
 
 ## 1. 目标与证明上限
 
@@ -314,3 +314,18 @@ unsearchable-memory checks, so this is failure evidence, not CM-02 completion.
 The failure is recorded as an ER-01 event-shape decision gate. CM-02 remains `🔄` with
 `feature_status=partial` and `proof_level=source` until the rejection-event contract is resolved
 and the focused daemon target runs through its assertions. No fixture expectation was weakened.
+
+## 13. Local focused closure receipt (2026-10-05)
+
+```text
+source_snapshot: current dirty worktree after the ER-01 event-contract producer-shape correction
+worktree_status: local implementation and evidence changes remain uncommitted; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 cargo test -p kiana-domain --test cm02_memory --locked --offline -- --test-threads=1`; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test daemon_host model_written_memory_without_evidence_is_rejected_and_stays_unsearchable --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo and serial test threads; daemon selector uses a 32 MiB test-thread stack because the default stack overflows in this existing integration harness
+fixture·cassette: `cm02_memory.rs` 6/6; `daemon_host.rs::model_written_memory_without_evidence_is_rejected_and_stays_unsearchable` 1/1; model-written record without evidence is denied before searchable projection and remains unsearchable
+exit_code: domain 0; daemon controlled-stack 0; an uncontrolled daemon retry with the default stack terminated SIGABRT/stack overflow and is retained as environment evidence
+status_change: CM-02 roadmap state promoted to ✅; `feature_status=implemented`, `proof_level=local_behavior`
+proof-level_change: source → local_behavior for the card's lifecycle, legacy-import, invalid-admission and evidence-denial acceptance matrix
+limitations: no durable cross-process recovery, retention/revocation/delete propagation, semantic recall, live provider or physical storage proof; those remain later CM/PD/SC work
+reviewer: integration agent; focused local runtime reviewer
+```

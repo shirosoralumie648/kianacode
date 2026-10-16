@@ -9,8 +9,8 @@ use kiana_core::{
     Bq26FaultCase, Bq26FaultClass, CapacityBudget, CapacityFaultSample, ControlPlane,
 };
 use kiana_domain::{
-    ApprovalChallenge, ApprovalId, CapabilityRequest, CellId, CommandIntent, PendingApproval,
-    RequestContext,
+    ApprovalChallenge, ApprovalId, CapabilityRequest, CellId, CommandIntent, ExecutionStatus,
+    PendingApproval, RequestContext,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -105,12 +105,11 @@ async fn check(context: &RequestContext, arguments: Value) -> String {
         )
         .await
         .expect("response");
-    let value = serde_json::to_value(&response).expect("serialized response");
-    value
-        .get("reason")
-        .and_then(Value::as_str)
-        .unwrap_or_else(|| "completed")
-        .to_owned()
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert_eq!(response.output, Value::Null);
+    response
+        .error
+        .expect("a blocked decision carries its precise reason")
 }
 
 #[tokio::test]

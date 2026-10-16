@@ -31,3 +31,9 @@ fn provider_fallback_boundary_is_validation_only_and_route_bound() {
     assert!(gateway.contains("ProviderGateway"));
     assert!(transport.contains("send_inner_attempt"));
 }
+
+#[test]
+fn provider_fallback_rejects_connection_identity_drift() {
+    let fallback = include_str!("../src/fallback.rs");
+    assert!(fallback.contains("route.connection_id != admission.route.connection_id"));
+}

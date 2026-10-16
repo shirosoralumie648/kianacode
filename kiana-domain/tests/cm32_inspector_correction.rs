@@ -64,7 +64,9 @@ fn inspector_matches_receipt_without_private_leak() {
     let encoded = serde_json::to_string(&inspector).unwrap();
     assert!(!encoded.contains("secret locator query"));
     assert!(!encoded.contains("project:code:memory:1"));
-    assert!(encoded.contains("receipt:cm32"));
+    assert_eq!(inspector.receipt_digest, receipt().receipt_digest);
+    let wire: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(wire["receipt_digest"], receipt().receipt_digest);
     assert!(encoded.contains("revision:1"));
     inspector.validate().unwrap();
 }

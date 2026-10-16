@@ -5,7 +5,7 @@ fn memory_search_uses_projection_fence_and_exposes_epoch() {
     for marker in [
         "MemoryProjectionFence::evaluate",
         "data_policy.data_epoch",
-        "source_revoked_or_retention_expired",
+        "data_source_revoked",
         "\"data_epoch\":data_policy.data_epoch",
     ] {
         assert!(

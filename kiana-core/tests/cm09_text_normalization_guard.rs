@@ -18,6 +18,13 @@ fn normalization_keeps_unicode_sensitive_and_metadata_boundaries_explicit() {
         "secret_free",
         "MAX_NORMALIZED_BYTES",
         "MAX_NORMALIZED_TOKENS",
+        "contains_malformed_json_secret_key",
+        "contains_json_secret_key",
+        "redaction::contains_json_secret_key",
+        "formatted_phone_run",
+        "has_formatted_phone",
+        "PII_REDACTED",
+        "normalization_sensitive_input_rejected",
     ] {
         assert!(
             source.contains(marker) || redaction.contains(marker) || memory.contains(marker),

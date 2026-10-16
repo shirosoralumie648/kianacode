@@ -1,3 +1,9 @@
+//! Daemon `verify_restore()` 的内存集成 fixture。
+//!
+//! 测试从一个合成 SnapshotManifest 和一个合成 RestoreVerificationFact 走过公开 Daemon
+//! 校验入口，检查 DTO 合同与 manifest 身份绑定。fixture 不访问磁盘、EventStore、租约服务
+//! 或外部 effect 系统，因此只证明这些传入值在当前内存中的校验结果。
+
 use kiana_daemon::verify_restore;
 use kiana_domain::{
     RestoreVerificationFact, RestoreVerificationState, SnapshotFileSeal, SnapshotManifest,
@@ -7,6 +13,10 @@ use serde_json::json;
 
 const PROJECTION: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
+/// 为传入清单构造一个自洽的 Verified 状态 fixture。
+///
+/// `verification_digest` 按 Domain `RestoreVerificationFact::digest()` 的字段集合手工生成，
+/// 所以新增/改名字段时该 fixture 也必须同步，否则失败只表示摘要输入未对齐。
 fn fact(manifest: &SnapshotManifest) -> RestoreVerificationFact {
     let mut fact = RestoreVerificationFact {
         schema: RESTORE_VERIFICATION_SCHEMA.to_owned(),
@@ -66,6 +76,7 @@ fn fact(manifest: &SnapshotManifest) -> RestoreVerificationFact {
     fact
 }
 
+/// 构造路径、游标、epoch 均为合成值且已封存的完整快照清单。
 fn manifest() -> SnapshotManifest {
     SnapshotManifest::new(
         "snapshot:one",
@@ -91,6 +102,10 @@ fn manifest() -> SnapshotManifest {
 }
 
 #[test]
+/// 先验证与 manifest 对齐的 fact，再改动 owner 字段并验证自摘要保护。
+///
+/// 第二个断言没有重新计算 `verification_digest`，因此会在 Domain fact 自校验阶段失败；
+/// 它没有单独覆盖 Daemon 的 `restore_manifest_fact_binding_invalid` 分支。
 fn restore_verifier_accepts_bound_verified_fact_and_rejects_scope_drift() {
     let manifest = manifest();
     let mut fact = fact(&manifest);

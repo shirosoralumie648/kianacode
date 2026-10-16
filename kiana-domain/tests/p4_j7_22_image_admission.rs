@@ -1,9 +1,15 @@
+//! P4-J7-22 Domain 图片准入合同测试。
+//!
+//! fixtures 用 'fixture-png' 等普通字节串构造 ArtifactRef/ProcessingGrant，不是真实可解码 PNG 文件；
+//! 这些用例验证摘要、路径、scope、MIME 标签和 capability 声明，不验证图片格式解析、ArtifactStore 授权或 Provider wire 编码。
+
 use kiana_domain::{
     image_payload_digest, validate_image_attachment_ref, ArtifactId, ArtifactProvenance,
     ArtifactRef, CapabilitySupport, DataClass, ImageInputAdmission, ModelCapabilities,
     ModelProtocol, ModelRoute, ProcessingGrant, Purpose, Retention,
 };
 
+/// 提供固定的 OpenAI Chat route fixture；不连接 provider。
 fn route() -> ModelRoute {
     ModelRoute {
         provider_id: "fixture-provider".to_owned(),
@@ -16,6 +22,7 @@ fn route() -> ModelRoute {
     }
 }
 
+/// 构造可控 images capability 的合成模型能力；窗口/输出数值只为测试 route 填充。
 fn capabilities(images: CapabilitySupport) -> ModelCapabilities {
     ModelCapabilities {
         tools: CapabilitySupport::Supported,
@@ -30,6 +37,7 @@ fn capabilities(images: CapabilitySupport) -> ModelCapabilities {
     }
 }
 
+/// 将给定 bytes 摘要绑定进合成 ArtifactRef；scope/provenance 也只是 fixture metadata。
 fn artifact(bytes: &[u8]) -> ArtifactRef {
     ArtifactRef {
         schema: "kiana.artifact-ref.v1".to_owned(),
@@ -48,6 +56,7 @@ fn artifact(bytes: &[u8]) -> ArtifactRef {
     }
 }
 
+/// 构造含指定内容 hash、目的和 retention 时间窗的测试 ProcessingGrant。
 fn grant(bytes: &[u8], revoked: bool) -> ProcessingGrant {
     ProcessingGrant {
         id: "grant-image".to_owned(),
@@ -68,6 +77,7 @@ fn grant(bytes: &[u8], revoked: bool) -> ProcessingGrant {
     }
 }
 
+/// 用一组固定 route/policy/purpose/class 参数建立短期图片准入 fixture。
 fn admission(bytes: &[u8], revoked: bool) -> Result<ImageInputAdmission, String> {
     ImageInputAdmission::new(
         artifact(bytes),
@@ -87,6 +97,7 @@ fn admission(bytes: &[u8], revoked: bool) -> Result<ImageInputAdmission, String>
 }
 
 #[test]
+/// 未受控绝对路径与 grant source path 不同，必须在 admission 创建阶段拒绝。
 fn untrusted_image_path_never_reaches_provider() {
     let bytes = b"fixture-png";
     let result = ImageInputAdmission::new(
@@ -111,12 +122,14 @@ fn untrusted_image_path_never_reaches_provider() {
 }
 
 #[test]
+/// revoked ProcessingGrant 必须在图片可进入 provider 编码前拒绝。
 fn revoked_artifact_grant_blocks_send() {
     let error = admission(b"fixture-png", true).unwrap_err();
     assert_eq!(error, "revoked_artifact_grant_blocks_send");
 }
 
 #[test]
+/// URL 不是 Artifact reference；准入合同不会隐式抓取网络图片。
 fn remote_image_url_is_not_fetched_implicitly() {
     assert_eq!(
         validate_image_attachment_ref("https://example.invalid/image.png").unwrap_err(),
@@ -125,6 +138,8 @@ fn remote_image_url_is_not_fetched_implicitly() {
 }
 
 #[test]
+/// 一份字段绑定一致且声明 vision capability 的 admission 可通过 Domain 合同。
+/// 这里使用的字节并非有效 PNG，因此不证明 MIME 与真实文件格式匹配。
 fn authorized_image_input_reaches_vision_capable_provider() {
     let admitted = admission(b"fixture-png", false).expect("authorized image");
     assert_eq!(admitted.media_type, "image/png");
@@ -133,6 +148,7 @@ fn authorized_image_input_reaches_vision_capable_provider() {
 }
 
 #[test]
+/// admission 中的 bytes digest 与 Artifact hash 一致，并可匹配请求 AttachmentRef metadata。
 fn image_hash_matches_admitted_payload() {
     let bytes = b"fixture-png";
     let admitted = admission(bytes, false).expect("authorized image");

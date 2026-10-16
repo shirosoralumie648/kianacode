@@ -1,12 +1,17 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn approval_binding_is_exact_and_stays_before_broker_dispatch() {
-    let binding = include_str!("../src/approval_binding.rs");
+    let binding = source_guard::production_source(include_str!("../src/approval_binding.rs"));
     let approvals = include_str!("../src/approvals.rs");
     for marker in [
         "ApprovalBinding",
         "target_digest",
         "payload_digest",
         "scope_digest",
+        "approval_scope_digest",
+        "self.scope_digest != approval_scope_digest(context)",
         "PolicySelfApprovalForbidden",
         "PolicyApprovalBindingMismatch",
         "HumanInboxItem",

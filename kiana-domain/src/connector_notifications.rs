@@ -6,7 +6,8 @@
 //! HumanTask.
 
 use crate::{
-    redact_text, validate_notification_event, NotificationEventClass, NotificationEventSource,
+    notification_event_source, redact_text, validate_notification_event, NotificationEventClass,
+    NotificationEventSource,
 };
 use serde_json::Value;
 
@@ -23,6 +24,14 @@ pub fn validate_connector_notification_payload(
 ) -> Result<NotificationEventClass, String> {
     if !CONNECTOR_NOTIFICATION_KINDS.contains(&kind) {
         return Err("connector_notification_kind_unregistered".to_owned());
+    }
+    if let Some(Value::String(declared)) = payload.get("source") {
+        if matches!(
+            notification_event_source(declared)?,
+            NotificationEventSource::Model | NotificationEventSource::Ui
+        ) {
+            return Err("notification_event_source_untrusted".to_owned());
+        }
     }
     let class = validate_notification_event(kind, NotificationEventSource::EventLog, payload)?;
     let object = payload

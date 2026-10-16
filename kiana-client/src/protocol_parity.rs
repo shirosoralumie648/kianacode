@@ -215,13 +215,6 @@ impl ProtocolObservation {
         {
             return Err(ProtocolParityError::ApprovalReferenceMissing);
         }
-        // An `unknown` rendered as a settled outcome is a lie in whichever direction it points.
-        if self.disposition == "unknown"
-            && self.receipt_digest.is_some()
-            && self.approval != ApprovalPresentation::NotApplicable
-        {
-            return Err(ProtocolParityError::UnknownRenderedAsSettled);
-        }
         Ok(())
     }
 }
@@ -342,6 +335,17 @@ pub fn compare_protocol_parity(
     for observation in observations {
         if observation.surface.is_daemon() {
             continue;
+        }
+        if reference.disposition == "unknown"
+            && matches!(observation.disposition.as_str(), "applied" | "rejected")
+        {
+            return Err(ProtocolParityError::UnknownRenderedAsSettled);
+        }
+        if observation.command_id != reference.command_id {
+            return Err(ProtocolParityError::Mismatch("command_id"));
+        }
+        if observation.operation != reference.operation {
+            return Err(ProtocolParityError::Mismatch("operation"));
         }
         if observation.disposition != reference.disposition {
             return Err(ProtocolParityError::Mismatch("disposition"));

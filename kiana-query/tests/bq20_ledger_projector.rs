@@ -40,7 +40,7 @@ fn usage_event() -> RuntimeEvent {
         Some(1),
         Some(2),
         1_000,
-        Some(10_000),
+        Some(86_400_002),
         1,
         "bq20-fixture",
     )

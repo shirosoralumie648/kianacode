@@ -1,5 +1,5 @@
 use kiana_core::{
-    project_metrics, MetricCardinalityError, MetricCardinalityGuard, MetricReducer,
+    project_operational_metrics, MetricCardinalityError, MetricCardinalityGuard, MetricReducer,
     MetricReducerError,
 };
 use kiana_domain::{
@@ -68,7 +68,9 @@ fn builtin_catalog_declares_typed_operational_metrics_and_stable_digest() {
 fn cardinality_guard_rejects_sensitive_labels_and_bounds_series_values() {
     let mut definition = MetricDefinition::counter("kiana.test.series_total", "count");
     definition.allowed_labels = vec!["component".to_owned(), "request_id".to_owned()];
-    let catalog = MetricCatalog::new(vec![definition]).unwrap();
+    let mut values_definition = MetricDefinition::counter("kiana.test.values_total", "count");
+    values_definition.allowed_labels = vec!["component".to_owned()];
+    let catalog = MetricCatalog::new(vec![definition, values_definition]).unwrap();
     let mut guard = MetricCardinalityGuard::new(catalog).unwrap();
     let mut sensitive = BTreeMap::new();
     sensitive.insert("request_id".to_owned(), "request-raw".to_owned());
@@ -85,10 +87,7 @@ fn cardinality_guard_rejects_sensitive_labels_and_bounds_series_values() {
         Err(MetricCardinalityError::ForbiddenLabel(label)) if label == "request_id"
     ));
 
-    let mut definition = MetricDefinition::counter("kiana.test.values_total", "count");
-    definition.allowed_labels = vec!["component".to_owned()];
-    let catalog = MetricCatalog::new(vec![definition]).unwrap();
-    let mut guard = MetricCardinalityGuard::new(catalog).unwrap();
+    assert_eq!(guard.overflow_total(), 1);
     for value in 0..kiana_domain::MAX_METRIC_LABEL_VALUES {
         let mut labels = BTreeMap::new();
         labels.insert("component".to_owned(), format!("component-{value}"));
@@ -161,7 +160,7 @@ fn incremental_reducer_rejects_counter_reset_and_replay_matches_live_points() {
         ),
     ];
     let replay = MetricReducer::replay(&events, Some(2)).unwrap();
-    let snapshot = project_metrics(&events).unwrap();
+    let snapshot = project_operational_metrics(&events, Some(2)).unwrap();
     let mut live = MetricReducer::builtin().unwrap();
     live.apply_snapshot(&snapshot).unwrap();
     assert_eq!(
@@ -176,11 +175,11 @@ fn incremental_reducer_rejects_counter_reset_and_replay_matches_live_points() {
 
 #[test]
 fn estimated_and_measured_metrics_cannot_cross_quality_boundaries() {
-    let mut estimated = MetricDefinition::counter("kiana.test.estimated_total", "count");
+    let mut estimated = MetricDefinition::counter("kiana.test.work_estimated_total", "count");
     estimated.source = MetricSource::Derived;
     let catalog = MetricCatalog::new(vec![estimated]).unwrap();
     let estimated_point = MetricPoint::new_with_quality(
-        "kiana.test.estimated_total",
+        "kiana.test.work_estimated_total",
         MetricKind::Counter,
         1.0,
         "count",
@@ -193,7 +192,7 @@ fn estimated_and_measured_metrics_cannot_cross_quality_boundaries() {
     .unwrap();
     estimated_point.validate_with_catalog(&catalog).unwrap();
     assert!(MetricPoint::new(
-        "kiana.test.estimated_total",
+        "kiana.test.work_estimated_total",
         MetricKind::Counter,
         1.0,
         "count",

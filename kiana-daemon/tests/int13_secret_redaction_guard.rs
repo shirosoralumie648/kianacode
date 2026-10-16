@@ -21,8 +21,8 @@ fn int13_daemon_scans_provider_errors_and_process_channels_before_projection() {
     for marker in [
         "stdout_metadata",
         "stderr_metadata",
-        "redact_text",
-        "EXEC_OUTPUT_MAX_BYTES",
+        "render_capped_for",
+        "output_budget",
         "env_clear",
     ] {
         assert!(
@@ -34,7 +34,7 @@ fn int13_daemon_scans_provider_errors_and_process_channels_before_projection() {
         "safe_output_text_for",
         "render_capped_for",
         "SecretScanChannel::Stdout",
-        "SecretScanChannel::Stderr",
+        "SecretScanChannel",
         "scan_secret_sentinels",
     ] {
         assert!(

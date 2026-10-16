@@ -1,7 +1,7 @@
 # SC-36 protocol parity across CLI, Workbench, Web, Desktop and daemon
 
-> Snapshot date: 2026-09-28. Local Cargo **tests were not executed**; GitHub Actions owns fixtures
-> and the workspace gate.
+> Historical snapshot: 2026-09-28. The original local-test prohibition is no longer current;
+> bounded current-head evidence is recorded below. The workspace gate remains separate.
 
 ## Scope and proof ceiling
 
@@ -75,3 +75,16 @@ produces an observation at all — a missing surface is `protocol_parity_surface
 surface that is silently absent from the product is invisible to this check. No real browser, PTY,
 Electron or ACP host was involved; no golden trace was replayed end to end; nothing here proves two
 real surfaces agree, only that two supplied records can be held to the same rule.
+
+## Current-head local validation (2026-10-06)
+
+The focused behavior target now passes 14/14 after three fixture corrections and two contract fixes:
+valid decided approvals must all name a reference before mismatch comparison; receipt mismatch uses a
+different valid digest; and Unknown is compared as an outcome state rather than inferred from receipt
+and approval fields. The comparator also now binds each UI observation's `command_id` and `operation`
+to the daemon reference. Command:
+`cargo test -p kiana-client --test sc36_protocol_parity --locked --offline -- --test-threads=1`;
+4.60s elapsed, max RSS 441,312 KiB, no swap. The source guard remains green.
+
+The focused target is local behavior evidence only. No running surface capture, transport, browser/
+PTY/Electron/ACP host, release-gate invocation or durable/live/physical proof was performed.

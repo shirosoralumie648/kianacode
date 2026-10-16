@@ -1,10 +1,17 @@
+//! BQ-19 成本分摊投影的行为 fixture。
+//!
+//! 用例合成 Domain allocations 和 RuntimeEvent，不连接 EventStore、reservation ledger 或产品路由；
+//! 覆盖维度汇总、usage 重复/跨 run 拒绝、估算/实测/未知分离和相同输入重建一致性。
+
 use kiana_domain::*;
 use kiana_query::{project_cost_allocations, CostAllocationProjectionError};
 
+/// 用重复字母构造只满足 sha256 文本格式的测试值，不是实际加密计算。
 fn digest(seed: char) -> String {
     format!("sha256:{}", seed.to_string().repeat(64))
 }
 
+/// 构造互相独立的组织、项目、workflow、Cell 和 run 身份。
 fn scope() -> AllocationScope {
     AllocationScope::new(
         OrganizationId::new(),
@@ -16,6 +23,7 @@ fn scope() -> AllocationScope {
     .expect("scope")
 }
 
+/// 用指定用量 ID、金额和摘要种子构造 Estimated allocation。
 fn allocation(
     scope: AllocationScope,
     usage_id: UsageId,
@@ -41,6 +49,7 @@ fn allocation(
     .expect("allocation")
 }
 
+/// 将 Domain allocation 放入成本分摊事件 payload，并把 run/aggregate/revision 写进 envelope metadata。
 fn event(sequence: u64, allocation: &CostAllocation) -> RuntimeEvent {
     RuntimeEvent::new(
         RequestId::new(),
@@ -56,6 +65,7 @@ fn event(sequence: u64, allocation: &CostAllocation) -> RuntimeEvent {
     )
 }
 
+/// 两个唯一叶子分别进入 run 和四个维度的平行统计；每个视图都是 17 微单位，而不是相加成更大总额。
 #[test]
 fn projector_folds_each_leaf_once_across_all_dimensions() {
     let scope = scope();
@@ -116,6 +126,7 @@ fn projector_folds_each_leaf_once_across_all_dimensions() {
     assert_eq!(projection.ledger_total().leaf_count, 2);
 }
 
+/// 重复同一 usage leaf 或把外层 Run 与 allocation scope 错绑时，拒绝整份结果。
 #[test]
 fn projector_rejects_repeated_usage_and_cross_run_event() {
     let local = scope();
@@ -136,6 +147,7 @@ fn projector_rejects_repeated_usage_and_cross_run_event() {
     ));
 }
 
+/// Estimated/Measured 金额分别累计，Unknown 只记数量而不伪造成金额。
 #[test]
 fn estimated_measured_unknown_stay_separate() {
     let scope = scope();
@@ -201,6 +213,9 @@ fn estimated_measured_unknown_stay_separate() {
     assert_eq!(projection.ledger_total().unknown_count, 1);
 }
 
+/// 相同有序事件输入重复投影得到一致的明细、来源 ID 和 run total。
+///
+/// 该断言只覆盖给定内存切片的确定性，不检查 EventStore 持久化或并发一致性。
 #[test]
 fn projector_rebuild_is_deterministic_and_read_only() {
     let scope = scope();

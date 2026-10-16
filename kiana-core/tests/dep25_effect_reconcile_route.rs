@@ -102,6 +102,7 @@ fn payload(resolution: &str, state: EffectObservationState, evidence: Vec<String
         "authority_epoch": 4,
         "fence_token": "fence-1",
         "idempotency_key": "idem-1",
+        "compensation_ref": (resolution == "compensated").then_some("compensation-1"),
     })
 }
 

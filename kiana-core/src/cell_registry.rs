@@ -209,9 +209,7 @@ impl MemoryCellRegistry {
     /// 预算重复释放会算成两次退款，路径锁重复释放会把别人的锁删掉。
     ///
     /// 【路径锁为什么要先确认「现在这把锁还是我的」】
-    /// ```rust
-    /// if state.path_locks.get(path) == Some(&record.reservation.cell.cell_id)
-    /// ```
+    /// 所有权条件是 `state.path_locks.get(path) == Some(&record.reservation.cell.cell_id)`。
     /// 因为锁可能已经被回收并**重新授予**给另一个 Cell。此时无条件 `remove` 会删掉新主人的锁。
     /// 所有权检查是这个函数里最容易写错、也最难在测试里发现的一行：
     /// 它只在「A 释放、锁已经给了 B」这个时序下才有区别。

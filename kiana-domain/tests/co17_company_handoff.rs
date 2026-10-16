@@ -153,6 +153,25 @@ fn handoff_ack_rejects_wrong_recipient_revision_and_expired_assignment() {
 }
 
 #[test]
+fn handoff_rejects_same_principal_even_when_assignment_and_session_differ() {
+    let original = handoff();
+    let mut owner = original.owner.clone();
+    owner.principal_id = original.recipient.principal_id.clone();
+    assert_eq!(
+        CompanyHandoff::offer(
+            "same-principal",
+            original.packet,
+            owner,
+            original.recipient,
+            100,
+            500,
+        )
+        .unwrap_err(),
+        "handoff_parties_must_be_distinct"
+    );
+}
+
+#[test]
 fn reject_or_timeout_returns_to_owner_with_escalation_and_resend_is_idempotent() {
     let original = handoff();
     let mut ledger = CompanyHandoffLedger::default();

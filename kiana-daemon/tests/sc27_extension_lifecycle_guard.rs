@@ -18,7 +18,7 @@ fn sc27_daemon_keeps_lifecycle_cas_sandbox_and_permit_only_boundaries() {
         );
     }
     for marker in [
-        "sandbox:\"read-only\"",
+        "\"sandbox\":\"read-only\"",
         "hook_configuration_changed",
         "hook.decision",
         "project_untrusted",

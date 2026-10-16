@@ -31,6 +31,11 @@ fn ui14_controller_is_intent_only_and_keeps_authority_in_the_client_daemon_path(
     }
     assert!(entrypoints.contains("pub mod workbench_controller;"));
 
+    let code = controller
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
     for forbidden in [
         "DaemonHost",
         "ControlPlane",
@@ -45,7 +50,7 @@ fn ui14_controller_is_intent_only_and_keeps_authority_in_the_client_daemon_path(
         "resume_envelope_on_host",
     ] {
         assert!(
-            !controller.contains(forbidden),
+            !code.contains(forbidden),
             "UI-14 controller gained execution or transport authority: {forbidden}"
         );
     }

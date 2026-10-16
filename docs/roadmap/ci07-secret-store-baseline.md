@@ -1,6 +1,6 @@
 # CI-07 SecretStore 与 CredentialLease 基线
 
-> 快照日期：2026-09-18。运行时验收由 GitHub Actions 执行；本地不运行测试或 smoke。
+> 快照日期：2026-10-08。局部 connector effect-boundary 验收已在受控本地 fixture 执行；整卡仍未完成。
 
 ## Effect boundary
 
@@ -60,3 +60,16 @@ The provider's inline store and OAuth response/material/file types also replace 
 with fixed redacted fields. Formatting these objects never delegates to their token, scope,
 provider-echo or nested metadata strings. CI sentinel fixtures exercise each layer; this does
 not change protected file serialization or establish physical memory erasure.
+
+## 2026-10-08 connector binding receipt
+
+`kiana-ports::ConnectorPreparedPermit::validate_for_binding` now revalidates the lease against the
+server-derived connector account, `connector.invoke` purpose, connector audience and
+`effect_target_digest(binding)`. The INT-11 forged endpoint-digest fixture was RED before this
+change (exit 101; maximum RSS 276696 KiB, swaps 0) and GREEN afterward: HTTPS fixture 3/3,
+INT-07 connector regression 4/4, and the Core INT-11 source guard 2/2 passed. The focused runs
+reported maximum RSS 463692/292700/131388 KiB respectively, with no swap.
+
+This closes only exact metadata binding at the existing issuance-time validation boundary. The
+adapter still lacks effect-time wall-clock validation, a server-owned cross-clone one-shot replay
+fence, and durable/restart revocation; those remain CI-07/INT-06/INT-11 follow-up work.

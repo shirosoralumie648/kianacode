@@ -1,5 +1,8 @@
 //! CAP-19 source guard for server-owned memory scope and journal-before-projection writes.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -11,11 +14,25 @@ fn require(source: &str, markers: &[&str], label: &str) {
 
 #[test]
 fn memory_adapter_uses_server_scope_and_reliable_commit_boundary() {
-    let memory = include_str!("../../kiana-daemon/src/harness_memory.rs");
-    let retrieval = include_str!("../../kiana-daemon/src/memory_retrieval.rs");
+    let memory_source = include_str!("../../kiana-daemon/src/harness_memory.rs");
+    let memory = &format!(
+        "{}\n{}",
+        memory_source,
+        source_guard::compact_code(memory_source)
+    );
+    let retrieval = &[
+        include_str!("../../kiana-daemon/src/memory_retrieval.rs"),
+        include_str!("../../kiana-daemon/src/harness_memory.rs"),
+        include_str!("../src/receipts.rs"),
+    ]
+    .concat();
     let governance = include_str!("../../kiana-daemon/src/data_governance.rs");
     let domain = include_str!("../../kiana-domain/src/context_scope.rs");
-    let core = include_str!("../src/capabilities.rs");
+    let core = &[
+        include_str!("../src/capabilities.rs"),
+        include_str!("../src/commands.rs"),
+    ]
+    .concat();
     let baseline = include_str!("../../docs/roadmap/capability.md");
 
     require(

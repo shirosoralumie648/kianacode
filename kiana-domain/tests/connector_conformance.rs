@@ -120,6 +120,16 @@ fn unknown_effect_and_duplicate_or_forged_report_fail_closed() {
     assert_eq!(partial.status, ConnectorConformanceStatus::NotImplemented);
     let mut forged = partial.clone();
     forged.verified_count = 1;
+    forged.report_digest = kiana_domain::json_digest(&json!({
+        "schema": forged.schema,
+        "cases": forged.cases,
+        "verified_count": forged.verified_count,
+        "not_applicable_count": forged.not_applicable_count,
+        "not_implemented_count": forged.not_implemented_count,
+        "blocked_count": forged.blocked_count,
+        "status": forged.status,
+        "blocking_reasons": forged.blocking_reasons,
+    }));
     assert_eq!(
         forged.validate().unwrap_err(),
         "connector_conformance_counts_mismatch"

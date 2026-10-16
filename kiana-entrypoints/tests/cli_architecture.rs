@@ -60,6 +60,12 @@ fn product_surfaces_do_not_call_legacy_assistant_turn() {
         "lib.rs",
     ] {
         let text = std::fs::read_to_string(root.join(name)).unwrap();
+        // Architecture documentation may name the forbidden legacy loop. Scan code.
+        let text = text
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             !text.contains("run_assistant_turn"),
             "{name} must not call the legacy runner loop"

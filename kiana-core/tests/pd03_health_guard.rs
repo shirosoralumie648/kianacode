@@ -12,6 +12,8 @@ fn storage_health_and_error_taxonomy_are_typed_before_ports_or_surfaces() {
         "StorageIntegrityIncident",
         "storage_error_retry_mismatch",
         "storage_health_digest_mismatch",
+        "observed_at_unix_ms == 0",
+        "detected_at_unix_ms == 0",
         "quarantine_required",
         "deny_unknown_fields",
     ] {

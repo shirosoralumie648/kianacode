@@ -1,8 +1,8 @@
 # CAP-30 dynamic tool search and controlled extension admission baseline
 
-> Snapshot date: 2026-09-28. This slice adds the *admission decision* half of CAP-30. Local Cargo
-> test/build/check/clippy/smoke commands are intentionally not run; GitHub Actions owns fixtures
-> and affected-target checks.
+> Original snapshot date: 2026-09-28. Local Cargo commands were not part of that historical
+> receipt. The 2026-10-06 user request authorizes bounded local tests; current focused results are
+> recorded below, and current-head remote CI remains unobserved.
 
 ## Scope and proof ceiling
 
@@ -63,6 +63,13 @@ decision-order test.
 ## CI and limitations
 
 GitHub Actions runs the unified `.github/workflows/ci.yml` workspace gate. No separate workflow.
+
+The 2026-10-06 focused run of `cargo test -p kiana-domain --test cap30_tool_discovery --locked
+--offline -- --test-threads=1` passed 4/4 tests after correcting fixtures that changed both the
+display name and operation when attempting a built-in shadow, and used a dotted instead of
+canonical underscored write-capability name. The source reducer did not change. CAP-30 remains
+partial because ranking, the live trust-producing adapter and broker promotion integration remain
+outside this domain fixture.
 
 **This does not prove that an extension is present, signed, trusted or bound.** The reducer is a
 decision over values a caller supplies; it cannot tell a truthful adapter from a lying one. If the

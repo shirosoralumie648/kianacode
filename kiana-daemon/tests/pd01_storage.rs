@@ -69,6 +69,47 @@ fn daemon_storage_resolver_rejects_project_local_root() {
     let _ = fs::remove_dir_all(project);
 }
 
+#[test]
+fn daemon_storage_resolver_rejects_existing_non_directory_root() {
+    let project = temp_root("file-root-project");
+    let storage_file = temp_root("file-root");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(&storage_file, b"storage root is not a directory").unwrap();
+    let previous = std::env::var_os("KIANA_HOME");
+    std::env::set_var("KIANA_HOME", &storage_file);
+
+    assert_eq!(
+        resolve_storage_root(&project, "owner", "instance", 1).unwrap_err(),
+        PortError::Failed("storage_root_not_directory".to_owned())
+    );
+
+    std::env::remove_var("KIANA_HOME");
+    if let Some(value) = previous {
+        std::env::set_var("KIANA_HOME", value);
+    }
+    let _ = fs::remove_dir_all(project);
+    let _ = fs::remove_file(storage_file);
+}
+
+#[test]
+fn daemon_storage_resolver_rejects_filesystem_root() {
+    let project = temp_root("filesystem-root-project");
+    fs::create_dir_all(&project).unwrap();
+    let previous = std::env::var_os("KIANA_HOME");
+    std::env::set_var("KIANA_HOME", "/");
+
+    assert_eq!(
+        resolve_storage_root(&project, "owner", "instance", 1).unwrap_err(),
+        PortError::Failed("storage_root_filesystem_root_denied".to_owned())
+    );
+
+    std::env::remove_var("KIANA_HOME");
+    if let Some(value) = previous {
+        std::env::set_var("KIANA_HOME", value);
+    }
+    let _ = fs::remove_dir_all(project);
+}
+
 #[cfg(unix)]
 #[test]
 fn daemon_storage_acquisition_rejects_a_replaced_root_and_namespace_symlinks() {
@@ -173,6 +214,52 @@ fn daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly() {
         .release()
         .unwrap();
     fs::write(path.join("locks/storage.lock"), b"{}").unwrap();
+
+    assert_eq!(
+        StorageLease::acquire(root).unwrap_err(),
+        PortError::Failed("storage_lock_corrupt".to_owned())
+    );
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn daemon_storage_lock_conflict_rejects_foreign_scope_with_invalid_digest_as_corrupt() {
+    let (path, root) = fixture_root("lock-foreign-invalid-digest");
+    let lease = StorageLease::acquire(root.clone()).unwrap();
+    let mut record = lease.record().clone();
+    lease.release().unwrap();
+
+    record.owner_id = "foreign-owner".to_owned();
+    record.store_id = kiana_domain::StoreIdentityId::new();
+    record.lock_digest = "invalid-digest".to_owned();
+    fs::write(
+        path.join("locks/storage.lock"),
+        serde_json::to_vec(&record).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        StorageLease::acquire(root).unwrap_err(),
+        PortError::Failed("storage_lock_corrupt".to_owned())
+    );
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn daemon_storage_lock_conflict_rejects_foreign_scope_with_zero_time_as_corrupt() {
+    let (path, root) = fixture_root("lock-foreign-zero-time");
+    let lease = StorageLease::acquire(root.clone()).unwrap();
+    let mut record = lease.record().clone();
+    lease.release().unwrap();
+
+    record.owner_id = "foreign-owner".to_owned();
+    record.acquired_at_unix_ms = 0;
+    record.lock_digest = record.digest();
+    fs::write(
+        path.join("locks/storage.lock"),
+        serde_json::to_vec(&record).unwrap(),
+    )
+    .unwrap();
 
     assert_eq!(
         StorageLease::acquire(root).unwrap_err(),

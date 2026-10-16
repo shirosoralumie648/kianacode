@@ -15,7 +15,7 @@ fn policy() -> ConnectorIngressPolicy {
         "project-1",
         ["job.created".to_owned()],
         ["id".to_owned()],
-        ["id".to_owned()],
+        ["id".to_owned(), "value".to_owned()],
         100,
         4_096,
     )

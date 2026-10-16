@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{
     ControlPlane, SecurityIncident, SecurityIncidentAction, SecurityIncidentActionRequest,
-    SecurityIncidentClass, SecurityIncidentEvidence, SecurityIncidentSeverity,
-    SecurityIncidentState,
+    SecurityIncidentClass, SecurityIncidentClosure, SecurityIncidentEvidence,
+    SecurityIncidentSeverity, SecurityIncidentState,
 };
 use kiana_domain::{
     ApprovalChallenge, ApprovalId, CapabilityRequest, CommandIntent, PendingApproval,
@@ -82,6 +82,17 @@ fn trusted() -> RequestContext {
 
 fn evidence() -> SecurityIncidentEvidence {
     SecurityIncidentEvidence::new("evidence-1", DIGEST, 1_000).expect("evidence")
+}
+
+fn closure() -> SecurityIncidentClosure {
+    SecurityIncidentClosure::new(
+        "provider retry produced an unknown external effect",
+        "one external call may have been duplicated",
+        vec!["revoked the provider token".to_owned()],
+        "the provider still needs reconciliation",
+        "reviewer-1",
+    )
+    .expect("closure")
 }
 
 fn incident() -> SecurityIncident {
@@ -199,7 +210,7 @@ async fn an_inadmissible_action_is_refused_with_the_modules_own_reason() {
         "responder-1",
         1_100,
         vec![evidence()],
-        None,
+        Some(closure()),
     )
     .expect("close action");
     let payload = json!({

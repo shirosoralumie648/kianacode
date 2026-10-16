@@ -1,3 +1,22 @@
+//! Skill 扩展 crate 的公开门面，重导出来源解析、加载、catalog、渐进披露、plugin、hook 与缓存 API。
+//!
+//! `load_all_skills*` 会解析 `SKILL.md` 并把正文存入内存中的 `Command.content`；它不执行正文。
+//! `list_skill_catalog` / `search_skill_catalog` 返回的 `SkillCatalogEntry` 只含元数据；
+//! `load_skill_body` 对已加载的 content 做预算校验后复制为披露结果，`activate_skill` 只创建
+//! activation 记录，`read_skill_resource` 才会按需读取 skill root 下的资源文件。
+//!
+//! 来源信任由调用方边界传入：默认入口读取外部 ProjectTrust，缺失或读取失败按 Unknown
+//! 处理；显式入口使用调用方传来的 trust。未知/不可信项目不会因此失去 user/bundled 来源，
+//! 但项目级 skill 与受项目 trust 约束的 plugin 来源会被过滤。
+//!
+//! 加载结果来自解析器接受的目录 skill、plugin skill、bundled skill 与活动的 legacy
+//! dynamic skill，再由 domain catalog 选择和报告 shadowed 项。只有 unconditional 项会进入
+//! 返回并缓存的 Vec；带 path 条件的项会尝试写入 legacy dynamic store，但写入错误被忽略。
+//!
+//! catalog 构建失败时内部以空 catalog 兜底；调用方实际收到并缓存的是空命令 Vec。
+//! 这与单个目录/skill 解析错误不同，后者由 loader 告警并跳过。缓存是进程内状态，不是持久
+//! source of truth；全局 registry mutex 在 miss 加载过程中跨 await 持有，不同 cwd 的并发 miss 会串行等待。
+
 pub mod bundled;
 pub mod catalog;
 pub mod disclosure;
@@ -66,6 +85,8 @@ use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
+// 一个进程内共享的技能注册表。Mutex 覆盖所有 cwd；cache miss 时下面的加载路径会在持锁
+// 状态下 await resolver、目录/plugin loader 和 catalog，因此不同 cwd 的并发 miss 也会串行。
 static SKILL_REGISTRY: OnceLock<Mutex<SkillRegistry>> = OnceLock::new();
 
 fn skill_registry() -> &'static Mutex<SkillRegistry> {
@@ -77,8 +98,12 @@ struct SkillRegistry {
     skills_by_cwd: HashMap<String, Vec<Command>>,
 }
 
-/// Load all skills from the standard directories (user + project).
-/// Results are cached per working directory for the process lifetime.
+/// 便捷入口：根据 `cwd` 的外部 ProjectTrust 选择技能来源。
+///
+/// trust 记录缺失或读取失败时都降为 `ProjectTrust::Unknown`，然后委托给显式 trust 入口；
+/// 这会过滤项目级来源，但不会把整个技能集合清空。缓存也不只按 cwd 区分，还包含 trust、
+/// source/plugin/config 摘要及 snapshot generation。返回值只含 unconditional 项；条件项会尝试
+/// 写入 legacy dynamic store，但存储失败被忽略，不会作为本方法的错误返回。
 pub async fn load_all_skills(cwd: impl AsRef<Path>) -> Vec<Command> {
     let cwd = cwd.as_ref();
     let project_trust = kiana_types::read_project_trust(cwd)
@@ -88,16 +113,26 @@ pub async fn load_all_skills(cwd: impl AsRef<Path>) -> Vec<Command> {
     load_all_skills_with_trust(cwd, project_trust).await
 }
 
-/// Load all skills while honoring the caller's project trust decision.
+/// Load skills using the trust decision supplied by the caller.
 ///
-/// User-scoped and bundled skills remain available when a project is untrusted;
-/// project-scoped `.claude/skills` and `.kiana/skills` are withheld until the
-/// session marks the project trusted.
+/// Unknown/Untrusted 保留用户级与 bundled 来源，并过滤项目级 skill 目录以及受项目 trust
+/// 控制的 plugin 资源；传入 Trusted 也不绕过 loader、catalog 和后续披露校验。
+///
+/// 缓存键绑定规范化 cwd、trust、resolved source-root 摘要、plugin root 路径集摘要、
+/// `KIANA_SYSTEM_PROMPT`/`KIANA_APPEND_SYSTEM_PROMPT` 摘要和 snapshot generation。
+/// 结构化 key 构造失败时，fallback key 只剩 cwd 与 generation，不应描述为保留了上述全部隔离维度。
+///
+/// 返回 catalog 选择的 unconditional 命令；path 条件项会尝试写入 legacy dynamic store，
+/// 但 store facade 丢弃写入错误，因而不保证条件项一定已入库。
+/// 单个目录或 skill 解析失败会告警并跳过；catalog 整体构建失败则本轮返回空命令 Vec。
+/// registry 的单个全局 mutex 在缓存 miss 的异步加载期间保持锁定。
 pub async fn load_all_skills_with_trust(
     cwd: impl AsRef<Path>,
     project_trust: kiana_types::ProjectTrust,
 ) -> Vec<Command> {
     let cwd = cwd.as_ref();
+    // 根目录解析摘要只是复合 cache key 的一部分；resolve 失败时以固定 sentinel 参与 key，
+    // 不是在此处直接返回错误。实际目录与 plugin 加载仍走下方 trust-aware loader。
     let source_roots_digest = SourceResolver::new(cwd, project_trust)
         .resolve()
         .map(|resolution| resolution.summary.root_set_digest)
@@ -111,6 +146,8 @@ pub async fn load_all_skills_with_trust(
         "system": std::env::var("KIANA_SYSTEM_PROMPT").ok(),
         "append": std::env::var("KIANA_APPEND_SYSTEM_PROMPT").ok(),
     }));
+    // SnapshotCacheKey 汇总 trust、source roots、plugin registry 和 prompt 配置；生成失败时
+    // fallback 只保留 cwd + generation。该失败路径会缩减 key 维度，不能称为完整复合键。
     let cache_key = SnapshotCacheKey::new(
         &cwd_cache_key(cwd),
         match project_trust {
@@ -130,6 +167,8 @@ pub async fn load_all_skills_with_trust(
             snapshot_generation()
         )
     });
+    // Mutex guard 故意覆盖从目录扫描到 catalog 完成的整个 miss 路径；这保证同一 registry
+    // 不会并发重复填充，但也意味着锁范围内的 await 会阻塞其他 cwd 的注册表查询。
     let mut registry = skill_registry().lock().await;
 
     if let Some(skills) = registry.skills_by_cwd.get(&cache_key) {
@@ -150,9 +189,9 @@ pub async fn load_all_skills_with_trust(
     all.extend(get_bundled_skills());
     all.extend(get_dynamic_skills());
 
-    // Selection and duplicate diagnostics are owned by the deterministic domain catalog rather
-    // than filesystem/HashMap iteration order. A parser failure is fail-closed for the catalog;
-    // the caller receives no ambiguous skill set.
+    // 目录/单个 skill 的解析问题已由 loader 告警并跳过；这里处理的是聚合 catalog 构建失败。
+    // 构建失败时清空本轮候选，避免返回未经过统一 identity/precedence 选择的部分结果。
+    // 正常重复项由 catalog 以 shadowed 诊断处理，不等同于这个 Err 分支。
     let catalog = match build_skill_catalog(&all, 1) {
         Ok(catalog) => catalog,
         Err(error) => {
@@ -168,7 +207,8 @@ pub async fn load_all_skills_with_trust(
     };
     let all = catalog.selected;
 
-    // Separate conditional skills from unconditional ones
+    // `paths` 非空的项不会出现在下面缓存和返回的 unconditional Vec 中；store facade 会尝试
+    // 写入 legacy DynamicSkillStore，但内部丢弃 Result，此处无法报告实际存储成功或失败。
     let (unconditional, conditional): (Vec<_>, Vec<_>) = all
         .into_iter()
         .partition(|s| s.paths.as_ref().map_or(true, |p| p.is_empty()));
@@ -192,11 +232,18 @@ fn cwd_cache_key(cwd: &Path) -> String {
         .to_string()
 }
 
+/// 返回首个完整命令名匹配项：去掉查询名开头的所有 `/` 后做 ASCII 大小写不敏感比较。
+/// 不裁剪空白、不做 namespace 后缀匹配；若短名匹配由调用方另行实现。
 pub fn find_command<'a>(name: &str, commands: &'a [Command]) -> Option<&'a Command> {
     let name = name.trim_start_matches('/');
     commands.iter().find(|c| c.name.eq_ignore_ascii_case(name))
 }
 
+/// 清理本进程的 legacy dynamic 与 bundled 注册表，并使 extension snapshot generation 前进。
+///
+/// skills 命令缓存通过 `try_lock` 尝试清除：若加载路径正持有全局 mutex，本调用不等待，
+/// 此时该 map 本身不会立即清空；generation 变化会使后续构造的复合 key 与旧 key 分离。
+/// 这不是用户自建 `DynamicSkillStore` 或每个 `ExtensionSnapshotCache` 实例的通用清空器。
 pub fn clear_caches() {
     dynamic::clear_dynamic_skills();
     bundled::clear_bundled_skills();

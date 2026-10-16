@@ -15,7 +15,7 @@ fn child_grant_cannot_exceed_parent_grant() {
         paths: vec!["src".to_owned()],
         expires_at_unix_ms: 2_000,
         approval_id: None,
-        delegation_allowed: true,
+        delegation_allowed: false,
     };
     let child = CapabilityGrant {
         schema: CAPABILITY_GRANT_SCHEMA.to_owned(),

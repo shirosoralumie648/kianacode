@@ -33,6 +33,26 @@ fn storage_root_namespaces_and_identity_are_stable_and_strict() {
 }
 
 #[test]
+fn storage_root_rejects_id_not_derived_from_path_even_with_recomputed_digest() {
+    let mut forged = StorageRoot::new(
+        "/tmp/kiana-pd01-forged-id",
+        StorageBackend::LocalFilesystem,
+        owner("instance-a"),
+    )
+    .unwrap();
+    let other = StorageRoot::new(
+        "/tmp/kiana-pd01-other-id",
+        StorageBackend::LocalFilesystem,
+        owner("instance-a"),
+    )
+    .unwrap();
+    forged.root_id = other.root_id;
+    forged.root_digest = forged.digest();
+
+    assert_eq!(forged.validate().unwrap_err(), "storage_root_id_mismatch");
+}
+
+#[test]
 fn storage_root_rejects_relative_network_and_owner_mismatch() {
     assert_eq!(
         StorageRoot::new(

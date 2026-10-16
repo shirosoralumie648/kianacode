@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, production_source};
+
 #[test]
 fn cp24_scheduler_handoff_keeps_claim_lease_and_control_plane_boundaries() {
     let queue = include_str!("../src/workflow_queue.rs");
@@ -58,7 +62,7 @@ fn cp24_scheduler_handoff_keeps_claim_lease_and_control_plane_boundaries() {
     assert!(queue.contains("validate_workflow_queue_dispatch("));
     assert!(automation.contains("plan_command_intent"));
     assert!(automation.contains("self.commit_workflow"));
-    assert!(collaboration.contains("self.cell_registry.commit_spawn"));
+    assert!(compact_code(collaboration).contains("self.cell_registry.commit_spawn"));
     assert!(workflow.contains("stable_fan_in_outputs"));
     assert!(cells.contains("spawn_grant_not_contained"));
     assert!(ports.contains("trait WorkflowQueueStore"));
@@ -71,11 +75,11 @@ fn cp24_scheduler_handoff_keeps_claim_lease_and_control_plane_boundaries() {
         "tokio::spawn(async move {",
     ] {
         assert!(
-            !queue.contains(forbidden),
+            !production_source(queue).contains(forbidden),
             "queue bypass marker: {forbidden}"
         );
         assert!(
-            !workflow.contains(forbidden),
+            !production_source(workflow).contains(forbidden),
             "workflow bypass marker: {forbidden}"
         );
     }

@@ -1,4 +1,10 @@
+//! CM-07 Core 静态源码边界守卫。
+//!
+//! `include_str!` 读取 Domain、Query 和 context input 源文件并检查关键类型/标记仍存在。
+//! 这是编译期测试源码字符串断言，不会执行扫描器，也不能证明 caller 已验证 ProjectTrust 或把 snapshot 接入请求路径。
+
 #[test]
+/// 保留 trust、identity、资源预算及“扫描读取不等于执行能力”的源码边界标记。
 fn workspace_snapshot_keeps_trust_identity_and_read_limits_explicit() {
     let domain = include_str!("../../kiana-domain/src/workspace_snapshot.rs");
     let query = include_str!("../../kiana-query/src/workspace_snapshot.rs");

@@ -12,7 +12,7 @@ use kiana_domain::{
 };
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use super::{ControlPlane, CoreError};
 
@@ -26,6 +26,8 @@ pub enum SpanProjectionError {
     EventFieldInvalid(&'static str),
     #[error("span_event_cursor_overflow")]
     CursorOverflow,
+    #[error("span_event_identity_conflict:{event_id}")]
+    EventIdentityConflict { event_id: String },
     #[error("span_terminal_conflict:{key}:{previous}:{next}")]
     TerminalConflict {
         key: String,
@@ -680,12 +682,17 @@ pub fn project_span_lifecycle(
     let trace_id = stable_trace_id(run_id)?;
     let mut records = Vec::new();
     let mut slots: HashMap<String, SpanSlot> = HashMap::new();
-    let mut seen_event_ids: HashSet<EventId> = HashSet::new();
+    let mut seen_events: HashMap<EventId, &RuntimeEvent> = HashMap::new();
     let mut invocation_aliases: HashMap<RequestId, InvocationId> = HashMap::new();
     let mut current_turn = None;
 
     for (index, event) in events.iter().enumerate() {
-        if !seen_event_ids.insert(event.event_id) {
+        if let Some(previous) = seen_events.insert(event.event_id, event) {
+            if previous != event {
+                return Err(SpanProjectionError::EventIdentityConflict {
+                    event_id: event.event_id.to_string(),
+                });
+            }
             continue;
         }
         if event_run_id(event)? != Some(run_id) {

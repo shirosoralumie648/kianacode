@@ -56,7 +56,10 @@ fn status_is_reachable_without_color() {
     assert!(page.contains("aria-live=\"polite\""));
     assert!(workbench.contains("KeyCode::Esc"));
     assert!(workbench.contains("KeyCode::Char('c')"));
-    assert!(workbench_tty.contains("Approve this exact request?"));
+    // The current TTY uses explicit, keyboard-reachable approval commands.
+    assert!(workbench.contains("/approvals 查看，再明确批准或拒绝"));
+    assert!(workbench.contains("/approve <approval_id> 或 /deny <approval_id>"));
+    assert!(workbench.contains("decide_approval_envelope_on_host"));
     assert!(!page.contains("ModelClient"));
     assert!(!workbench.contains("CapabilityBroker"));
 }

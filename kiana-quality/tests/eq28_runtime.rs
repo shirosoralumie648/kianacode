@@ -158,7 +158,7 @@ fn valid_runtime_lifecycle_has_no_findings() {
             ),
             event(8, 8, "run.completed", "run", RUN, json!({"run_id": RUN})),
         ],
-        vec![6, 7],
+        vec![4, 6, 7],
     );
 
     let evaluator = RuntimeCorrectnessEvaluator;

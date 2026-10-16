@@ -124,6 +124,58 @@ fn queued_sessions_rotate_fairly_after_the_active_slot_is_released() {
 }
 
 #[test]
+fn queued_request_deadline_is_not_extended_at_dispatch() {
+    let policy = policy(1, 2, 100, 10_000);
+    let window = QuotaWindow::from_clock(&clock(), 60_000).expect("window");
+    let mut controller = ProviderCapacityController::new(policy.clone(), window).expect("ctl");
+    let active = ProviderCapacityRequest::new(
+        "active",
+        RunId::new(),
+        AttemptId::new(),
+        policy.group.clone(),
+        QuotaWindow::from_clock(&clock(), 60_000).expect("window"),
+        100,
+        60_001,
+        70_000,
+    )
+    .expect("active request");
+    let active_decision = controller.admit(active).expect("active");
+    let queued = ProviderCapacityRequest::new(
+        "queued",
+        RunId::new(),
+        AttemptId::new(),
+        policy.group.clone(),
+        QuotaWindow::from_clock(&clock(), 60_000).expect("window"),
+        100,
+        60_002,
+        60_003,
+    )
+    .expect("queued request");
+    let queued_decision = controller.admit(queued).expect("queue");
+    assert_eq!(
+        queued_decision.outcome.kind,
+        ProviderCapacityOutcomeKind::Queue
+    );
+
+    controller
+        .release(
+            active_decision.lease.expect("active lease").lease_id,
+            "active",
+        )
+        .expect("release active");
+    let expired = controller
+        .dispatch_next(60_100)
+        .expect("dispatch")
+        .expect("expired decision");
+    assert_eq!(expired.outcome.kind, ProviderCapacityOutcomeKind::Reject);
+    assert_eq!(
+        expired.outcome.reason.as_deref(),
+        Some("provider_capacity_queue_wait_expired")
+    );
+    assert!(expired.lease.is_none());
+}
+
+#[test]
 fn quota_delay_does_not_consume_active_slot_and_group_alias_cannot_bypass() {
     let policy = policy(2, 2, 1, 10_000);
     let window = QuotaWindow::from_clock(&clock(), 60_000).expect("window");

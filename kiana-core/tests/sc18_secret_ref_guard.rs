@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 #[test]
 fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
     let identity = include_str!("../../kiana-domain/src/identity_contracts.rs");
@@ -5,6 +9,8 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
     let redaction = include_str!("../../kiana-domain/src/redaction.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let provider_credentials = include_str!("../../kiana-provider/src/credentials.rs");
+    let provider_request = include_str!("../../kiana-provider/src/request.rs");
+    let provider = include_str!("../../kiana-provider/src/lib.rs");
     let provider_config = include_str!("../../kiana-provider/src/config.rs");
     let transport = include_str!("../../kiana-provider/src/transport.rs");
     let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
@@ -108,7 +114,16 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
         "CredentialLease",
     ] {
         assert!(
-            broker.contains(marker),
+            if marker == "credential_lease_invalid" {
+                let consume =
+                    compact_code(&item_source(broker, "pub fn consume_credential_lease("));
+                consume.contains(
+                    ".validate_for(now_unix_ms,provider_account,purpose,audience,endpoint_digest,)",
+                ) && consume.contains(".map_err(PortError::Failed)?")
+                    && consume.contains("lease.consume(now_unix_ms).map_err(PortError::Failed)")
+            } else {
+                broker.contains(marker)
+            },
             "SC-18 broker marker missing: {marker}"
         );
     }
@@ -119,10 +134,30 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
         "opaque_item_cannot_cross_provider",
     ] {
         assert!(
-            daemon.contains(marker),
+            match marker {
+                "configuration_snapshot" =>
+                    item_source(provider, "pub fn configuration_snapshot(").contains("snapshot("),
+                "model_credential_unavailable" =>
+                    production_source(provider_config).contains("model_credential_unavailable"),
+                "credential_revision" =>
+                    item_source(provider_config, "pub(crate) struct Connection")
+                        .contains("pub credential_revision: String"),
+                "opaque_item_cannot_cross_provider" => {
+                    let normalize = compact_code(&item_source(
+                        provider_request,
+                        "fn normalize_structured_request(",
+                    ));
+                    normalize.contains("provider_id!=route.provider_id||protocol!=route.protocol||route_digest!=expected_route") && normalize.contains("opaque_item_cannot_cross_provider")
+                }
+                _ => production_source(daemon).contains(marker),
+            },
             "SC-18 daemon marker missing: {marker}"
         );
     }
+    assert!(
+        compact_code(&item_source(daemon, "pub(crate) fn from_env("))
+            .contains("kiana_provider::ProviderGateway::from_env(")
+    );
     for source in [
         identity,
         credentials,
@@ -140,7 +175,7 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
             "credential_passthrough",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "SC-18 raw secret/passthrough marker: {forbidden}"
             );
         }

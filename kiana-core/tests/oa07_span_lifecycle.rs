@@ -170,6 +170,26 @@ fn late_delta_and_duplicate_terminal_do_not_mutate_ended_spans() {
 }
 
 #[test]
+fn span_projection_rejects_event_id_content_drift_but_accepts_exact_replay() {
+    let (run_id, _turn_id, _invocation_id, _execution_id, events) = fixture();
+    let completed = events.last().cloned().unwrap();
+    let mut exact_replay = events.clone();
+    exact_replay.push(completed.clone());
+    assert!(project_span_lifecycle(run_id, &exact_replay).is_ok());
+
+    let mut drift = completed.clone();
+    drift.data = json!({"run_id":run_id,"result":"forged"});
+    let mut drifted = events;
+    drifted.push(drift);
+    assert_eq!(
+        project_span_lifecycle(run_id, &drifted),
+        Err(SpanProjectionError::EventIdentityConflict {
+            event_id: completed.event_id.to_string(),
+        })
+    );
+}
+
+#[test]
 fn conflicting_terminal_and_stale_attempt_fail_closed_or_remain_unknown() {
     let (run_id, turn_id, invocation_id, execution_id, mut events) = fixture();
     events.push(event(

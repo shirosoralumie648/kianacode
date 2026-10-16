@@ -1,14 +1,28 @@
 //! CM-38 source guard for fake Provider context/memory golden path and live opt-in.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn context_memory_golden_path_stays_fake_bounded_and_live_opt_in() {
-    let fake = include_str!("../../kiana-daemon/tests/eq10_fake_provider.rs");
+    let fake = &[
+        include_str!("../../kiana-daemon/tests/eq10_fake_provider.rs").to_owned(),
+        source_guard::item_source(
+            include_str!("../../kiana-daemon/src/lib.rs"),
+            "pub fn with_harness(",
+        ),
+    ]
+    .concat();
     let runtime = include_str!("../../kiana-daemon/src/eval_runtime.rs");
     let memory = include_str!("../../kiana-daemon/src/harness_memory.rs");
     let eventstore = include_str!("../../kiana-domain/src/memory_journal.rs");
     let evidence = include_str!("../../kiana-domain/src/context_memory_evidence.rs");
     let live = include_str!("../../kiana-domain/src/live_handoff.rs");
-    let baseline = include_str!("../../docs/roadmap/cm38-context-memory-live-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cm38-context-memory-live-baseline.md"),
+        include_str!("../../docs/roadmap/context-memory.md"),
+    ]
+    .concat();
     for marker in [
         "FakeProviderAdapter",
         "FakeProviderScenario",

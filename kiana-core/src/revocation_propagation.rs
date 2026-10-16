@@ -500,20 +500,29 @@ fn derive(
             ),
         );
     }
-    if let Some(observation) = request
-        .observations
-        .iter()
-        .find(|observation| observation.state == RevocationLayerState::Unreachable)
-    {
-        let layer = observation.layer;
+    // Acknowledgement is credited only as a contiguous prefix of the propagation order, so a
+    // pending layer that has a later acknowledgement is an explicit order violation. Restrict
+    // this check to a true pending state; an older-epoch receipt is reported by the stale-epoch
+    // rule below instead of being mislabelled as a queue jump.
+    let skipped = RevocationLayer::ALL.into_iter().find(|layer| {
+        pending.contains(layer)
+            && observation_of(request, *layer)
+                .is_some_and(|observation| observation.state == RevocationLayerState::Pending)
+            && RevocationLayer::ALL.into_iter().any(|later| {
+                later.rank() > layer.rank()
+                    && observation_of(request, later)
+                        .is_some_and(|observation| is_current_ack(request, observation))
+            })
+    });
+    if let Some(skipped) = skipped {
         return (
             RevocationPropagationStatus::Incomplete,
             acknowledged,
             pending,
-            format!("revocation_layer_state_unknown:{}", layer.as_str()),
+            format!("revocation_layer_order_violation:{}", skipped.as_str()),
             format!(
-                "establish the {} layer's state; an unreachable layer is not an acknowledgement",
-                layer.as_str()
+                "acknowledge the {} layer before anything after it in the propagation order",
+                skipped.as_str()
             ),
         );
     }
@@ -538,6 +547,23 @@ fn derive(
     if let Some(observation) = request
         .observations
         .iter()
+        .find(|observation| observation.state == RevocationLayerState::Unreachable)
+    {
+        let layer = observation.layer;
+        return (
+            RevocationPropagationStatus::Incomplete,
+            acknowledged,
+            pending,
+            format!("revocation_layer_state_unknown:{}", layer.as_str()),
+            format!(
+                "establish the {} layer's state; an unreachable layer is not an acknowledgement",
+                layer.as_str()
+            ),
+        );
+    }
+    if let Some(observation) = request
+        .observations
+        .iter()
         .find(|observation| observation.data_epoch != request.data_epoch)
     {
         let layer = observation.layer;
@@ -551,27 +577,6 @@ fn derive(
                 layer.as_str(),
                 request.data_epoch,
                 observation.data_epoch
-            ),
-        );
-    }
-    // Acknowledgement is credited only as a contiguous prefix of the propagation order, so the
-    // one case that is not merely "not finished" is a layer that jumped the queue. The earlier
-    // layer is still reachable, which makes the later acknowledgement unearned rather than early.
-    let skipped = RevocationLayer::ALL.into_iter().find(|layer| {
-        pending.contains(layer)
-            && acknowledged
-                .last()
-                .is_some_and(|done| done.rank() > layer.rank())
-    });
-    if let Some(skipped) = skipped {
-        return (
-            RevocationPropagationStatus::Incomplete,
-            acknowledged,
-            pending,
-            format!("revocation_layer_order_violation:{}", skipped.as_str()),
-            format!(
-                "acknowledge the {} layer before anything after it in the propagation order",
-                skipped.as_str()
             ),
         );
     }
@@ -607,8 +612,8 @@ fn derive(
 fn acknowledged_prefix(request: &RevocationPropagationRequest) -> Vec<RevocationLayer> {
     let mut acknowledged = Vec::with_capacity(RevocationLayer::ALL.len());
     for layer in RevocationLayer::ALL {
-        let done =
-            observation_of(request, layer).is_some_and(RevocationLayerObservation::acknowledged);
+        let done = observation_of(request, layer)
+            .is_some_and(|observation| is_current_ack(request, observation));
         if !done {
             break;
         }
@@ -622,9 +627,17 @@ fn pending_layers(request: &RevocationPropagationRequest) -> Vec<RevocationLayer
     RevocationLayer::ALL
         .into_iter()
         .filter(|layer| {
-            !observation_of(request, *layer).is_some_and(RevocationLayerObservation::acknowledged)
+            !observation_of(request, *layer)
+                .is_some_and(|observation| is_current_ack(request, observation))
         })
         .collect()
+}
+
+fn is_current_ack(
+    request: &RevocationPropagationRequest,
+    observation: &RevocationLayerObservation,
+) -> bool {
+    observation.acknowledged() && observation.data_epoch == request.data_epoch
 }
 
 fn observation_of(

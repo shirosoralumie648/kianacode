@@ -76,6 +76,8 @@ fn drive_cas_race() -> Result<Bq26FaultObservation, String> {
 
     let run_id = RunId::new();
     let attempt_id = AttemptId::new();
+    let model_attempt_id = kiana_domain::ModelAttemptId::new();
+    let reservation_id = RequestId::new();
     let aggregate_id = format!("bq26-cas-race-{attempt_id}");
 
     let batch_for = |command_id: RequestId, sequence: u64| -> Result<TransitionBatch, String> {
@@ -85,8 +87,9 @@ fn drive_cas_race() -> Result<Bq26FaultObservation, String> {
             "usage.settled",
             serde_json::json!({
                 "run_id": run_id.to_string(),
+                "model_attempt_id": model_attempt_id.to_string(),
                 "attempt_id": attempt_id.to_string(),
-                "sequence": sequence,
+                "reservation_id": reservation_id.to_string(),
             }),
         )
         .map_err(|error| error.to_string())?
@@ -204,6 +207,7 @@ fn drive_network_eof() -> Result<Bq26FaultObservation, String> {
     let prepared = fixture_prepared()?;
     let chunks: Vec<Vec<u8>> = vec![
         br#"data: {"id":"m1","model":"bq26-model","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}
+
 "#
         .to_vec(),
     ];
@@ -237,8 +241,8 @@ fn drive_network_eof() -> Result<Bq26FaultObservation, String> {
 /// framer/accumulator path is exercised; no socket is involved.
 fn fixture_prepared() -> Result<kiana_domain::PreparedModelCall, String> {
     use kiana_domain::{
-        ModelCallSpec, ModelMessage, ModelPurpose, ModelRequest, ModelResponseFormat, ModelRoute,
-        TokenBudget, MODEL_CALL_SCHEMA,
+        ModelAttemptId, ModelCallSpec, ModelMessage, ModelPurpose, ModelRequest,
+        ModelResponseFormat, ModelRoute, TokenBudget, MODEL_CALL_SCHEMA,
     };
 
     let request = ModelRequest {
@@ -246,12 +250,13 @@ fn fixture_prepared() -> Result<kiana_domain::PreparedModelCall, String> {
         tools: Vec::new(),
         sandbox: "read-only".to_owned(),
     };
+    let model_attempt_id = ModelAttemptId::new();
     let mut prepared = kiana_domain::PreparedModelCall {
         schema: MODEL_CALL_SCHEMA.to_owned(),
         spec: ModelCallSpec {
             call_id: RequestId::new(),
             attempt_id: RequestId::new(),
-            model_attempt_id: None,
+            model_attempt_id: Some(model_attempt_id),
             step_id: None,
             step: 1,
             purpose: ModelPurpose::Task,

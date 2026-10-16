@@ -69,6 +69,11 @@ fn fixed_configuration_and_result_boundaries_fail_closed() {
     input["config"]["temperature_milli"] = json!(2001);
     input["result"]["score_milli"] = json!(1001);
     input["result"]["result_digest"] = Value::Null;
+    assert!(
+        SemanticJudgeEvaluator.evaluate(&input).is_err(),
+        "a null String field is structurally invalid"
+    );
+    input["result"]["result_digest"] = json!("invalid-digest");
 
     let findings = SemanticJudgeEvaluator.evaluate(&input).unwrap();
     let codes: Vec<_> = findings

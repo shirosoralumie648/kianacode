@@ -1,6 +1,18 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn evaluation_fault_plan_is_deterministic_and_never_starts_effects() {
-    let runtime = include_str!("../../kiana-daemon/src/eval_runtime.rs");
+    let runtime =
+        source_guard::production_source(include_str!("../../kiana-daemon/src/eval_runtime.rs"));
+    let boundary = [
+        source_guard::item_source(&runtime, "pub enum EvalFaultKind"),
+        source_guard::item_source(&runtime, "pub enum EvalFaultDisposition"),
+        source_guard::item_source(&runtime, "pub struct EvalFaultPlan"),
+        source_guard::item_source(&runtime, "pub struct EvalFaultEvidence"),
+        source_guard::item_source(&runtime, "impl EvalFaultPlan"),
+    ]
+    .join("\n");
     for marker in [
         "EvalFaultPlan",
         "EvalFaultKind",
@@ -26,7 +38,7 @@ fn evaluation_fault_plan_is_deterministic_and_never_starts_effects() {
         "EventStorePort for EvalFaultPlan",
     ] {
         assert!(
-            !runtime.contains(forbidden),
+            !boundary.contains(forbidden),
             "fault plan side effect marker: {forbidden}"
         );
     }

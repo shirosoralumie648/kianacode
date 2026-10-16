@@ -8,6 +8,14 @@
 //! 所有路径、能力和状态 helper 都采用收紧/拒绝优先的语义。调用方应把 `None`、拒绝和
 //! `ResultUnknown` 与“没有副作用”严格区分，并以 EventLog/Receipt 作为事实来源，不把
 //! transcript、UI 投影或模型自述当作状态权威。
+//!
+//! 本文件是 crate 的对外类型入口：大多数 `mod name;` 保持私有，随后通过 `pub use name::*;`
+//! 将公开类型统一暴露为 `kiana_domain::Type`。因此内部源码文件负责按领域分组，调用方依赖的是
+//! crate 根导出的稳定类型路径；`company` 还保留直接的嵌套模块入口。
+//!
+//! 常见数据流是：入口/协议 DTO → Daemon/Core 读取或构造 Domain 值 → Core/adapter 按授权与事件
+//! 契约处理 → EventStore、Receipt 或查询投影记录事实。Domain 的 validator/状态转换帮助各层使用
+//! 相同规则，但类型存在或校验通过本身不表示 Core 已执行授权，更不表示外部副作用已经完成。
 
 mod adapter_result;
 mod approval_journal;

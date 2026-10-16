@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source};
+
 #[test]
 fn sc31_audit_record_is_server_derived_and_eventlog_bound() {
     let observability = include_str!("../../kiana-domain/src/observability.rs");
@@ -51,7 +55,11 @@ fn sc31_audit_record_is_server_derived_and_eventlog_bound() {
         );
     }
     assert!(eventlog_plan.contains("audit_contract::validate_runtime_event"));
-    assert!(journal_plan.contains("audit_contract::validate_runtime_event"));
+    let plan = item_source(journal_plan, "pub fn plan_transition(");
+    assert!(compact_code(&plan).contains("validate_event_for_storage(event)?"));
+    let storage = item_source(eventlog_plan, "pub(crate) fn validate_event_for_storage(");
+    assert!(compact_code(&storage)
+        .contains("audit_contract::validate_runtime_event(event).map_err(PortError::Failed)?"));
     assert!(!eventlog_boundary.contains("EventStorePort"));
     assert!(!eventlog_boundary.contains("std::fs"));
 }

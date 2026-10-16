@@ -20551,11 +20551,15 @@ mod tests {
             ("no_session_persistence".to_string(), Value::Bool(true)),
             ("api_key".to_string(), Value::String("test-key".to_string())),
             ("base_url".to_string(), Value::String(base_url)),
-            ("model".to_string(), Value::String("mock-model".to_string())),
+            (
+                "model".to_string(),
+                Value::String("claude-sonnet-4-6".to_string()),
+            ),
             (
                 "cwd".to_string(),
                 Value::String(tasks_root.display().to_string()),
             ),
+            ("project_trusted".to_string(), Value::Bool(true)),
         ]);
 
         let (input_writer, input_reader) = tokio::io::duplex(8192);
@@ -20603,10 +20607,9 @@ mod tests {
         assert_eq!(permission_request["request"]["tool_name"], "apply_patch");
         assert_eq!(permission_request["request"]["agent_id"], "agent-1");
         assert_eq!(permission_request["request"]["blocked_path"], Value::Null);
-        assert_eq!(
-            permission_request["request"]["decision_reason"]["reason"],
-            "local_write_requires_approval"
-        );
+        assert!(permission_request["request"]["decision_reason"]["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("local_write_requires_approval")));
 
         let permission_cancel = lines
             .iter()
@@ -20623,7 +20626,10 @@ mod tests {
             .expect("result event not written");
         assert_eq!(result_event["subtype"], "success");
         assert_eq!(result_event["result"], "patch applied");
-        assert!(!tasks_root.join("permission.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(tasks_root.join("permission.txt")).unwrap(),
+            "approved\n"
+        );
 
         let assistant_event = lines
             .iter()
@@ -24561,10 +24567,18 @@ mod tests {
             "ANTHROPIC_BASE_URL",
             "ANTHROPIC_MODEL",
             "KIANA_PERMISSION_MODE",
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_CONFIG_FILE",
         ]);
         let workspace =
             std::env::temp_dir().join(format!("kiana-direct-server-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::create_dir_all(workspace.join(".git")).unwrap();
+        let home = workspace.with_extension("home");
+        std::env::set_var("KIANA_HOME", &home);
+        std::env::set_var("HOME", &home);
+        std::env::set_var("KIANA_CONFIG_FILE", home.join("config.toml"));
+        kiana_types::write_project_trust(&workspace, kiana_types::ProjectTrust::Trusted).unwrap();
         let cwd = CurrentDirGuard::set(&workspace);
 
         let (base_url, model_requests, model_server) =
@@ -24587,7 +24601,10 @@ mod tests {
             HashMap::from([
                 ("api_key".to_string(), Value::String("test-key".to_string())),
                 ("base_url".to_string(), Value::String(base_url)),
-                ("model".to_string(), Value::String("mock-model".to_string())),
+                (
+                    "model".to_string(),
+                    Value::String("claude-sonnet-4-6".to_string()),
+                ),
                 ("no_session_persistence".to_string(), Value::Bool(true)),
             ]),
         )
@@ -24612,7 +24629,7 @@ mod tests {
         assert_eq!(String::from_utf8(output).unwrap(), "direct server done\n");
         let requests = model_requests.lock().unwrap();
         assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0]["model"], "mock-model");
+        assert_eq!(requests[0]["model"], "claude-sonnet-4-6");
         assert!(requests[0]["messages"]
             .as_array()
             .unwrap()
@@ -24623,6 +24640,7 @@ mod tests {
         model_server.abort();
         drop(cwd);
         let _ = std::fs::remove_dir_all(workspace);
+        let _ = std::fs::remove_dir_all(home);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -24643,6 +24661,7 @@ mod tests {
             std::env::temp_dir().join(format!("kiana-direct-permission-{}", uuid::Uuid::new_v4()));
         let tasks_root = workspace.join("tasks");
         std::fs::create_dir_all(&tasks_root).unwrap();
+        std::fs::create_dir_all(workspace.join(".git")).unwrap();
         std::env::set_var("KIANA_TASKS_ROOT", &tasks_root);
         let kiana_home = workspace.with_extension("kiana-home");
         std::env::set_var("KIANA_HOME", &kiana_home);
@@ -24668,7 +24687,10 @@ mod tests {
             HashMap::from([
                 ("api_key".to_string(), Value::String("test-key".to_string())),
                 ("base_url".to_string(), Value::String(base_url)),
-                ("model".to_string(), Value::String("mock-model".to_string())),
+                (
+                    "model".to_string(),
+                    Value::String("claude-sonnet-4-6".to_string()),
+                ),
                 ("no_session_persistence".to_string(), Value::Bool(true)),
                 (
                     "permission_mode".to_string(),
@@ -24770,7 +24792,10 @@ mod tests {
 
         assert!(saw_permission_request);
         assert_eq!(final_result.unwrap()["result"], "patch applied");
-        assert!(!workspace.join("permission.txt").exists());
+        assert_eq!(
+            std::fs::read_to_string(workspace.join("permission.txt")).unwrap(),
+            "approved\n"
+        );
 
         server.abort();
         model_server.abort();
@@ -25148,7 +25173,7 @@ mod tests {
             "--base-url".to_string(),
             base_url,
             "--model".to_string(),
-            "mock-cli-model".to_string(),
+            "claude-sonnet-4-6".to_string(),
             "--tools".to_string(),
             "apply_patch".to_string(),
             "--permission-mode".to_string(),
@@ -25181,7 +25206,7 @@ mod tests {
 
         let requests = state.lock().unwrap().requests.clone();
         assert_eq!(requests.len(), 2);
-        assert_eq!(requests[0]["model"], "mock-cli-model");
+        assert_eq!(requests[0]["model"], "claude-sonnet-4-6");
         assert!(requests[0]["tools"]
             .as_array()
             .unwrap()
@@ -25191,11 +25216,16 @@ mod tests {
             &requests[1]["messages"].as_array().unwrap().last().unwrap()["content"][0];
         assert_eq!(tool_result["type"], "tool_result");
         assert_eq!(tool_result["tool_use_id"], "toolu_cli_write");
-        assert_eq!(
-            tool_result["content"],
-            serde_json::json!(r#"{"changed":[{"op":"add","path":"created.txt"}]}"#)
-        );
-        assert!(tool_result["content"]["originalFile"].is_null());
+        let observation: Value = serde_json::from_str(tool_result["content"].as_str().unwrap())
+            .expect("tool result uses the structured observation envelope");
+        assert_eq!(observation["schema"], "kiana.tool-observation.v1");
+        assert_eq!(observation["status"], "succeeded");
+        assert_eq!(observation["untrusted"], true);
+        let summary: Value = serde_json::from_str(observation["summary"].as_str().unwrap())
+            .expect("observation summary remains structured JSON");
+        assert_eq!(summary["changed"][0]["op"], "add");
+        assert_eq!(summary["changed"][0]["path"], "created.txt");
+        assert!(summary["originalFile"].is_null());
 
         server.abort();
         let _ = std::fs::remove_dir_all(root);
@@ -25245,7 +25275,7 @@ mod tests {
             "--base-url".to_string(),
             base_url,
             "--model".to_string(),
-            "mock-cli-model".to_string(),
+            "claude-sonnet-4-6".to_string(),
             "--tools".to_string(),
             "shell,apply_patch".to_string(),
             "--permission-mode".to_string(),
@@ -25303,22 +25333,33 @@ mod tests {
             &requests[2]["messages"].as_array().unwrap().last().unwrap()["content"][0];
         assert_eq!(edit_result["type"], "tool_result");
         assert_eq!(edit_result["tool_use_id"], "toolu_cli_edit");
-        assert_eq!(
-            edit_result["content"],
-            serde_json::json!(r#"{"changed":[{"op":"update","path":"note.txt"}]}"#)
-        );
-        assert!(edit_result["content"]["updatedContent"].is_null());
+        let edit_observation: Value =
+            serde_json::from_str(edit_result["content"].as_str().unwrap())
+                .expect("edit result uses the structured observation envelope");
+        assert_eq!(edit_observation["schema"], "kiana.tool-observation.v1");
+        assert_eq!(edit_observation["status"], "succeeded");
+        assert_eq!(edit_observation["untrusted"], true);
+        let edit_summary: Value =
+            serde_json::from_str(edit_observation["summary"].as_str().unwrap())
+                .expect("edit observation summary remains structured JSON");
+        assert_eq!(edit_summary["changed"][0]["op"], "update");
+        assert_eq!(edit_summary["changed"][0]["path"], "note.txt");
+        assert!(edit_summary["updatedContent"].is_null());
 
         let bash_result =
             &requests[3]["messages"].as_array().unwrap().last().unwrap()["content"][0];
         assert_eq!(bash_result["type"], "tool_result");
         assert_eq!(bash_result["tool_use_id"], "toolu_cli_bash");
-        let shell_output: Value =
+        let shell_observation: Value =
             serde_json::from_str(bash_result["content"].as_str().unwrap()).unwrap();
-        assert_eq!(shell_output["stdout"], "beta\n");
-        assert_eq!(shell_output["exit_code"], 0);
-        assert_eq!(shell_output["stop_confirmed"], true);
-        assert!(bash_result.get("is_error").is_none());
+        assert_eq!(shell_observation["schema"], "kiana.tool-observation.v1");
+        assert_eq!(shell_observation["status"], "succeeded");
+        let shell_summary: Value =
+            serde_json::from_str(shell_observation["summary"].as_str().unwrap()).unwrap();
+        assert_eq!(shell_summary["stdout"], "beta\n");
+        assert_eq!(shell_summary["exit_code"], 0);
+        assert_eq!(shell_summary["stop_confirmed"], true);
+        assert_eq!(bash_result["is_error"], false);
 
         server.abort();
         let _ = std::fs::remove_dir_all(root);

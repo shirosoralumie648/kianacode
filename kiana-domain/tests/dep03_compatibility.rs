@@ -70,6 +70,28 @@ fn unknown_major_downgrade_and_digest_drift_are_blocked() {
 }
 
 #[test]
+fn config_revision_drift_is_blocked() {
+    let current = axes(3);
+    let mut candidate = axes(3);
+    candidate.config_revision = "config-r2".to_owned();
+    candidate.axes_digest = candidate.digest();
+    let matrix = DeploymentCompatibilityMatrix::evaluate(current, candidate).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["config_revision_drift"]);
+}
+
+#[test]
+fn projection_minor_lag_is_blocked() {
+    let current = axes(3);
+    let mut candidate = axes(3);
+    candidate.projection_version = SchemaVersion::new(1, 2);
+    candidate.axes_digest = candidate.digest();
+    let matrix = DeploymentCompatibilityMatrix::evaluate(current, candidate).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["projection_version_downgrade"]);
+}
+
+#[test]
 fn status_and_reasons_cannot_be_forged() {
     let mut matrix = DeploymentCompatibilityMatrix::evaluate(axes(3), axes(3)).unwrap();
     matrix.status = DeploymentCompatibilityStatus::Blocked;

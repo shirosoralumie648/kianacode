@@ -1,9 +1,13 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn symposium_governance_binds_assignment_baseline_and_decision_evidence() {
     let governance = include_str!("../../kiana-domain/src/symposium_governance.rs");
     let existing = include_str!("../../kiana-domain/src/symposiums.rs");
     let core = include_str!("../src/company.rs");
 
+    let variants = source_guard::item_source(governance, "pub enum SymposiumContributionKind");
     for marker in [
         "GOVERNED_SYMPOSIUM_SCHEMA",
         "SYMPOSIUM_CONTRIBUTION_SCHEMA",
@@ -26,10 +30,19 @@ fn symposium_governance_binds_assignment_baseline_and_decision_evidence() {
         "unresolved",
         "evidence_refs",
     ] {
-        assert!(
-            governance.contains(marker) || existing.contains(marker) || core.contains(marker),
-            "CO-14 marker missing: {marker}"
-        );
+        if let Some(variant) = marker.strip_prefix("SymposiumContributionKind::") {
+            assert!(
+                variants
+                    .lines()
+                    .any(|line| line.trim() == format!("{variant},")),
+                "typed variant missing: {marker}"
+            );
+        } else {
+            assert!(
+                governance.contains(marker) || existing.contains(marker) || core.contains(marker),
+                "CO-14 marker missing: {marker}"
+            );
+        }
     }
     assert!(existing.contains("pub struct Symposium"));
     assert!(existing.contains("pub struct DecisionRecord"));

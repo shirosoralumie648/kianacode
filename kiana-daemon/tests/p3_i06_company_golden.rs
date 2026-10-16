@@ -122,7 +122,7 @@ async fn fake_model_coding_project_produces_closing_receipt() {
         DaemonHost::with_harness_and_project_authority(harness, Arc::new(TrustedProject))
             .expect("daemon host"),
     );
-    let project_id = "project-golden".to_owned();
+    let project_id = ProjectId::new().to_string();
     let milestone_id = "milestone-golden".to_owned();
     let packet_id = "packet-golden".to_owned();
     let mut revision = 0;
@@ -130,8 +130,8 @@ async fn fake_model_coding_project_produces_closing_receipt() {
     company_command(
         &host,
         &root,
-        "sponsor-session",
-        RoleSpec::sponsor(),
+        "builder-artifact-session",
+        RoleSpec::builder(),
         &mut revision,
         "register-charter",
         CompanyCommand::RegisterArtifact {
@@ -143,8 +143,8 @@ async fn fake_model_coding_project_produces_closing_receipt() {
     company_command(
         &host,
         &root,
-        "sponsor-session",
-        RoleSpec::sponsor(),
+        "builder-artifact-session",
+        RoleSpec::builder(),
         &mut revision,
         "register-decision",
         CompanyCommand::RegisterArtifact {
@@ -285,9 +285,10 @@ async fn fake_model_coding_project_produces_closing_receipt() {
         },
     )
     .await;
-    let packet = WorkPacket::builder_task(packet_id.clone(), "write OUTPUT.txt")
+    let mut packet = WorkPacket::builder_task(packet_id.clone(), "write OUTPUT.txt")
         .with_path_allow(["OUTPUT.txt"])
         .with_acceptance_tests(["output exists"]);
+    packet.project_id = ProjectId::parse_str(&project_id);
     company_command(
         &host,
         &root,
@@ -335,15 +336,21 @@ async fn fake_model_coding_project_produces_closing_receipt() {
         "company golden output\n"
     );
 
-    let events = host
-        .persisted_events()
-        .await
-        .expect("event read")
-        .expect("events");
-    let run_evidence = events
+    let runtime_evidence_refs = start.output["company"]["state"]["runs"][&packet_id]
+        ["runtime_receipt"]["event_refs"]
+        .as_array()
+        .expect("runtime receipt event refs")
         .iter()
-        .find(|event| event.kind == "run.completed")
-        .map(|event| format!("event:{}", event.event_id))
+        .map(|reference| {
+            reference
+                .as_str()
+                .expect("runtime event reference")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    let run_evidence = runtime_evidence_refs
+        .first()
+        .cloned()
         .expect("completed run evidence");
     company_command(
         &host,
@@ -356,7 +363,7 @@ async fn fake_model_coding_project_produces_closing_receipt() {
             acceptance_id: "acceptance-golden".to_owned(),
             project_id: project_id.clone(),
             packet_id: packet_id.clone(),
-            evidence_refs: vec![run_evidence.clone()],
+            evidence_refs: runtime_evidence_refs.clone(),
         },
     )
     .await;
@@ -371,7 +378,7 @@ async fn fake_model_coding_project_produces_closing_receipt() {
             review_id: "review-golden".to_owned(),
             acceptance_id: "acceptance-golden".to_owned(),
             criterion_results: [("output exists".to_owned(), true)].into_iter().collect(),
-            evidence_refs: vec![run_evidence.clone()],
+            evidence_refs: runtime_evidence_refs.clone(),
         },
     )
     .await;
@@ -476,7 +483,7 @@ async fn fake_model_coding_project_produces_closing_receipt() {
             project_id: project_id.clone(),
             delivery_id: "delivery-golden".to_owned(),
             receipt_id: "closing-golden".to_owned(),
-            evidence_refs: vec![run_evidence],
+            evidence_refs: runtime_evidence_refs,
         },
     )
     .await;

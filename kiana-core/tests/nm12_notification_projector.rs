@@ -9,7 +9,10 @@ fn event() -> RuntimeEvent {
     RuntimeEvent::new(
         RequestId::new(),
         1,
-        "run.started",
+        // This is a committed, unrelated event. `run.*` is a closed notification family;
+        // using an unregistered member would be rejected before the projector can exercise
+        // cursor and lifecycle replay semantics.
+        "workspace.restored",
         json!({"source":"runtime"}),
     )
     .unwrap()

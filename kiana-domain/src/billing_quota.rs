@@ -198,6 +198,29 @@ impl QuotaWindowBudget {
         let retry_after = self
             .window
             .until_next_window_ms(self.window.start_unix_ms)?;
+        self.check_with_retry_after(requests, tokens, concurrency, retry_after)
+    }
+
+    pub fn check_at(
+        &self,
+        clock: &ClockObservation,
+        requests: u64,
+        tokens: u64,
+        concurrency: u32,
+    ) -> Result<(), String> {
+        clock.require_trusted()?;
+        self.validate()?;
+        let retry_after = self.window.until_next_window_ms(clock.wall_now_unix_ms)?;
+        self.check_with_retry_after(requests, tokens, concurrency, retry_after)
+    }
+
+    fn check_with_retry_after(
+        &self,
+        requests: u64,
+        tokens: u64,
+        concurrency: u32,
+        retry_after: u64,
+    ) -> Result<(), String> {
         if requests > self.max_requests.saturating_sub(self.used_requests)
             || tokens > self.max_tokens.saturating_sub(self.used_tokens)
             || concurrency > self.max_concurrency.saturating_sub(self.active_concurrency)

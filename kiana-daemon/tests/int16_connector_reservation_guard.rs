@@ -21,7 +21,7 @@ fn daemon_rechecks_reservation_before_local_fixture_effect() {
             "INT-16 daemon marker missing: {marker}"
         );
     }
-    assert!(daemon.contains("fixture.find_case"));
+    assert!(daemon.contains(".find_case("));
     assert!(daemon.contains("connector_effect_admission"));
     assert!(daemon.contains("previous.data[\"command_digest\"]"));
     assert!(!daemon.contains("reqwest::Client"));

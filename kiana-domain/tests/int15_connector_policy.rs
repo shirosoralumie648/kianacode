@@ -147,6 +147,29 @@ fn r3_is_one_shot_and_binds_the_final_payload_digest() {
 }
 
 #[test]
+fn r3_payload_digest_accepts_bare_and_prefixed_sha256_but_rejects_malformed_values() {
+    let bare = "a".repeat(64);
+    let prefixed = format!("sha256:{bare}");
+    for digest in [bare, prefixed] {
+        ConnectorOnceApproval::issue("approval", "binding-1", "send_message", digest, 4, 7, 500)
+            .expect("payload digest encoding should be accepted");
+    }
+    assert_eq!(
+        ConnectorOnceApproval::issue(
+            "approval",
+            "binding-1",
+            "send_message",
+            "not-a-digest",
+            4,
+            7,
+            500,
+        )
+        .unwrap_err(),
+        "connector_once_approval_invalid"
+    );
+}
+
+#[test]
 fn r4_is_default_deny_even_with_critical_risk_or_approval() {
     let request = input("delete_account", ConnectorEffect::Write, None);
     assert!(matches!(

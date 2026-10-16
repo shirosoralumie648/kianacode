@@ -21,7 +21,7 @@ fn daemon_service_is_bounded_and_does_not_create_an_effect_loop() {
         "tokio::spawn(run_worker",
         "receiver.close()",
         "WorkflowQueueCommand::Shutdown",
-        "ControlPlane/Broker spine",
+        "existing ControlPlane route",
     ] {
         assert!(
             service.contains(marker),

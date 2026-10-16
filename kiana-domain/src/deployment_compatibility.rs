@@ -235,6 +235,8 @@ fn compatibility_reasons(
     }
     if current.projection_version.major != candidate.projection_version.major {
         reasons.push("projection_major_mismatch".to_owned());
+    } else if candidate.projection_version.minor < current.projection_version.minor {
+        reasons.push("projection_version_downgrade".to_owned());
     }
     if candidate.store_format < current.store_format {
         reasons.push("store_format_downgrade".to_owned());
@@ -256,6 +258,9 @@ fn compatibility_reasons(
     }
     if candidate.extension_digest != current.extension_digest {
         reasons.push("extension_digest_drift".to_owned());
+    }
+    if candidate.config_revision != current.config_revision {
+        reasons.push("config_revision_drift".to_owned());
     }
     reasons
 }

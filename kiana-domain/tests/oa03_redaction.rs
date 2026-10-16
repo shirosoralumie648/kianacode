@@ -301,3 +301,13 @@ fn hyphenated_secret_keys_are_redacted_and_partial_placeholders_are_rejected() {
         "redaction_secret_sentinel_detected"
     );
 }
+
+#[test]
+fn malformed_json_like_secret_key_is_rejected_without_original_fallback() {
+    let profile = RedactionProfile::for_signal(RedactionSignal::Export);
+    let input = r#"{"token": "oa03-malformed-json-sentinel",}"#;
+    assert_eq!(
+        encode_bounded_text(&profile, input).unwrap_err(),
+        "redaction_secret_sentinel_detected"
+    );
+}

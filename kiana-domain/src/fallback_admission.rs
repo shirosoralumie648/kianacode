@@ -85,14 +85,15 @@ impl FallbackCapabilityRequirements {
     }
 }
 
-/// A server-owned route/model allowlist.  Both the exact route digest and the provider/model
-/// identity are pinned so a profile alias cannot smuggle a different model under an equivalent
-/// name.
+/// A server-owned route/model allowlist. The exact route digest and explicit provider/connection/
+/// model identities are pinned so a profile alias cannot smuggle a different route under an
+/// equivalent name.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FallbackRouteAllowlistEntry {
     pub route_digest: String,
     pub provider_id: String,
+    pub connection_id: String,
     pub model_id: String,
 }
 
@@ -101,6 +102,7 @@ impl FallbackRouteAllowlistEntry {
         let entry = Self {
             route_digest: route.digest(),
             provider_id: route.provider_id.clone(),
+            connection_id: route.connection_id.clone(),
             model_id: route.model_id.clone(),
         };
         entry.validate().map(|_| entry)
@@ -109,6 +111,7 @@ impl FallbackRouteAllowlistEntry {
     pub fn validate(&self) -> Result<(), String> {
         digest(&self.route_digest, "fallback_allowlist_route_digest")?;
         required(&self.provider_id, "fallback_allowlist_provider", 256)?;
+        required(&self.connection_id, "fallback_allowlist_connection", 256)?;
         required(&self.model_id, "fallback_allowlist_model", 256)
     }
 }
@@ -132,16 +135,25 @@ impl FallbackRouteAllowlist {
             .map(FallbackRouteAllowlistEntry::from_route)
             .collect::<Result<Vec<_>, _>>()?;
         entries.sort_by(|left, right| {
-            (&left.provider_id, &left.model_id, &left.route_digest).cmp(&(
-                &right.provider_id,
-                &right.model_id,
-                &right.route_digest,
-            ))
+            (
+                &left.provider_id,
+                &left.connection_id,
+                &left.model_id,
+                &left.route_digest,
+            )
+                .cmp(&(
+                    &right.provider_id,
+                    &right.connection_id,
+                    &right.model_id,
+                    &right.route_digest,
+                ))
         });
-        if entries
-            .windows(2)
-            .any(|pair| pair[0].route_digest == pair[1].route_digest)
-        {
+        if entries.windows(2).any(|pair| {
+            pair[0].provider_id == pair[1].provider_id
+                && pair[0].connection_id == pair[1].connection_id
+                && pair[0].model_id == pair[1].model_id
+                && pair[0].route_digest == pair[1].route_digest
+        }) {
             return Err("fallback_allowlist_duplicate_route".to_owned());
         }
         let mut allowlist = Self {
@@ -171,10 +183,12 @@ impl FallbackRouteAllowlist {
         if self.entries.windows(2).any(|pair| {
             (
                 &pair[0].provider_id,
+                &pair[0].connection_id,
                 &pair[0].model_id,
                 &pair[0].route_digest,
             ) >= (
                 &pair[1].provider_id,
+                &pair[1].connection_id,
                 &pair[1].model_id,
                 &pair[1].route_digest,
             )
@@ -192,6 +206,7 @@ impl FallbackRouteAllowlist {
             .any(|entry| {
                 entry.route_digest == route_digest
                     && entry.provider_id == route.provider_id
+                    && entry.connection_id == route.connection_id
                     && entry.model_id == route.model_id
             })
             .then_some(())

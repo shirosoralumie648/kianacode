@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 #[test]
 fn sc12_pending_invocation_permit_cas_and_idempotency_boundary_is_present() {
     let pending = include_str!("../../kiana-domain/src/capabilities.rs");
@@ -15,16 +19,20 @@ fn sc12_pending_invocation_permit_cas_and_idempotency_boundary_is_present() {
         "old_epoch_permit_rejected",
         "expected_versions",
         "commit_transition",
-        "idempotency",
+        "derived_request_id(\"permit.consume\", id)",
     ] {
         assert!(
             pending.contains(marker) || permit.contains(marker) || dispatch.contains(marker),
             "SC-12 marker missing: {marker}"
         );
     }
+    let consume = compact_code(&item_source(dispatch, "async fn verify_and_consume("));
+    assert!(consume.contains("expected_versions:expected"));
+    assert!(consume
+        .contains("ifcommitted?{returnErr(dispatch_error(\"execution_permit_already_consumed\"))"));
     for forbidden in ["tokio::spawn", "reqwest", "TeamCreate", "SendMessage"] {
         assert!(
-            !dispatch.contains(forbidden),
+            !production_source(dispatch).contains(forbidden),
             "SC-12 execution bypass marker: {forbidden}"
         );
     }

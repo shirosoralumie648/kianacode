@@ -123,11 +123,15 @@ fn ui_does_not_compute_a_remaining_amount_when_the_server_omits_it() {
 #[test]
 fn card_rejects_a_remaining_amount_without_a_limit() {
     let response = known_response();
-    let mut card = render_budget_card(&response, "local-user", &facts()).unwrap();
-    card.remaining = Some(BudgetAmount::new("USD", 600).unwrap());
-    card.card_digest = card.digest();
     assert_eq!(
-        card.validate(),
+        render_budget_card(
+            &response,
+            "local-user",
+            &ServerBudgetFacts {
+                remaining: Some(BudgetAmount::new("USD", 600).unwrap()),
+                ..ServerBudgetFacts::default()
+            },
+        ),
         Err("budget_card_remaining_limit_binding_invalid".to_owned())
     );
 }
@@ -192,21 +196,19 @@ fn a_pending_reservation_is_not_counted_as_spent_and_not_folded_into_the_remaind
 #[test]
 fn card_rejects_a_pending_reservation_next_to_a_non_within_budget_state() {
     let response = known_response();
-    let mut card = render_budget_card(
-        &response,
-        "local-user",
-        &ServerBudgetFacts {
-            limit: Some(BudgetAmount::new("USD", 1_000).unwrap()),
-            state: Some(BudgetState::AtLimit),
-            pending_reservations: Some(2),
-            ..ServerBudgetFacts::default()
-        },
-    )
-    .unwrap();
-    card.card_digest = card.digest();
-    // `AtLimit` without an overage reason is itself rejected first; assert the reason names the
-    // pending/over-limit confusion rather than silently accepting it.
-    assert!(card.validate().is_err());
+    assert_eq!(
+        render_budget_card(
+            &response,
+            "local-user",
+            &ServerBudgetFacts {
+                limit: Some(BudgetAmount::new("USD", 1_000).unwrap()),
+                state: Some(BudgetState::AtLimit),
+                pending_reservations: Some(2),
+                ..ServerBudgetFacts::default()
+            },
+        ),
+        Err("budget_card_pending_state_invalid".to_owned())
+    );
 }
 
 #[test]
@@ -444,21 +446,18 @@ fn a_correction_intent_carries_no_decision_and_no_override() {
 fn a_queue_over_its_limit_is_refused_and_a_row_without_a_ticket_is_refused() {
     let response = known_response();
     let row = BudgetQueueRow::new(7, "session-a", 1_000, Some(250)).unwrap();
-    let mut card = render_budget_card(
-        &response,
-        "local-user",
-        &ServerBudgetFacts {
-            limit: Some(BudgetAmount::new("USD", 1_000).unwrap()),
-            queue_depth: Some(9),
-            queue_limit: Some(4),
-            queue: vec![row],
-            ..ServerBudgetFacts::default()
-        },
-    )
-    .unwrap();
-    card.card_digest = card.digest();
     assert_eq!(
-        card.validate(),
+        render_budget_card(
+            &response,
+            "local-user",
+            &ServerBudgetFacts {
+                limit: Some(BudgetAmount::new("USD", 1_000).unwrap()),
+                queue_depth: Some(9),
+                queue_limit: Some(4),
+                queue: vec![row],
+                ..ServerBudgetFacts::default()
+            },
+        ),
         Err("budget_card_queue_over_limit".to_owned())
     );
     assert!(BudgetQueueRow::new(0, "session-a", 1_000, None).is_err());
@@ -489,24 +488,21 @@ fn a_queue_row_without_a_wait_estimate_prints_unknown_not_zero() {
 #[test]
 fn duplicate_queue_tickets_are_refused() {
     let response = known_response();
-    let mut card = render_budget_card(
-        &response,
-        "local-user",
-        &ServerBudgetFacts {
-            limit: Some(BudgetAmount::new("USD", 1_000).unwrap()),
-            queue_depth: Some(2),
-            queue_limit: Some(4),
-            queue: vec![
-                BudgetQueueRow::new(3, "session-a", 1_000, None).unwrap(),
-                BudgetQueueRow::new(3, "session-b", 1_001, None).unwrap(),
-            ],
-            ..ServerBudgetFacts::default()
-        },
-    )
-    .unwrap();
-    card.card_digest = card.digest();
     assert_eq!(
-        card.validate(),
+        render_budget_card(
+            &response,
+            "local-user",
+            &ServerBudgetFacts {
+                limit: Some(BudgetAmount::new("USD", 1_000).unwrap()),
+                queue_depth: Some(2),
+                queue_limit: Some(4),
+                queue: vec![
+                    BudgetQueueRow::new(3, "session-a", 1_000, None).unwrap(),
+                    BudgetQueueRow::new(3, "session-b", 1_001, None).unwrap(),
+                ],
+                ..ServerBudgetFacts::default()
+            },
+        ),
         Err("budget_card_queue_duplicate_ticket".to_owned())
     );
 }

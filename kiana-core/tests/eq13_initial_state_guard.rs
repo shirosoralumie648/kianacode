@@ -1,6 +1,18 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn evaluation_initial_state_uses_digest_bound_controlled_fixture_store() {
-    let runtime = include_str!("../../kiana-daemon/src/eval_runtime.rs");
+    let runtime =
+        source_guard::production_source(include_str!("../../kiana-daemon/src/eval_runtime.rs"));
+    let boundary = [
+        source_guard::item_source(&runtime, "pub struct EvalInitialStateBundle"),
+        source_guard::item_source(&runtime, "impl EvalInitialStateBundle"),
+        source_guard::item_source(&runtime, "pub struct EvalInitialStateStore"),
+        source_guard::item_source(&runtime, "impl EvalInitialStateStore"),
+        source_guard::item_source(&runtime, "impl FixtureStore for EvalInitialStateStore"),
+    ]
+    .join("\n");
     for marker in [
         "EvalInitialStateBundle",
         "EvalInitialStateStore",
@@ -27,7 +39,7 @@ fn evaluation_initial_state_uses_digest_bound_controlled_fixture_store() {
         "SecretStore",
     ] {
         assert!(
-            !runtime.contains(forbidden),
+            !boundary.contains(forbidden),
             "uncontrolled fixture path found: {forbidden}"
         );
     }

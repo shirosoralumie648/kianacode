@@ -1,4 +1,11 @@
+//! P1-L4-01 代码智能的源码标记守卫。
+//!
+//! `include_str!` 在编译时把 RepoMap、索引、Daemon/Core 查询源码和 baseline 读成文本，断言
+//! 某些实现词汇仍在且特定调用端没有出现越界执行组件名称。它不运行 scanner、索引或 HTTP 路由，
+//! 因此只能证明源码标记，不证明结果正确、freshness 有效或生产入口已接线。
+
 #[test]
+/// 检查上下文结果所需的 snapshot/source/freshness 标记和源码边界字符串。
 fn code_intelligence_results_carry_snapshot_source_and_freshness() {
     let repo_map = include_str!("../src/repo_map.rs");
     let index = include_str!("../src/index.rs");

@@ -232,11 +232,12 @@ fn capacity_rejects_overflow_cross_binding_and_digest_tamper() {
         "capacity_exceeded"
     );
 
-    let mut drift = facts();
-    drift[1].source_cursor = 10;
-    drift[1].fact_digest = drift[1].digest();
+    let mut drift = input(facts());
+    drift.facts[1].source_cursor = 10;
+    drift.facts[1].fact_digest = drift.facts[1].digest();
+    drift.input_digest = drift.digest();
     assert_eq!(
-        input(drift).validate().unwrap_err(),
+        drift.validate().unwrap_err(),
         "deployment_capacity_fact_binding_invalid"
     );
 

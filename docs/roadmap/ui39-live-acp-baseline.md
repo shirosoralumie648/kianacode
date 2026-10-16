@@ -6,6 +6,10 @@ opt-in, a fixed ACP protocol/host/workspace identity, an operator approval refer
 transport metadata and redacted payloads. It maps initialize/session/prompt/update/permission/
 cancel/reconnect through the existing `AcpSessionAdapter` and shared snapshot/feed/action/receipt
 contracts. Host editor or terminal capabilities cannot become a Kiana permit.
+Execution requested by a host must return through the existing DaemonHost → ControlPlane
+path for authorization; host consent and `UiLiveHostEvidence` supply no execution authority.
+This boundary remains `feature_status=partial`, `proof_level=source` while transport and
+independent host evidence are incomplete.
 
 `UiLiveHostEvidence` now records protocol/host/environment/workspace identity, session state,
 initialize/prompt/update/permission/cancel/reconnect observations, operator approval and receipt.

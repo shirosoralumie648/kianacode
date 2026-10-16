@@ -45,3 +45,23 @@ persist heartbeat or lease facts, validate the full StartupCoordinatorReport/Ope
 OperationLease objects, enforce command admission, change HTTP status, or prove provider/Broker/
 exporter liveness. Existing OA-11 health projection remains the EventLog projection authority;
 durable wiring and ready admission are later deployment/health steps.
+
+## 2026-10-13 Startup Unknown preservation
+
+The startup reducer now preserves an explicit `StartupCoordinatorStatus::Unknown` as
+`SignalStatus::Unknown`, keeping `admission_allowed=false`. The existing `Ready` → `Ok` and
+`Blocked` → `Degraded` mappings remain unchanged. This is a narrow reducer correction; it does
+not claim that the upstream coordinator produced a trustworthy fact.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/health_aggregation.rs; kiana-domain/tests/dep11_health_aggregation.rs; kiana-core/tests/dep11_health_aggregation_guard.rs; kiana-daemon/tests/dep11_health_route_guard.rs
+worktree_status: DEP-11 row 616 remains 🔄 / feature_status=partial / proof_level=source; selected startup Unknown mapping is local_behavior; guard source matching uses the existing lexical production view so explanatory comments do not satisfy effect markers
+command_argv: bounded serial RED/GREEN exact selector `startup_unknown_is_preserved_as_unknown_and_never_ready`; full domain `dep11_health_aggregation`; Core `dep11_health_aggregation_guard`; daemon `dep11_health_route_guard`; all locked/offline with one Cargo worker and one Rust test thread
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile, locked/offline dependencies
+fixture·cassette: valid Startup input with `StartupCoordinatorStatus::Unknown` and recomputed input digest; old reducer returned `Degraded`, corrected reducer returns `Unknown` and denies admission; domain 6/6, Core guard 3/3, daemon guard 3/3
+exit_code: RED 101 / max RSS 4093768 KiB / CPU 92% / swap 0; exact GREEN 0 / max RSS 4099324 KiB / CPU 93% / swap 0; domain 0 / max RSS 83788 KiB / CPU 39% / swap 0; Core guard 0 / max RSS 139256 KiB / CPU 42% / swap 0; daemon guard 0 / max RSS 136812 KiB / CPU 53% / swap 0
+status_change: Startup Unknown no longer collapses into ordinary Degraded; no readiness/liveness/drain/maintenance precedence expansion
+proof-level_change: selected in-memory startup status behavior source → local_behavior; whole DEP-11 remains partial/source
+limitations: no upstream StartupCoordinator proof, durable health checkpoint, live provider/exporter probe, admission wiring or cross-process recovery; other probe modes retain existing precedence
+reviewer: root integration agent with DEP-11 read-only audit; focused health aggregation reviewer
+```

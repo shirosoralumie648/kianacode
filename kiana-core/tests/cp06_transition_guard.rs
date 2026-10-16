@@ -1,8 +1,12 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::compact_code;
+
 #[test]
 fn transition_contract_owns_read_set_cas_and_command_idempotency() {
     let journal = include_str!("../../kiana-domain/src/journal.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
-    let event_store = include_str!("../../kiana-eventlog/src/event_store_core.rs");
+    let event_store = include_str!("../../kiana-eventlog/src/journal_core.rs");
     let memory = include_str!("../../kiana-eventlog/src/memory.rs");
     let jsonl = include_str!("../../kiana-eventlog/src/jsonl.rs");
     let core = include_str!("../src/dispatch.rs");
@@ -26,6 +30,8 @@ fn transition_contract_owns_read_set_cas_and_command_idempotency() {
     assert!(event_store.contains("plan_transition"));
     assert!(event_store.contains("event_store_command_digest_mismatch"));
     assert!(event_store.contains("TransitionPlan::Conflict"));
+    assert!(compact_code(memory).contains("state.plan_transition(batch,EventId::new())"));
+    assert!(compact_code(jsonl).contains("cache.journal.plan_transition(batch,EventId::new())"));
     assert!(memory.contains("CommitOutcome::Replayed"));
     assert!(jsonl.contains("CommitOutcome::Unknown"));
     assert!(core.contains("commit_confirmed"));

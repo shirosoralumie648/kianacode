@@ -1,19 +1,50 @@
 //! CAP-21 source guard for bounded stdio MCP protocol and stop lifecycle.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
-        assert!(
-            source.contains(marker),
-            "CAP-21 {label} marker missing: {marker}"
-        );
+        let present = match *marker {
+            "mcp_result_unknown" => {
+                let run = source_guard::item_source(source, "async fn run(");
+                let code = source_guard::compact_code(&run);
+                code.contains("letneeds_reconciliation=!stop_confirmed||(started&&performed.is_err());")
+                    && code.contains("ifcancelled||needs_reconciliation{")
+                    && code.contains("CapabilityErrorCode::ResultUnknown")
+                    && code.contains("mcp_call_unconfirmed")
+                    && code.contains("if!started&&stop_confirmed{AdapterCommitState::NotStarted}else{AdapterCommitState::Unknown}")
+                    && code.contains("attach_adapter_result(result,AdapterResultKind::Mcp,commit)")
+            }
+            "mcp.catalog" => {
+                let discovery = source_guard::item_source(source, "async fn discovery(");
+                let commit = source_guard::item_source(source, "async fn commit_discovery(");
+                let read = source_guard::compact_code(&discovery);
+                let write = source_guard::compact_code(&commit);
+                read.contains(r#"self.events.read_stream("mcp_discovery",key).await?"#)
+                    && read.contains(r#"event.kind=="mcp.discovery_committed""#)
+                    && read.contains("mcp_discovery_required:use_operator_mcp.discover")
+                    && write.contains("self.events.commit_transition(batch).await?")
+                    && write.contains("CommitOutcome::Unknown")
+                    && write.contains("self.events.read_command(&command_id).await?.is_none()")
+                    && write.contains("result_unknown:mcp_discovery_commit_unconfirmed")
+            }
+            _ => source.contains(marker),
+        };
+        assert!(present, "CAP-21 {label} marker missing: {marker}");
     }
 }
 
 #[test]
 fn mcp_stdio_bounds_frames_requests_notifications_pagination_and_stop() {
     let stdio = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
-    let harness = include_str!("../../kiana-daemon/src/harness_mcp.rs");
-    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
+    let harness =
+        &source_guard::production_source(include_str!("../../kiana-daemon/src/harness_mcp.rs"));
+    let supervisor = &[
+        include_str!("../../kiana-daemon/src/process_supervisor.rs"),
+        include_str!("../../kiana-daemon/src/mcp_stdio.rs"),
+    ]
+    .concat();
     let baseline = include_str!("../../docs/roadmap/capability.md");
     require(
         stdio,

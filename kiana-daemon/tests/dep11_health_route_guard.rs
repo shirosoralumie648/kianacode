@@ -1,12 +1,14 @@
+#[path = "../../kiana-core/tests/support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn dep11_daemon_health_route_only_delegates_to_core() {
-    let source = include_str!("../src/health_aggregation.rs");
+    let source = source_guard::production_source(include_str!("../src/health_aggregation.rs"));
     for marker in [
         "HealthAggregationInput",
         "HealthAggregationReport",
         "kiana_core::aggregate_health",
-        "HealthProbeKind::Drain",
-        "HealthProbeKind::Maintenance",
+        "input.probe = probe",
     ] {
         assert!(
             source.contains(marker),

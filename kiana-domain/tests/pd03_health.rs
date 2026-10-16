@@ -84,3 +84,45 @@ fn storage_health_capabilities_and_integrity_incident_are_strict() {
         "storage_capabilities_durability_conflict"
     );
 }
+
+#[test]
+fn storage_health_rejects_zero_observed_time() {
+    let storage_root = root();
+    let identity = StoreIdentity::new(&storage_root, 1, 1, 100).unwrap();
+    let capabilities = StorageCapabilities::new(true, true, true, true, true, 4096, 32).unwrap();
+    let mut health = StorageHealth::new(
+        identity.store_id,
+        StorageHealthStatus::Ready,
+        capabilities,
+        1,
+        1,
+        100,
+        Vec::new(),
+    )
+    .unwrap();
+    health.observed_at_unix_ms = 0;
+    health.health_digest = health.digest();
+
+    assert_eq!(health.validate().unwrap_err(), "storage_health_invalid");
+}
+
+#[test]
+fn storage_integrity_incident_rejects_zero_detected_time() {
+    let storage_root = root();
+    let identity = StoreIdentity::new(&storage_root, 1, 1, 100).unwrap();
+    let mut incident = StorageIntegrityIncident::new(
+        identity.store_id,
+        StorageIntegrityIncidentClass::Corrupt,
+        "checksum_mismatch",
+        101,
+        Some(1),
+    )
+    .unwrap();
+    incident.detected_at_unix_ms = 0;
+    incident.incident_digest = incident.digest();
+
+    assert_eq!(
+        incident.validate().unwrap_err(),
+        "storage_integrity_incident_invalid"
+    );
+}

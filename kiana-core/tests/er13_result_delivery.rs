@@ -19,6 +19,10 @@ fn er13_result_delivery_is_committed_before_runner_and_shared_by_three_paths() {
         "result_delivery_source_version_missing",
         "result_delivery_source_unconfirmed",
         "result_delivery_receipt_mismatch",
+        "stop_requested",
+        "stop_state",
+        "committed_stop_metadata_matches",
+        "result_unknown:result_delivery_stop_mismatch",
         "CapabilityResult",
     ] {
         assert!(

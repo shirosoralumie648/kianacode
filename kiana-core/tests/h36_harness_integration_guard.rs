@@ -1,5 +1,9 @@
 //! H36 source guard for the harness integration matrix.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::item_source;
+
 #[test]
 fn h36_matrix_keeps_surface_scenario_and_receipt_boundaries() {
     let source = include_str!("../../kiana-domain/src/harness_integration.rs");
@@ -65,7 +69,14 @@ fn h36_matrix_keeps_surface_scenario_and_receipt_boundaries() {
         "without external credentials",
     ] {
         assert!(
-            baseline.contains(marker),
+            if marker == "three-entry" {
+                let surfaces = item_source(source, "pub enum HarnessSurface");
+                ["Cli", "Workbench", "Web", "Desktop"]
+                    .into_iter()
+                    .all(|surface| surfaces.contains(surface) && baseline.contains(surface))
+            } else {
+                baseline.contains(marker)
+            },
             "H36 baseline marker missing: {marker}"
         );
     }

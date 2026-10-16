@@ -335,6 +335,8 @@ pub struct ProviderDeltaLedger {
     pub aggregate_digest: String,
     #[serde(skip)]
     redactor: StreamingRedactor,
+    #[serde(skip)]
+    pending_output: String,
 }
 
 impl ProviderDeltaLedger {
@@ -353,6 +355,7 @@ impl ProviderDeltaLedger {
             dropped_segment_count: 0,
             aggregate_digest: String::new(),
             redactor: StreamingRedactor::new(),
+            pending_output: String::new(),
         };
         ledger.aggregate_digest = ledger.digest();
         ledger.validate()?;
@@ -376,11 +379,17 @@ impl ProviderDeltaLedger {
     }
 
     fn record_safe_segment(&mut self, value: &str) -> Result<(), String> {
+        self.pending_output.push_str(value);
+        if self.redactor.has_pending_secret() {
+            self.aggregate_digest = self.digest();
+            return Ok(());
+        }
+        let value = std::mem::take(&mut self.pending_output);
         if value.is_empty() {
             self.aggregate_digest = self.digest();
             return Ok(());
         }
-        let reference = RedactedTraceReference::from_text(&self.profile, value)?;
+        let reference = RedactedTraceReference::from_text(&self.profile, &value)?;
         if self.retained_segments.len() < self.max_segments {
             self.retained_segments.push(reference.clone());
         } else {

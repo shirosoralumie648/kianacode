@@ -3,6 +3,7 @@ fn runner_owns_one_bounded_retry_driver_and_records_each_attempt_reservation() {
     let retry = include_str!("../src/retry.rs");
     let harness = include_str!("../src/harness.rs");
     let budget = include_str!("../src/budget.rs");
+    let shared_retry = include_str!("../../kiana-domain/src/retry_policy.rs");
     for marker in [
         "RetryPolicy",
         "RetryObservation",
@@ -17,10 +18,13 @@ fn runner_owns_one_bounded_retry_driver_and_records_each_attempt_reservation() {
         "remaining.saturating_sub(started.elapsed())",
     ] {
         assert!(
-            retry.contains(marker) || harness.contains(marker),
-            "BQ-17 runner retry marker missing: {marker}"
+            retry.contains(marker) || harness.contains(marker) || shared_retry.contains(marker),
+            "BQ-17 runner/shared retry marker missing: {marker}"
         );
     }
+    assert!(retry.contains("RetryObservation::from_model_error"));
+    assert!(retry.contains("policy.classify"));
+    assert!(harness.contains("classify_retry("));
     for marker in [
         "RetryAttemptReservation",
         "QuotaReservationId::new()",

@@ -11,7 +11,15 @@ fn workbench_surfaces_agree_on_terminal_state() {
         assert!(!surface.contains("record_terminal_event"));
     }
     assert!(daemon.contains("RunStreamEvent::Terminal"));
-    assert!(daemon.contains("run.completed"));
+    let host = include_str!("../../kiana-daemon/src/lib.rs");
+    let lifecycle = include_str!("../../kiana-core/src/lifecycle.rs");
+    let events = include_str!("../../kiana-core/src/events.rs");
+    // Core records the terminal fact; DaemonHost publishes its protocol response.
+    assert!(lifecycle.contains("record_terminal_event"));
+    assert!(lifecycle.contains("\"run.completed\""));
+    assert!(events.contains("record_terminal_event"));
+    assert!(events.contains("\"run.completed\""));
+    assert!(host.contains("publish_run_response && response.status.is_terminal()"));
     assert!(desktop.contains("startHarness"));
     assert!(desktop.contains("loadURL"));
 }

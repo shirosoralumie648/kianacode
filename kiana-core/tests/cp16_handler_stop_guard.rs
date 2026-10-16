@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, production_source};
+
 #[test]
 fn cp16_handler_stop_and_file_commit_evidence_is_explicit() {
     let shell = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
@@ -72,12 +76,12 @@ fn cp16_handler_stop_and_file_commit_evidence_is_explicit() {
         "handler.execute_cancellable",
     ] {
         assert!(
-            broker.contains(marker),
+            compact_code(broker).contains(&marker.split_whitespace().collect::<String>()),
             "CP-16 Broker marker missing: {marker}"
         );
     }
     for marker in [
-        "Cancellation must report uncertainty",
+        "wait_for_cancellation(&mut cancellation)",
         "execute_cancellable",
         "result_unknown:cancel_stop_unconfirmed",
     ] {
@@ -101,7 +105,7 @@ fn cp16_handler_stop_and_file_commit_evidence_is_explicit() {
             "cancelled_without_stop_confirmation_is_success",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "CP-16 bypass marker: {forbidden}"
             );
         }

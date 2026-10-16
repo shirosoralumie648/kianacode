@@ -8,6 +8,7 @@ fn control_plane_is_the_only_fallback_admission_boundary() {
         "re_admit_model_fallback",
         "admit_fallback_attempt",
         "FallbackRouteAllowlist",
+        "connection_id",
         "authority_digest",
         "data_boundary_digest",
         "budget_reservation_digest",

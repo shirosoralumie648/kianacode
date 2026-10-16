@@ -14,6 +14,9 @@ the active provider slot.
   no cancelled entry is handed to transport. A full queue returns structured `Reject`.
 - `ProviderCapacityLease` binds owner, attempt, group, window and policy digests. Release checks
   the exact owner, so a different session cannot return another session's permit.
+- Queued entries retain the request's absolute deadline in their own digest. Dispatch rejects an
+  entry whose deadline has elapsed with `provider_capacity_queue_wait_expired`; queue wait never
+  extends the request deadline or creates a lease for expired work.
 - Profile aliases share provider/origin/credential capacity policy. Changing alias, credential or
   model therefore cannot create a second quota group without an explicit server policy.
 - Provider transport keeps a bounded waiter semaphore and releases the waiter slot before taking
@@ -34,3 +37,13 @@ capacity controller is an in-process admission contract; a durable cross-process
 store, provider-side capacity receipts, live external requests, and physical proof remain open.
 ControlPlane remains the only authorization authority and this slice adds no provider execution
 loop or fallback executor.
+
+## 2026-10-08 local deadline evidence
+
+The focused regression first reproduced the bug: a queued request with absolute deadline `60_003`
+was accepted when dispatched at `60_100` because dispatch rebuilt a fresh deadline from the current
+time. The fix stores `deadline_unix_ms` in `ProviderCapacityQueueEntry`, includes it in the entry
+digest, and uses it for the typed expired rejection. The focused test, all four BQ-16 domain tests,
+and all three P4-J7-25 capacity/fallback domain tests pass locally. This advances only the selected
+boundary to `proof_level=local_behavior`; the controller remains process-local and the step remains
+🔄.

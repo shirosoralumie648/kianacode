@@ -114,10 +114,9 @@
 //! 否则复用了令牌就等于放行了它替换掉的那个写者。
 //!
 //! **4. 与 PD-06 / ER-06 的关系（为什么本文件是「source contract」）**
-//! - PD-06 已经让满队列返回稳定的饱和码（`jsonl.rs:289` 的
-//!   `eventlog_worker_queue_full`，由 `MAX_STORAGE_WORKERS = 16` 的信号量控制），
+//! - PD-06 已经让满队列返回稳定的饱和码（见 `jsonl.rs` 的 worker 信号量控制），
 //!   而不是无界等待。**注意：本文件故意不重新定义这个码**——`pd27_writer_queue_guard.rs`
-//!   专门断言源码里不含 `eventlog_worker_queue_full`，因为重新定义就是造出第二套容量词汇。
+//!   专门断言源码里不含旧的 worker 饱和码，因为重新定义就是造出第二套容量词汇。
 //! - ER-06 已经让 `flush` / `close` 成为**可观测的确认（acknowledgement）**。
 //! - 本模块回答这两个卡片**没回答完的问题**：写者可以入队什么？拒绝长什么样？
 //!   队列关闭后什么时候才真正停止接收？被取消或硬杀的写者必须交还什么？
@@ -1124,11 +1123,14 @@ fn safe_label(value: &str, field: &str) -> Result<(), String> {
     {
         return Err(format!("{field}_invalid"));
     }
+    // Detect actual secret-shaped labels before the generic redaction drift check so the
+    // stable reason identifies a secret rather than a merely rewriteable label.
+    scan_secret_sentinels(SecretScanChannel::Receipt, value)
+        .map_err(|_| format!("{field}_secret_detected"))?;
     if redact_text(value) != value {
         return Err(format!("{field}_not_redacted"));
     }
-    scan_secret_sentinels(SecretScanChannel::Receipt, value)
-        .map_err(|_| format!("{field}_secret_detected"))
+    Ok(())
 }
 
 fn valid_digest(value: &str, field: &str) -> Result<(), String> {

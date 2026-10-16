@@ -239,6 +239,8 @@ struct PlannedContainer {
     owner_id: String,
     scope_digest: String,
     plan_digest: String,
+    backend_version: String,
+    required_dimensions: Vec<String>,
     config: ContainerLaunchConfig,
     name: String,
 }
@@ -471,6 +473,12 @@ impl ContainerEnvironmentAdapter {
             })?;
         if planned.name != environment_id
             || planned.plan_digest != prepared.plan_digest
+            || prepared.backend != CONTAINER_BACKEND
+            || prepared.backend_version != planned.backend_version
+            || !planned
+                .required_dimensions
+                .iter()
+                .all(|dimension| prepared.enforced_dimensions.contains(dimension))
             || planned.config.runtime_name.is_empty()
         {
             return Err(PortError::Conflict(
@@ -572,6 +580,7 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
     ) -> Result<EnvironmentPlan, PortError> {
         self.config.validate()?;
         validate_scope(scope)?;
+        validate_identity(&probe.backend_version, "container_backend_version_invalid")?;
         if probe.backend != CONTAINER_BACKEND
             || probe.failure_reason.is_some()
             || !required_capabilities_supported(probe, self.config.runtime_name == "runsc")
@@ -606,10 +615,21 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
         });
         let plan_digest = kiana_domain::json_digest(&plan_input);
         let name = format!("kiana-{}", &plan_digest[7..19]);
+        let required_dimensions = vec![
+            "immutable_image".to_owned(),
+            "non_root_user".to_owned(),
+            "network_none".to_owned(),
+            "resource_limits".to_owned(),
+            "owner_scope_labels".to_owned(),
+            "volume_root_identity".to_owned(),
+            "no_host_control_socket".to_owned(),
+        ];
         let planned = PlannedContainer {
             owner_id: scope.owner_id.clone(),
             scope_digest: scope.scope_digest.clone(),
             plan_digest: plan_digest.clone(),
+            backend_version: probe.backend_version.clone(),
+            required_dimensions: required_dimensions.clone(),
             config: self.config.clone(),
             name,
         };
@@ -624,15 +644,7 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
             backend: CONTAINER_BACKEND.to_owned(),
             backend_version: probe.backend_version.clone(),
             plan_digest,
-            required_dimensions: vec![
-                "immutable_image".to_owned(),
-                "non_root_user".to_owned(),
-                "network_none".to_owned(),
-                "resource_limits".to_owned(),
-                "owner_scope_labels".to_owned(),
-                "volume_root_identity".to_owned(),
-                "no_host_control_socket".to_owned(),
-            ],
+            required_dimensions,
         })
     }
 
@@ -649,6 +661,7 @@ impl EnvironmentPort for ContainerEnvironmentAdapter {
                 .ok_or_else(|| PortError::Unavailable("container_plan_not_found".to_owned()))?
         };
         if plan.backend != CONTAINER_BACKEND
+            || plan.backend_version != planned.backend_version
             || plan.owner_id != planned.owner_id
             || plan.scope_digest != planned.scope_digest
         {
@@ -877,10 +890,11 @@ fn required_capabilities_supported(probe: &EnvironmentProbe, require_gvisor: boo
         "volume_root_identity",
         "no_host_control_socket",
     ];
-    required
-        .iter()
-        .all(|name| probe.capabilities.get(*name) == Some(&true))
-        && (!require_gvisor || probe.capabilities.get("gvisor_runtime") == Some(&true))
+    let dimension_supported = |name: &str| {
+        probe.capabilities.get(name) == Some(&true) && probe.enforced.get(name) == Some(&true)
+    };
+    required.iter().all(|name| dimension_supported(name))
+        && (!require_gvisor || dimension_supported("gvisor_runtime"))
 }
 
 fn validate_scope(scope: &EnvironmentScope) -> Result<(), PortError> {

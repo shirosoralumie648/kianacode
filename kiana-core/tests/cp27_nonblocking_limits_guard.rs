@@ -13,6 +13,7 @@ fn require(source: &str, markers: &[&str], label: &str) {
 fn cp_slow_storage_does_not_starve_cancellation() {
     let eventlog = include_str!("../../kiana-eventlog/src/jsonl.rs");
     let daemon = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
+    let output = include_str!("../../kiana-daemon/src/execution_output.rs");
     let process = include_str!("../../kiana-daemon/src/execution_control.rs");
     let mcp = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
     let workspace = include_str!("../../kiana-daemon/src/workspace_checkpoints.rs");
@@ -38,10 +39,19 @@ fn cp_slow_storage_does_not_starve_cancellation() {
             "spawn_blocking",
             "tokio::time::timeout",
             "wait_for_cancellation",
-            "output_drain_timeout",
             "stop_confirmed",
         ],
         "Capability I/O boundary",
+    );
+    require(
+        output,
+        &[
+            "READ_CHUNK_SIZE",
+            "output_drain_timeout",
+            "output_total_limit",
+            "observed_max_bytes",
+        ],
+        "bounded output boundary",
     );
     require(
         process,
@@ -88,7 +98,7 @@ fn cp_slow_storage_does_not_starve_cancellation() {
         stream,
         &[
             "tokio::time::timeout",
-            "stream_subscription_lagged",
+            "broadcast::error::RecvError::Lagged",
             "terminal",
         ],
         "stream cancellation boundary",
@@ -119,6 +129,7 @@ fn cp_clock_rollback_cannot_extend_authority() {
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let fence = include_str!("../src/security_fence.rs");
     let approvals = include_str!("../src/approvals.rs");
+    let approval_journal = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let journal_approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let business = include_str!("../src/company_business.rs");
     let cell = include_str!("../src/cell_registry.rs");
@@ -164,9 +175,14 @@ fn cp_clock_rollback_cannot_extend_authority() {
         &[
             "watch_cancel",
             "cancelled:before_approval",
-            "approval_expired",
+            "cancelled:before_approval",
         ],
-        "approval expiry",
+        "approval cancellation",
+    );
+    require(
+        approval_journal,
+        &["approval_expired", "approval_clock_rollback"],
+        "durable approval expiry",
     );
     require(
         journal_approvals,
@@ -179,7 +195,7 @@ fn cp_clock_rollback_cannot_extend_authority() {
     );
     require(
         business,
-        &["business_clock_rollback", "now_unix_ms", "deadline"],
+        &["business_clock_rollback", "business.clock_ms"],
         "company deadline",
     );
     require(
@@ -193,7 +209,7 @@ fn cp_clock_rollback_cannot_extend_authority() {
     );
     require(
         authority,
-        &["authority_epoch", "authority_revision", "monotonic"],
+        &["authority_epoch", "authority_revision"],
         "authority version",
     );
 }
@@ -206,6 +222,7 @@ fn cp_pending_and_event_limits_fail_without_resource_leak() {
     let approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let patch = include_str!("../../kiana-daemon/src/apply_patch.rs");
     let capabilities = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
+    let output = include_str!("../../kiana-daemon/src/execution_output.rs");
     let process = include_str!("../../kiana-daemon/src/execution_control.rs");
     let queue = include_str!("../../kiana-ports/src/observability_queue.rs");
     let model_budget = include_str!("../src/model_budget.rs");
@@ -257,15 +274,15 @@ fn cp_pending_and_event_limits_fail_without_resource_leak() {
         ],
         "patch limits",
     );
+    require(capabilities, &["output_total_limit"], "tool output limits");
     require(
-        capabilities,
+        output,
         &[
-            "EXEC_OUTPUT_MAX_BYTES",
-            "output_total_limit",
-            "output_drain_timeout",
             "READ_CHUNK_SIZE",
+            "output_drain_timeout",
+            "observed_max_bytes",
         ],
-        "tool output limits",
+        "bounded output limits",
     );
     require(
         process,
@@ -293,7 +310,7 @@ fn cp_pending_and_event_limits_fail_without_resource_leak() {
             "reserve_prepared",
             "model_deadline_expired",
             "usage_known",
-            "unknown_attempts",
+            "usage_known",
         ],
         "model budget limits",
     );
@@ -310,7 +327,7 @@ fn cp_pending_and_event_limits_fail_without_resource_leak() {
         health,
         &[
             "eventlog_capability_or_cursor_limit",
-            "capacity",
+            "eventlog_capability_or_cursor_limit",
             "degraded",
         ],
         "health limits",

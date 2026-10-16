@@ -1,4 +1,10 @@
+//! CI-02 Core 静态 identity contract/export 守卫。
+//!
+//! `include_str!` 读取 Domain 类型、稳定 ID registry、schema contract 和 protocol exports 并匹配关键文本。
+//! 它不构造身份、不连接 authority store，也不能证明 DTO 已被运行时消费。
+
 #[test]
+/// 确认 Principal/SecretRef/ConfigSnapshot/AuthoritySnapshot 及稳定 ID/schema 导出标记仍存在。
 fn identity_contracts_keep_secret_and_authority_metadata_typed() {
     let domain = include_str!("../../kiana-domain/src/identity_contracts.rs");
     let ids = include_str!("../../kiana-domain/src/ids.rs");

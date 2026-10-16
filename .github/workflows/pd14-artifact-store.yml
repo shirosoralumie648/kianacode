@@ -1,0 +1,31 @@
+name: PD-14 artifact store
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  artifact-store:
+    name: PD-14 immutable artifact store fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run artifact store fixtures
+        run: cargo test -p kiana-eventlog --test pd14_artifact_store --locked -- --test-threads=1
+      - name: Run artifact store source guard
+        run: cargo test -p kiana-eventlog --test pd14_artifact_guard --locked -- --test-threads=1
+      - name: Compile artifact store fixture target
+        run: cargo test -p kiana-eventlog --test pd14_artifact_store --no-run --locked
+      - name: Compile artifact store source guard target
+        run: cargo test -p kiana-eventlog --test pd14_artifact_guard --no-run --locked

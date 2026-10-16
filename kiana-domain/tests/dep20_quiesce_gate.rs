@@ -190,10 +190,12 @@ fn a_forged_report_or_request_digest_fails_closed() {
     let error = report.validate_against(&value).expect_err("forged cursor");
     assert_eq!(error, "quiesce_report_binding_invalid");
 
-    // A stale digest must not authenticate a rewritten reason.
+    // A digest for a different reason must not authenticate this admitted report.
     let mut tampered = QuiesceReport::evaluate(&value).expect("report");
-    tampered.reason = "quiesce_snapshot_admitted".to_owned();
-    tampered.status = QuiesceStatus::Quiesced;
+    let mut other_report = tampered.clone();
+    other_report.reason = "quiesce_active_writer".to_owned();
+    tampered.report_digest = other_report.digest();
+    assert_ne!(tampered.report_digest, tampered.digest());
     let error = tampered.validate_against(&value).expect_err("stale digest");
     assert_eq!(error, "quiesce_report_digest_mismatch");
 

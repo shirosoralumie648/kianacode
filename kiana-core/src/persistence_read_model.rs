@@ -2,7 +2,8 @@
 
 use crate::receipts::{receipt_from_events, try_filter_run_events};
 use crate::{
-    project_invocations, project_run_state, InvocationProjection, RunOutcome, RunPhase, RunState,
+    project_invocations, project_run_state, InvocationProjection, RunOutcome, RunPhase,
+    RunProjectionError, RunState,
 };
 use kiana_domain::{EventId, RequestContext, RunId, RuntimeEvent};
 use serde::Serialize;
@@ -111,7 +112,26 @@ pub fn project_persistence_read_model(
         source_event_ids.push(event.event_id);
     }
     let run = project_run_state(run_id, &run_events)
-        .map_err(|error| format!("persistence_read_model_run:{error}"))?
+        .map_err(|error| match error {
+            RunProjectionError::TerminalConflict { kinds } => {
+                format!(
+                    "persistence_read_model_run:run_terminal_conflict:{}",
+                    kinds.join(",")
+                )
+            }
+            RunProjectionError::EventRunIdConflict => {
+                "persistence_read_model_run:run_event_run_id_conflict".to_owned()
+            }
+            RunProjectionError::EventRunIdInvalid => {
+                "persistence_read_model_run:run_event_run_id_invalid".to_owned()
+            }
+            RunProjectionError::EventIdentityConflict { event_id } => {
+                format!("persistence_read_model_run:run_event_identity_conflict:{event_id}")
+            }
+            RunProjectionError::IdentityLinksInvalid { reason } => {
+                format!("persistence_read_model_run:run_identity_links_invalid:{reason}")
+            }
+        })?
         .into();
     let invocations = project_invocations(run_id, &run_events)
         .map_err(|error| format!("persistence_read_model_invocation:{error}"))?;

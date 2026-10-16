@@ -7,6 +7,15 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
     let protocol = include_str!("../../kiana-protocol/src/ui_contracts.rs");
     let baseline = include_str!("../../docs/roadmap/ui04-action-cas-baseline.md");
+    let ui_bridge_start = daemon
+        .find("pub fn claim_ui_action")
+        .expect("UI action bridge start missing");
+    let ui_bridge_end = daemon[ui_bridge_start..]
+        .find("pub async fn ui_snapshot_page")
+        .map(|offset| ui_bridge_start + offset)
+        .expect("UI action bridge end missing");
+    assert!(ui_bridge_start < ui_bridge_end);
+    let ui_bridge = &daemon[ui_bridge_start..ui_bridge_end];
     for marker in [
         "UiActionCommand",
         "UiActionJournal",
@@ -46,16 +55,18 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
         );
     }
     for marker in [
-        "action CAS",
+        "Action CAS",
         "idempotency",
         "ACK",
         "Unknown",
-        "deny",
+        "permit",
         "owner",
         "scope",
         "durable",
         "feature_status",
         "proof_level",
+        "valid_digest",
+        "is_ascii_hexdigit",
     ] {
         assert!(
             baseline.contains(marker),
@@ -64,5 +75,5 @@ fn ui_actions_use_server_owned_cas_idempotency_and_unknown_reconciliation() {
     }
     assert!(core.contains("if !events.supports_atomic_transitions()"));
     assert!(core.contains("result_unknown:ui_action"));
-    assert!(!daemon.contains("CapabilityBroker::new"));
+    assert!(!ui_bridge.contains("CapabilityBroker::new"));
 }

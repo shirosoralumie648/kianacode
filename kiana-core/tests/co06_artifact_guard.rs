@@ -12,6 +12,14 @@ fn company_evidence_uses_immutable_artifact_and_read_port_boundaries() {
         "Criterion",
         "content_hash",
         "criterion_id",
+        "artifact_id.as_uuid().is_nil",
+        "evidence_id.as_uuid().is_nil",
+        "run_id.as_uuid().is_nil",
+        "invocation_id",
+        "criterion_id.as_uuid().is_nil",
+        "source_event_id",
+        "source_run_id",
+        "artifact_provenance_identity_invalid",
     ] {
         assert!(
             domain.contains(marker),

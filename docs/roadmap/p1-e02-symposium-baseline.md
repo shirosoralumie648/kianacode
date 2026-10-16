@@ -34,3 +34,24 @@ P1-E-02 proof ceiling is `source` plus existing CI runtime fixtures: Symposium/D
 contracts, boundary checks, durable close event and artifact projection are explicit. Durable
 cross-process decision projector, department memory/RAG admission, external human decisions and
 full replay recovery remain P4-E-03/PD/ER/SC work.
+
+## 4. Initiating department chair selection
+
+`DepartmentSpec::convene_chair_id()` now selects `sponsor` for the initiating department when that
+role is present and authorized to convene. Other departments retain their first configured role
+with `can_convene`; this keeps the existing general rule while honoring the initiating department's
+Sponsor go/no-go contract.
+
+The focused regression `each_department_can_convene_without_a_joint_meeting` failed before the
+change because the initiating department resolved `analyst` instead of `sponsor` (RED exit 101,
+max RSS 83,440 KiB, 33% CPU, no swap). After the change it passed 1/1 (GREEN exit 0, max RSS
+3,580,032 KiB, 95% CPU, no swap). A bounded full `kiana-domain` test run then passed all 136
+library tests but failed 36 integration targets on existing fixture, API, and error-order
+mismatches; it did not isolate this chair change as the cause. That run peaked at 4,078,164 KiB
+RSS and 108% CPU, with zero swap recorded by the process monitor. The exact run log is
+`/tmp/kiana-domain-full-20261008.log` and resource report is
+`/tmp/kiana-domain-full-20261008.resources`.
+
+This is a selected local behavior correction only. P1-E-02 remains `implemented` / `source`; the
+full domain regression is not green, and cross-process replay, department RAG admission, and
+external human decisions remain outside this slice.

@@ -119,6 +119,26 @@ impl Fixture {
         response
     }
 
+    async fn command_without_authority_sync(
+        &self,
+        core: &ControlPlane,
+        session_id: &str,
+        role: RoleSpec,
+        expected_revision: u64,
+        idempotency_key: &str,
+        command: CompanyCommand,
+    ) -> Result<kiana_domain::CoreResponse, CoreError> {
+        let request = CompanyCommandRequest {
+            schema: COMPANY_COMMAND_SCHEMA.to_owned(),
+            expected_revision,
+            idempotency_key: idempotency_key.to_owned(),
+            command,
+        };
+        let context = self.context(session_id, &role);
+        core.handle_command(context, CommandIntent::new(COMPANY_COMMAND, json!(request)))
+            .await
+    }
+
     async fn register_artifact(
         &self,
         core: &ControlPlane,
@@ -188,7 +208,7 @@ impl Drop for Fixture {
 }
 
 fn company_control_plane(
-    events: Arc<JsonlEventLog>,
+    events: Arc<dyn EventStorePort>,
     store: Arc<LocalArtifactStore>,
 ) -> ControlPlane {
     let runner = KianaHarness::new(Arc::new(
@@ -633,4 +653,297 @@ async fn artifact_version_remains_reviewable_after_workspace_file_changes() {
             .as_slice(),
         current.as_slice()
     );
+}
+
+/// EventStore 读写可用但不声明多聚合原子事务时，Company artifact 发布必须拒绝。
+///
+/// 这个 adapter 保留真实 JsonlEventLog 的读取和提交语义，只把事务能力声明为 false，
+/// 因此测试命中的是 ControlPlane 的能力 gate，而不是一个假的写入错误。
+struct NonAtomicEventStore {
+    inner: Arc<JsonlEventLog>,
+    atomic: Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[async_trait]
+impl EventStorePort for NonAtomicEventStore {
+    fn supports_atomic_transitions(&self) -> bool {
+        self.atomic.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    async fn append(&self, event: kiana_domain::RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event).await
+    }
+
+    async fn append_expected(
+        &self,
+        event: kiana_domain::RuntimeEvent,
+        expected_version: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.inner.append_expected(event, expected_version).await
+    }
+
+    async fn read_request(
+        &self,
+        id: &kiana_domain::RequestId,
+    ) -> Result<Vec<kiana_domain::RuntimeEvent>, PortError> {
+        self.inner.read_request(id).await
+    }
+
+    async fn read_all(&self) -> Result<Vec<kiana_domain::RuntimeEvent>, PortError> {
+        self.inner.read_all().await
+    }
+
+    async fn read_stream(
+        &self,
+        kind: &str,
+        id: &str,
+    ) -> Result<Vec<kiana_domain::RuntimeEvent>, PortError> {
+        self.inner.read_stream(kind, id).await
+    }
+
+    async fn read_command(
+        &self,
+        id: &kiana_domain::RequestId,
+    ) -> Result<Option<kiana_domain::CommandReceipt>, PortError> {
+        self.inner.read_command(id).await
+    }
+
+    async fn commit_transition(
+        &self,
+        batch: kiana_domain::TransitionBatch,
+    ) -> Result<kiana_domain::CommitOutcome, PortError> {
+        self.inner.commit_transition(batch).await
+    }
+}
+
+#[tokio::test]
+async fn artifact_publication_is_denied_when_event_store_lacks_atomic_transitions() {
+    let fixture = Fixture::new();
+    let event_log = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+    let artifact_store = Arc::new(fixture_artifact_store(&fixture).await);
+    let atomic = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let events: Arc<dyn EventStorePort> = Arc::new(NonAtomicEventStore {
+        inner: event_log.clone(),
+        atomic: atomic.clone(),
+    });
+    let core = company_control_plane(events, artifact_store);
+    fs::write(fixture.root.join("atomicity.txt"), b"atomicity gate\n").expect("source file");
+
+    let authority_context = fixture.context("builder-session", &RoleSpec::builder());
+    core.synchronize_authority(&authority_context, "co06-atomicity-deny.v1")
+        .await
+        .expect("authority synchronization");
+    atomic.store(false, std::sync::atomic::Ordering::SeqCst);
+
+    let response = fixture
+        .command_without_authority_sync(
+            &core,
+            "builder-session",
+            RoleSpec::builder(),
+            0,
+            "non-atomic-artifact",
+            CompanyCommand::RegisterArtifact {
+                artifact_id: ArtifactId::new().to_string(),
+                relative_path: "atomicity.txt".to_owned(),
+            },
+        )
+        .await
+        .expect("artifact command");
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("company_artifact_event_atomicity_unsupported"),
+        "{response:?}"
+    );
+    assert_eq!(
+        fs::read_dir(&fixture.artifact_store_path)
+            .expect("artifact store root")
+            .count(),
+        0,
+        "atomicity denial must not publish a blob or manifest"
+    );
+    let persisted = event_log.read_all().await.expect("EventLog after denial");
+    assert!(!persisted
+        .iter()
+        .any(|event| event.kind == "company.ArtifactRegistered"));
+    assert!(persisted
+        .iter()
+        .any(|event| event.kind == "company.command_rejected"));
+}
+
+/// Lose one Company fact acknowledgement, either before or after its actual append.
+/// Authority synchronization and unrelated journal writes retain the real adapter semantics.
+struct ArtifactFactFault {
+    inner: Arc<JsonlEventLog>,
+    armed: std::sync::atomic::AtomicBool,
+    append_before_failure: bool,
+}
+
+#[async_trait]
+impl EventStorePort for ArtifactFactFault {
+    fn supports_atomic_transitions(&self) -> bool {
+        true
+    }
+
+    async fn append(&self, event: kiana_domain::RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event).await
+    }
+
+    async fn read_request(
+        &self,
+        id: &kiana_domain::RequestId,
+    ) -> Result<Vec<kiana_domain::RuntimeEvent>, PortError> {
+        self.inner.read_request(id).await
+    }
+
+    async fn read_all(&self) -> Result<Vec<kiana_domain::RuntimeEvent>, PortError> {
+        self.inner.read_all().await
+    }
+
+    async fn read_stream(
+        &self,
+        kind: &str,
+        id: &str,
+    ) -> Result<Vec<kiana_domain::RuntimeEvent>, PortError> {
+        self.inner.read_stream(kind, id).await
+    }
+
+    async fn read_command(
+        &self,
+        id: &kiana_domain::RequestId,
+    ) -> Result<Option<kiana_domain::CommandReceipt>, PortError> {
+        self.inner.read_command(id).await
+    }
+
+    async fn commit_transition(
+        &self,
+        batch: kiana_domain::TransitionBatch,
+    ) -> Result<kiana_domain::CommitOutcome, PortError> {
+        if batch
+            .events
+            .iter()
+            .any(|event| event.kind == "company.ArtifactRegistered")
+            && self.armed.swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            if self.append_before_failure {
+                self.inner.commit_transition(batch).await?;
+            }
+            return Err(PortError::Failed(
+                "result_unknown:fixture_company_fact_ack_lost".to_owned(),
+            ));
+        }
+        self.inner.commit_transition(batch).await
+    }
+}
+
+#[tokio::test]
+async fn artifact_fact_failure_retry_returns_the_persisted_version_and_replays_once() {
+    for append_before_failure in [false, true] {
+        let fixture = Fixture::new();
+        let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+        let store = Arc::new(fixture_artifact_store(&fixture).await);
+        let fault = Arc::new(ArtifactFactFault {
+            inner: events.clone(),
+            armed: std::sync::atomic::AtomicBool::new(true),
+            append_before_failure,
+        });
+        let core = company_control_plane(fault, store.clone());
+        let artifact_id = ArtifactId::new().to_string();
+        fs::write(fixture.root.join("retry.txt"), b"first immutable bytes\n").unwrap();
+        let command = CompanyCommand::RegisterArtifact {
+            artifact_id: artifact_id.clone(),
+            relative_path: "retry.txt".to_owned(),
+        };
+        let first = fixture
+            .command(
+                &core,
+                "builder-session",
+                RoleSpec::builder(),
+                0,
+                "retry-artifact-fact",
+                command.clone(),
+            )
+            .await;
+        assert!(
+            first.is_err(),
+            "unconfirmed fact must not return completed: {first:?}"
+        );
+        assert!(first
+            .unwrap_err()
+            .to_string()
+            .contains("company_artifact_event_commit_unconfirmed"));
+        assert_eq!(
+            company_fact_count(events.as_ref()).await,
+            usize::from(append_before_failure)
+        );
+
+        // Inspect the actual first-stage manifest, without inventing a timestamp or a blob.
+        let blob = fixture.artifact_blob_path();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(blob.with_extension("manifest")).unwrap()).unwrap();
+        let persisted: kiana_domain::ArtifactVersion =
+            serde_json::from_value(manifest["version"].clone()).unwrap();
+        assert_eq!(
+            ArtifactContentPort::read_artifact(store.as_ref(), &persisted.as_ref())
+                .await
+                .unwrap(),
+            b"first immutable bytes\n"
+        );
+        // The second proposal must have a later wall-clock timestamp than the first manifest.
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        let retried = fixture
+            .command(
+                &core,
+                "builder-session",
+                RoleSpec::builder(),
+                0,
+                "retry-artifact-fact",
+                command.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(retried.status, ExecutionStatus::Completed, "{retried:?}");
+        assert_eq!(company_fact_count(events.as_ref()).await, 1);
+        let fact = registered_company_event(events.as_ref()).await;
+        assert_eq!(fact.proof.artifact_version.as_ref(), Some(&persisted));
+        assert_eq!(
+            retried.output["state"]["artifacts"][&artifact_id]["typed_version"],
+            json!(persisted),
+            "response must use the stored manifest, not the later retry proposal"
+        );
+        let event_id = registered_event_id(events.as_ref()).await;
+        drop(core);
+        drop(store);
+        drop(events);
+        let reopened_events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).unwrap());
+        let reopened_store = Arc::new(fixture_artifact_store(&fixture).await);
+        let reopened = company_control_plane(reopened_events.clone(), reopened_store);
+        let replay = fixture
+            .command(
+                &reopened,
+                "builder-session",
+                RoleSpec::builder(),
+                0,
+                "retry-artifact-fact",
+                command,
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.status, ExecutionStatus::Completed);
+        assert_eq!(
+            replay.output["state"]["artifacts"][&artifact_id]["typed_version"],
+            json!(persisted)
+        );
+        assert_eq!(company_fact_count(reopened_events.as_ref()).await, 1);
+        assert_eq!(
+            registered_event_id(reopened_events.as_ref()).await,
+            event_id
+        );
+    }
+}
+
+async fn fixture_artifact_store(fixture: &Fixture) -> LocalArtifactStore {
+    LocalArtifactStore::open(fixture.artifact_store_path.clone())
+        .await
+        .expect("artifact store")
 }

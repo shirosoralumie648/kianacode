@@ -55,6 +55,12 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "WorkflowInstanceId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "workflow_instance_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "TurnId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "turn_id",
@@ -220,6 +226,48 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         type_name: "DeliveryAttemptId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "delivery_attempt_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "UsageId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "usage_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "ReservationId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "reservation_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "LedgerEntryId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "ledger_entry_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "CostAllocationId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "cost_allocation_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "RateCardId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "rate_card_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "CostCorrectionId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "cost_correction_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "QuotaReservationId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "quota_reservation_id",
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
@@ -521,6 +569,18 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "fence_token_id",
         wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
+        type_name: "TraceId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "trace_id",
+        wire_shape: IdWireShape::String,
+    },
+    IdContract {
+        type_name: "SpanId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "span_id",
+        wire_shape: IdWireShape::String,
     },
     IdContract {
         type_name: "SessionId",
@@ -3747,7 +3807,13 @@ pub fn check_schema_compatibility(
     let contract =
         schema_contract(schema_name).ok_or_else(|| format!("unknown schema: {}", schema_name))?;
 
-    if !contract.version.is_compatible_with(incoming_version) {
+    let compatible = match contract.compatibility {
+        CompatibilityPolicy::BackwardCompatible => {
+            contract.version.is_compatible_with(incoming_version)
+        }
+        CompatibilityPolicy::Breaking => contract.version == *incoming_version,
+    };
+    if !compatible {
         return Err(format!(
             "incompatible schema version: {} runtime={}.{} incoming={}.{} (unknown major must fail-closed)",
             schema_name,
@@ -3808,6 +3874,7 @@ mod tests {
 
     const WORKSPACE_MANIFEST: &str = include_str!("../../Cargo.toml");
     const IDS_SOURCE: &str = include_str!("ids.rs");
+    const CORRELATION_SOURCE: &str = include_str!("correlation.rs");
 
     trait IdRoundTripSample: Serialize + DeserializeOwned + PartialEq + Debug {
         const WIRE_SHAPE: IdWireShape;
@@ -3834,6 +3901,7 @@ mod tests {
         InputId,
         InteractionId,
         RunId,
+        WorkflowInstanceId,
         TurnId,
         StepId,
         CellId,
@@ -3862,6 +3930,13 @@ mod tests {
         NotificationId,
         SubscriptionId,
         DeliveryAttemptId,
+        UsageId,
+        ReservationId,
+        LedgerEntryId,
+        CostAllocationId,
+        RateCardId,
+        CostCorrectionId,
+        QuotaReservationId,
         ActionRefId,
         DeliveryReceiptId,
         QualityArtifactId,
@@ -3931,6 +4006,22 @@ mod tests {
         }
     }
 
+    impl IdRoundTripSample for crate::TraceId {
+        const WIRE_SHAPE: IdWireShape = IdWireShape::String;
+
+        fn sample() -> Self {
+            Self::parse("0123456789abcdef0123456789abcdef").expect("valid trace ID sample")
+        }
+    }
+
+    impl IdRoundTripSample for crate::SpanId {
+        const WIRE_SHAPE: IdWireShape = IdWireShape::String;
+
+        fn sample() -> Self {
+            Self::parse("0123456789abcdef").expect("valid span ID sample")
+        }
+    }
+
     fn contract_for(type_name: &str) -> &'static IdContract {
         ID_CONTRACTS
             .iter()
@@ -3958,11 +4049,12 @@ mod tests {
                     let wire_value = json
                         .as_str()
                         .expect("ID wire representation must be a JSON string");
-                    let measured_wire_shape = if uuid::Uuid::parse_str(wire_value).is_ok() {
-                        IdWireShape::Uuid
-                    } else {
-                        IdWireShape::String
-                    };
+                    let measured_wire_shape =
+                        if uuid::Uuid::parse_str(wire_value).is_ok() && wire_value.contains('-') {
+                            IdWireShape::Uuid
+                        } else {
+                            IdWireShape::String
+                        };
                     assert_eq!(contract.wire_shape, measured_wire_shape);
 
                     let decoded: $id =
@@ -3999,6 +4091,7 @@ mod tests {
         InputId,
         InteractionId,
         RunId,
+        WorkflowInstanceId,
         TurnId,
         StepId,
         CellId,
@@ -4027,6 +4120,13 @@ mod tests {
         NotificationId,
         SubscriptionId,
         DeliveryAttemptId,
+        UsageId,
+        ReservationId,
+        LedgerEntryId,
+        CostAllocationId,
+        RateCardId,
+        CostCorrectionId,
+        QuotaReservationId,
         ActionRefId,
         DeliveryReceiptId,
         QualityArtifactId,
@@ -4077,6 +4177,8 @@ mod tests {
         SecretRefId,
         EvidenceRefId,
         FenceTokenId,
+        TraceId,
+        SpanId,
         SessionId,
         WorkFingerprint,
     );
@@ -4103,6 +4205,12 @@ mod tests {
                 "unknown owner crate: {}",
                 contract.owner_crate
             );
+            assert_eq!(
+                contract.owner_crate,
+                env!("CARGO_PKG_NAME"),
+                "ID type {} must be owned by its defining crate",
+                contract.type_name
+            );
             assert!(
                 ROUND_TRIP_TYPES.contains(&contract.type_name),
                 "missing conversion test for: {}",
@@ -4118,20 +4226,22 @@ mod tests {
 
     #[test]
     fn every_id_type_definition_is_registered() {
-        let mut declared_types: Vec<&str> = IDS_SOURCE
-            .lines()
-            .filter_map(|line| {
-                let line = line.trim();
-                if let Some(rest) = line.strip_prefix("uuid_id!(") {
-                    return rest.strip_suffix(");").map(str::trim);
-                }
-                if let Some(rest) = line.strip_prefix("pub struct ") {
-                    let type_name = rest.split(['(', '{']).next()?.trim();
-                    if type_name.ends_with("Id") || type_name == "WorkFingerprint" {
-                        return Some(type_name);
+        let mut declared_types: Vec<&str> = [IDS_SOURCE, CORRELATION_SOURCE]
+            .into_iter()
+            .flat_map(|source| {
+                source.lines().filter_map(|line| {
+                    let line = line.trim();
+                    if let Some(rest) = line.strip_prefix("uuid_id!(") {
+                        return rest.strip_suffix(");").map(str::trim);
                     }
-                }
-                None
+                    if let Some(rest) = line.strip_prefix("pub struct ") {
+                        let type_name = rest.split(['(', '{']).next()?.trim();
+                        if type_name.ends_with("Id") || type_name == "WorkFingerprint" {
+                            return Some(type_name);
+                        }
+                    }
+                    None
+                })
             })
             .collect();
         let mut registered_types: Vec<&str> = ID_CONTRACTS
@@ -4240,6 +4350,8 @@ mod tests {
                 "kiana-eventlog",
                 "kiana-core",
                 "kiana-daemon",
+                "kiana-policy",
+                "kiana-skills",
             ];
             for contract in SCHEMA_CONTRACTS {
                 assert!(

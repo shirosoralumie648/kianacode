@@ -25,6 +25,7 @@ fn cp_all_surfaces_resolve_the_same_pending_once() {
     let product_command = include_str!("../src/product_command.rs");
     let cli = include_str!("../src/cli.rs");
     let desktop = include_str!("../../contrib/desktop/main.js");
+    let desktop_preload = include_str!("../../contrib/desktop/preload.js");
 
     require(
         protocol,
@@ -129,8 +130,6 @@ fn cp_all_surfaces_resolve_the_same_pending_once() {
             "subscribe_run_after",
             "snapshot_required_after_stream_gap",
             "last-event-id",
-            "request_hash",
-            "nonce",
         ],
         "Web surface",
     );
@@ -170,15 +169,14 @@ fn cp_all_surfaces_resolve_the_same_pending_once() {
         "CLI status surface",
     );
     require(
+        desktop_preload,
+        &["workspace:continue"],
+        "Desktop preload surface",
+    );
+    require(
         desktop,
-        &[
-            "startHarness",
-            "waitForReady",
-            "stopWorker",
-            "workspace:continue",
-            "/api",
-        ],
-        "Desktop surface",
+        &["startHarness", "waitForReady", "stopWorker", "/api"],
+        "Desktop main surface",
     );
 
     for surface in [workbench, web, product_command] {
@@ -223,12 +221,22 @@ fn cp_reconnect_replays_terminal_without_replaying_action() {
         &[
             "subscribe_after",
             "terminal = Some(envelope.clone())",
-            "stream_sequence_gap",
-            "stream_subscription_lagged",
-            "stream_closed_before_terminal",
+            "UiFeedGapReason::SequenceGap",
+            "UiFeedGapReason::Backpressure",
+            "broadcast::error::RecvError::Closed",
+            "feed_terminal_delta_forbidden",
             "late",
         ],
         "run stream retention",
+    );
+    // Legacy subscriptions expose Tokio errors; the consuming surfaces name stable failures.
+    require(
+        workbench,
+        &[
+            "stream_subscription_lagged",
+            "stream_closed_before_terminal",
+        ],
+        "legacy stream failures",
     );
     require(
         daemon_host,

@@ -54,7 +54,7 @@ use std::{collections::BTreeMap, fmt, time::Duration};
 /// 传给 `ProviderGateway::from_env` 的**原始**配置。
 ///
 /// 【它是什么】 一个“可能有也可能没有”的四元组。每一项都是 `Option`，
-/// 含义统一是“**没指定，去环境变量找，再找不到用内置默认**”。
+/// 含义统一是“**没指定，按入口先查受信 workspace，再查环境变量，最后用内置默认**”。
 ///
 /// 【谁构造它】 `kiana-daemon/src/model_client.rs::from_config`，
 /// 来自 `LocalModelConfig` 与 `KIANA_PROVIDER` 等环境变量。
@@ -192,6 +192,7 @@ pub(crate) struct DeclaredCapabilities {
 pub(crate) struct Connection {
     pub route: ModelRoute,
     pub capabilities: ModelCapabilities,
+    pub source: ProviderConfigSource,
     pub endpoint: reqwest::Url,
     pub provider_account: String,
     pub credential_ref: Option<SecretRef>,
@@ -385,7 +386,16 @@ pub(crate) fn connections_with_workspace(
     workspace: Option<&crate::resolver::WorkspaceConfig>,
 ) -> Result<(BTreeMap<String, Connection>, bool), ModelError> {
     let configured = env("KIANA_MODEL_PROFILES_JSON");
-    let default = connection_with_credential_env("default", config, None, None, None, workspace);
+    let default_source = default_source(&config, workspace);
+    let default = connection_with_credential_env(
+        "default",
+        config,
+        None,
+        None,
+        None,
+        default_source,
+        workspace,
+    );
     if workspace.is_some_and(|workspace| {
         workspace.provider.is_some()
             || workspace.model.is_some()
@@ -440,10 +450,15 @@ pub(crate) fn connections_with_workspace(
         if raw.len() > 64 * 1024 {
             return Err(ModelError::invalid("model_profile_config_too_large"));
         }
-        let environment: BTreeMap<String, ProfileConfig> = serde_json::from_str(&raw)
+        let value = parse_bounded_json(raw.as_bytes())
             .map_err(|_| ModelError::invalid("model_profile_config_invalid"))?;
-        // Explicit environment profiles override a project profile with the same name.
-        values.extend(environment);
+        let environment: BTreeMap<String, ProfileConfig> = serde_json::from_value(value)
+            .map_err(|_| ModelError::invalid("model_profile_config_invalid"))?;
+        // A trusted workspace profile is stronger than an environment profile with the same
+        // name. Environment profiles still fill in names that the workspace does not define.
+        for (name, profile) in environment {
+            values.entry(name).or_insert(profile);
+        }
     }
     if values.len() > 64 {
         return Err(ModelError::invalid("model_profile_limit_exceeded"));
@@ -474,6 +489,7 @@ pub(crate) fn connections_with_workspace(
                 parse_ollama_load_timeout(&value.provider, value.ollama_load_timeout_ms)?;
             let key_env = if let Some(name) = value.api_key_env {
                 if name.is_empty()
+                    || name.len() > 128
                     || !name
                         .bytes()
                         .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
@@ -499,9 +515,11 @@ pub(crate) fn connections_with_workspace(
                 value.capabilities,
                 key_env,
                 ollama_load_timeout,
+                ProviderConfigSource::Profile,
                 None,
             )?
         };
+        item.source = ProviderConfigSource::Profile;
         item.route.profile = profile.clone();
         result.insert(profile, item);
     }
@@ -575,6 +593,43 @@ pub(crate) fn connections_with_workspace(
     Ok((result, explicit_profiles))
 }
 
+fn default_source(
+    config: &ProviderConfig,
+    workspace: Option<&crate::resolver::WorkspaceConfig>,
+) -> ProviderConfigSource {
+    if config.provider.is_some()
+        || config.model.is_some()
+        || config.base_url.is_some()
+        || config.api_key.is_some()
+    {
+        return ProviderConfigSource::Explicit;
+    }
+    if workspace.is_some_and(|workspace| {
+        workspace.provider.is_some()
+            || workspace.model.is_some()
+            || workspace.base_url.is_some()
+            || workspace.api_key_env.is_some()
+    }) {
+        return ProviderConfigSource::Explicit;
+    }
+    let provider = env("KIANA_PROVIDER").unwrap_or_else(|| "anthropic".to_owned());
+    let route_environment_keys: &[&str] = match provider.as_str() {
+        "anthropic" => &["ANTHROPIC_MODEL", "ANTHROPIC_BASE_URL"],
+        "openai" | "openai-compatible" | "openai_compatible" | "openai-responses"
+        | "openai_responses" => &["OPENAI_MODEL", "OPENAI_BASE_URL"],
+        "ollama" => &["KIANA_OLLAMA_MODEL", "KIANA_OLLAMA_BASE_URL"],
+        "gemini" | "gemini-interactions" => &["GEMINI_MODEL", "GEMINI_BASE_URL"],
+        _ => &[],
+    };
+    if env("KIANA_PROVIDER").is_some()
+        || route_environment_keys.iter().any(|key| env(key).is_some())
+    {
+        ProviderConfigSource::Environment
+    } else {
+        ProviderConfigSource::BuiltinDefault
+    }
+}
+
 pub(crate) fn capacity_scope(connection: &Connection) -> String {
     json_digest(&json!({
         "provider": connection.route.provider_id,
@@ -642,13 +697,17 @@ fn connection_with_credential_env(
     declared: Option<DeclaredCapabilities>,
     credential_env_override: Option<String>,
     ollama_load_timeout: Option<Duration>,
+    config_source: ProviderConfigSource,
     workspace: Option<&crate::resolver::WorkspaceConfig>,
 ) -> Result<Connection, ModelError> {
     let provider = config
         .provider
-        .or_else(|| env("KIANA_PROVIDER"))
         .or_else(|| workspace.and_then(|workspace| workspace.provider.clone()))
+        .or_else(|| env("KIANA_PROVIDER"))
         .unwrap_or_else(|| "anthropic".to_owned());
+    if contains_forbidden_provider_config_control(&provider) {
+        return Err(ModelError::invalid("model_provider_invalid"));
+    }
     // ========== 阶段 1：provider 名 -> 协议 + 默认值表 ==========
     //
     // 这张表是**穷举 match**：认识 5 类 provider（以及 openai 的几种拼写别名），
@@ -718,16 +777,19 @@ fn connection_with_credential_env(
         };
     let model = config
         .model
-        .or_else(|| env(model_env))
         .or_else(|| workspace.and_then(|workspace| workspace.model.clone()))
+        .or_else(|| env(model_env))
         .unwrap_or_else(|| default_model.to_owned());
-    if model.trim().is_empty() || model.len() > 256 {
+    if model.trim().is_empty()
+        || model.len() > 256
+        || contains_forbidden_provider_config_control(&model)
+    {
         return Err(ModelError::invalid("model_id_invalid"));
     }
     let base = config
         .base_url
-        .or_else(|| env(base_env))
         .or_else(|| workspace.and_then(|workspace| workspace.base_url.clone()))
+        .or_else(|| env(base_env))
         .unwrap_or_else(|| default_base.to_owned());
     // ========== 阶段 2：端点拼装与安全校验 ==========
     //
@@ -791,8 +853,8 @@ fn connection_with_credential_env(
     // 【三条路径都只产出 SecretRef + 摘要 + store 句柄，从不把明文放进 Connection】
 
     let configured_env = credential_env_override
-        .or_else(|| (!key_env.is_empty() && env(key_env).is_some()).then(|| key_env.to_owned()))
         .or_else(|| workspace.and_then(|workspace| workspace.api_key_env.clone()))
+        .or_else(|| (!key_env.is_empty() && env(key_env).is_some()).then(|| key_env.to_owned()))
         .or_else(|| (!key_env.is_empty()).then(|| key_env.to_owned()));
     let (credential_ref, credential_store, credential_revision) = if let Some(value) =
         config.api_key
@@ -1052,6 +1114,7 @@ fn connection_with_credential_env(
     Ok(Connection {
         route,
         capabilities,
+        source: config_source,
         endpoint,
         provider_account,
         credential_ref,
@@ -1094,11 +1157,7 @@ pub(crate) fn snapshot(
                     .credential_ref
                     .as_ref()
                     .map(|reference| reference.reference_digest.clone()),
-                if connection.route.profile == "default" {
-                    ProviderConfigSource::BuiltinDefault
-                } else {
-                    ProviderConfigSource::Profile
-                },
+                connection.source,
             )
             .map_err(ModelError::invalid)
         })

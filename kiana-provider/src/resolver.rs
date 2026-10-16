@@ -1,7 +1,8 @@
 //! Single provider configuration resolver.
 //!
-//! This module owns the product configuration boundary. It resolves explicit/env profiles for
-//! `ProviderGateway` and parses optional workspace overlays into strict, secret-free snapshots.
+//! This module owns the product configuration boundary. It resolves explicit/workspace/env
+//! profiles for `ProviderGateway` and parses optional workspace overlays into strict, secret-free
+//! snapshots.
 //! Workspace text is never accepted before the caller proves ProjectTrust; the resolver does not
 //! perform network I/O or return raw credentials to callers.
 //!
@@ -49,7 +50,10 @@
 
 use crate::config::{self, Connection};
 use crate::ProviderConfig;
-use kiana_domain::{json_digest, ConfigSnapshot, ProviderConfigSnapshot, RoleSpec};
+use kiana_domain::{
+    contains_forbidden_provider_config_control, json_digest, parse_bounded_json, ConfigSnapshot,
+    ProviderConfigSnapshot, RoleSpec,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -325,7 +329,9 @@ impl ConfigResolver {
                 "config_workspace_too_large",
             ));
         }
-        let config: WorkspaceConfig = serde_json::from_str(raw)
+        let value = parse_bounded_json(raw.as_bytes())
+            .map_err(|_| kiana_domain::ModelError::invalid("config_workspace_invalid"))?;
+        let config: WorkspaceConfig = serde_json::from_value(value)
             .map_err(|_| kiana_domain::ModelError::invalid("config_workspace_invalid"))?;
         validate_workspace(&config)?;
         Ok(config)
@@ -407,7 +413,11 @@ fn validate_workspace(config: &WorkspaceConfig) -> Result<(), kiana_domain::Mode
         (config.provider.as_deref(), "config_provider_invalid", 128),
         (config.model.as_deref(), "config_model_invalid", 256),
     ] {
-        if value.is_some_and(|value| value.trim().is_empty() || value.len() > max) {
+        if value.is_some_and(|value| {
+            value.trim().is_empty()
+                || value.len() > max
+                || contains_forbidden_provider_config_control(value)
+        }) {
             return Err(kiana_domain::ModelError::invalid(code));
         }
     }
@@ -444,6 +454,8 @@ fn validate_workspace(config: &WorkspaceConfig) -> Result<(), kiana_domain::Mode
             || profile.provider.len() > 128
             || profile.model.trim().is_empty()
             || profile.model.len() > 256
+            || contains_forbidden_provider_config_control(&profile.provider)
+            || contains_forbidden_provider_config_control(&profile.model)
         {
             return Err(kiana_domain::ModelError::invalid("config_profile_invalid"));
         }

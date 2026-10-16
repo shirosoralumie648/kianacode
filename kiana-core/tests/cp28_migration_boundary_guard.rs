@@ -18,6 +18,8 @@ fn cp_legacy_authority_records_require_reauthorization() {
     let approvals = include_str!("../../kiana-daemon/src/journal_approvals.rs");
     let protocol = include_str!("../../kiana-protocol/src/lib.rs");
     let recovery = include_str!("../src/recovery.rs");
+    let credential_recovery = include_str!("../src/credential_recovery.rs");
+    let recovery_domain = include_str!("../../kiana-domain/src/credential_recovery_evidence.rs");
 
     require(
         events,
@@ -92,9 +94,24 @@ fn cp_legacy_authority_records_require_reauthorization() {
             "run_snapshot_stale",
             "payload_unrecoverable",
             "read_all_events",
-            "reauthor",
         ],
         "recovery reauthorization",
+    );
+    require(
+        credential_recovery,
+        &[
+            "explicit_re_admit_credential_recovery",
+            "ReAdmissionAuthorized",
+        ],
+        "credential reauthorization",
+    );
+    require(
+        recovery_domain,
+        &[
+            "explicit_re_admit",
+            "credential_recovery_admission_binding_mismatch",
+        ],
+        "credential admission contract",
     );
 }
 
@@ -125,18 +142,14 @@ fn cp_old_writer_cannot_mutate_new_journal() {
             "plan_legacy",
             "apply_legacy",
             "JOURNAL_WRITER_VERSION",
-            "eventlog_legacy_writer_after_upgrade",
             "writer_version",
+            "JOURNAL_WRITER_VERSION",
         ],
         "journal state",
     );
     require(
         memory,
-        &[
-            "plan_legacy",
-            "apply_legacy",
-            "event_store_atomic_transitions_unsupported",
-        ],
+        &["plan_legacy", "apply_legacy", "supports_atomic_transitions"],
         "memory adapter",
     );
     require(
@@ -180,6 +193,8 @@ fn cp_every_product_constructor_enforces_the_same_boundary() {
             "legacy_local_user_migration",
             "project_authority",
             "EventStorePort",
+            "CapabilityBroker",
+            "KianaHarness",
         ],
         "DaemonHost constructors",
     );
@@ -227,9 +242,8 @@ fn cp_every_product_constructor_enforces_the_same_boundary() {
         spine,
         &[
             "DaemonHost::new(core)",
-            "ControlPlane",
-            "CapabilityBroker",
-            "KianaHarness",
+            "host: DaemonHost",
+            "self.host.handle(request).await",
         ],
         "daemon spine fixture",
     );

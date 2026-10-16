@@ -1036,7 +1036,20 @@ fn run_rejected_contract_accepts_request_and_run_bound_shapes() {
     let spec = event_kind_spec("run.rejected").unwrap();
     assert_eq!(spec.aggregate_type, "request");
     assert!(spec.required_ids.is_empty());
-    assert_eq!(spec.allowed_fields, &["run_id", "reason"][..]);
+    assert_eq!(
+        spec.allowed_fields,
+        &[
+            "run_id",
+            "reason",
+            "command",
+            "session_id",
+            "packet_id",
+            "status",
+            "author_session_id",
+            "reviewer_session_id",
+            "author_role_id",
+        ][..]
+    );
     assert!(spec.terminal);
     assert_eq!(
         event_migration("run.rejected", 0, 1),
@@ -1441,6 +1454,136 @@ fn approval_denied_contract_matches_decision_producer_and_rejects_unknown_fields
     );
 }
 
+fn direct_approval_decision_payload(decision: &str) -> serde_json::Value {
+    json!({
+        "approval_id": kiana_domain::ApprovalId::new(),
+        "request_hash": format!("sha256:{}", "a".repeat(64)),
+        "session_id": "operator-session",
+        "actor_id": "operator",
+        "decision": decision,
+        "subject_request_id": kiana_domain::RequestId::new(),
+        "operation": "memory.review",
+        "expires_at_unix_ms": 1234,
+        "scope": {"project_root": "/fixture", "role_id": "sponsor", "department_id": null, "paths": []},
+    })
+}
+
+#[test]
+fn approval_decision_contract_accepts_actual_journal_transition_schema() {
+    // journal_approvals emits this schema; the older bounded fixture spelling remains readable.
+    for (kind, decision, state) in [
+        ("approval.approved", "approve", "approved"),
+        ("approval.denied", "deny", "denied"),
+    ] {
+        let payload = json!({
+            "schema": "kiana.approval-journal.v1",
+            "approval_id": kiana_domain::ApprovalId::new(),
+            "previous_state":"active",
+            "state":state,
+            "request_hash":format!("sha256:{}", "a".repeat(64)),
+            "at_unix_ms":1,
+            "decision":decision,
+            "decision_command_id":kiana_domain::RequestId::new(),
+            "decided_by":"operator",
+            "decision_fact":{},
+        });
+        validate_event_payload(kind, &payload).unwrap();
+        let mut mixed = payload;
+        mixed["subject_request_id"] = json!(kiana_domain::RequestId::new());
+        assert_eq!(
+            validate_event_payload(kind, &mixed).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+}
+
+#[test]
+fn approval_decision_contract_accepts_schema_less_direct_and_run_bound_producers() {
+    for (kind, decision) in [
+        ("approval.approved", "approve"),
+        ("approval.denied", "deny"),
+    ] {
+        let mut payload = direct_approval_decision_payload(decision);
+        validate_event_payload(kind, &payload).unwrap();
+        payload["run_id"] = json!(kiana_domain::RunId::new());
+        validate_event_payload(kind, &payload).unwrap();
+    }
+}
+
+#[test]
+fn direct_approval_decision_contract_rejects_missing_or_null_identity() {
+    for (kind, decision) in [
+        ("approval.approved", "approve"),
+        ("approval.denied", "deny"),
+    ] {
+        for id in ["approval_id", "subject_request_id", "session_id"] {
+            for null in [false, true] {
+                let mut payload = direct_approval_decision_payload(decision);
+                if null {
+                    payload[id] = serde_json::Value::Null;
+                } else {
+                    payload.as_object_mut().unwrap().remove(id);
+                }
+                assert_eq!(
+                    validate_event_payload(kind, &payload).unwrap_err(),
+                    format!("event_required_id_missing:{id}")
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn approval_decision_contract_rejects_mixed_shapes_and_unknown_fields() {
+    for (kind, decision) in [
+        ("approval.approved", "approve"),
+        ("approval.denied", "deny"),
+    ] {
+        for field in [
+            "previous_state",
+            "state",
+            "at_unix_ms",
+            "decision_fact",
+            "unexpected",
+        ] {
+            let mut payload = direct_approval_decision_payload(decision);
+            payload[field] = json!("mixed");
+            assert_eq!(
+                validate_event_payload(kind, &payload).unwrap_err(),
+                "event_payload_unknown_field"
+            );
+        }
+        let mut payload = direct_approval_decision_payload(decision);
+        payload["schema"] = json!("kiana.approval.v1");
+        assert_eq!(
+            validate_event_payload(kind, &payload).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+}
+
+#[test]
+fn approval_decision_contract_rejects_invalid_schema_instead_of_falling_back_to_direct() {
+    for (kind, decision) in [
+        ("approval.approved", "approve"),
+        ("approval.denied", "deny"),
+    ] {
+        for schema in [
+            json!("kiana.approval.v999"),
+            json!(null),
+            json!(1),
+            json!(false),
+        ] {
+            let mut payload = direct_approval_decision_payload(decision);
+            payload["schema"] = schema;
+            assert_eq!(
+                validate_event_payload(kind, &payload).unwrap_err(),
+                "event_approval_payload_schema_invalid"
+            );
+        }
+    }
+}
+
 #[test]
 fn approval_expired_contract_matches_expiry_producer_and_rejects_unknown_fields() {
     let spec = event_kind_spec("approval.expired").unwrap();
@@ -1690,6 +1833,240 @@ fn action_authority_pinned_contract_matches_dispatch_pin_and_rejects_drift() {
         validate_event_payload("action.authority_pinned", &payload).unwrap_err(),
         "event_payload_unknown_field"
     );
+}
+
+fn model_budget_prepared_payload() -> serde_json::Value {
+    let run_id = kiana_domain::RunId::new();
+    let request_id = RequestId::new();
+    let request_hash = format!("sha256:{}", "a".repeat(64));
+    json!({
+        "permit": {
+            "schema": "kiana.model-call-permit.v1",
+            "permit_id": RequestId::new(),
+            "run_id": run_id,
+            "attempt_id": request_id,
+            "request_hash": request_hash.clone(),
+            "expires_at_unix_ms": 1000,
+        },
+        "prepared": {
+            "schema": kiana_domain::MODEL_CALL_SCHEMA,
+            "model_call_id": RequestId::new(),
+            "run_id": run_id,
+            "model_request_id": request_id,
+            "request_hash": request_hash,
+        },
+        "authority_versions": [
+            {"aggregate_type": "authority", "aggregate_id": "fixture", "version": 1},
+            {"aggregate_type": "run", "aggregate_id": run_id, "version": 1},
+        ],
+    })
+}
+
+#[test]
+fn model_budget_contracts_deny_missing_ids_and_cross_shape_fields() {
+    let run_id = kiana_domain::RunId::new();
+    let request_id = RequestId::new();
+    let cases = [
+        (
+            "model.reserved",
+            json!({
+                "run_id": run_id, "model_request_id": request_id,
+                "tokens": 1000, "at_unix_ms": 1000, "reservation_fact": {},
+                "request_count": 1, "charged_and_reserved_tokens": 1000,
+                "limit": {}, "basis": "text_bytes_plus_output_limit",
+            }),
+        ),
+        (
+            "model.dispatching",
+            json!({
+                "run_id": run_id, "model_request_id": request_id,
+                "request_hash": format!("sha256:{}", "a".repeat(64)),
+                "permit_id": RequestId::new(),
+            }),
+        ),
+        (
+            "model.settled",
+            json!({
+                "run_id": run_id, "model_request_id": request_id,
+                "charged_tokens": 1000, "reported_tokens": null, "usage_known": false,
+                "reservation_exceeded": false, "at_unix_ms": 1001, "settlement_fact": {},
+            }),
+        ),
+        ("model.prepared", model_budget_prepared_payload()),
+    ];
+    for (kind, payload) in cases {
+        let required: &[&str] = match kind {
+            "model.prepared" => &["permit", "prepared", "authority_versions"],
+            "model.dispatching" => &["run_id", "model_request_id", "request_hash", "permit_id"],
+            _ => &["run_id", "model_request_id"],
+        };
+        for id in required {
+            for null in [false, true] {
+                let mut missing = payload.clone();
+                if null {
+                    missing[*id] = serde_json::Value::Null;
+                } else {
+                    missing.as_object_mut().unwrap().remove(*id);
+                }
+                assert_eq!(
+                    validate_event_payload(kind, &missing).unwrap_err(),
+                    format!("event_required_id_missing:{id}"),
+                    "{kind}",
+                );
+            }
+        }
+        let mut mixed = payload.clone();
+        mixed["turn_id"] = json!(kiana_domain::TurnId::new());
+        assert_eq!(
+            validate_event_payload(kind, &mixed).unwrap_err(),
+            "event_payload_unknown_field",
+            "{kind}",
+        );
+        let mut unknown_schema = payload.clone();
+        unknown_schema["schema"] = json!("future.model-budget.v2");
+        assert!(
+            validate_event_payload(kind, &unknown_schema).is_err(),
+            "{kind}"
+        );
+        validate_event_payload(kind, &payload).unwrap_or_else(|error| panic!("{kind}: {error}"));
+    }
+    let reserved = event_kind_spec("model.reserved").unwrap();
+    assert_eq!(reserved.aggregate_type, "model_budget");
+    assert!(!reserved.terminal);
+    assert_eq!(
+        unknown_event_policy("model.future").unwrap_err(),
+        "unknown_required_event_kind"
+    );
+}
+
+#[test]
+fn model_turn_cell_accounting_keeps_required_identity_and_unknown_field_denials() {
+    for accounting in [
+        json!({"cell_budget": kiana_domain::BudgetLease::new(2, 100, 1_000, 1, 1), "usage_accounting": "provider_reported"}),
+        json!({"budget_error": "cell_model_not_running"}),
+    ] {
+        let mut payload = accounting.clone();
+        payload["schema"] = json!("kiana.model-turn.v2");
+        payload["run_id"] = json!(kiana_domain::RunId::new());
+        let mut missing = payload.clone();
+        missing.as_object_mut().unwrap().remove("run_id");
+        assert_eq!(
+            validate_event_payload("run.model_turn", &missing).unwrap_err(),
+            "event_required_id_missing:run_id",
+        );
+        for unknown in ["api_key", "unregistered_accounting"] {
+            let mut injected = payload.clone();
+            injected[unknown] = json!("injected");
+            assert_eq!(
+                validate_event_payload("run.model_turn", &injected).unwrap_err(),
+                "event_payload_unknown_field",
+            );
+        }
+    }
+}
+
+#[test]
+fn model_turn_cell_accounting_records_usage_and_budget_failure() {
+    let mut budget = kiana_domain::BudgetLease::new(2, 100, 1_000, 1, 1);
+    budget.consume_model_call(10).unwrap();
+    for accounting in ["provider_reported", "conservative_request_reserve"] {
+        let payload = json!({
+            "schema": "kiana.model-turn.v2", "run_id": kiana_domain::RunId::new(),
+            "attempted": true, "cell_budget": budget, "usage_accounting": accounting,
+        });
+        validate_event_payload("run.model_turn", &payload).unwrap();
+    }
+    let rejected = json!({
+        "schema": "kiana.model-turn.v2", "run_id": kiana_domain::RunId::new(),
+        "attempted": true, "budget_error": "cell_model_not_running",
+    });
+    validate_event_payload("run.model_turn", &rejected).unwrap();
+}
+
+#[test]
+fn model_budget_prepared_does_not_accept_empty_or_forged_material() {
+    let payload = model_budget_prepared_payload();
+    for (field, value) in [
+        ("permit", json!({})),
+        ("prepared", json!({})),
+        ("authority_versions", json!([])),
+    ] {
+        let mut malformed = payload.clone();
+        malformed[field] = value;
+        assert!(
+            validate_event_payload("model.prepared", &malformed).is_err(),
+            "{field}"
+        );
+    }
+    for field in ["run_id", "model_request_id", "request_hash"] {
+        let mut forged = payload.clone();
+        forged["prepared"][field] = json!("changed");
+        assert_eq!(
+            validate_event_payload("model.prepared", &forged).unwrap_err(),
+            "event_model_prepared_identity_mismatch",
+        );
+    }
+    let mut raw = payload;
+    raw["prepared"]["wire_body"] = json!({"private": "request material"});
+    assert_eq!(
+        validate_event_payload("model.prepared", &raw).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
+fn typed_model_prepared_keeps_sequence_in_the_runtime_envelope() {
+    use kiana_domain::{
+        CorrelationContext, CorrelationScope, ModelEvent, ModelEventKind, RedactionProfile,
+        RedactionSignal,
+    };
+    let context = kiana_domain::RequestContext::local("er01-model-typed", "/repo");
+    let correlation = CorrelationContext::from_request(
+        &context,
+        CorrelationScope::new(context.session_id.clone(), None, None),
+        1,
+        1,
+        None,
+    )
+    .unwrap()
+    .with_run(kiana_domain::RunId::new())
+    .unwrap()
+    .with_turn(kiana_domain::TurnId::new())
+    .unwrap();
+    let digest = format!("sha256:{}", "a".repeat(64));
+    let trace = kiana_domain::ProviderTraceMetadata::empty(&RedactionProfile::for_signal(
+        RedactionSignal::Trace,
+    ))
+    .unwrap();
+    let prepared = ModelEvent::new(
+        ModelEventKind::Prepared,
+        correlation,
+        kiana_domain::StepId::new(),
+        RequestId::new(),
+        kiana_domain::ModelAttemptId::new(),
+        1,
+        "fixture-provider",
+        "fixture-model",
+        "revision:1",
+        digest.clone(),
+        digest.clone(),
+        digest.clone(),
+        digest.clone(),
+        digest,
+        trace,
+    )
+    .unwrap();
+    let event = prepared.into_runtime_event(7).unwrap();
+    assert_eq!(event.sequence, 7);
+    assert!(event.data.get("sequence").is_none());
+    validate_runtime_event(&event).unwrap();
+    let mut mixed = event.data.clone();
+    mixed["permit"] = json!({});
+    assert_eq!(
+        validate_event_payload("model.prepared", &mixed).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+    assert!(prepared.into_runtime_event(0).is_err());
 }
 
 #[test]
@@ -2196,6 +2573,193 @@ fn run_cancelling_contract_matches_lifecycle_and_project_invalidation_producers(
         assert_eq!(
             validate_event_payload("run.cancelling", &unknown_field).unwrap_err(),
             "event_payload_unknown_field"
+        );
+    }
+}
+
+#[test]
+fn run_rejected_contract_retains_registered_collaboration_deny_context() {
+    for payload in [
+        json!({"reason":"spawn_session_not_fresh", "command":"run.spawn", "session_id":"builder-1"}),
+        json!({"reason":"cell_limit_exceeded", "command":"run.spawn", "packet_id":"packet-1"}),
+        json!({"reason":"packet_status_not_spawnable", "command":"run.spawn", "packet_id":"packet-1", "status":"succeeded"}),
+        json!({"reason":"review_author_session_denied", "author_session_id":"author-1", "reviewer_session_id":"author-1"}),
+        json!({"reason":"review_author_must_be_builder", "author_role_id":"reviewer"}),
+        json!({"reason":"review_author_must_be_builder", "author_role_id":""}),
+    ] {
+        validate_event_payload("run.rejected", &payload).unwrap();
+        for field in ["unregistered_deny_context", "secret_raw"] {
+            let mut invalid = payload.clone();
+            invalid[field] = json!("raw-secret-sentinel");
+            assert_eq!(
+                validate_event_payload("run.rejected", &invalid).unwrap_err(),
+                "event_payload_unknown_field",
+                "{field}"
+            );
+        }
+    }
+}
+
+#[test]
+fn run_rejected_contract_rejects_malformed_typed_deny_context() {
+    for field in [
+        "command",
+        "session_id",
+        "packet_id",
+        "author_session_id",
+        "reviewer_session_id",
+    ] {
+        for value in [
+            json!(null),
+            json!(7),
+            json!({"value":"context"}),
+            json!("  "),
+        ] {
+            let mut payload = json!({"reason":"policy_denied"});
+            payload[field] = value;
+            assert_eq!(
+                validate_event_payload("run.rejected", &payload).unwrap_err(),
+                format!("event_rejected_field_invalid:{field}"),
+                "{field}"
+            );
+        }
+    }
+    // The rejected role is diagnostic observed data: an empty string means no role was found.
+    // Its type still must be a string; null/object/numeric values are malformed facts.
+    for role in [json!(null), json!(7), json!({"value":"reviewer"})] {
+        assert_eq!(
+            validate_event_payload(
+                "run.rejected",
+                &json!({"reason":"review_author_must_be_builder", "author_role_id":role})
+            )
+            .unwrap_err(),
+            "event_rejected_field_invalid:author_role_id"
+        );
+    }
+    for status in [json!(null), json!(7), json!("future_status")] {
+        assert_eq!(
+            validate_event_payload(
+                "run.rejected",
+                &json!({"reason":"packet_status_not_spawnable", "status":status})
+            )
+            .unwrap_err(),
+            "event_rejected_field_invalid:status"
+        );
+    }
+}
+
+#[test]
+fn run_completed_contract_retains_typed_model_metadata_and_opaque_secret_ref() {
+    let payload = json!({
+        "run_id": kiana_domain::RunId::new(),
+        "schema":"kiana.harness-result.v1",
+        "source":"kiana-harness",
+        "text":"done",
+        "steps":1,
+        "sandbox":"read-only",
+        "stop_reason":"end_turn",
+        "model_id":"test-model",
+        "usage":{"input_tokens":12,"output_tokens":4},
+        "secret_ref":"vault://completion",
+    });
+    validate_event_payload("run.completed", &payload).unwrap();
+    for usage in [
+        json!({"input_tokens":0,"output_tokens":0}),
+        json!({"input_tokens":u64::MAX,"output_tokens":u64::MAX}),
+    ] {
+        let mut extreme = payload.clone();
+        extreme["usage"] = usage;
+        validate_event_payload("run.completed", &extreme).unwrap();
+    }
+    for field in ["model_id", "usage", "secret_ref"] {
+        assert!(event_kind_spec("run.completed")
+            .unwrap()
+            .allowed_fields
+            .contains(&field));
+        for kind in ["run.failed", "run.cancelled", "run.result_unknown"] {
+            let mut unrelated = json!({"run_id":kiana_domain::RunId::new(),"reason":"denied"});
+            unrelated[field] = payload[field].clone();
+            assert_eq!(
+                validate_event_payload(kind, &unrelated).unwrap_err(),
+                "event_payload_unknown_field",
+                "{kind}:{field}"
+            );
+        }
+    }
+}
+
+#[test]
+fn run_completed_contract_rejects_unknown_metadata_and_raw_secrets() {
+    let payload = json!({"run_id":kiana_domain::RunId::new(),"text":"done"});
+    for field in ["unregistered_result_metadata", "secret_raw"] {
+        let mut unknown = payload.clone();
+        unknown[field] = json!("raw-secret-sentinel");
+        assert_eq!(
+            validate_event_payload("run.completed", &unknown).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+    for field in ["future_token_metric", "secret_raw"] {
+        let mut unknown = payload.clone();
+        unknown["usage"] = json!({"input_tokens":12,"output_tokens":4});
+        unknown["usage"][field] = json!(7);
+        assert_eq!(
+            validate_event_payload("run.completed", &unknown).unwrap_err(),
+            "event_payload_unknown_field"
+        );
+    }
+    for reference in [
+        "api_key=raw-secret-sentinel",
+        "Authorization: Bearer raw-secret-sentinel",
+    ] {
+        let mut raw = payload.clone();
+        raw["secret_ref"] = json!(reference);
+        assert_eq!(
+            validate_event_payload("run.completed", &raw).unwrap_err(),
+            "event_completed_secret_ref_invalid"
+        );
+    }
+}
+
+#[test]
+fn run_completed_contract_rejects_malformed_typed_model_metadata() {
+    let payload = json!({"run_id":kiana_domain::RunId::new(),"text":"done"});
+    for value in [json!(null), json!(7), json!({"value":"model"}), json!("  ")] {
+        let mut invalid = payload.clone();
+        invalid["model_id"] = value;
+        assert_eq!(
+            validate_event_payload("run.completed", &invalid).unwrap_err(),
+            "event_completed_model_id_invalid"
+        );
+    }
+    for value in [
+        json!(null),
+        json!(7),
+        json!({"value":"reference"}),
+        json!("  "),
+    ] {
+        let mut invalid = payload.clone();
+        invalid["secret_ref"] = value;
+        assert_eq!(
+            validate_event_payload("run.completed", &invalid).unwrap_err(),
+            "event_completed_secret_ref_invalid"
+        );
+    }
+    for usage in [
+        json!(null),
+        json!([]),
+        json!({}),
+        json!({"input_tokens":12}),
+        json!({"input_tokens":-1,"output_tokens":4}),
+        json!({"input_tokens":12.5,"output_tokens":4}),
+        json!({"input_tokens":"12","output_tokens":4}),
+        json!({"input_tokens":12,"output_tokens":null}),
+    ] {
+        let mut invalid = payload.clone();
+        invalid["usage"] = usage;
+        assert_eq!(
+            validate_event_payload("run.completed", &invalid).unwrap_err(),
+            "event_completed_usage_invalid"
         );
     }
 }

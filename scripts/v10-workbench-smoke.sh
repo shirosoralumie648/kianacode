@@ -53,13 +53,17 @@ echo "$help_out" | grep -q "DaemonHost" || die "workbench help missing DaemonHos
 top_help="$("$BIN" --help 2>&1 || true)"
 echo "$top_help" | grep -q -- "--pick-folder" || die "top help missing --pick-folder"
 
-untrusted="$(
+if untrusted="$(
   cd "$FIXTURE"
   env -u DISPLAY -u WAYLAND_DISPLAY -u KIANA_PROVIDER -u ANTHROPIC_API_KEY \
     HOME="$HOME_DIR" KIANA_HOME="$HOME_DIR" KIANA_HARNESS_SCRIPT="$CASSETTE" \
-    "$BIN" workbench --json --sandbox workspace-write -- "create GOLDEN_PATH.txt" 2>&1 || true
-)"
-echo "$untrusted" | grep -q "workspace_write_requires_trusted_non_safe_profile" || die "untrusted workbench did not fail closed: $untrusted"
+    "$BIN" workbench --json --sandbox workspace-write -- "create GOLDEN_PATH.txt" 2>"$WORKDIR/untrusted.stderr"
+)"; then
+  die "untrusted workbench returned a successful exit: $untrusted"
+else
+  untrusted_exit=$?
+fi
+python3 -c 'import json, sys; response = json.load(sys.stdin); assert response["status"] == "blocked"; assert response["error"] == "project_untrusted"; assert response["output"] is None' <<<"$untrusted" || die "untrusted workbench did not return the structured trust denial (exit=$untrusted_exit): $untrusted"
 [[ ! -f "$FIXTURE/GOLDEN_PATH.txt" ]] || die "untrusted write leaked"
 
 (

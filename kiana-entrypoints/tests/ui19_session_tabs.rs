@@ -112,7 +112,7 @@ fn ui19_source_exposes_server_lease_and_replay_fences() {
         "x-kiana-ui-tab",
         "tab_id=",
         "owner tab",
-        "original server result",
+        "original command receipt",
     ] {
         assert!(page.contains(marker), "UI-19 page marker missing: {marker}");
     }

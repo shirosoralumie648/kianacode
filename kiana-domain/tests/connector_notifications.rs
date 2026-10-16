@@ -65,3 +65,28 @@ fn connector_notification_requires_cursor_evidence_limitation_and_redaction() {
         "connector_notification_kind_unregistered"
     );
 }
+
+#[test]
+fn connector_declared_sources_keep_untrusted_mismatch_and_unknown_rejections_distinct() {
+    for (source, code) in [
+        ("model", "notification_event_source_untrusted"),
+        ("ui", "notification_event_source_untrusted"),
+        ("control_plane", "notification_event_source_mismatch"),
+        ("unknown", "notification_event_source_unknown"),
+    ] {
+        for kind in [
+            "connector.health",
+            "connector.invocation",
+            "connector.reconciliation",
+            "connector.approval",
+        ] {
+            let mut declared = payload();
+            declared["source"] = json!(source);
+            assert_eq!(
+                validate_connector_notification_payload(kind, &declared).unwrap_err(),
+                code,
+                "{kind} with source {source}"
+            );
+        }
+    }
+}

@@ -10,6 +10,7 @@ fn progress_reducer_and_runner_threshold_share_the_same_bounded_path() {
         "cycle_detected",
         "repeated_failure_count",
         "stop_hook_budget_exhausted",
+        "unwrap_or(!input.empty_turn)",
         "job_cursor",
         "heartbeat",
     ] {

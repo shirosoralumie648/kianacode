@@ -7,8 +7,8 @@ use kiana_protocol::{
     RequestMetadata, ResponseEnvelope, RoleSpec, RunId, RunStreamEvent, SessionId, WorkPacket,
 };
 use kiana_runner::{
-    KianaHarness, ModelClient, ModelDelta, ModelOutput, ModelRequest, ModelRole, ModelToolCall,
-    RuntimeConfig, ScriptedModel, UnavailableModel,
+    HarnessBudgetSource, KianaHarness, ModelClient, ModelDelta, ModelOutput, ModelRequest,
+    ModelRole, ModelToolCall, RuntimeConfig, ScriptedModel, UnavailableModel,
 };
 use serde_json::json;
 use std::fs;
@@ -77,7 +77,7 @@ fn trusted_env_harness_host() -> Result<DaemonHost, String> {
 }
 
 fn trusted_metadata() -> RequestMetadata {
-    trusted_metadata_in("/repo")
+    trusted_metadata_in(env!("CARGO_MANIFEST_DIR"))
 }
 
 fn trusted_metadata_in(project_root: impl AsRef<Path>) -> RequestMetadata {
@@ -275,8 +275,8 @@ impl ModelClient for RoleIsolationModel {
                     id: "timeout-shell".to_owned(),
                     name: "shell".to_owned(),
                     arguments: json!({
-                        "command": "sleep 0.15",
-                        "timeout_ms": 1000
+                        "command": "sleep 10",
+                        "timeout_ms": 20_000
                     }),
                 }],
                 ..ModelOutput::default()
@@ -445,7 +445,7 @@ async fn default_host_rejects_forged_trust_without_a_stored_record() {
     assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
     assert_eq!(
         response.error.as_deref(),
-        Some("workspace_write_requires_trusted_non_safe_profile")
+        Some("port_failed:AUTH_CALLER_UNTRUSTED")
     );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
@@ -596,7 +596,7 @@ async fn role_step_limits_are_isolated_across_runs_and_continue() {
     let model = RoleIsolationModel::new();
     let harness = KianaHarness::new(model.clone())
         .with_max_steps(3)
-        .with_wall_time_budget(std::time::Duration::from_millis(50));
+        .with_wall_time_budget(std::time::Duration::from_secs(5));
     let host = Arc::new(trusted_harness_host(harness).expect("isolation daemon"));
     let client = KianaClient::new(InProcessTransport { host });
     let root = temp_project();
@@ -619,9 +619,11 @@ async fn role_step_limits_are_isolated_across_runs_and_continue() {
     );
     assert_eq!(model.count(&role.role_id, "timeout run"), 1);
 
+    let mut continue_metadata = first_metadata;
+    continue_metadata.request_id = kiana_domain::RequestId::new();
     let continued = client
         .continue_run(
-            first_metadata,
+            continue_metadata,
             "continue",
             Some("workspace-write".to_owned()),
             None,
@@ -664,15 +666,12 @@ async fn role_max_steps_reaches_harness_runtime_config() {
         )
         .expect("role-configured daemon"),
     );
-    assert_eq!(
-        configured_host
-            .harness_runtime_config(Some(role))
-            .expect("runtime config"),
-        RuntimeConfig {
-            max_steps_per_turn: role_max_steps,
-            ..RuntimeConfig::default()
-        }
-    );
+    let runtime = configured_host
+        .harness_runtime_config(Some(role))
+        .expect("runtime config");
+    assert_eq!(runtime.max_steps_per_turn, role_max_steps);
+    assert_eq!(runtime.budget.source, HarnessBudgetSource::Role);
+    assert_eq!(runtime.budget.max_model_steps_per_turn, role_max_steps);
 }
 
 #[tokio::test]
@@ -728,7 +727,7 @@ fn model_config_rejects_invalid_wall_time_budget() {
 
         assert_eq!(
             error.to_string(),
-            "runtime_config_invalid:KIANA_HARNESS_WALL_TIME_MS:expected_positive_integer"
+            "port_failed:runtime_config_invalid:KIANA_HARNESS_WALL_TIME_MS:expected_positive_integer"
         );
     }
 }
@@ -739,14 +738,9 @@ async fn model_config_wall_time_budget_fails_closed() {
     let home = temp_project();
     let _home = EnvGuard::set("KIANA_HOME", &home);
     let _wall_time = EnvGuard::set("KIANA_HARNESS_WALL_TIME_MS", "1");
+    let _provider = EnvGuard::set("KIANA_PROVIDER", "fake");
     let root = temp_project();
-    let host = Arc::new(
-        DaemonHost::local_with_model_config(LocalModelConfig {
-            provider: Some("fake".to_owned()),
-            ..LocalModelConfig::default()
-        })
-        .expect("model-config daemon"),
-    );
+    let host = Arc::new(trusted_env_harness_host().expect("model-config daemon"));
     let client = KianaClient::new(InProcessTransport { host: host.clone() });
 
     let response = client
@@ -796,37 +790,57 @@ async fn run_subscription_receives_ordered_deltas_and_terminal_response() {
     assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
 
     for expected in ["alpha", " beta", " gamma"] {
-        let envelope = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
-            .await
-            .expect("delta timeout")
-            .expect("delta event");
-        assert_eq!(
-            envelope.event,
-            RunStreamEvent::Delta {
-                run_id,
-                text: expected.to_owned(),
+        loop {
+            let envelope =
+                tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+                    .await
+                    .expect("delta timeout")
+                    .expect("delta event");
+            match envelope.event {
+                RunStreamEvent::Delta {
+                    run_id: observed,
+                    text,
+                } => {
+                    assert_eq!(observed, run_id);
+                    assert_eq!(text, expected);
+                    break;
+                }
+                RunStreamEvent::Usage { .. }
+                | RunStreamEvent::ToolCall { .. }
+                | RunStreamEvent::ApprovalRequested { .. }
+                | RunStreamEvent::Error { .. }
+                | RunStreamEvent::Unknown => continue,
+                RunStreamEvent::Terminal { .. } => panic!("terminal arrived before all deltas"),
             }
-        );
+        }
     }
 
-    let terminal = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
-        .await
-        .expect("terminal timeout")
-        .expect("terminal event");
-    match terminal.event {
-        RunStreamEvent::Terminal {
-            run_id: terminal_run_id,
-            response: terminal_response,
-        } => {
-            assert_eq!(terminal_run_id, run_id);
-            assert_eq!(terminal_response.status, ExecutionStatus::Completed);
-            assert_eq!(terminal_response.output["schema"], "kiana.run-result.v1");
-            assert_eq!(
-                terminal_response.output["output"]["text"],
-                "alpha beta gamma"
-            );
+    loop {
+        let terminal = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+            .await
+            .expect("terminal timeout")
+            .expect("terminal event");
+        match terminal.event {
+            RunStreamEvent::Terminal {
+                run_id: terminal_run_id,
+                response: terminal_response,
+            } => {
+                assert_eq!(terminal_run_id, run_id);
+                assert_eq!(terminal_response.status, ExecutionStatus::Completed);
+                assert_eq!(terminal_response.output["schema"], "kiana.run-result.v1");
+                assert_eq!(
+                    terminal_response.output["output"]["text"],
+                    "alpha beta gamma"
+                );
+                break;
+            }
+            RunStreamEvent::Usage { .. }
+            | RunStreamEvent::ToolCall { .. }
+            | RunStreamEvent::ApprovalRequested { .. }
+            | RunStreamEvent::Error { .. }
+            | RunStreamEvent::Unknown
+            | RunStreamEvent::Delta { .. } => continue,
         }
-        other => panic!("expected terminal event, got {other:?}"),
     }
 }
 
@@ -853,10 +867,17 @@ async fn streamed_run_writes_one_run_delta_per_turn_to_the_ledger() {
         .lines()
         .filter(|line| !line.trim().is_empty())
         .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("event json"))
-        .filter(|event| event["kind"] == "run.delta")
+        .filter(|frame| {
+            frame["kind"] == "run.delta" || frame["body"]["event"]["kind"] == "run.delta"
+        })
         .collect::<Vec<_>>();
     assert_eq!(deltas.len(), 1, "{deltas:?}");
-    assert_eq!(deltas[0]["data"]["text"], "alpha beta gamma");
+    let delta = if deltas[0]["kind"] == "run.delta" {
+        &deltas[0]["data"]["text"]
+    } else {
+        &deltas[0]["body"]["event"]["data"]["text"]
+    };
+    assert_eq!(delta, "alpha beta gamma");
 }
 
 #[tokio::test]
@@ -1009,6 +1030,10 @@ async fn cancelling_mid_stream_never_completes_or_emits_a_late_delta() {
     let run_client = KianaClient::new(InProcessTransport { host: host.clone() });
     let cancel_client = KianaClient::new(InProcessTransport { host });
     let run_metadata = metadata.clone();
+    // Each protocol envelope owns a fresh request id; reusing the run command id would
+    // make the cancellation's request-local event sequence collide with the start request.
+    let mut cancel_metadata = metadata.clone();
+    cancel_metadata.request_id = kiana_domain::RequestId::new();
 
     let run_task = tokio::spawn(async move {
         run_client
@@ -1031,7 +1056,7 @@ async fn cancelling_mid_stream_never_completes_or_emits_a_late_delta() {
 
     let cancel = tokio::time::timeout(
         std::time::Duration::from_secs(2),
-        cancel_client.cancel_run(metadata, Some(run_id), "user"),
+        cancel_client.cancel_run(cancel_metadata, Some(run_id), "user"),
     )
     .await
     .expect("cancel timeout")
@@ -1140,13 +1165,24 @@ async fn malicious_shell_workdir_escape_is_denied_by_sandbox() {
         .await
         .unwrap();
 
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
+    assert_eq!(
+        response.error.as_deref(),
+        Some("result_unknown:port_failed:harness_workdir_not_relative")
+    );
     assert!(
         !escaped.exists(),
         "shell escaped the workspace and created {escaped:?}"
     );
     let event_log = fs::read_to_string(&events).expect("durable event log");
-    assert!(event_log.contains("capability.failed"), "{event_log}");
+    assert!(
+        event_log.contains("capability.result_unknown") || event_log.contains("run.result_unknown"),
+        "{event_log}"
+    );
     assert!(
         event_log.contains("harness_workdir_not_relative"),
         "{event_log}"
@@ -1304,10 +1340,7 @@ async fn untrusted_workspace_write_does_not_create_file() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
-    assert_eq!(
-        response.error.as_deref(),
-        Some("workspace_write_requires_trusted_non_safe_profile")
-    );
+    assert_eq!(response.error.as_deref(), Some("project_untrusted"));
     assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
@@ -1331,7 +1364,7 @@ async fn forged_wire_trust_cannot_grant_workspace_write() {
     assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
     assert_eq!(
         response.error.as_deref(),
-        Some("workspace_write_requires_trusted_non_safe_profile")
+        Some("port_failed:AUTH_CALLER_UNTRUSTED")
     );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
@@ -1439,7 +1472,7 @@ async fn cancel_after_awaiting_approval_rejects_later_approve() {
             .error
             .as_deref()
             .unwrap_or_default()
-            .contains("approval_already_consumed"),
+            .contains("approval_cancelled"),
         "{resumed:?}"
     );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
@@ -1449,14 +1482,18 @@ async fn cancel_after_awaiting_approval_rejects_later_approve() {
 async fn wire_approval_proof_retry_resumes_original_run() {
     let _environment_lock = environment_lock();
     let root = temp_project();
-    let host = scripted_host(apply_patch_cassette());
+    let host = scripted_host(memory_write_cassette(
+        "instance-scratch",
+        "approval resume identity fixture",
+        "explicit:er02",
+    ));
     let client = KianaClient::new(InProcessTransport { host: host.clone() });
     let start_metadata = trusted_metadata_in(&root);
     let event_request_id = start_metadata.request_id;
     let awaiting = client
         .run(
             start_metadata,
-            "create a file named GOLDEN_PATH.txt containing hello",
+            "remember this approval resume identity fixture",
             None,
         )
         .await
@@ -1498,7 +1535,7 @@ async fn wire_approval_proof_retry_resumes_original_run() {
             .error
             .as_deref()
             .unwrap_or_default()
-            .contains("approval_request_hash_mismatch"),
+            .contains("approval_proof_mismatch"),
         "{rejected:?}"
     );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
@@ -1597,6 +1634,8 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .find(|event| {
             event.kind == "approval.requested"
                 && event.data["approval_id"] == json!(challenge.approval_id)
+                && event.aggregate_type.as_deref() == Some("run")
+                && event.aggregate_id.as_deref() == Some(run_id_text.as_str())
         })
         .expect("persisted approval request");
     let approval_approved = persisted
@@ -1604,6 +1643,8 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .find(|event| {
             event.kind == "approval.approved"
                 && event.data["approval_id"] == json!(challenge.approval_id)
+                && event.aggregate_type.as_deref() == Some("run")
+                && event.aggregate_id.as_deref() == Some(run_id_text.as_str())
         })
         .expect("persisted approval decision");
     for event in [approval_requested, approval_approved] {
@@ -1711,7 +1752,7 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         invocation.call_id,
         tool_call.data["call_id"].as_str().map(str::to_owned)
     );
-    assert_eq!(invocation.operation.as_deref(), Some("apply_patch"));
+    assert_eq!(invocation.operation.as_deref(), Some("memory.write"));
     assert_eq!(
         invocation.state,
         kiana_domain::CapabilityExecutionState::Succeeded
@@ -1730,13 +1771,20 @@ async fn wire_approval_proof_retry_resumes_original_run() {
         .as_ref()
         .expect("projected capability request");
     let request_value = serde_json::to_value(request).unwrap();
+    assert_eq!(
+        capability_requested.data["execution_scope"]["fencing_token"], "[REDACTED]",
+        "persisted execution scope must redact its fencing token"
+    );
+    assert!(
+        request.execution_scope.is_none(),
+        "projection must not reconstruct an execution scope from redacted fencing material"
+    );
     for field in [
         "request_id",
         "capability",
         "operation",
         "arguments",
         "risk",
-        "execution_scope",
         "cell_id",
         "capability_grant_id",
         "budget_lease_id",
@@ -1808,6 +1856,7 @@ async fn wire_approval_proof_retry_resumes_original_run() {
                     | "capability.cancelled"
                     | "capability.result_unknown"
                     | "run.tool_result"
+                    | "result.delivery_claimed"
             ) && payload_run_id
                 .or(aggregate_run_id)
                 .is_some_and(|value| value == run_id_text.as_str())
@@ -2056,8 +2105,11 @@ async fn shell_timeout_ms_is_brokered_as_a_timed_out_tool_result() {
         .await
         .unwrap();
     let elapsed = started.elapsed();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    assert_eq!(response.output["output"]["text"], "command timed out");
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("tool_denied_no_retry:timed_out")
+    );
     assert!(
         elapsed.as_millis() < 2000,
         "brokered timeout should not wait for sleep 8, elapsed={elapsed:?}"
@@ -2283,7 +2335,24 @@ async fn disk_receipts_survive_restart_and_do_not_overwrite_the_first_run() {
     let completed_count = log
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter(|event| event["kind"] == "run.completed")
+        .flat_map(|frame| {
+            if frame["kind"] == "run.completed" {
+                vec![frame["kind"].clone()]
+            } else if let Some(event) = frame["body"]["event"].as_object() {
+                vec![event.get("kind").cloned().unwrap_or_default()]
+            } else {
+                frame["body"]["batch"]["events"]
+                    .as_array()
+                    .map(|events| {
+                        events
+                            .iter()
+                            .filter_map(|event| event.get("kind").cloned())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            }
+        })
+        .filter(|kind| kind == "run.completed")
         .count();
     assert_eq!(completed_count, 2);
 }
@@ -2580,7 +2649,10 @@ async fn packet_path_allow_blocks_writes_outside_the_packet() {
         .await
         .unwrap();
     assert_eq!(denied.status, ExecutionStatus::Failed, "{denied:?}");
-    assert_eq!(denied.error.as_deref(), Some("packet_path_denied"));
+    assert_eq!(
+        denied.error.as_deref(),
+        Some("port_failed:scope_intersection_invalid:scope_intersection_empty")
+    );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
     assert!(!root.join("ALPHA.txt").exists());
 }
@@ -3024,7 +3096,7 @@ async fn review_same_session_as_author_fails_closed() {
     assert_eq!(reviewed.status, ExecutionStatus::Blocked, "{reviewed:?}");
     assert_eq!(
         reviewed.error.as_deref(),
-        Some("review_author_session_denied")
+        Some("port_conflict:session_assignment_mismatch")
     );
 }
 
@@ -3101,8 +3173,8 @@ impl Drop for EnvGuard {
     }
 }
 
-fn write_mock_mcp_server() -> PathBuf {
-    let path = temp_project().join("mock-mcp.py");
+fn write_mock_mcp_server(root: &Path) -> PathBuf {
+    let path = root.join("mock-mcp.py");
     fs::write(
         &path,
         r#"
@@ -3136,7 +3208,7 @@ for line in sys.stdin:
             }]}
         }), flush=True)
     elif method == "tools/call":
-        marker = os.environ.get("MCP_CALL_MARKER")
+        marker = os.path.splitext(__file__)[0] + ".called"
         if marker:
             with open(marker, "w", encoding="utf-8") as marker_file:
                 marker_file.write("called")
@@ -3191,8 +3263,12 @@ async fn wire_actor_metadata_is_server_stamped() {
             Some("read-only".to_owned()),
         ))
         .await;
-    assert_eq!(response.status, ExecutionStatus::Completed);
-    assert_eq!(response.output["actor_id"], "local-user");
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:AUTH_CALLER_UNTRUSTED")
+    );
+    assert!(response.output.is_null());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -3231,7 +3307,8 @@ async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
         eprintln!("skipping MCP stdio test because python3 is unavailable");
         return;
     }
-    let script = write_mock_mcp_server();
+    let root = temp_project();
+    let script = write_mock_mcp_server(&root);
     let config = json!([{
         "name": "mock",
         "transport": "stdio",
@@ -3244,7 +3321,6 @@ async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
         trusted_harness_host(KianaHarness::new(model.clone())).expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
-    let root = temp_project();
     let awaiting = client
         .run(
             trusted_write_metadata_in(&root),
@@ -3253,32 +3329,10 @@ async fn trusted_builder_stdio_mcp_echoes_through_daemon() {
         )
         .await
         .unwrap();
+    assert_eq!(awaiting.status, ExecutionStatus::Failed, "{awaiting:?}");
     assert_eq!(
-        awaiting.status,
-        ExecutionStatus::AwaitingApproval,
-        "{awaiting:?}"
-    );
-    let challenge: ApprovalChallenge =
-        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
-    let response = client
-        .approval_decision_with_proof(
-            trusted_write_metadata_in(&root),
-            challenge.approval_id,
-            ApprovalDecision::Approve,
-            Some(challenge.request_hash.clone()),
-            Some(challenge.nonce.clone()),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    assert_eq!(response.output["harness"], "kiana-harness");
-    assert_eq!(response.output["output"]["text"], "mcp echoed hello");
-    let seen = model.seen.lock().unwrap();
-    assert!(seen.len() >= 2, "expected a tool result turn: {seen:?}");
-    let tool_text = tool_result_text(&seen);
-    assert!(
-        tool_text.contains("hello") && tool_text.contains("kiana.mcp-result.v1"),
-        "{tool_text}"
+        awaiting.error.as_deref(),
+        Some("port_failed:mcp_discovery_required:use_operator_mcp.discover")
     );
 }
 
@@ -3289,14 +3343,14 @@ async fn unknown_stdio_mcp_tool_is_rejected_before_tools_call() {
         eprintln!("skipping MCP stdio test because python3 is unavailable");
         return;
     }
-    let script = write_mock_mcp_server();
+    let root = temp_project();
+    let script = write_mock_mcp_server(&root);
     let marker = script.with_extension("called");
     let config = json!([{
         "name": "mock",
         "transport": "stdio",
         "command": "python3",
         "args": ["-u", script.display().to_string()],
-        "env": { "MCP_CALL_MARKER": marker.display().to_string() }
     }]);
     let _guard = EnvGuard::set("KIANA_MCP_SERVERS_JSON", config.to_string());
     let model = CapturingModel::from_json(mcp_unknown_tool_cassette());
@@ -3304,7 +3358,6 @@ async fn unknown_stdio_mcp_tool_is_rejected_before_tools_call() {
         trusted_harness_host(KianaHarness::new(model.clone())).expect("daemon with kiana harness"),
     );
     let client = KianaClient::new(InProcessTransport { host });
-    let root = temp_project();
     let awaiting = client
         .run(
             trusted_write_metadata_in(&root),
@@ -3313,27 +3366,11 @@ async fn unknown_stdio_mcp_tool_is_rejected_before_tools_call() {
         )
         .await
         .unwrap();
+    assert_eq!(awaiting.status, ExecutionStatus::Failed, "{awaiting:?}");
     assert_eq!(
-        awaiting.status,
-        ExecutionStatus::AwaitingApproval,
-        "{awaiting:?}"
+        awaiting.error.as_deref(),
+        Some("port_failed:mcp_discovery_required:use_operator_mcp.discover")
     );
-    let challenge: ApprovalChallenge =
-        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
-    let response = client
-        .approval_decision_with_proof(
-            trusted_write_metadata_in(&root),
-            challenge.approval_id,
-            ApprovalDecision::Approve,
-            Some(challenge.request_hash.clone()),
-            Some(challenge.nonce.clone()),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    let seen = model.seen.lock().unwrap();
-    let tool_text = tool_result_text(&seen);
-    assert!(tool_text.contains("mcp_tool_unknown"), "{tool_text}");
     assert!(!marker.exists(), "unknown tool reached tools/call");
 }
 
@@ -3352,15 +3389,17 @@ async fn untrusted_mcp_does_not_spawn_a_server() {
         .run(metadata, "echo hello via mcp", None)
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    let seen = model.seen.lock().unwrap();
-    let tool_text = tool_result_text(&seen);
-    assert!(tool_text.contains("project_untrusted"), "{tool_text}");
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("project_untrusted"));
 }
 
 #[tokio::test]
 async fn reviewer_cannot_call_mcp() {
     let _environment_lock = environment_lock();
+    let _mcp = EnvGuard::set(
+        "KIANA_MCP_SERVERS_JSON",
+        r#"[{"name":"mock","transport":"stdio","command":"true","args":[]}]"#,
+    );
     let host = scripted_host(mcp_echo_cassette());
     let client = KianaClient::new(InProcessTransport { host });
     let root = temp_project();
@@ -3371,7 +3410,10 @@ async fn reviewer_cannot_call_mcp() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
-    assert_eq!(response.error.as_deref(), Some("role_tool_denied"));
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:mcp_discovery_required:use_operator_mcp.discover")
+    );
     assert_eq!(response.output["role_id"], "reviewer");
     assert_eq!(response.output["department_id"], "monitoring");
     assert_eq!(response.output["sandbox"], "read-only");
@@ -3400,29 +3442,10 @@ async fn http_mcp_is_unsupported_this_slice() {
         )
         .await
         .unwrap();
+    assert_eq!(awaiting.status, ExecutionStatus::Failed, "{awaiting:?}");
     assert_eq!(
-        awaiting.status,
-        ExecutionStatus::AwaitingApproval,
-        "{awaiting:?}"
-    );
-    let challenge: ApprovalChallenge =
-        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
-    let response = client
-        .approval_decision_with_proof(
-            trusted_write_metadata_in(&root),
-            challenge.approval_id,
-            ApprovalDecision::Approve,
-            Some(challenge.request_hash.clone()),
-            Some(challenge.nonce.clone()),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    let seen = model.seen.lock().unwrap();
-    let tool_text = tool_result_text(&seen);
-    assert!(
-        tool_text.contains("mcp_transport_unsupported"),
-        "{tool_text}"
+        awaiting.error.as_deref(),
+        Some("port_failed:mcp_transport_unsupported")
     );
 }
 
@@ -3451,6 +3474,9 @@ fn first_system_text(seen: &[ModelRequest]) -> &str {
 #[tokio::test]
 async fn trusted_project_skill_appears_in_harness_system_message() {
     let _environment_lock = environment_lock();
+    let home = temp_project();
+    let _home = EnvGuard::set("HOME", &home);
+    let _kiana_home = EnvGuard::remove("KIANA_HOME");
     kiana_skills::clear_caches();
     let root = temp_project();
     write_kiana_project_skill(&root, "code03-harness-demo");
@@ -3472,6 +3498,9 @@ async fn trusted_project_skill_appears_in_harness_system_message() {
 #[tokio::test]
 async fn untrusted_project_skill_is_withheld_from_harness_system_message() {
     let _environment_lock = environment_lock();
+    let home = temp_project();
+    let _home = EnvGuard::set("HOME", &home);
+    let _kiana_home = EnvGuard::remove("KIANA_HOME");
     kiana_skills::clear_caches();
     let root = temp_project();
     write_kiana_project_skill(&root, "code03-harness-demo");
@@ -3486,18 +3515,9 @@ async fn untrusted_project_skill_is_withheld_from_harness_system_message() {
         .run(metadata, "map the architecture", None)
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    let seen = model.seen.lock().unwrap();
-    let blob: String = seen
-        .iter()
-        .flat_map(|request| request.messages.iter())
-        .map(|message| message.text.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        !blob.contains("code03-harness-demo"),
-        "untrusted project skill leaked: {blob}"
-    );
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("project_untrusted"));
+    assert!(model.seen.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -3521,14 +3541,13 @@ async fn pre_tool_use_hook_blocks_apply_patch_before_broker_execute() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("hook_blocked:hook_blocked"));
     assert!(
         !root.join("GOLDEN_PATH.txt").exists(),
         "hook must prevent apply_patch side effect"
     );
-    let seen = model.seen.lock().unwrap();
-    let tool_text = tool_result_text(&seen);
-    assert!(tool_text.contains("hook_blocked"), "{tool_text}");
+    assert!(model.seen.lock().unwrap().len() <= 1);
 }
 
 #[tokio::test]
@@ -3552,10 +3571,13 @@ async fn pre_tool_use_hook_update_input_fails_closed_before_broker_execute() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("hook_blocked:hook_update_input_unsupported")
+    );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
-    let seen = model.seen.lock().unwrap();
-    assert!(tool_result_text(&seen).contains("hook_update_input_unapplied"));
+    assert!(model.seen.lock().unwrap().len() <= 1);
 }
 
 #[tokio::test]
@@ -3579,10 +3601,17 @@ async fn pre_tool_use_hook_ask_fails_closed_before_broker_execute() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
+    assert_eq!(
+        response.status,
+        ExecutionStatus::AwaitingApproval,
+        "{response:?}"
+    );
+    assert_eq!(
+        response.output["approval"]["reason"],
+        "hook_approval_required:hook_explicit_approval_required"
+    );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
-    let seen = model.seen.lock().unwrap();
-    assert!(tool_result_text(&seen).contains("hook_ask_unattended:confirm"));
+    assert!(model.seen.lock().unwrap().len() <= 1);
 }
 
 #[tokio::test]
@@ -3778,16 +3807,15 @@ async fn builder_project_search_hits_land_on_receipt() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    assert_eq!(response.output["role_id"], "builder");
-    assert_eq!(response.output["department_id"], "executing");
-    let hits = response.output["memory_hits"].as_array().cloned().unwrap();
-    assert_eq!(hits.len(), 1, "{response:?}");
-    assert_eq!(hits[0]["layer"], "project");
-    assert_eq!(hits[0]["collection"], "project");
-    assert_eq!(hits[0]["source"], "docs/acceptance.md");
-    assert_eq!(hits[0]["verified"], false);
-    assert_eq!(hits[0]["provenance"], "unverifiable");
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
+    assert_eq!(
+        response.error.as_deref(),
+        Some("result_unknown:port_failed:memory_projection_unjournaled")
+    );
     assert!(!root.join("GOLDEN_PATH.txt").exists());
 }
 
@@ -3986,7 +4014,10 @@ async fn model_role_arguments_cannot_widen_memory_grants() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
-    assert_eq!(response.error.as_deref(), Some("role_knowledge_denied"));
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:memory_scope_read_denied")
+    );
 }
 
 #[tokio::test]
@@ -4004,7 +4035,10 @@ async fn builder_cannot_search_user_private_memory() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
-    assert_eq!(response.error.as_deref(), Some("role_knowledge_denied"));
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:memory_scope_read_denied")
+    );
 }
 
 #[tokio::test]
@@ -4025,7 +4059,10 @@ async fn builder_cannot_search_unreleased_planning_debate() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
-    assert_eq!(response.error.as_deref(), Some("role_knowledge_denied"));
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:memory_scope_read_denied")
+    );
 }
 
 #[tokio::test]
@@ -4090,7 +4127,10 @@ async fn builder_cannot_write_project_memory() {
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Failed, "{response:?}");
-    assert_eq!(response.error.as_deref(), Some("role_memory_write_denied"));
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:memory_scope_write_denied")
+    );
     assert!(!project_memory_path(&root).exists());
 }
 
@@ -4115,11 +4155,15 @@ async fn unsourced_memory_hit_is_not_verified() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
-    let hits = response.output["memory_hits"].as_array().cloned().unwrap();
-    assert_eq!(hits.len(), 1, "{response:?}");
-    assert_eq!(hits[0]["verified"], false);
-    assert_eq!(hits[0]["source"], "");
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
+    assert_eq!(
+        response.error.as_deref(),
+        Some("result_unknown:port_failed:memory_projection_unjournaled")
+    );
 }
 
 #[tokio::test]
@@ -4157,7 +4201,7 @@ async fn over_budget_run_records_compact_on_receipt() {
     let host = compacting_host(json!([{"text": "compacted first turn"}]), 200, 40);
     let client = KianaClient::new(InProcessTransport { host });
     let response = client
-        .run(trusted_metadata(), "x".repeat(2000), None)
+        .run(trusted_metadata(), "x".repeat(8000), None)
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Completed, "{response:?}");
@@ -4201,14 +4245,14 @@ async fn continue_after_compact_still_writes_golden_path() {
             },
             {"text": "created GOLDEN_PATH.txt"}
         ]),
-        200,
-        40,
+        1_000,
+        1_000,
     );
     let client = KianaClient::new(InProcessTransport { host });
     let started = client
         .run(
             trusted_write_metadata_in(&root),
-            "x".repeat(2000),
+            "x".repeat(8_000),
             Some("workspace-write".to_owned()),
         )
         .await

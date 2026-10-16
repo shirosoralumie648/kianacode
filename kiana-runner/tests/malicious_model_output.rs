@@ -129,10 +129,18 @@ async fn injected_tool_result_remains_a_tool_message_and_cannot_widen_the_tool_s
     let injected = second
         .messages
         .iter()
-        .find(|message| message.text == injection)
-        .expect("injection must be present in the second model request");
+        .find(|message| message.tool_call_id.as_deref() == Some("call-1"))
+        .expect("typed observation must be present in the second model request");
     assert_eq!(injected.role, ModelRole::Tool);
     assert_eq!(injected.tool_call_id.as_deref(), Some("call-1"));
+    let observation: serde_json::Value = serde_json::from_str(&injected.text).unwrap();
+    assert_eq!(observation["schema"], kiana_domain::TOOL_OBSERVATION_SCHEMA);
+    assert_eq!(observation["untrusted"], true);
+    assert_eq!(observation["status"], "succeeded");
+    assert_eq!(observation["request_id"], request.request_id.to_string());
+    let observed_output: serde_json::Value =
+        serde_json::from_str(observation["summary"].as_str().unwrap()).unwrap();
+    assert_eq!(observed_output, injection);
     assert!(
         second
             .messages

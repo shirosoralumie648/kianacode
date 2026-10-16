@@ -451,7 +451,7 @@ impl BudgetLease {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.schema.trim() != BUDGET_LEASE_SCHEMA {
+        if self.schema.trim() != BUDGET_LEASE_SCHEMA || self.lease_id.as_uuid().is_nil() {
             return Err("budget_lease_invalid");
         }
         if self.max_tool_calls == 0

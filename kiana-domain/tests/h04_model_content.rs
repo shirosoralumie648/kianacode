@@ -5,6 +5,42 @@ use kiana_domain::{
 use serde_json::json;
 
 #[test]
+fn legacy_tool_result_has_one_canonical_block_and_preserves_identity() {
+    let result = ModelMessage::tool("call-1", r#"{"stdout":"listed"}"#);
+    assert_eq!(
+        result.content_blocks().unwrap(),
+        vec![ModelContent::ToolResult {
+            call_id: "call-1".to_owned(),
+            content: r#"{"stdout":"listed"}"#.to_owned(),
+            is_error: false,
+        }]
+    );
+    let assistant = ModelMessage::assistant_with_tools(
+        "inspect",
+        vec![ModelToolCall {
+            id: "call-1".to_owned(),
+            name: "shell".to_owned(),
+            arguments: json!({"command": "ls"}),
+        }],
+    );
+    validate_model_history(&[assistant.clone(), result.clone()]).unwrap();
+    let mut missing_identity = result.clone();
+    missing_identity.tool_call_id = None;
+    assert_eq!(
+        missing_identity.content_blocks().unwrap_err().code,
+        "model_history_orphan_tool_result"
+    );
+    let mut forged_identity = result;
+    forged_identity.tool_call_id = Some("another-call".to_owned());
+    assert_eq!(
+        validate_model_history(&[assistant, forged_identity])
+            .unwrap_err()
+            .code,
+        "model_history_orphan_tool_result"
+    );
+}
+
+#[test]
 fn legacy_cassette_and_typed_items_roundtrip() {
     let legacy = ModelMessage::assistant_with_tools(
         "inspect",

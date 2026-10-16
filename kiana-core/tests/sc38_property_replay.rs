@@ -234,10 +234,17 @@ fn sc38_out_of_order_and_gapped_cursors_are_refused() {
 
 #[test]
 fn sc38_unknown_major_versions_are_refused_not_upgraded() {
-    for minor in 0..4u32 {
-        assert!(
+    // Dispatch permits are a breaking contract: only the registered 1.0 wire shape is valid.
+    assert!(check_schema_compatibility(DISPATCH_PERMIT_SCHEMA, &SchemaVersion::new(1, 0)).is_ok());
+    for minor in 1..4u32 {
+        let denial =
             check_schema_compatibility(DISPATCH_PERMIT_SCHEMA, &SchemaVersion::new(1, minor))
-                .is_ok()
+                .expect_err("future breaking minor must fail closed");
+        assert_eq!(
+            denial,
+            format!(
+                "incompatible schema version: {DISPATCH_PERMIT_SCHEMA} runtime=1.0 incoming=1.{minor} (unknown major must fail-closed)"
+            )
         );
     }
     for major in 2..6u32 {

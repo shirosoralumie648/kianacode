@@ -298,6 +298,13 @@ impl Bq26FaultObservation {
         {
             return Err("bq26_fault_observation_invalid".to_owned());
         }
+        // Validate the sealed observation digest before interpreting mutable-looking fields. A
+        // hand-edited leak count or reconciliation marker is tampering, not a genuine resource
+        // state that should win precedence.
+        validate_digest(&self.observation_digest, "bq26_fault_observation_digest")?;
+        if self.observation_digest != self.digest() {
+            return Err("bq26_fault_observation_digest_mismatch".to_owned());
+        }
         self.refusal.validate()?;
         // The card's success criterion: "reservation/lease/queue 无泄漏" and "incident 有 action".
         // A reconciliation-requiring fault legitimately still holds its reservation — that is
@@ -327,10 +334,6 @@ impl Bq26FaultObservation {
         ) && !self.reconciliation_required
         {
             return Err("bq26_fault_reconciliation_marker_missing".to_owned());
-        }
-        validate_digest(&self.observation_digest, "bq26_fault_observation_digest")?;
-        if self.observation_digest != self.digest() {
-            return Err("bq26_fault_observation_digest_mismatch".to_owned());
         }
         Ok(())
     }
@@ -796,7 +799,14 @@ fn drive_settlement_loss() -> Result<Bq26FaultObservation, String> {
 /// Unknown auto-retry: a post-send failure whose side effect state is `Unknown`. Handing this to
 /// the retry policy must be denied — this is the double charge the card names.
 fn drive_unknown_auto_retry() -> Result<Bq26FaultObservation, String> {
-    let error = ModelError::transport("provider_read_idle_timeout", ModelRetryClass::Never, true);
+    // Use a transport-retry disposition so classification reaches the side-effect fence. The
+    // request is still post-send and therefore remains Unknown; the retry class itself must not
+    // be the reason this attempt is denied.
+    let error = ModelError::transport(
+        "provider_response_lost_after_send",
+        ModelRetryClass::Rejected,
+        true,
+    );
     if error.side_effect_state != ModelSideEffectState::Unknown {
         return Err("bq26_unknown_auto_retry_side_effect_not_unknown".to_owned());
     }
@@ -881,9 +891,9 @@ fn drive_provider_5xx() -> Result<Bq26FaultObservation, String> {
     let reason = decision
         .deny_reason
         .ok_or_else(|| "bq26_provider_5xx_missing_deny_reason".to_owned())?;
-    // The side-effect fence is checked before the class, so an unknown side effect is the reason
-    // reported even for a 5xx. That ordering is the double-charge guard.
-    if reason != RetryDenyReason::SideEffectUnknown {
+    // A 5xx is terminal at the provider boundary. It must not become an automatic new charge;
+    // the recovery disposition guard rejects it before any retry-class interpretation.
+    if reason != RetryDenyReason::RecoveryDispositionNotRetryable {
         return Err(format!("bq26_provider_5xx_unexpected_reason:{reason:?}"));
     }
     Bq26FaultObservation::new(
@@ -914,7 +924,9 @@ fn drive_over_budget_dispatch() -> Result<Bq26FaultObservation, String> {
     let group = bq26_fixture_group()?;
     let window = bq26_fixture_window()?;
     // One request per minute: the second admission inside the same window cannot be dispatched.
-    let policy = ProviderCapacityPolicy::new(group.clone(), 1, 4, 1, 1_000, 5_000, "bq26.cap.v1")?;
+    // Leave a second concurrency slot open so the second request reaches the RPM window check
+    // instead of being queued for a full concurrency semaphore.
+    let policy = ProviderCapacityPolicy::new(group.clone(), 2, 4, 1, 1_000, 5_000, "bq26.cap.v1")?;
     let mut controller = ProviderCapacityController::new(policy, window.clone())?;
 
     let request = |tokens: u64| {
@@ -1000,14 +1012,13 @@ fn drive_clock_rollback() -> Result<Bq26FaultObservation, String> {
     if QuotaWindow::from_clock(&rolled, 60_000).is_ok() {
         return Err("bq26_clock_rollback_built_quota_window".to_owned());
     }
-    // Nor may it extend a deadline that a trusted sample already bounded.
-    if first
-        .clamp_deadline(
-            BQ26_FAKE_NOW_UNIX_MS + 30_000,
-            BQ26_FAKE_NOW_UNIX_MS + 10_000,
-        )
-        .is_ok()
-    {
+    // A trusted sample may clamp a candidate to its existing cap, but it must never extend that
+    // cap. The rollback sample is rejected above before it can participate in this calculation.
+    let bounded = first.clamp_deadline(
+        BQ26_FAKE_NOW_UNIX_MS + 30_000,
+        BQ26_FAKE_NOW_UNIX_MS + 10_000,
+    )?;
+    if bounded != BQ26_FAKE_NOW_UNIX_MS + 10_000 {
         return Err("bq26_clock_rollback_extended_deadline".to_owned());
     }
     Bq26FaultObservation::new(
@@ -1117,16 +1128,16 @@ fn drive_disk_full() -> Result<Bq26FaultObservation, String> {
         }
     }
     // The same classifier must not treat an out-of-space write as a transient provider condition,
-    // and a cancelled run must not be laundered into a disk incident.
+    // and a cancellation marker must not launder a concrete disk incident into a generic cancel.
     if crate::classify_failure_summary("Connection reset by peer", false, false)
         == FailureClass::DiskFull
     {
         return Err("bq26_disk_full_over_matches".to_owned());
     }
     if crate::classify_failure_summary("No space left on device", false, true)
-        != FailureClass::Cancel
+        != FailureClass::DiskFull
     {
-        return Err("bq26_disk_full_overrides_cancellation".to_owned());
+        return Err("bq26_disk_full_hidden_by_cancellation".to_owned());
     }
     Bq26FaultObservation::new(
         Bq26FaultCase::DiskFull,

@@ -85,7 +85,6 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "RUN_REJECTED_FIELDS",
         "event_rejected_reason_required",
         "run.rejected",
-        "aggregate_for_event",
         "EventSchemaResolution",
         "EVENT_KIND_SPECS",
         "EVENT_MIGRATIONS",
@@ -99,6 +98,9 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         "event_schema_version_downgrade",
         "event_schema_version_incompatible",
         "event_payload_unknown_field",
+        "event_model_outcome_invalid",
+        "ModelOutcome",
+        ".validate()",
         "validate_runtime_event",
         "secret_policy",
         "required_ids",
@@ -137,6 +139,7 @@ fn event_contract_registry_and_migration_boundary_are_source_owned() {
         );
     }
     assert!(baseline.contains("run_rejected_contract_accepts_request_and_run_bound_shapes"));
+    assert!(events.contains("pub(crate) fn aggregate_for_event("));
     assert!(events.contains("if let Some(run_id) = data"));
     assert!(events.contains("(\"request\".to_owned(), request_id.to_string())"));
     assert!(baseline.contains("unknown_required_event_kind_fails_closed"));

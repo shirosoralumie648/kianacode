@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use kiana_client::{ClientError, ClientTransport, KianaClient};
 use kiana_protocol::{
-    ApprovalDecision, ConversationMessage, ConversationRole, ExecutionStatus, RequestBody,
-    RequestEnvelope, RequestMetadata, ResponseEnvelope, WorkPacket,
+    ApprovalDecision, ConversationMessage, ConversationRole, ExecutionStatus, OpsAuthoritySnapshot,
+    OpsCommand, OpsCommandRequest, OpsQuery, OpsQueryRequest, OpsScope, RequestBody,
+    RequestEnvelope, RequestId, RequestMetadata, ResponseEnvelope, StorageRootId, WorkPacket,
 };
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -115,6 +116,62 @@ async fn every_public_client_method_delegates_a_typed_envelope() {
     assert!(matches!(&requests[7].body, RequestBody::Symposium(_)));
     assert!(matches!(&requests[8].body, RequestBody::Review(_)));
     assert!(matches!(&requests[9].body, RequestBody::Close(_)));
+}
+
+#[tokio::test]
+async fn typed_ops_methods_share_the_command_envelope_without_local_authority() {
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let client = KianaClient::new(RecordingTransport {
+        requests: requests.clone(),
+        fail: false,
+    });
+    let metadata = RequestMetadata::local("session-ops", "/repo");
+    let authority = OpsAuthoritySnapshot {
+        actor_id: "operator-a".to_owned(),
+        authority_epoch: 7,
+        scope: OpsScope::new(None, Some(StorageRootId::new())),
+    };
+    let command = OpsCommandRequest::new(
+        OpsCommand::Status,
+        kiana_protocol::OperationId::new(),
+        "ops-key-1",
+        authority.clone(),
+        serde_json::json!({}),
+    )
+    .unwrap();
+    let query = OpsQueryRequest::new(
+        OpsQuery::Status,
+        RequestId::new(),
+        authority,
+        None,
+        serde_json::json!({}),
+    )
+    .unwrap();
+
+    client
+        .ops_command(metadata.clone(), command.clone())
+        .await
+        .unwrap();
+    client.ops_query(metadata, query.clone()).await.unwrap();
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    let RequestBody::Command(command_wire) = &requests[0].body else {
+        panic!("typed ops command must use the shared command envelope");
+    };
+    assert_eq!(command_wire.name, "ops.status");
+    assert_eq!(
+        serde_json::from_value::<OpsCommandRequest>(command_wire.arguments.clone()).unwrap(),
+        command
+    );
+    let RequestBody::Command(query_wire) = &requests[1].body else {
+        panic!("typed ops query must use the shared command envelope");
+    };
+    assert_eq!(query_wire.name, "ops.status");
+    assert_eq!(
+        serde_json::from_value::<OpsQueryRequest>(query_wire.arguments.clone()).unwrap(),
+        query
+    );
 }
 
 #[tokio::test]

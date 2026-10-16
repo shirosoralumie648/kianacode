@@ -779,6 +779,25 @@ impl OpsQueryRequest {
         Ok(())
     }
 
+    /// Validate the query's client-declared authority against the server-owned snapshot.
+    ///
+    /// This remains a pure protocol check; callers still decide when the server snapshot is
+    /// available and must perform admission before any query side effect.
+    pub fn validate_authority(&self, expected: &OpsAuthoritySnapshot) -> Result<(), String> {
+        self.validate()?;
+        expected.validate()?;
+        if self.authority.actor_id != expected.actor_id {
+            return Err("ops_actor_mismatch".to_owned());
+        }
+        if self.authority.authority_epoch != expected.authority_epoch {
+            return Err("ops_authority_epoch_mismatch".to_owned());
+        }
+        if self.authority.scope != expected.scope {
+            return Err("ops_scope_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&serde_json::json!({
             "schema": self.schema,
@@ -797,7 +816,21 @@ pub enum OpsEventKind {
     Accepted,
     StateChanged,
     Completed,
+    Failed,
+    Cancelled,
     Unknown,
+}
+
+fn expected_event_kind(event: &str) -> Option<OpsEventKind> {
+    match event {
+        "ops.operation.accepted" => Some(OpsEventKind::Accepted),
+        "ops.operation.state_changed" => Some(OpsEventKind::StateChanged),
+        "ops.operation.completed" => Some(OpsEventKind::Completed),
+        "ops.operation.failed" => Some(OpsEventKind::Failed),
+        "ops.operation.cancelled" => Some(OpsEventKind::Cancelled),
+        "ops.operation.unknown" => Some(OpsEventKind::Unknown),
+        _ => None,
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -844,6 +877,9 @@ impl OpsEvent {
         bounded(&self.event, "ops_event_name")?;
         if !OPS_EVENT_NAMES.contains(&self.event.as_str()) {
             return Err("ops_event_name_invalid".to_owned());
+        }
+        if expected_event_kind(&self.event) != Some(self.kind) {
+            return Err("ops_event_kind_mismatch".to_owned());
         }
         validate_payload(&self.payload, "ops_event_payload_invalid")?;
         valid_digest(&self.event_digest, "ops_event_digest")?;
@@ -912,6 +948,12 @@ impl OpsError {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != OPS_PROTOCOL_SCHEMA {
             return Err("ops_error_header_invalid".to_owned());
+        }
+        if self.code == OpsErrorCode::ResultUnknown && self.retryable {
+            return Err("ops_result_unknown_retryable".to_owned());
+        }
+        if self.code == OpsErrorCode::ResultUnknown && self.operation_id.is_none() {
+            return Err("ops_result_unknown_operation_invalid".to_owned());
         }
         bounded(&self.message, "ops_error_message")?;
         if self

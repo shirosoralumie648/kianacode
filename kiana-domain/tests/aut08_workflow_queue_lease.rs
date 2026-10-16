@@ -1,3 +1,8 @@
+//! AUT-08 Domain lease 状态机的纯内存测试。
+//!
+//! A-F 是重复字符组成的摘要格式样本，不是实际 WorkPacket SHA-256 计算值，也不证明授权来源。
+//! 测试直接调用 Domain transition，不经过 QueueStore 原子提交、Daemon worker 或 EventLog 恢复。
+
 use kiana_domain::{
     WorkflowQueueClaimContract, WorkflowQueueClaimStatus, WorkflowQueueEffectState,
     WorkflowQueueLease, WorkflowQueueLeaseStatus,
@@ -10,6 +15,7 @@ const D: &str = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 const E: &str = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const F: &str = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
+/// 提供一条字段自洽的 Ready claim，供各用例创建第一代 Lease。
 fn claim() -> WorkflowQueueClaimContract {
     WorkflowQueueClaimContract::new(
         "packet-1",
@@ -34,12 +40,14 @@ fn claim() -> WorkflowQueueClaimContract {
     .expect("valid claim")
 }
 
+/// 建立 worker-a 的 genesis Lease；sequence=1、fence/epoch=1，expiry 在测试时间之后。
 fn lease() -> WorkflowQueueLease {
     WorkflowQueueLease::issue(&claim(), "worker-a", 1, 1, 1_000, 1_100).expect("valid lease")
 }
 
 #[test]
 fn heartbeat_requires_current_owner_and_fence() {
+    // owner 或 fencing token 任一不匹配，都不能把 lease 续到新版本。
     let value = lease();
     assert_eq!(
         value
@@ -57,6 +65,7 @@ fn heartbeat_requires_current_owner_and_fence() {
 
 #[test]
 fn running_effect_cannot_be_reclaimed_after_expiry() {
+    // lease 即使过期，只要 effect 已记录 Running，就不能推断外部动作未发生并转给另一个 worker。
     let running = lease()
         .record_effect("worker-a", 1, 1, 1_010, WorkflowQueueEffectState::Running)
         .expect("running effect");
@@ -70,6 +79,7 @@ fn running_effect_cannot_be_reclaimed_after_expiry() {
 
 #[test]
 fn unknown_effect_is_fenced_into_recovery() {
+    // ResultUnknown 同时出现在 effect 与 lease status，保持后续恢复检查可见。
     let unknown = lease()
         .record_effect(
             "worker-a",
@@ -89,6 +99,7 @@ fn unknown_effect_is_fenced_into_recovery() {
 
 #[test]
 fn safe_expiry_requires_a_new_monotonic_fence() {
+    // 只有 NotStarted 的已过期 lease 可安全重领；新 owner 使用更大的 fence 并保留前一版本 digest。
     let next = lease()
         .reclaim("worker-b", 2, 2, 1_100, 1_200)
         .expect("safe reclaim");
@@ -102,6 +113,7 @@ fn safe_expiry_requires_a_new_monotonic_fence() {
 
 #[test]
 fn lease_ttl_is_bounded_even_when_constructed_without_the_store_adapter() {
+    // 即便跳过 Store adapter，Domain 构造器也不能产生超过 5 分钟合同上限的租约。
     let error = WorkflowQueueLease::issue(
         &claim(),
         "worker-a",

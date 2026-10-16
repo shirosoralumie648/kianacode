@@ -988,6 +988,8 @@ pub enum FakeProviderScenario {
 }
 
 impl FakeProviderScenario {
+    const MAX_STREAM_TEXT_BYTES: usize = 512 * 1024;
+
     pub fn validate(&self) -> Result<(), String> {
         fn bounded(value: &str, max: usize) -> bool {
             !value.trim().is_empty() && value.len() <= max && !value.contains(['\0', '\r', '\n'])
@@ -999,9 +1001,15 @@ impl FakeProviderScenario {
                 }
             }
             Self::Stream { chunks } => {
+                let total_bytes = chunks.iter().try_fold(0usize, |total, chunk| {
+                    if chunk.is_empty() || chunk.len() > 16 * 1024 {
+                        return None;
+                    }
+                    total.checked_add(chunk.len())
+                });
                 if chunks.is_empty()
                     || chunks.len() > 256
-                    || chunks.iter().any(|chunk| chunk.len() > 16 * 1024)
+                    || total_bytes.map_or(true, |bytes| bytes > Self::MAX_STREAM_TEXT_BYTES)
                 {
                     return Err("fake_provider_stream_invalid".to_owned());
                 }
@@ -1104,6 +1112,11 @@ impl ModelClient for FakeProviderAdapter {
         on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
     ) -> Result<ModelOutput, String> {
         let output = self.output()?;
+        if let FakeProviderScenario::Complete { text } = &self.scenario {
+            if !text.is_empty() {
+                on_delta(ModelDelta::Text { text: text.clone() })?;
+            }
+        }
         if let FakeProviderScenario::Stream { chunks } = &self.scenario {
             for chunk in chunks {
                 on_delta(ModelDelta::Text {

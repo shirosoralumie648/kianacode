@@ -1,7 +1,11 @@
 #[test]
 fn change_publication_fences_old_baselines_and_partial_updates() {
     let change = include_str!("../../kiana-domain/src/change_contract.rs");
-    let business = include_str!("../../kiana-domain/src/company_business.rs");
+    let business = &[
+        include_str!("../../kiana-domain/src/company_business.rs"),
+        include_str!("../../kiana-domain/src/company_closeout.rs"),
+    ]
+    .concat();
     let company = include_str!("../../kiana-domain/src/company.rs");
     let core = include_str!("../src/change_contract.rs");
     for marker in [

@@ -1,5 +1,9 @@
 //! ER-21 source guard for explicit resume preflight, snapshot claims and entrypoint parity.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::production_source;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -61,20 +65,25 @@ fn resume_preflight_rechecks_scope_epoch_and_claims_once() {
         runner,
         &[
             "async fn restore",
-            "runner_restore_unsupported",
+            "runner_checkpoint_invalid",
             "checkpoint",
         ],
         "runner restore boundary",
     );
     require(
         ports,
-        &["async fn restore(", "checkpoint_run", "restore_run"],
+        &[
+            "async fn restore(",
+            "checkpoint_run",
+            "restore_run",
+            "runner_restore_unsupported",
+        ],
         "restore ports",
     );
 
     for forbidden in ["CapabilityBroker", "ProviderGateway", "tokio::spawn"] {
         assert!(
-            !recovery.contains(forbidden),
+            !production_source(recovery).contains(forbidden),
             "ER-21 recovery widened authority: {forbidden}"
         );
     }

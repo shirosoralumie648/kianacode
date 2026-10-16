@@ -7,6 +7,13 @@ fn sc41_security_gate_binds_workflows_scripts_and_proof_limits() {
     let baseline = include_str!("../../docs/roadmap/sc41-security-gate-baseline.md");
     let current_status = include_str!("../../CURRENT_STATUS.md");
     let roadmap = include_str!("../../docs/roadmap.md");
+    let evidence = current_status
+        .split("### SC-41 security and release gate evidence")
+        .nth(1)
+        .expect("SC-41 evidence section")
+        .split("\n### ")
+        .next()
+        .unwrap();
     let card = include_str!("../../docs/roadmap/security-compliance.md");
     for marker in [
         "permissions:",
@@ -59,7 +66,11 @@ fn sc41_security_gate_binds_workflows_scripts_and_proof_limits() {
         "ReleaseUatEvidence",
     ] {
         assert!(
-            baseline.contains(marker),
+            if marker == "reviewer" {
+                evidence.contains("reviewer:")
+            } else {
+                baseline.contains(marker)
+            },
             "SC-41 baseline marker missing: {marker}"
         );
     }

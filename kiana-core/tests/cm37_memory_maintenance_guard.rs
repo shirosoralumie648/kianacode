@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 use std::fs;
 
 #[test]
@@ -26,6 +29,7 @@ fn maintenance_contract_covers_gc_ttl_orphan_quota_and_retention_fences() {
             "CM-37 marker missing: {marker}"
         );
     }
+    let maintenance = source_guard::production_source(&maintenance);
     for forbidden in [
         "std::fs",
         "remove_file",

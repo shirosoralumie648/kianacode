@@ -1314,11 +1314,8 @@ fn parse_configuration_snapshot(
 }
 
 fn activation_state(manifest: &ExtensionManifest) -> &'static str {
-    if manifest.extension_type == ExtensionType::Skill {
-        "enabled"
-    } else {
-        "staged"
-    }
+    let _ = manifest;
+    "staged"
 }
 
 /// Build the inspect-only component registry from a package that has already passed the daemon's
@@ -1437,7 +1434,7 @@ fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
 
 #[cfg(test)]
 mod tests {
-    use super::verify_manifest_signature;
+    use super::{activation_state, verify_manifest_signature};
     use kiana_domain::{
         ExtensionEffect, ExtensionManifest, ExtensionNetworkPolicy, ExtensionRequires,
         ExtensionSignature, ExtensionType, EXTENSION_MANIFEST_SCHEMA,
@@ -1506,17 +1503,20 @@ mod tests {
         forged.version = "2.0.0".to_owned();
         assert_eq!(
             verify_manifest_signature(&forged, &trusted)
-                .expect_err("manifest drift must fail closed")
-                .to_string(),
-            "extension_signature_verification_failed"
+                .expect_err("manifest drift must fail closed"),
+            kiana_ports::PortError::Failed("extension_signature_verification_failed".to_owned())
         );
         let mut untrusted = trusted;
         untrusted.remove("fixture-publisher");
         assert_eq!(
             verify_manifest_signature(&unsigned, &untrusted)
-                .expect_err("unknown publisher must fail closed")
-                .to_string(),
-            "extension_publisher_key_untrusted"
+                .expect_err("unknown publisher must fail closed"),
+            kiana_ports::PortError::Failed("extension_publisher_key_untrusted".to_owned())
         );
+    }
+
+    #[test]
+    fn extension_install_state_is_staged_before_explicit_enable() {
+        assert_eq!(activation_state(&manifest(String::new())), "staged");
     }
 }

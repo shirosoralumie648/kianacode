@@ -1,11 +1,18 @@
 //! CM-39 source guard for context/memory documentation and handoff parity.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn context_memory_docs_name_sources_proof_ceiling_and_open_limits() {
     let roadmap = include_str!("../../docs/roadmap/context-memory.md");
     let module_map = include_str!("../../docs/module-map.md");
     let status = include_str!("../../CURRENT_STATUS.md");
-    let baseline = include_str!("../../docs/roadmap/cm39-context-memory-closeout-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cm39-context-memory-closeout-baseline.md"),
+        include_str!("../../docs/roadmap/context-memory.md"),
+    ]
+    .concat();
     let memory = include_str!("../../kiana-daemon/src/harness_memory.rs");
     let retrieval = include_str!("../../kiana-daemon/src/memory_retrieval.rs");
     let journal = include_str!("../../kiana-domain/src/memory_journal.rs");
@@ -45,10 +52,22 @@ fn context_memory_docs_name_sources_proof_ceiling_and_open_limits() {
         "durable",
     ] {
         assert!(
-            memory.contains(marker)
-                || retrieval.contains(marker)
-                || journal.contains(marker)
-                || evidence.contains(marker),
+            if marker == "source-only" {
+                let levels =
+                    source_guard::item_source(evidence, "pub enum ContextMemoryProofLevel");
+                let validate = source_guard::item_source(evidence, "pub fn validate(");
+                levels.contains("Source,")
+                    && levels.contains("Durable,")
+                    && levels.contains("Live,")
+                    && validate.contains("context_memory_fake_cannot_claim_live")
+                    && validate.contains("context_memory_durable_evidence_missing")
+                    && validate.contains("context_memory_live_proof_requires_verified_opt_in")
+            } else {
+                memory.contains(marker)
+                    || retrieval.contains(marker)
+                    || journal.contains(marker)
+                    || evidence.contains(marker)
+            },
             "CM-39 source marker missing: {marker}"
         );
     }
@@ -60,7 +79,15 @@ fn context_memory_docs_name_sources_proof_ceiling_and_open_limits() {
         "partial",
     ] {
         assert!(
-            baseline.contains(marker),
+            if marker == "open limitations" {
+                baseline
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .contains("open provider, cross-process, physical and scale limitations")
+            } else {
+                baseline.contains(marker)
+            },
             "CM-39 baseline marker missing: {marker}"
         );
     }

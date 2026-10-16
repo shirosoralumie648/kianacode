@@ -1,7 +1,19 @@
-//! ControlPlane-side queue lease admission helpers.
+//! ControlPlane 侧的 workflow queue 就绪视图与交接前置校验。
 //!
-//! The queue store owns atomic claim transitions, while this module keeps the dispatch boundary
-//! explicit: a queue lease is not a capability permit and cannot call the Broker by itself.
+//! 上游把当前 WorkPacket 快照和服务端观察时间交给 `project_workflow_queue_ready()`；它复用 Domain 的
+//! `ready_packets()`，生成确定顺序的 Ready Claim、blocked 原因和过期 claim 投影。AUT-08 QueueStore 单独负责
+//! 原子建立/更新 lease；当调度器把 packet 交回既有 ControlPlane 命令路径时，transaction gate 再核对 ready
+//! view、packet/parent、claim、owner、fence token、authority epoch、deadline 和 lease 时间：
+//!
+//! ```text
+//! WorkPacket snapshot -> readiness -> ReadyView/Claim -> QueueStore lease
+//!     -> validate_workflow_queue_transaction() -> existing ControlPlane route
+//! ```
+//!
+//! 这里的函数都是纯 gate/projector：不写 EventLog、不占并发槽、不运行 Runner，也不直接产生 effect。ready
+//! view 的 digest 是无密钥自摘要，调用者仍须保证输入来自可信快照；当前两个 projector/gate 只有源码定义和
+//! fixture 调用，尚未发现生产命令路径实际执行该交接。Serde derive 负责该 view 与 JSON/wire 值之间的转换，
+//! 未知字段会拒绝。
 
 use kiana_domain::{
     json_digest, ready_packets, WorkPacket, WorkflowQueueClaimContract, WorkflowQueueClaimStatus,
@@ -12,16 +24,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// 可供 scheduler 读取的确定性队列快照；本结构不持有锁，也不预留任何 Claim。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkflowQueueReadyView {
+    /// 当前 readiness 谓词认定可运行的 packet Claim。
     pub claims: Vec<WorkflowQueueClaimContract>,
+    /// 暂不可运行的 item ID 到阻塞原因映射。
     pub blocked: BTreeMap<String, String>,
+    /// 已超过 packet claim 时间的 item ID；仍是投影，不表示本结构回收了租约。
     pub expired_claims: Vec<String>,
+    /// 对 claims/blocked/expired 的无密钥摘要，用于发现字段漂移。
     pub ready_digest: String,
 }
 
 impl WorkflowQueueReadyView {
+    /// 校验每条 claim 有效且标为 Ready、item 不重复，并重新计算 view 自摘要。
+    /// 不验证底层 packet、当前时间或 view 是否从权威 Store 读取。
     pub fn validate(&self) -> Result<(), String> {
         let mut item_ids = BTreeSet::new();
         for claim in &self.claims {
@@ -36,6 +55,7 @@ impl WorkflowQueueReadyView {
         Ok(())
     }
 
+    /// 摘要不包含 `ready_digest` 自身，覆盖 ready claim、blocked reason 和 expired ID。
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "claims": self.claims,
@@ -45,9 +65,18 @@ impl WorkflowQueueReadyView {
     }
 }
 
-/// Project the queue-ready view from the same WorkPacket readiness predicate used by the packet
-/// board. This is intentionally a pure view: it creates no lease, writes no EventLog fact and
-/// does not dispatch a capability. AUT-08 owns the atomic queue transition.
+/// 从 packet board 共用的 WorkPacket readiness 谓词生成一份只读 queue view。
+///
+/// 【预期用途】ControlPlane/UI/scheduler 读取当前可运行候选项；当前仓库只有该函数定义和测试调用，没有生产调用点。
+/// 此函数不等同于 AUT-08 的实际 claim 操作。
+/// 【输入】以 packet ID 索引的当前 WorkPacket 快照、非零 Unix 毫秒观察时刻、每个 Claim 的并发上限。
+/// 【输出】含稳定排序 Ready Claim、blocked reason、expired ID 和自摘要的 view。
+/// 【失败】时间/上限为零、依赖图无效、ready ID 找不到 packet、父子/scope/budget 不一致、expiry 加法溢出时拒绝。
+/// 【核心流程】复用 `ready_packets()` 的 status/dependency/deadline/claim 规则；为每个 ready ID 找 packet 与
+/// parent，重算各摘要，构造 Ready Claim，按 item ID 排序后校验 view。
+/// 【为什么这样设计】看板与队列必须共享 readiness 规则，否则 UI 会显示可运行但 queue 拒绝的不同结果。
+/// 【边界】当前每条 Claim 的 active count 固定为 0，故 max_parallel_claims 只是记录到合同，不在此处统计或
+/// 原子限制实际并发；并发唯一性由 Store 决定。该投影也不认证输入快照来源。
 pub fn project_workflow_queue_ready(
     packets: &BTreeMap<String, WorkPacket>,
     now_unix_ms: u64,
@@ -96,8 +125,8 @@ pub fn project_workflow_queue_ready(
     Ok(view)
 }
 
-/// Validate the exact lease/fence/authority tuple immediately before a queue item is handed to
-/// the existing ControlPlane command path.
+/// 由 transaction gate 在交接给既有 ControlPlane 命令路径前核对 lease 的 owner/fence/epoch/status/effect/expiry。
+/// 调用底层 Domain `is_dispatchable()`；不读 EventStore，也不执行 effect。当前没有发现独立的生产调用点。
 pub fn validate_workflow_queue_dispatch(
     lease: &WorkflowQueueLease,
     owner_id: &str,
@@ -108,10 +137,16 @@ pub fn validate_workflow_queue_dispatch(
     lease.is_dispatchable(owner_id, fence_token, authority_epoch, now_unix_ms)
 }
 
-/// Validate the complete scheduler handoff immediately before an existing ControlPlane command
-/// path receives a claimed packet.  This is still a pure gate: it creates no lease, calls no
-/// Broker and starts no Runner.  The ready view, immutable packet/parent snapshot and lease must
-/// all describe the same item and authority tuple.
+/// 校验从 ReadyView/WorkPacket 到 Lease 的完整 scheduler handoff tuple。
+///
+/// 【调用者】现有 ControlPlane 命令路由收到 scheduler 递交的 packet 前；目前仓库只找到测试直接调用。
+/// 【输入】ready view、claim、packet/parent 快照、lease、owner/fence/authority 和当前 Unix 毫秒。
+/// 【输出】全部绑定一致且仍可 dispatch 时返回 `Ok(())`；否则返回具体拒绝原因，由上层停止交接。
+/// 【核心顺序】先校验 ready/claim 和重算 packet binding，再要求 claim 在 ready snapshot 中逐字段相同，确认
+/// lease 对应 item/claim，限制租约不能越过 packet deadline，最后检查 owner/fence/epoch/expiry 和 effect 状态。
+/// 【为什么要逐层核对】排队后 packet、权限代次、所有者或 fencing token 可能变化；只检查“曾经 ready”会让旧
+/// worker 或过期快照绕过最新状态。
+/// 【边界】此 gate 本身不是存储事务/原子 CAS；调用者要在适当的存储边界保护检查与后续交接，且需保证输入快照可信。
 #[allow(clippy::too_many_arguments)]
 pub fn validate_workflow_queue_transaction(
     ready: &WorkflowQueueReadyView,
@@ -150,7 +185,8 @@ pub fn validate_workflow_queue_transaction(
     validate_workflow_queue_dispatch(lease, owner_id, fence_token, authority_epoch, now_unix_ms)
 }
 
-/// Unknown effect is a recovery state, never a reclaimable ready item.
+/// 判断 lease 或 effect 是否处于 Unknown 恢复状态。
+/// status/effect 任一为 ResultUnknown 都返回 true；Unknown 不能按普通过期项重新排队。
 pub fn workflow_queue_requires_recovery(lease: &WorkflowQueueLease) -> bool {
     lease.status == WorkflowQueueLeaseStatus::ResultUnknown
         || lease.effect_state == WorkflowQueueEffectState::ResultUnknown

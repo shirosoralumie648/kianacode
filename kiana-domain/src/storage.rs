@@ -185,6 +185,9 @@ impl StorageRoot {
             return Err("storage_network_filesystem_unsupported".to_owned());
         }
         validate_absolute_path(&self.canonical_path)?;
+        if self.root_id != stable_root_id(&self.canonical_path) {
+            return Err("storage_root_id_mismatch".to_owned());
+        }
         self.owner_scope.validate()?;
         if self.namespaces.len() != 11
             || self.namespaces.iter().any(|(namespace, path)| {
@@ -349,19 +352,27 @@ impl StorageLockRecord {
     ) -> Result<(), String> {
         identity.validate_unbound()?;
         owner_scope.validate()?;
-        if self.schema != STORAGE_LOCK_SCHEMA
-            || self.lock_id.as_uuid().is_nil()
-            || self.store_id != identity.store_id
-        {
+        if self.schema != STORAGE_LOCK_SCHEMA || self.lock_id.as_uuid().is_nil() {
             return Err("storage_lock_owner_mismatch".to_owned());
         }
-        if self.owner_id != owner_scope.owner_id
+        self.validate_integrity()?;
+        if self.store_id != identity.store_id
+            || self.owner_id != owner_scope.owner_id
             || self.instance_id != owner_scope.instance_id
             || identity.owner_scope_digest != owner_scope.scope_digest
             || identity.instance_id != owner_scope.instance_id
         {
             return Err("storage_lock_owner_mismatch".to_owned());
         }
+
+        Ok(())
+    }
+
+    /// Validate the lock's self-contained integrity before comparing it with a requested scope.
+    ///
+    /// This ordering keeps a damaged foreign record classified as corruption rather than as a
+    /// valid lock belonging to another owner.
+    pub fn validate_integrity(&self) -> Result<(), String> {
         if self.acquired_at_unix_ms == 0 {
             return Err("storage_lock_time_invalid".to_owned());
         }

@@ -176,6 +176,20 @@ async fn fake_https_transport_only_dispatches_pinned_origin() {
 }
 
 #[tokio::test]
+async fn forged_credential_endpoint_binding_is_rejected_before_dispatch() {
+    let sends = Arc::new(Mutex::new(0));
+    let transport = FakeHttpsTransport {
+        sends: sends.clone(),
+    };
+    let mut forged = request();
+    forged.lease.endpoint_digest = kiana_domain::json_digest(&json!("foreign-target"));
+    forged.lease.lease_digest = forged.lease.digest();
+
+    assert!(transport.send_checked(forged).await.is_err());
+    assert_eq!(*sends.lock().expect("send count"), 0);
+}
+
+#[tokio::test]
 async fn proxy_or_cross_origin_redirect_is_rejected_before_fake_dispatch() {
     let sends = Arc::new(Mutex::new(0));
     let transport = FakeHttpsTransport {

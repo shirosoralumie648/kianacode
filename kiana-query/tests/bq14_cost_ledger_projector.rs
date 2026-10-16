@@ -1,3 +1,8 @@
+//! BQ-14 append-only ledger Query projection 的合成事实 fixture。
+//!
+//! 用例在内存中构造原始 entry、带审批字段的 correction 和事件 envelope，检查 reducer 重建 view、
+//! 外层 Run 绑定及重复来源拒绝；不连接 EventStore，也不提交真实审批或财务事实。
+
 use kiana_domain::{
     ApprovalId, AttemptId, CostCorrection, CostCorrectionApproval, CostCorrectionCommand,
     CostLedgerEntry, CostLedgerEntryKind, EventId, LedgerEntryId, Money, RateCardId, RequestId,
@@ -5,10 +10,12 @@ use kiana_domain::{
 };
 use kiana_query::{project_cost_ledger, CostLedgerProjectionError};
 
+/// 固定重复字符的 sha256 形状 fixture，不是真实内容摘要。
 fn digest() -> String {
     "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc".to_owned()
 }
 
+/// 构造消费类型原始 ledger entry，再附上 rate card 与估算金额。
 fn entry() -> CostLedgerEntry {
     CostLedgerEntry::new(
         LedgerEntryId::new(),
@@ -30,6 +37,7 @@ fn entry() -> CostLedgerEntry {
     .expect("estimate")
 }
 
+/// 从临时 draft 生成合成 approval 和 correction 事实，用于测试已批准 correction 的重放。
 fn correction(entry: &CostLedgerEntry) -> CostCorrection {
     let draft = CostCorrectionCommand::draft(
         RequestId::new(),
@@ -57,6 +65,7 @@ fn correction(entry: &CostLedgerEntry) -> CostCorrection {
         .expect("correction")
 }
 
+/// 事件 sequence 按原 entry、correction 顺序递增；aggregate stream version 对应各自 revision。
 fn events(entry: &CostLedgerEntry, correction: &CostCorrection) -> Vec<RuntimeEvent> {
     let original = RuntimeEvent::new(
         RequestId::new(),
@@ -81,6 +90,7 @@ fn events(entry: &CostLedgerEntry, correction: &CostCorrection) -> Vec<RuntimeEv
     vec![original, corrected]
 }
 
+/// 重建后原 entry digest 保持不变，-100 delta 只体现在 view 的 800 估算结果中。
 #[test]
 fn projector_rebuilds_original_and_append_only_correction() {
     let entry = entry();
@@ -94,6 +104,7 @@ fn projector_rebuilds_original_and_append_only_correction() {
     assert_eq!(projection.source_cursor, 2);
 }
 
+/// 外层 Run 不匹配及重复 EventId 都应拒绝整次重建。
 #[test]
 fn projector_rejects_foreign_run_and_duplicate_source_event() {
     let entry = entry();

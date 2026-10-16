@@ -33,7 +33,7 @@ fn aut07_claim_contract_keeps_scope_budget_path_and_expiry_gates_explicit() {
         "scope",
         "budget",
         "path-lock",
-        "partial",
+        "source/CI",
         "AUT-08",
         "durable",
         "scheduler",

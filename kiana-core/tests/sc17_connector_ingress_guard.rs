@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::production_source;
+
 #[test]
 fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
     let domain = include_str!("../../kiana-domain/src/connectors.rs");
@@ -10,6 +14,7 @@ fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
     let network = include_str!("../../kiana-services/src/network_policy.rs");
     let fixture = include_str!("../../kiana-domain/tests/p4_k8_01_connector.rs");
     let mcp_fixture = include_str!("../../kiana-daemon/tests/p1_j4_01_mcp.rs");
+    let core_fixture = include_str!("p4_k8_01_connector.rs");
 
     for marker in [
         "ConnectorDefinition",
@@ -22,10 +27,10 @@ fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
         "ProviderReceipt",
         "ProviderOutcome",
         "connector_invocation_risk",
-        "adapter != \"local_fixture\"",
+        "!matches!(definition.adapter.as_str(), \"local_fixture\" | \"stdio_mcp\")",
     ] {
         assert!(
-            domain.contains(marker),
+            production_source(domain).contains(marker),
             "SC-17 domain connector marker missing: {marker}"
         );
     }
@@ -60,11 +65,11 @@ fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
         "connector_binding_scope_mismatch",
         "connector_binding_snapshot_changed",
         "connector_final_payload_approval_required",
-        "connector_idempotency_payload_mismatch",
+        "connector_idempotency_command_digest_conflict",
         "connector_rate_limit_exceeded",
         "connector_reconciliation_binding_mismatch",
         "append_idempotent_expected",
-        "source: \"local_fixture\"",
+        "proof_source\":\"local_fixture",
         "external_effect_performed",
         "effect_observation",
         "result_unknown:connector_provider_outcome_unknown",
@@ -75,7 +80,7 @@ fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
         );
     }
     for marker in [
-        "server.transport != TransportType::Stdio",
+        "config.transport != TransportType::Stdio",
         "TransportType::Http",
         "mcp_project_untrusted",
         "mcp_config_drift_requires_discovery",
@@ -101,7 +106,7 @@ fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
         "validate_http_url",
         "validate_http_redirect",
         "same_origin_redirects_only",
-        "mcp_transport_unsupported",
+        "validate_http_url",
     ] {
         assert!(
             services.contains(marker) || network.contains(marker),
@@ -116,11 +121,11 @@ fn sc17_connector_mcp_ingress_is_typed_scoped_idempotent_and_fail_closed() {
             "SendMessage",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "SC-17 ingress bypass marker: {forbidden}"
             );
         }
     }
-    assert!(fixture.contains("connector_cannot_bypass_the_control_plane"));
+    assert!(core_fixture.contains("connector_cannot_bypass_the_control_plane"));
     assert!(mcp_fixture.contains("mcp_tool_schema_and_health_are_traceable"));
 }

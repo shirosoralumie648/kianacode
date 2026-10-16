@@ -129,6 +129,30 @@ fn approval_binding_rejects_payload_scope_epoch_and_expiry_drift() {
 }
 
 #[test]
+fn approval_binding_rejects_request_context_scope_drift() {
+    let request = request();
+    let original = context();
+    let binding = binding_for(&request, &original);
+    let mut changed = original;
+    changed.path_allow.push("src/other.rs".to_owned());
+
+    assert_eq!(
+        binding
+            .validate_request(
+                &changed,
+                binding.project_id,
+                &request,
+                &binding.target_digest,
+                binding.authority_epoch,
+                &binding.policy_revision,
+                100,
+            )
+            .unwrap_err(),
+        SecurityReasonCode::PolicyApprovalBindingMismatch.as_str()
+    );
+}
+
+#[test]
 fn human_inbox_rejects_self_approval_and_consumes_once() {
     let item = HumanInboxItem::new(binding()).unwrap();
     assert_eq!(item.status, HumanInboxStatus::Pending);
@@ -142,12 +166,25 @@ fn human_inbox_rejects_self_approval_and_consumes_once() {
         .decide(approver(), ApprovalDecision::Approve, 100)
         .unwrap();
     assert_eq!(approved.status, HumanInboxStatus::Approved);
-    let consumed = approved.consume().unwrap();
+    let consumed = approved.consume(100).unwrap();
     assert_eq!(consumed.status, HumanInboxStatus::Consumed);
-    assert!(consumed.consume().is_err());
+    assert!(consumed.consume(100).is_err());
     assert!(consumed
         .decide(approver(), ApprovalDecision::Deny, 100)
         .is_err());
+}
+
+#[test]
+fn human_inbox_rejects_consumption_after_approval_expiry() {
+    let approved = HumanInboxItem::new(binding())
+        .unwrap()
+        .decide(approver(), ApprovalDecision::Approve, 100)
+        .unwrap();
+
+    assert_eq!(
+        approved.consume(1_000).unwrap_err(),
+        SecurityReasonCode::PolicyApprovalExpired.as_str()
+    );
 }
 
 #[test]

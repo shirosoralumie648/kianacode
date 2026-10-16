@@ -19,7 +19,7 @@ pub const MAX_MIGRATION_TEXT: usize = 256;
 pub struct MigrationReleaseBinding {
     pub release_manifest_digest: String,
     pub artifact_digest: String,
-    /// Key reference the registry was signed with. A reference, not key material.
+    /// Key identifier the registry was signed with. This is a bounded reference, not key material.
     pub signature_digest: String,
     /// Hex Ed25519 signature over `MigrationRegistry::signing_bytes`. Verification is the
     /// adapter's job; the domain only carries and binds it, and it is excluded from the bytes
@@ -36,9 +36,11 @@ impl MigrationReleaseBinding {
                 "migration_release_manifest_digest",
             ),
             (&self.artifact_digest, "migration_artifact_digest"),
-            (&self.signature_digest, "migration_signature_digest"),
         ] {
             validate_digest(value, field)?;
+        }
+        if !bounded(&self.signature_digest, MAX_MIGRATION_TEXT) {
+            return Err("migration_signature_digest_invalid".to_owned());
         }
         Ok(())
     }

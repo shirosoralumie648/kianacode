@@ -15,10 +15,34 @@ fn harness_script(outputs: &str) -> std::path::PathBuf {
     path
 }
 
+fn isolated_command() -> (Command, std::path::PathBuf) {
+    let fixture = harness_script("[]").parent().unwrap().to_path_buf();
+    let home = fixture.join("home");
+    let project = fixture.join("project");
+    fs::create_dir_all(project.join(".git")).unwrap();
+    fs::create_dir_all(&home).unwrap();
+    let trust = Command::new(env!("CARGO_BIN_EXE_kiana"))
+        .current_dir(&project)
+        .env("KIANA_HOME", &home)
+        .env("HOME", &home)
+        .args(["trust", "."])
+        .output()
+        .unwrap();
+    assert!(trust.status.success(), "isolated project trust failed");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_kiana"));
+    command
+        .current_dir(project)
+        .env("KIANA_HOME", &home)
+        .env("HOME", &home)
+        .env("KIANA_CONFIG_FILE", home.join("config.toml"));
+    (command, fixture)
+}
+
 #[test]
 fn print_mode_routes_through_kiana_harness() {
     let script = harness_script(r#"[{"text":"print harness ok"}]"#);
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
+    let (mut command, fixture) = isolated_command();
+    let output = command
         .env("KIANA_HARNESS_SCRIPT", &script)
         .args([
             "--no-session-persistence",
@@ -29,6 +53,7 @@ fn print_mode_routes_through_kiana_harness() {
         ])
         .output()
         .unwrap();
+    let _ = fs::remove_dir_all(fixture);
     assert!(
         output.status.success(),
         "{}",
@@ -45,7 +70,8 @@ fn print_mode_routes_through_kiana_harness() {
 
 #[test]
 fn print_mode_without_model_fails_closed() {
-    let output = Command::new(env!("CARGO_BIN_EXE_kiana"))
+    let (mut command, fixture) = isolated_command();
+    let output = command
         .env_remove("KIANA_HARNESS_SCRIPT")
         .env_remove("KIANA_PROVIDER")
         .env_remove("KIANA_FAKE_PROVIDER_SCRIPT")
@@ -55,6 +81,7 @@ fn print_mode_without_model_fails_closed() {
         .args(["--no-session-persistence", "-p", "hello"])
         .output()
         .unwrap();
+    let _ = fs::remove_dir_all(fixture);
     assert!(!output.status.success());
     let combined = format!(
         "{}{}",

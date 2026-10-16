@@ -1,12 +1,13 @@
-//! Kiana 的确定性工作流状态定义。
+//! 本 crate 提供两类不直接执行副作用的 workflow 逻辑。
 //!
-//! 本 crate 只描述一个小型状态机：给定当前状态与目标状态，判断这条边是否合法。它不
-//! 调用模型、不执行能力、不持有审批，也不写事件账本，因此不能成为绕过
-//! `kiana-core::ControlPlane` 的第二条执行路径。上层若采用这些状态，仍必须由控制面完成
-//! 授权、生命周期推进和事实记录。
+//! - 根模块的 `WorkflowState` 是很小的通用生命周期状态机：只验证固定状态边；工作区生产代码
+//!   中暂未找到它的调用者，当前覆盖来自本模块单元测试。
+//! - `durable` 子模块是 durable workflow 的领域 planner：由 `kiana-core/src/automation.rs` 的
+//!   命令路径调用，并在 EventStore 重放时重建状态。
 //!
-//! `durable` provides the pure planner consumed by the ControlPlane workflow command route.
-//! Persisting decisions and executing returned effects remain ControlPlane responsibilities.
+//! 两者都不调用模型、不执行 Capability、不持有审批或写 EventStore。Durable planner 返回的
+//! `WorkflowEffect` 只是待办；授权、事实提交、生命周期推进和 effect 执行仍由唯一组合根
+//! `DaemonHost` 与 `kiana-core::ControlPlane` 负责，不能把本 crate 当作第二条执行路径。
 
 use serde::{Deserialize, Serialize};
 
@@ -75,11 +76,11 @@ impl WorkflowState {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
-/// 工作流状态机拒绝转移时返回的稳定错误。
+/// 固定状态图拒绝非法边时返回的结构化原因。
 ///
-/// 错误保留起点与目标状态，便于上层记录冲突事实。它只说明状态边非法，不应被入口层
-/// 改写成通用 I/O 错误，也不意味着可以跳过检查后强制赋值。
+/// `thiserror` 的 `Error` derive 会按字段生成标准 `Error`/显示实现；错误只表示这次边校验失败，
+/// 不会修改状态或写入控制面事件。调用者应保留 from/to 以定位是哪一个状态跳转不符合约束。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum WorkflowError {
     /// `from -> to` 不在冻结的允许边集合中。
     #[error("invalid_workflow_transition:{from:?}->{to:?}")]

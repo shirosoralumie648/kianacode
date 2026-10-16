@@ -18,7 +18,7 @@ fn int10_stdio_adapter_is_confined_and_fail_closed() {
         "server_requested_scopes",
         "mcp_server_scope_not_authority",
         "conditional",
-        "connector.mcp_handshake",
+        "capability_handshake_checked",
     ] {
         assert!(
             adapter.contains(marker)

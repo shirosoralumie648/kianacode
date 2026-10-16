@@ -84,6 +84,15 @@ fn lifecycle_links_run_turn_attempt_usage_and_receipt() {
     ledger.observe(usage.clone()).unwrap();
     ledger.settle(ReceiptId::new(), Some(usage)).unwrap();
     let record = ledger.record().unwrap();
+    for fact in ledger.events() {
+        let event = fact
+            .into_runtime_event(RequestId::new(), fact.revision)
+            .unwrap();
+        kiana_domain::validate_runtime_event(&event).unwrap();
+        let mut mixed = event.data.clone();
+        mixed["model_request_id"] = serde_json::json!(RequestId::new());
+        assert!(kiana_domain::validate_event_payload(&event.kind, &mixed).is_err());
+    }
     assert_eq!(record.state, ModelAttemptState::Settled);
     assert!(record.receipt_id.is_some());
     assert_eq!(record.source_event_ids.len(), 4);

@@ -14,6 +14,8 @@ fn retries_are_new_bounded_attempts_with_deadline_and_accounting() {
     let model = include_str!("../../kiana-domain/src/model.rs");
     let errors = include_str!("../../kiana-domain/src/errors.rs");
     let harness = include_str!("../../kiana-runner/src/harness.rs");
+    let retry = include_str!("../../kiana-runner/src/retry.rs");
+    let retry_policy = include_str!("../../kiana-domain/src/retry_policy.rs");
     let budget = include_str!("../../kiana-runner/src/budget.rs");
     let ports = include_str!("../../kiana-ports/src/model.rs");
     let ports_lib = include_str!("../../kiana-ports/src/lib.rs");
@@ -53,14 +55,36 @@ fn retries_are_new_bounded_attempts_with_deadline_and_accounting() {
             "ModelAttemptIdentity",
             "reserve_attempt",
             "settle_attempt",
-            "ModelRetryClass::BeforeSend",
-            "ModelRetryClass::Rejected",
+            "classify_retry(",
+            "is_safe_to_retry",
             "model_retry_deadline_exceeded",
             "model_attempt_limit",
-            "retry_after_ms",
             "attempted",
         ],
         "Harness attempt driver",
+    );
+    require(
+        retry,
+        &[
+            "RetryPolicy::new(",
+            "RetryObservation::from_model_error",
+            "policy.classify(",
+            "MAX_PROVIDER_ATTEMPTS",
+        ],
+        "shared retry classifier",
+    );
+    require(
+        retry_policy,
+        &[
+            "ModelRetryClass::BeforeSend",
+            "ModelRetryClass::Rejected",
+            "ModelSideEffectState::Unknown",
+            "observed_delta",
+            "idempotent",
+            "retry_after_ms",
+            "MAX_RETRY_AFTER_MS",
+        ],
+        "domain retry policy",
     );
     require(
         budget,
@@ -98,6 +122,8 @@ fn retries_are_new_bounded_attempts_with_deadline_and_accounting() {
 #[test]
 fn unknown_or_denied_effects_never_auto_retry_and_exhaustion_is_terminal() {
     let harness = include_str!("../../kiana-runner/src/harness.rs");
+    let retry = include_str!("../../kiana-runner/src/retry.rs");
+    let retry_policy = include_str!("../../kiana-domain/src/retry_policy.rs");
     let errors = include_str!("../../kiana-domain/src/errors.rs");
     let capabilities = include_str!("../src/capabilities.rs");
     let dispatch = include_str!("../src/dispatch.rs");
@@ -121,10 +147,31 @@ fn unknown_or_denied_effects_never_auto_retry_and_exhaustion_is_terminal() {
         &[
             "model_attempt_limit",
             "model_retry_deadline_exceeded",
-            "ModelRetryClass::BeforeSend",
-            "ModelRetryClass::Rejected",
+            "classify_retry(",
+            "is_safe_to_retry",
         ],
         "retry exhaustion",
+    );
+    require(
+        retry,
+        &[
+            "policy.classify(",
+            "decision.retry",
+            "MAX_PROVIDER_ATTEMPTS",
+        ],
+        "shared retry decision",
+    );
+    require(
+        retry_policy,
+        &[
+            "RecoveryDispositionNotRetryable",
+            "SideEffectUnknown",
+            "ObservedDelta",
+            "NonIdempotent",
+            "RetryClassNotAllowed",
+            "RetryAfterTooLarge",
+        ],
+        "deny-first policy reasons",
     );
     require(
         capabilities,

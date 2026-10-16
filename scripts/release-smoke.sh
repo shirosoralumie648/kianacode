@@ -1494,7 +1494,7 @@ smoke_auth_config() {
   )"
   grep -Fq -- '"provider_id": "openai-compatible"' <<<"$output"
   grep -Fq -- '"status": "configured"' <<<"$output"
-  grep -Fq -- '"key_preview": "redacted-4242"' <<<"$output"
+  grep -Fq -- '"key_preview": "redacted"' <<<"$output"
   if grep -Fq -- "smoke-openai-secret" <<<"$output"; then
     echo "auth status leaked OpenAI-compatible API key" >&2
     exit 1

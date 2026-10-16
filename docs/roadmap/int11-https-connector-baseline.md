@@ -53,3 +53,14 @@ credential store, ControlPlane permit mint/consume, EventStore append, durable l
 provider receipt or external business outcome is exercised. A future adapter must bind the endpoint
 policy into its server-owned invocation snapshot and enforce the same resolution at the socket
 effect boundary before INT-31 live opt-in.
+
+## Focused local receipt (2026-10-08)
+
+The ports boundary now calls `CredentialLease::validate_for` with the binding account,
+`connector.invoke` purpose, connector audience and `effect_target_digest(binding)`. A forged
+endpoint digest with a recomputed lease digest was accepted by the previous implementation (RED,
+exit 101); the corrected `int11_https_connector` target passes 3/3, the `int07_connector_ports`
+regression passes 4/4, and the Core `int11_https_connector_guard` passes 2/2. Maximum RSS was
+463692 KiB, 292700 KiB and 131388 KiB respectively; all runs reported zero swaps. This is
+bounded local behavior for exact metadata binding only; effect-time expiry, cross-clone replay and
+durable/restart lease fences remain open.

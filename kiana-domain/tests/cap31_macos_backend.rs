@@ -205,11 +205,52 @@ fn macos_descendant_escape_or_stop_failure_is_visible() {
     )
     .expect("request");
     let mut corrupted = invalid.clone();
-    corrupted.report.as_mut().expect("report").behavior_verified = true;
+    let report = corrupted.report.as_mut().expect("report");
+    report.behavior_verified = true;
+    report.report_digest = report.digest();
+    corrupted.request_digest = corrupted.digest();
+    assert_eq!(
+        corrupted.validate().unwrap_err(),
+        "platform_backend_unverified_disposition_mismatch"
+    );
     let decision = BackendSelectionDecision::evaluate(&corrupted).expect("decision");
     assert_eq!(decision.selection, BackendSelection::Blocked);
     assert_eq!(decision.reason, "backend_selection_report_invalid");
     assert!(!decision.usable());
+    assert!(decision.effective_backend.is_empty());
+    assert!(decision.no_host_fallback);
+    assert!(!decision.grants_execution);
+    decision.validate_against(&corrupted).unwrap();
+
+    let mut forged = decision.clone();
+    forged.selection = BackendSelection::Selected;
+    forged.effective_backend = "seatbelt".to_owned();
+    forged.decision_digest = forged.digest();
+    assert_eq!(
+        forged.validate_against(&corrupted).unwrap_err(),
+        "backend_selection_decision_binding_invalid"
+    );
+    let mut forged = decision.clone();
+    forged.grants_execution = true;
+    forged.decision_digest = forged.digest();
+    assert_eq!(
+        forged.validate_against(&corrupted).unwrap_err(),
+        "backend_selection_grants_execution"
+    );
+    let mut forged = decision.clone();
+    forged.no_host_fallback = false;
+    forged.decision_digest = forged.digest();
+    assert_eq!(
+        forged.validate_against(&corrupted).unwrap_err(),
+        "backend_selection_host_fallback_forbidden"
+    );
+    let mut forged = decision;
+    forged.effective_backend = HOST_EXECUTION_BACKEND.to_owned();
+    forged.decision_digest = forged.digest();
+    assert_eq!(
+        forged.validate_against(&corrupted).unwrap_err(),
+        "backend_selection_substitute_backend_named"
+    );
 
     // A digest-sealed report is what makes this checkable: editing a field breaks the seal, and a
     // broken seal is a refusal rather than a silently different capability claim.
@@ -233,4 +274,160 @@ fn macos_descendant_escape_or_stop_failure_is_visible() {
     assert_eq!(decision.selection, BackendSelection::TargetOnly);
     assert!(!decision.usable());
     assert!(decision.effective_backend.is_empty());
+}
+
+#[test]
+fn only_valid_implemented_behavior_is_selectable_across_report_combinations() {
+    // These reports are fixture data. No target-machine behavior is observed by this table.
+    for (disposition, behavior, selection, reason) in [
+        (
+            PlatformBackendDisposition::Implemented,
+            true,
+            BackendSelection::Selected,
+            "backend_selection_accepted",
+        ),
+        (
+            PlatformBackendDisposition::Implemented,
+            false,
+            BackendSelection::Blocked,
+            "backend_selection_report_invalid",
+        ),
+        (
+            PlatformBackendDisposition::TargetOnly,
+            false,
+            BackendSelection::TargetOnly,
+            "backend_selection_target_only_backend",
+        ),
+        (
+            PlatformBackendDisposition::TargetOnly,
+            true,
+            BackendSelection::Blocked,
+            "backend_selection_report_invalid",
+        ),
+        (
+            PlatformBackendDisposition::NotSupported,
+            false,
+            BackendSelection::NotSupported,
+            "backend_selection_not_supported",
+        ),
+        (
+            PlatformBackendDisposition::NotSupported,
+            true,
+            BackendSelection::Blocked,
+            "backend_selection_report_invalid",
+        ),
+        (
+            PlatformBackendDisposition::Blocked,
+            false,
+            BackendSelection::Blocked,
+            "backend_selection_blocked",
+        ),
+        (
+            PlatformBackendDisposition::Blocked,
+            true,
+            BackendSelection::Blocked,
+            "backend_selection_report_invalid",
+        ),
+    ] {
+        let mut request = BackendSelectionRequest::new(
+            PlatformTarget::Macos,
+            "seatbelt",
+            PlatformTarget::Macos,
+            Some(target_only_macos()),
+        )
+        .expect("valid base request");
+        let report = request.report.as_mut().expect("report");
+        report.disposition = disposition;
+        report.behavior_verified = behavior;
+        report.report_digest = report.digest();
+        let report_valid = report.validate().is_ok();
+        request.request_digest = request.digest();
+        assert_eq!(request.validate().is_ok(), report_valid);
+        assert_eq!(
+            BackendSelectionRequest::new(
+                PlatformTarget::Macos,
+                "seatbelt",
+                PlatformTarget::Macos,
+                request.report.clone(),
+            )
+            .is_ok(),
+            report_valid
+        );
+
+        let decision = BackendSelectionDecision::evaluate(&request).expect("sealed request");
+        assert_eq!(decision.selection, selection, "{disposition:?}/{behavior}");
+        assert_eq!(decision.reason, reason, "{disposition:?}/{behavior}");
+        assert_eq!(
+            decision.usable(),
+            disposition == PlatformBackendDisposition::Implemented && behavior && report_valid
+        );
+        assert!(decision.no_host_fallback);
+        assert!(!decision.grants_execution);
+        assert_eq!(
+            decision.effective_backend,
+            if selection == BackendSelection::Selected {
+                "seatbelt"
+            } else {
+                ""
+            }
+        );
+        decision.validate_against(&request).unwrap();
+    }
+}
+
+#[test]
+fn backend_diagnostics_reject_invalid_or_unsealed_request_envelopes() {
+    let request = BackendSelectionRequest::new(
+        PlatformTarget::Macos,
+        "seatbelt",
+        PlatformTarget::Macos,
+        Some(target_only_macos()),
+    )
+    .expect("valid request");
+
+    let mut invalid_schema = request.clone();
+    invalid_schema.schema = "kiana.backend-selection.future".to_owned();
+    invalid_schema.request_digest = invalid_schema.digest();
+    assert_eq!(
+        BackendSelectionDecision::evaluate(&invalid_schema).unwrap_err(),
+        "backend_selection_request_invalid"
+    );
+
+    let mut invalid_backend = request.clone();
+    invalid_backend.requested_backend = "seatbelt\n".to_owned();
+    invalid_backend.request_digest = invalid_backend.digest();
+    assert_eq!(
+        BackendSelectionDecision::evaluate(&invalid_backend).unwrap_err(),
+        "backend_selection_request_invalid"
+    );
+
+    let mut mismatched_backend = request.clone();
+    mismatched_backend.requested_backend = HOST_EXECUTION_BACKEND.to_owned();
+    mismatched_backend.request_digest = mismatched_backend.digest();
+    assert_eq!(
+        BackendSelectionDecision::evaluate(&mismatched_backend).unwrap_err(),
+        "backend_selection_report_backend_mismatch"
+    );
+
+    let mut stale_target = request.clone();
+    stale_target.host_target = PlatformTarget::Linux;
+    assert_eq!(
+        BackendSelectionDecision::evaluate(&stale_target).unwrap_err(),
+        "backend_selection_request_digest_mismatch"
+    );
+
+    let mut unsealed_invalid_report = request;
+    unsealed_invalid_report
+        .report
+        .as_mut()
+        .expect("report")
+        .behavior_verified = true;
+    assert_eq!(
+        unsealed_invalid_report.validate().unwrap_err(),
+        "platform_backend_unverified_disposition_mismatch"
+    );
+    assert_eq!(
+        BackendSelectionDecision::evaluate(&unsealed_invalid_report).unwrap_err(),
+        "backend_selection_request_digest_mismatch"
+    );
 }

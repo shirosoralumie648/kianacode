@@ -25,6 +25,13 @@ fn journal_digest(value: &str) -> String {
     value.strip_prefix("sha256:").unwrap_or(value).to_owned()
 }
 
+fn valid_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 fn record_from_event(event: &RuntimeEvent) -> Result<UiActionRecord, CoreError> {
     let value = event
         .data
@@ -153,15 +160,14 @@ impl UiActionAuthoritySnapshot {
             || self.target_revision == Some(0)
             || self.owner_id.trim().is_empty()
             || self.owner_id.len() > 256
-            || !self.scope_digest.starts_with("sha256:")
-            || self.scope_digest.len() != 71
+            || !valid_digest(&self.scope_digest)
         {
             return Err("ui_action_authority_snapshot_invalid".to_owned());
         }
         if self
             .permit_digest
             .as_deref()
-            .is_some_and(|digest| !digest.starts_with("sha256:") || digest.len() != 71)
+            .is_some_and(|digest| !valid_digest(digest))
         {
             return Err("ui_action_permit_digest_invalid".to_owned());
         }

@@ -4,6 +4,7 @@ fn project_acceptance_requires_all_milestones_and_human_waiver() {
     let review = include_str!("../../kiana-domain/src/company_review.rs");
     let closeout = include_str!("../../kiana-domain/src/company_closeout.rs");
     let core = include_str!("../src/project_acceptance.rs");
+    let company = include_str!("../../kiana-domain/src/company.rs");
 
     for marker in [
         "PROJECT_ACCEPTANCE_SCHEMA",
@@ -23,7 +24,8 @@ fn project_acceptance_requires_all_milestones_and_human_waiver() {
             acceptance.contains(marker)
                 || review.contains(marker)
                 || closeout.contains(marker)
-                || core.contains(marker),
+                || core.contains(marker)
+                || company.contains(marker),
             "CO-28 marker missing: {marker}"
         );
     }

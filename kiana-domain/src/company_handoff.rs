@@ -247,6 +247,7 @@ impl CompanyHandoff {
         }
         if owner.assignment_id == recipient.assignment_id
             || owner.session_id == recipient.session_id
+            || owner.principal_id == recipient.principal_id
         {
             return Err("handoff_parties_must_be_distinct");
         }
@@ -332,7 +333,10 @@ impl CompanyHandoff {
             if ack.accepted != (self.status == CompanyHandoffStatus::Acknowledged) {
                 return Err("handoff_ack_status_mismatch");
             }
-        } else if self.status != CompanyHandoffStatus::Pending {
+        } else if !matches!(
+            self.status,
+            CompanyHandoffStatus::Pending | CompanyHandoffStatus::Expired
+        ) {
             return Err("handoff_terminal_ack_missing");
         }
         if let Some(escalation) = &self.escalation {
@@ -344,6 +348,9 @@ impl CompanyHandoff {
             {
                 return Err("handoff_escalation_invalid");
             }
+        }
+        if self.status == CompanyHandoffStatus::Expired && self.escalation.is_none() {
+            return Err("handoff_expired_escalation_missing");
         }
         if self.digest != self.canonical_digest() {
             return Err("handoff_digest_mismatch");

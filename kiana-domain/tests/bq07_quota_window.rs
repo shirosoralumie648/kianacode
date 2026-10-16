@@ -60,9 +60,45 @@ fn quota_window_budget_rejects_over_limit_with_retry_after() {
     };
     budget.budget_digest = budget.digest();
     budget.validate().unwrap();
-    assert!(budget.check(1, 10, 0).is_err());
+    let compatibility_denial = budget.check(2, 10, 0).unwrap_err();
+    assert_eq!(compatibility_denial, "quota_exhausted:retry_after_ms=60000");
+    let denial = budget.check_at(&clock(125_000), 2, 10, 0).unwrap_err();
+    assert_eq!(denial, "quota_exhausted:retry_after_ms=55000");
     budget.used_requests = 0;
     budget.budget_digest = budget.digest();
     budget.validate().unwrap();
     budget.check(1, 10, 0).unwrap();
+}
+
+#[test]
+fn quota_budget_check_at_rejects_untrusted_and_pre_window_clock() {
+    let group = QuotaGroupKey::new("provider", "credential", None, None).unwrap();
+    let window = QuotaWindow::from_clock(&clock(125_000), 60_000).unwrap();
+    let mut budget = QuotaWindowBudget {
+        schema: "kiana.quota-window-budget.v1".to_owned(),
+        version: kiana_domain::QUOTA_SCHEMA_VERSION,
+        group,
+        window,
+        max_requests: 1,
+        max_tokens: 100,
+        max_concurrency: 1,
+        used_requests: 1,
+        used_tokens: 0,
+        active_concurrency: 0,
+        budget_digest: String::new(),
+    };
+    budget.budget_digest = budget.digest();
+
+    let previous = clock(125_000);
+    let untrusted =
+        ClockObservation::observe("fixture", 124_000, 124_000, Some(&previous), 2).unwrap();
+    assert_eq!(
+        budget.check_at(&untrusted, 1, 0, 0).unwrap_err(),
+        "clock_untrusted"
+    );
+
+    assert_eq!(
+        budget.check_at(&clock(119_999), 1, 0, 0).unwrap_err(),
+        "quota_clock_rollback"
+    );
 }

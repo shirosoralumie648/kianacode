@@ -57,18 +57,39 @@ fn untrusted_local_host() -> DaemonHost {
     local_host_with_trust(false)
 }
 
-fn trusted_metadata() -> RequestMetadata {
-    let mut metadata = RequestMetadata::local("session-1", "/repo");
+struct CommandProjectFixture(PathBuf);
+
+impl CommandProjectFixture {
+    fn new(label: &str) -> Self {
+        let root = fixture_root(label);
+        fs::create_dir_all(&root).expect("command project root");
+        Self(root)
+    }
+}
+
+impl Drop for CommandProjectFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn trusted_metadata(root: &Path) -> RequestMetadata {
+    let mut metadata = RequestMetadata::local("session-1", root.to_string_lossy());
     metadata.project_trusted = true;
     metadata
 }
 
 #[tokio::test]
 async fn in_process_client_reaches_core_through_daemon() {
+    let root = CommandProjectFixture::new("in_process_client_reaches_core_through_daemon");
     let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let response = client
-        .command(trusted_metadata(), "system.architecture", Value::Null)
+        .command(
+            trusted_metadata(&root.0),
+            "system.architecture",
+            Value::Null,
+        )
         .await
         .unwrap();
     assert_eq!(response.status, ExecutionStatus::Completed);
@@ -80,10 +101,11 @@ async fn in_process_client_reaches_core_through_daemon() {
 
 #[tokio::test]
 async fn unknown_and_untrusted_commands_are_blocked() {
+    let root = CommandProjectFixture::new("unknown_and_untrusted_commands_are_blocked");
     let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let unknown = client
-        .command(trusted_metadata(), "unknown.command", Value::Null)
+        .command(trusted_metadata(&root.0), "unknown.command", Value::Null)
         .await
         .unwrap();
     assert_eq!(unknown.status, ExecutionStatus::Blocked);
@@ -95,7 +117,7 @@ async fn unknown_and_untrusted_commands_are_blocked() {
     });
     let untrusted = untrusted_client
         .command(
-            RequestMetadata::local("session-2", "/repo"),
+            RequestMetadata::local("session-2", root.0.to_string_lossy()),
             "system.architecture",
             Value::Null,
         )
@@ -106,7 +128,7 @@ async fn unknown_and_untrusted_commands_are_blocked() {
 
     let untrusted_query = untrusted_client
         .command(
-            RequestMetadata::local("session-3", "/repo"),
+            RequestMetadata::local("session-3", root.0.to_string_lossy()),
             "context.query.v1",
             json!({
                 "operation": "repo_map",
@@ -116,19 +138,21 @@ async fn unknown_and_untrusted_commands_are_blocked() {
         )
         .await
         .unwrap();
-    assert_eq!(untrusted_query.status, ExecutionStatus::Denied);
+    assert_eq!(untrusted_query.status, ExecutionStatus::Blocked);
     assert_eq!(untrusted_query.error.as_deref(), Some("project_untrusted"));
 }
 
 #[tokio::test]
 async fn project_trust_lookup_failure_is_rejected_before_core_dispatch() {
+    let root =
+        CommandProjectFixture::new("project_trust_lookup_failure_is_rejected_before_core_dispatch");
     // 信任权威不可用时必须先拒绝请求，不能把错误上下文交给核心或继续执行。
     let host =
         DaemonHost::with_env_harness_and_project_authority(Arc::new(FailingProjectTrustAuthority))
             .unwrap();
     let response = host
         .handle(RequestEnvelope::command(
-            trusted_metadata(),
+            trusted_metadata(&root.0),
             "system.architecture",
             Value::Null,
         ))
@@ -140,8 +164,13 @@ async fn project_trust_lookup_failure_is_rejected_before_core_dispatch() {
 
 #[tokio::test]
 async fn malformed_envelope_is_rejected_before_core() {
+    let root = CommandProjectFixture::new("malformed_envelope_is_rejected_before_core");
     let host = trusted_local_host();
-    let valid = RequestEnvelope::command(trusted_metadata(), "system.architecture", Value::Null);
+    let valid = RequestEnvelope::command(
+        trusted_metadata(&root.0),
+        "system.architecture",
+        Value::Null,
+    );
     let mut invalid = valid.clone();
     invalid.schema = "kiana.protocol.v0".to_owned();
     let rejected = host.handle(invalid).await;
@@ -156,9 +185,12 @@ async fn malformed_envelope_is_rejected_before_core() {
 }
 
 #[tokio::test]
-async fn approval_decision_without_a_daemon_challenge_is_blocked() {
+async fn approval_decision_without_a_daemon_challenge_returns_structured_not_found() {
+    let root = CommandProjectFixture::new(
+        "approval_decision_without_a_daemon_challenge_returns_structured_not_found",
+    );
     let host = trusted_local_host();
-    let mut metadata = trusted_metadata();
+    let mut metadata = trusted_metadata(&root.0);
     metadata.request_id = kiana_protocol::RequestId::new();
     let response = host
         .handle(RequestEnvelope::approval_decision_with_proof(
@@ -169,20 +201,26 @@ async fn approval_decision_without_a_daemon_challenge_is_blocked() {
             Some("missing".to_owned()),
         ))
         .await;
-    assert_eq!(response.status, ExecutionStatus::Blocked);
-    assert!(response
-        .error
-        .as_deref()
-        .unwrap_or_default()
-        .contains("approval_not_found"));
+    assert_eq!(
+        response.status,
+        ExecutionStatus::Failed,
+        "stable response error: {:?}",
+        response.error
+    );
+    assert_eq!(
+        response.error.as_deref(),
+        Some("port_failed:approval_not_found")
+    );
 }
 
 #[tokio::test]
 async fn proofless_wire_approval_is_rejected_before_store_lookup() {
+    let root =
+        CommandProjectFixture::new("proofless_wire_approval_is_rejected_before_store_lookup");
     let host = trusted_local_host();
     let response = host
         .handle(RequestEnvelope::approval_decision(
-            trusted_metadata(),
+            trusted_metadata(&root.0),
             ApprovalId::new(),
             ApprovalDecision::Approve,
         ))
@@ -222,7 +260,12 @@ async fn repo_map_reaches_query_handler_and_uses_metadata_project_root() {
         .await
         .unwrap();
 
-    assert_eq!(response.status, ExecutionStatus::Completed);
+    assert_eq!(
+        response.status,
+        ExecutionStatus::Completed,
+        "stable response error: {:?}",
+        response.error
+    );
     let result = &response.output["command_result"];
     assert_eq!(result["output_type"], "text");
     let map: Value = serde_json::from_str(result["value"].as_str().unwrap()).unwrap();
@@ -241,11 +284,13 @@ async fn repo_map_reaches_query_handler_and_uses_metadata_project_root() {
 
 #[tokio::test]
 async fn malformed_repo_map_intent_is_blocked_before_the_handler() {
+    let root =
+        CommandProjectFixture::new("malformed_repo_map_intent_is_blocked_before_the_handler");
     let host = Arc::new(trusted_local_host());
     let client = KianaClient::new(InProcessTransport { host });
     let response = client
         .command(
-            trusted_metadata(),
+            trusted_metadata(&root.0),
             "context.query.v1",
             json!({
                 "operation": "repo_map",
@@ -401,7 +446,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
             )
             .await
             .unwrap();
-        assert_eq!(response.status, ExecutionStatus::Completed);
+        assert_eq!(
+            response.status,
+            ExecutionStatus::Completed,
+            "stable response error: {:?}",
+            response.error
+        );
         assert_eq!(command_json(&response)["schema"], schema);
     }
     assert!(!root.join(".kiana").exists());
@@ -435,7 +485,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
             )
             .await
             .unwrap();
-        assert_eq!(response.status, ExecutionStatus::AwaitingApproval);
+        assert_eq!(
+            response.status,
+            ExecutionStatus::AwaitingApproval,
+            "stable response error: {:?}",
+            response.error
+        );
         assert!(!root.join(cache).exists());
         let challenge: ApprovalChallenge =
             serde_json::from_value(response.output["approval"].clone()).unwrap();
@@ -450,7 +505,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
             )
             .await
             .unwrap();
-        assert_eq!(approved.status, ExecutionStatus::Completed);
+        assert_eq!(
+            approved.status,
+            ExecutionStatus::Completed,
+            "stable response error: {:?}",
+            approved.error
+        );
         assert_eq!(command_json(&approved)["schema"], schema);
         assert!(root.join(cache).is_file());
     }
@@ -467,7 +527,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
         )
         .await
         .unwrap();
-    assert_eq!(response.status, ExecutionStatus::AwaitingApproval);
+    assert_eq!(
+        response.status,
+        ExecutionStatus::AwaitingApproval,
+        "stable response error: {:?}",
+        response.error
+    );
     assert!(!root.join(".kiana/ingest/manifest.json").exists());
     let challenge: ApprovalChallenge =
         serde_json::from_value(response.output["approval"].clone()).unwrap();
@@ -481,7 +546,12 @@ async fn context_materialization_reads_and_approved_writes_use_daemon_handlers()
         )
         .await
         .unwrap();
-    assert_eq!(approved.status, ExecutionStatus::Completed);
+    assert_eq!(
+        approved.status,
+        ExecutionStatus::Completed,
+        "stable response error: {:?}",
+        approved.error
+    );
     assert_eq!(
         command_json(&approved)["schema"],
         "kiana.context-artifact-ingest.v1"
@@ -564,7 +634,12 @@ async fn materialization_writes_fail_closed_for_context_and_path_escapes() {
             )
             .await
             .unwrap();
-        assert_eq!(symlink_escape.status, ExecutionStatus::Failed);
+        assert_eq!(
+            symlink_escape.status,
+            ExecutionStatus::ResultUnknown,
+            "stable response error: {:?}",
+            symlink_escape.error
+        );
         assert!(symlink_escape
             .error
             .as_deref()
@@ -572,6 +647,12 @@ async fn materialization_writes_fail_closed_for_context_and_path_escapes() {
             .contains("outside_project"));
         assert!(!outside.join("index.json").exists());
     }
+
+    // The conservative ResultUnknown path quarantines the write footprint until a
+    // reconciliation decision. Use a fresh in-process host for the independent safe-write
+    // assertion so this fixture does not pretend that an unresolved effect was released.
+    let host = Arc::new(trusted_local_host());
+    let client = KianaClient::new(InProcessTransport { host });
 
     let pending = client
         .command(
@@ -643,7 +724,12 @@ async fn context_query_roots_are_confined_to_metadata_project_root() {
         }),
     )
     .await;
-    assert_eq!(inside.status, ExecutionStatus::Completed);
+    assert_eq!(
+        inside.status,
+        ExecutionStatus::Completed,
+        "stable response error: {:?}",
+        inside.error
+    );
     let inside = command_json(&inside);
     assert_eq!(inside["hits"][0]["path"], "inside.md");
     assert!(!inside.to_string().contains("secret.md"));
@@ -684,7 +770,7 @@ async fn context_query_roots_are_confined_to_metadata_project_root() {
             }),
         )
         .await;
-        assert_eq!(symlink.status, ExecutionStatus::Failed);
+        assert_eq!(symlink.status, ExecutionStatus::ResultUnknown);
         assert!(symlink
             .error
             .as_deref()
@@ -765,7 +851,12 @@ fn trusted_metadata_for(root: &Path, session: &str) -> RequestMetadata {
 }
 
 fn command_text(response: &ResponseEnvelope) -> &str {
-    assert_eq!(response.status, ExecutionStatus::Completed);
+    assert_eq!(
+        response.status,
+        ExecutionStatus::Completed,
+        "stable response error: {:?}",
+        response.error
+    );
     response.output["command_result"]["value"].as_str().unwrap()
 }
 

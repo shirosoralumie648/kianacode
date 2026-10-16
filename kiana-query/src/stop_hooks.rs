@@ -5,6 +5,32 @@
 //! PostToolUse 复用同一执行器，但只返回“允许、询问、更新输入或阻断”的决定，绝不直接
 //! 授予能力。SessionStart/UserPromptSubmit 只产生上下文或更新后的输入。
 //!
+//! 在仓库中的位置和已核实的调用关系：
+//!
+//! ```text
+//! 兼容工具执行 kiana-tools
+//!   ├─ 工具执行前 -> run_pre_tool_use_hooks -> Allow / Ask / UpdateInput / Block
+//!   │                -> 输入校验与权限处理 -> 工具
+//!   └─ 工具执行后 -> run_post_tool_use_hooks -> 对已产生的结果给出受限决定
+//!
+//! handle_stop_hooks -> Stop 命令 -> StopHookEvent 流 + StopHookResult
+//!                         (当前仓内未找到产品调用者；测试会直接调用)
+//!
+//! SessionStart / UserPromptSubmit -> execute_context_hook_set
+//!   (entrypoints 中的包装函数目前标为 cfg(test)，生产调用未找到)
+//! ```
+//!
+//! 因此，理解本文件时要区分“接口已经存在”和“产品路径已经接入”。Pre/PostToolUse
+//! 当前仍由历史兼容工具执行路径调用，不是 CompanyOS 主路径的授权实现；它返回的 Allow
+//! 也不能代替 ControlPlane 的策略判断。普通工具执行路径会继续验证输入和权限；预批准
+//! 并发路径在 hook 改写输入后的权限复查情况需要结合调用方阅读，不能仅凭本文件推定。
+//!
+//! 输入通常由调用方从当前工具、提示或 hook 配置构造；配置选择器把 JSON 配置解析为
+//! 命令列表；每条命令收到本文件序列化的 JSON stdin；stdout 再转成受限决定或上下文；
+//! 最终由 `kiana-tools` 调用方、上下文调用方或 Stop 事件订阅者消费。Serde 是 Rust 的
+//! 序列化库：这里的 `Serialize` / `Deserialize` 让事件和结果可以在 Rust 值与 JSON 等
+//! 外部格式之间转换，但序列化本身不验证事件来源，也不会授予 hook 能力。
+//!
 //! 项目级 hook/plugin 配置必须先经过 `ProjectTrust`；未信任项目只能使用允许的用户级或
 //! KIANA_HOME 级来源。命令超时、启动失败、格式错误和默认非零退出都按阻断/运行时错误
 //! 处理，除非显式配置 warning 策略。该模块的本地执行结果会进入 hook 事件流，但不是
@@ -32,6 +58,10 @@ use tokio::time::timeout;
 // ---------------------------------------------------------------------------
 
 /// 本轮实际启动过的单个 hook 命令摘要。
+///
+/// 它由执行器在每次启动命令后填充，并放入 `StopHookEvent::Summary`，供事件订阅者显示
+/// 或诊断。它不是完整进程输出记录：stdout/stderr 不放在这里，`prompt_text` 是传入命令
+/// 的 JSON stdin。该摘要也不会写入 EventLog，因此不能单独作为持久审计回执。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookInfo {
     /// 解析后实际执行的 shell 命令。
@@ -43,6 +73,10 @@ pub struct HookInfo {
 }
 
 /// `handle_stop_hooks` 执行期间按顺序发出的事件。
+///
+/// 事件通过 Tokio 的有界 `mpsc`（多生产者、单消费者）通道发送；调用方可边等最终结果
+/// 边显示进度。事件接收端关闭时，当前实现会忽略发送失败并继续执行 hook，所以“没有
+/// 收到事件”不等于“命令没有运行”。这些事件是本地执行期间的通知，不是 EventLog 事实。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StopHookEvent {
@@ -88,6 +122,9 @@ pub enum StopHookEvent {
 }
 
 /// 所有停止 hook 处理完成后返回给 reducer/外层的最终结果。
+///
+/// 它只携带是否阻止自动继续以及需要反馈的错误文本，不包含已运行命令的完整输出，也
+/// 不会自行改变 Query reducer、Run 状态或控制面授权。调用者必须明确决定如何消费它。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StopHookResult {
     /// 需要反馈给模型的阻断错误文本。
@@ -98,6 +135,9 @@ pub struct StopHookResult {
 
 impl StopHookResult {
     /// 构造无错误、允许继续的结果。
+    ///
+    /// 用于全部 hook 都没有提出阻断、Ask 或输入更新的情况。调用者收到它后仍需遵循自己
+    /// 的查询状态机；这个值本身不会启动下一轮模型请求。
     pub fn clean() -> Self {
         StopHookResult {
             blocking_errors: vec![],
@@ -106,6 +146,9 @@ impl StopHookResult {
     }
 
     /// 构造明确阻止继续的结果。
+    ///
+    /// 取消或 hook 的 prevent-continuation 决定会映射到该形态。它与 `with_errors` 的
+    /// 区别是：这里没有可交给模型修复的错误文本，外层只知道本轮不能自动继续。
     pub fn prevented() -> Self {
         StopHookResult {
             blocking_errors: vec![],
@@ -114,6 +157,9 @@ impl StopHookResult {
     }
 
     /// 构造带阻断错误、但允许模型尝试修复的结果。
+    ///
+    /// `errors` 由 hook 配置或执行失败产生，最终由调用方决定是否反馈给模型并允许用户
+    /// 修正。此构造器不判断错误是否可恢复，也不触发重试。
     pub fn with_errors(errors: Vec<String>) -> Self {
         StopHookResult {
             blocking_errors: errors,
@@ -124,6 +170,11 @@ impl StopHookResult {
 
 #[derive(Debug, Clone)]
 /// PreToolUse hook 的最小输入上下文。
+///
+/// 兼容工具执行器在调用工具前提供工作目录、项目置信任、工具名及原始参数。hook 可以
+/// 返回更新后的 JSON 参数；调用方必须继续做工具输入验证和适用的权限检查，不能把 hook
+/// 的 Allow 当成授权凭证。`abort_signal` 是独立的 Tokio 通知句柄，是否与外层取消源相连
+/// 由创建它的调用者决定。
 pub struct PreToolUseHookContext {
     /// 可被 hook 执行轮询的取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
@@ -145,6 +196,10 @@ pub struct PreToolUseHookContext {
 
 #[derive(Debug, Clone)]
 /// PostToolUse hook 的最小输入上下文。
+///
+/// 调用者在工具完成后把实际传入参数、结果和错误标记交给 hook。由于副作用此时可能已经
+/// 发生，hook 返回 Block 只能影响后续结果呈现/控制流，不能回滚已完成的文件写入、网络
+/// 请求或其他外部动作。
 pub struct PostToolUseHookContext {
     /// 可被 hook 执行轮询的取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
@@ -170,6 +225,10 @@ pub struct PostToolUseHookContext {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// 工具前后置 hook 对调用方给出的受限决定。
+///
+/// 这是 hook 与工具执行器之间的适配结果，不是 Kiana 的授权决定：`Allow` 表示本 hook
+/// 没有增加限制，后续校验仍然必须运行；`Ask` 表示调用方应进入自己的审批流程；
+/// `UpdateInput` 要求调用方使用新参数继续验证；`Block` 则停止该次兼容工具调用。
 pub enum ToolHookDecision {
     /// 不增加额外限制；仍需通过 ControlPlane 的策略和 Broker。
     Allow,
@@ -188,7 +247,26 @@ pub enum ToolHookDecision {
 
 /// 执行受信 PreToolUse hook 并把结果收敛为工具调用决定。
 ///
-/// 任一 hook 启动/超时/非零错误默认会转成 `Block`；项目未信任时不会加载项目 hook。
+/// 【作用】在工具执行前运行受信 PreToolUse 命令，并把脚本输出收敛为受限 hook 决定。
+///
+/// 【调用者】`kiana-tools/src/tool_execution.rs` 中的兼容工具执行器；普通路径和预批准
+/// 路径都会在实际工具调用前经过它。
+///
+/// 【输入】工具名、原始 JSON 参数、可选调用 ID、工作目录、项目 `ProjectTrust`、权限模式、
+/// 查询来源以及调用方提供的取消通知。
+///
+/// 【输出】`Allow` 表示 hook 没有增加限制；`Ask` 携带审批原因和可选的新输入；
+/// `UpdateInput` 携带替换参数；配置/运行错误、取消或显式阻断映射为 `Block`。
+///
+/// 【副作用】按来源解析并启动外部 shell 子进程；静默入口会排空事件，不把中间事件交给
+/// `kiana-tools`。如果项目未信任，项目级 hook 文件不会进入普通候选列表。
+///
+/// 【失败与后续】启动、stdin、等待、超时及默认非零退出会形成阻断决定；不会在本函数内
+/// 重试、禁用账号或写入 EventLog。调用方仍需验证参数并执行自己的权限流程；尤其要结合
+/// 调用路径判断更新后的输入是否再次检查，不能把此函数的 `Allow` 当作授权。
+///
+/// 【核心流程】构造最小 StopHookContext -> 同步解析命令来源 -> 顺序执行命令 -> 解析
+/// stdout -> 将聚合结果压缩为 `ToolHookDecision`。
 pub async fn run_pre_tool_use_hooks(ctx: PreToolUseHookContext) -> ToolHookDecision {
     let stop_ctx = StopHookContext {
         abort_signal: ctx.abort_signal,
@@ -232,8 +310,19 @@ pub async fn run_pre_tool_use_hooks(ctx: PreToolUseHookContext) -> ToolHookDecis
 
 /// 执行 PostToolUse hook 并返回审计后的受限决定。
 ///
-/// PostToolUse 的 `Ask` 不会把已经完成的工具重新授权，因此当前适配器将其折叠为阻断；
-/// hook 返回的更新输入也不会改变已经产生的工具结果。
+/// 【作用】在工具执行后运行 PostToolUse 命令，并将结果压缩为调用方可消费的审计决定。
+///
+/// 【调用者】`kiana-tools/src/tool_execution.rs` 在工具成功返回后调用；失败结果是否也
+/// 进入 hook 取决于对应执行分支。
+///
+/// 【输入/输出】输入包含工具名、已用参数、工具结果、错误标记和信任上下文；输出沿用
+/// `ToolHookDecision`，但 `Ask` 被折叠为 `Block`，输入更新被忽略并折叠为 `Allow`。
+///
+/// 【为什么这样映射】工具已经执行后再 Ask 不能撤销或重新授权原动作，更新参数也不能
+/// 改变已经产生的结果。Block 可能让调用方把成功结果改报为错误，但不能回滚外部副作用。
+///
+/// 【失败情况与副作用】hook 配置、启动、超时、非零退出或显式阻断可能形成 Block；本函数
+/// 不重试、不撤销工具动作、不写持久审计记录，错误最终由兼容工具执行器消费。
 pub async fn run_post_tool_use_hooks(ctx: PostToolUseHookContext) -> ToolHookDecision {
     let stop_ctx = StopHookContext {
         abort_signal: ctx.abort_signal,
@@ -273,6 +362,9 @@ pub async fn run_post_tool_use_hooks(ctx: PostToolUseHookContext) -> ToolHookDec
 
 #[derive(Debug, Clone)]
 /// SessionStart hook 的最小输入上下文。
+///
+/// 预期由新会话初始化阶段提供；当前 entrypoint 包装 helper 被 `cfg(test)` 限定，仓内未
+/// 找到生产调用。成功输出会被当作待追加上下文，失败会返回错误而非悄悄跳过。
 pub struct SessionStartHookContext {
     /// 取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
@@ -288,7 +380,18 @@ pub struct SessionStartHookContext {
 
 /// 执行 SessionStart hook 并返回追加到会话上下文的文本。
 ///
-/// 任何 hook 错误、超时或取消都会以 `Err` 返回；不会静默当作“没有上下文”。
+/// 【作用】执行 SessionStart 命令并提取成功 hook 追加的上下文文本。
+///
+/// 【调用者】目前只有本文件测试直接调用；`kiana-entrypoints/src/runner.rs` 中对应包装
+/// helper 是测试专用，因此这里是已定义的接口，不代表生产会话初始化已接线。
+///
+/// 【输入/输出】使用当前工作目录、项目 trust、权限模式、入口来源和取消信号；成功返回
+/// 按配置顺序收集的上下文字符串，失败返回合并后的错误文本。
+///
+/// 【副作用与失败】可能启动外部 hook 子进程。任一配置/运行/非零退出/Ask/阻断错误或取消
+/// 都会使整个调用返回 `Err`；不会返回部分上下文，也不会在此处重试或写 EventLog。
+///
+/// 【核心流程】建立共享 hook 上下文 -> 复用严格上下文执行器 -> 只取 `add_contexts`。
 pub async fn run_session_start_hooks(ctx: SessionStartHookContext) -> Result<Vec<String>, String> {
     let stop_ctx = StopHookContext {
         abort_signal: ctx.abort_signal,
@@ -310,6 +413,9 @@ pub async fn run_session_start_hooks(ctx: SessionStartHookContext) -> Result<Vec
 
 #[derive(Debug, Clone)]
 /// UserPromptSubmit hook 的最小输入上下文。
+///
+/// `user_prompt` 是入口传来的原始提示文本。执行器可把前一个 hook 的更新值交给后一个
+/// hook，因此返回值可能是整条 hook 链逐步变换后的提示，而不是单个命令的输出。
 pub struct UserPromptSubmitHookContext {
     /// 取消信号。
     pub abort_signal: Arc<tokio::sync::Notify>,
@@ -327,6 +433,9 @@ pub struct UserPromptSubmitHookContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 /// UserPromptSubmit hook 处理后的上下文和提示结果。
+///
+/// 返回给入口适配层的只读结果：`add_contexts` 会附加到会话输入，`updated_prompt` 仅在
+/// hook 返回可识别且非空的字符串时出现。本结构不直接改写消息列表或启动模型请求。
 pub struct UserPromptSubmitHookResult {
     /// hook 追加的上下文文本。
     pub add_contexts: Vec<String>,
@@ -336,8 +445,18 @@ pub struct UserPromptSubmitHookResult {
 
 /// 执行 UserPromptSubmit hook，返回追加上下文和可选的新提示。
 ///
-/// 多个 hook 按配置顺序执行；前一个 hook 的提示更新会成为后一个 hook 的输入。错误不会
-/// 被吞掉，以免模型在缺失安全/业务前置检查时继续运行。
+/// 【作用】按配置顺序运行 UserPromptSubmit 命令，汇总上下文并提取最后可识别的提示更新。
+///
+/// 【调用者】目前仓内直接调用者是本文件测试；entrypoint 的包装 helper 目前为 `cfg(test)`。
+///
+/// 【输入/输出】输入为原始用户提示和会话/信任元数据；输出为累积上下文及可选的更新提示。
+/// 多个命令依配置顺序执行，前一条更新后的提示会成为下一条 stdin 中的提示。
+///
+/// 【失败情况】配置、启动、超时、非零退出、Ask、阻断输出和取消都作为 `Err` 返回，避免
+/// 调用方误把“没有上下文”当成“检查成功”。部分收集的上下文不会随错误返回。
+///
+/// 【副作用/设计原因】会运行外部 shell 命令，但不直接调用模型、不修改消息列表、不持久化
+/// 结果；分开返回更新提示和追加上下文，让入口决定如何应用这两个不同用途的数据。
 pub async fn run_user_prompt_submit_hooks(
     ctx: UserPromptSubmitHookContext,
 ) -> Result<UserPromptSubmitHookResult, String> {
@@ -378,6 +497,10 @@ pub async fn run_user_prompt_submit_hooks(
 ///
 /// 结构只暴露 hook 所需的最小字段；它不是完整的请求授权上下文。项目资源开关在这里
 /// 只作为解析输入，真正的能力授权仍由控制面完成。
+///
+/// 字段来源通常是上层工具/入口的当前会话快照。`agent_id`、`agent_name`、`team_name` 允许
+/// 缺省，因为普通主线程没有 teammate 身份；`stop_hook_active` 和 `bare_mode` 是输入 JSON
+/// 的说明性元数据，不会在此处关闭 hook 执行。
 #[derive(Debug, Clone)]
 pub struct StopHookContext {
     /// hook 执行期间轮询的取消信号。
@@ -409,6 +532,10 @@ pub struct StopHookContext {
 // ---------------------------------------------------------------------------
 
 /// 异步 hook 执行返回给调用方的两个通道。
+///
+/// `events` 是容量固定为 64 条的有界 Tokio `mpsc`：生产者发送快于消费者读取时会等待，
+/// 形成反压；`result` 是只允许发送一次的 `oneshot`，承载最终聚合结果。调用方通常要并行
+/// 消费事件并等待结果，避免事件缓冲区占满后执行任务无法完成。
 pub struct StopHookHandle {
     /// hook 执行期间的有序事件流。
     pub events: mpsc::Receiver<StopHookEvent>,
@@ -421,6 +548,17 @@ pub struct StopHookHandle {
 /// 调用方应在等待 `result` 的同时持续消费 `events`，否则有界通道填满后 hook 任务可能
 /// 反压等待。向 `ctx.abort_signal` 发送通知会中断当前循环，发出 `Aborted` 并以
 /// `StopHookResult::prevented()` 结束；这只是 hook 层取消，不替代控制面的 Run fencing。
+///
+/// 【作用】把 Stop hook 工作异步交给 Tokio task，并立即交付事件流与最终结果两个接收端。
+///
+/// 【调用者】当前仓内产品调用者未找到；测试通过它检查异步执行和事件顺序。未来调用者应
+/// 将它接入既有查询循环，而不是在此处创建第二套模型或授权循环。
+///
+/// 【输入/输出】接收 StopHookContext，立即返回事件接收端和最终结果接收端。真正结果在
+/// 独立 Tokio task 完成后写入 `oneshot`。
+///
+/// 【副作用/失败】任务可能启动 shell 子进程；结果发送失败只表示接收方提前丢弃，不会
+/// 撤销已经运行的 hook。事件接收方不读取会造成通道反压，取消通知只影响本适配器的等待。
 pub fn handle_stop_hooks(ctx: StopHookContext) -> StopHookHandle {
     let (event_tx, event_rx) = mpsc::channel::<StopHookEvent>(64);
     let (result_tx, result_rx) = oneshot::channel::<StopHookResult>();
@@ -437,6 +575,10 @@ pub fn handle_stop_hooks(ctx: StopHookContext) -> StopHookHandle {
 }
 
 /// 在独立 Tokio 任务中执行 Stop hook 的内部实现。
+///
+/// Stop hook 先运行；若它阻断、要求审批、报错或取消，则 teammate 分支不会开始。只有 Stop
+/// 结果为 Clean/UpdatedInput 时才检查 `is_teammate`，当前 teammate 分支实际上只执行
+/// TeammateIdle。这里仅把内部结果折叠成 StopHookResult，不会推进外层查询 reducer。
 async fn run_stop_hooks(ctx: StopHookContext, tx: mpsc::Sender<StopHookEvent>) -> StopHookResult {
     // 先执行主 Stop hook；只有它没有阻断/错误时才会继续到 teammate 分支。
     let stop_result = execute_hook_set(HookEvent::Stop, &ctx, &tx, ctx.stop_hook_active).await;
@@ -497,6 +639,10 @@ async fn run_stop_hooks(ctx: StopHookContext, tx: mpsc::Sender<StopHookEvent>) -
 #[derive(Debug)]
 #[allow(dead_code)]
 /// hook 执行器内部使用的事件输入。
+///
+/// 这些变体把多个公开入口统一成同一个命令执行/解析器；每种事件需要的字段不同，后续由
+/// `hook_input_json()` 转换成脚本可读 JSON。`TaskCompleted` 虽有数据形状和解析分支，当前
+/// `run_teammate_hooks()` 并未构造它，所以类型存在不等于该事件已经接通。
 enum HookEvent {
     Stop,
     SessionStart,
@@ -525,6 +671,9 @@ enum HookEvent {
 #[derive(Debug)]
 #[allow(dead_code)]
 /// 单组 hook 汇总后的内部决定。
+///
+/// 它是执行器私有状态，不直接序列化给调用方。汇总顺序是错误优先、其次显式阻止继续、
+/// 再次 Ask、输入更新、最后 Clean；`Aborted` 在循环中提前返回，不参与末尾优先级比较。
 enum HookSetResult {
     Clean,
     Aborted,
@@ -539,6 +688,22 @@ enum HookSetResult {
     UpdatedInput(Value),
 }
 
+/// 按解析出的顺序执行同一事件的一组 hook，并把进度与最终汇总送入事件通道。
+///
+/// 【输入/输出】`event` 携带本次工具、提示或生命周期事件的数据；`ctx` 提供信任和工作目录；
+/// `tx` 是可有界反压的事件发送端；`active` 只会写入 stdin JSON 元数据。返回的私有决定
+/// 会由公共入口进一步折叠，不直接授予能力。
+///
+/// 【核心流程】先解析来源及配置错误；逐条发送 Progress、运行命令并处理退出码/stdout；
+/// 最后发送 Summary，并按 BlockingErrors > Prevented > Ask > UpdatedInput > Clean 归并。
+/// PreToolUse 中某条命令更新的参数会成为后续命令的输入；其他事件不会应用此更新。
+///
+/// 【错误与副作用】配置错误会发 RuntimeError 和 BlockingError，但当前仍继续运行已解析的
+/// 命令；单条启动/等待错误会记入错误集合后继续后续命令。发送事件失败被忽略，不取消子进程。
+/// 默认非零退出阻断，显式 warning 策略只让非零退出不阻断，错误仍保留在 Summary。
+///
+/// 【为什么要集中处理】多个事件入口共用相同的配置、取消、超时和错误优先级，避免静默
+/// 与非静默路径各自形成不同的决定规则；上下文事件另有更严格的返回规则，见下方 helper。
 async fn execute_hook_set(
     mut event: HookEvent,
     ctx: &StopHookContext,
@@ -564,6 +729,7 @@ async fn execute_hook_set(
     let mut ask_reason = None;
     let mut updated_input = None;
 
+    // 在发配置错误事件前也检查取消；已收到取消时不启动任何命令。
     if ctx.abort_signal.try_recv_aborted() {
         return HookSetResult::Aborted;
     }
@@ -589,6 +755,7 @@ async fn execute_hook_set(
             return HookSetResult::Aborted;
         }
 
+        // 该 ID 只用于当前事件流中的进度展示，不是全局唯一的工具调用授权 ID。
         let tool_use_id = format!("hook:{}:{}", hook_name, index + 1);
         let _ = tx
             .send(StopHookEvent::Progress {
@@ -613,6 +780,7 @@ async fn execute_hook_set(
             duration_ms: Some(run.duration_ms),
         });
 
+        // 取消和普通命令错误不同：取消立即结束整组，不再启动后续 hook。
         if run.aborted {
             return HookSetResult::Aborted;
         }
@@ -632,6 +800,7 @@ async fn execute_hook_set(
             continue;
         }
 
+        // 运行成功与否由 shell 退出码判定；warning 模式仅改变阻断结果，不抹掉诊断记录。
         if run.exit_code != Some(0) {
             let detail = if run.stderr.trim().is_empty() {
                 run.stdout.trim().to_string()
@@ -666,6 +835,7 @@ async fn execute_hook_set(
         }
         has_output = true;
 
+        // stdout 的结构化决定会影响整组结果；stderr 仅在退出非零时用作错误详情。
         let parsed = parse_hook_output(stdout);
         if let Some(error) = parsed.blocking_error {
             let _ = tx
@@ -737,7 +907,8 @@ async fn execute_hook_set_silent(
     active: bool,
 ) -> HookSetResult {
     // 静默入口仍然完整执行同一套规则，只把事件流排空而不暴露给调用方，避免出现第二
-    // 套不同的 hook 语义。
+    // 套不同的 hook 语义。排空任务与执行器并发运行是因为有界 mpsc 在无人接收时会反压；
+    // drain 只丢弃通知，不会取消 hook，也不会改变最终 HookSetResult。
     let (tx, mut rx) = mpsc::channel::<StopHookEvent>(64);
     let drain = tokio::spawn(async move { while rx.recv().await.is_some() {} });
     let result = execute_hook_set(event, ctx, &tx, active).await;
@@ -746,6 +917,14 @@ async fn execute_hook_set_silent(
     result
 }
 
+/// 为 SessionStart/UserPromptSubmit 执行 hook，并将上下文结果直接返回给入口适配层。
+///
+/// 与 `execute_hook_set()` 的主要区别是：这里没有公开事件通道；配置错误、运行错误、非零
+/// 退出、Ask 或阻断输出最终都会让整组返回 Err。命令执行期间仍会累积错误并继续尝试后续
+/// 命令，只有取消会立即提前返回。此路径不应用 `KIANA_HOOK_NONZERO_POLICY` 的 warning 放行。
+///
+/// 对 UserPromptSubmit，上一条命令的可识别 prompt 更新会覆盖 event 中的当前提示，再成为
+/// 下一条命令输入；通用 JSON 更新则保存在结果中。SessionStart 只消费上下文，不改提示。
 async fn execute_context_hook_set(
     mut event: HookEvent,
     ctx: &StopHookContext,
@@ -843,12 +1022,14 @@ async fn execute_context_hook_set(
     }
 }
 
-/// 为 teammate agent 运行 TeammateIdle 和 TaskCompleted hook。
+/// 为 teammate agent 运行当前已接入的 teammate hook。
+///
+/// 目前实际只构造并执行 TeammateIdle；TaskCompleted 的变体和输入字段存在，但没有从这里
+/// 派发。此函数由 Stop 流程在普通 Stop hook 未阻断时调用，结果再合并回 StopHookResult。
 async fn run_teammate_hooks(
     ctx: &StopHookContext,
     tx: &mpsc::Sender<StopHookEvent>,
 ) -> HookSetResult {
-    // 当前实现只触发一次 TeammateIdle；TaskCompleted 的任务枚举尚未接入此适配器。
     // 不在这里发明自由消息总线或额外执行循环。
     execute_hook_set(HookEvent::TeammateIdle, ctx, tx, false).await
 }
@@ -860,6 +1041,7 @@ async fn run_teammate_hooks(
 /// 构造展示给用户的 Stop hook 错误提示文本。
 ///
 /// `expand_shortcut` 由入口层提供，因此本函数不解析快捷键，也不泄露 hook 的 stdout/stderr。
+/// 仓内当前未找到产品调用者；函数只拼接展示文案，不读取配置、不发送事件、不改变错误状态。
 pub fn stop_hook_error_notification(expand_shortcut: &str) -> String {
     format!("Stop hook error occurred · {expand_shortcut} to see")
 }
@@ -873,6 +1055,10 @@ pub fn stop_hook_error_notification(expand_shortcut: &str) -> String {
 /// 当前用 `Notify` 作为轻量取消原语；它只表示“曾收到取消通知”，不负责杀死控制面中的
 /// 其他进程或撤销已发出的能力授权。更完整的集成可替换为 `CancellationToken`。
 trait AbortSignalExt {
+    /// 立即检查是否已有通知可读，不等待未来通知。
+    ///
+    /// 返回 true 时消费一个已挂起的通知；没有通知时立即返回 false。该检查只作用于本
+    /// hook 的 Rust 等待流程，不能证明子进程后代已退出。
     fn try_recv_aborted(&self) -> bool;
 }
 
@@ -883,6 +1069,10 @@ impl AbortSignalExt for Arc<tokio::sync::Notify> {
 }
 
 impl HookEvent {
+    /// 将内部事件变体映射到配置 JSON 中使用的精确事件名。
+    ///
+    /// 这个字符串同时用于环境变量选择、配置键查找和传给 hook 的输入；新增或改名必须
+    /// 与 `kiana-types::hooks` 的配置解析契约同步。
     fn name(&self) -> &'static str {
         match self {
             HookEvent::Stop => "Stop",
@@ -896,6 +1086,11 @@ impl HookEvent {
     }
 }
 
+/// 一次 shell 子进程运行后的本地采集结果。
+///
+/// `exit_code=None` 表示没有拿到正常退出码，需再看 `error`/`aborted` 区分启动、等待、超时
+/// 或取消。该结构只在适配器内部传递，不是持久回执；stderr/stdout 已经过 UTF-8 转换和
+/// `bounded_hook_output()` 的保留长度限制。
 #[derive(Debug)]
 struct HookRun {
     duration_ms: u64,
@@ -908,6 +1103,10 @@ struct HookRun {
     aborted: bool,
 }
 
+/// 面向事件流的结构化 hook 运行时错误。
+///
+/// `code` 供机器订阅者分类，`message` 用于展示，`details` 附带事件名、配置来源或超时值。
+/// 该错误只描述本地 hook 适配器观察到的失败，不代表控制面策略拒绝。
 #[derive(Debug, Clone)]
 struct HookRuntimeError {
     code: Option<String>,
@@ -915,6 +1114,10 @@ struct HookRuntimeError {
     details: Value,
 }
 
+/// 从单条 hook stdout 中提取出的有限决定字段。
+///
+/// 字段缺失时通常保留默认值；因此此旧解析器不是严格 schema 校验器。注意其行为与
+/// `hook_outcome::parse_hook_outcome()` 不同，后者当前没有接入本文件的命令输出路径。
 #[derive(Debug, Default)]
 struct ParsedHookOutput {
     prevent_continuation: bool,
@@ -925,12 +1128,33 @@ struct ParsedHookOutput {
     updated_input: Option<Value>,
 }
 
+/// 多条 SessionStart/UserPromptSubmit 命令成功后的累积结果。
+///
+/// `add_contexts` 按命令顺序追加；`updated_input` 保留最近一次被识别的输入更新。任何最终
+/// 聚合错误会令执行器返回 Err，因此此值不会随失败一并返回。
 #[derive(Debug, Default)]
 struct ContextHookSetResult {
     add_contexts: Vec<String>,
     updated_input: Option<Value>,
 }
 
+/// 启动单条 hook shell 命令，传入 JSON，并把退出、超时和取消归一化为 HookRun。
+///
+/// 【输入/输出】命令来自已解析配置；stdin 是 `hook_input_json()` 生成的事件快照；timeout
+/// 由 `KIANA_HOOK_TIMEOUT_MS` 解析；cwd 决定子进程工作目录。返回值包含退出码、有限长度的
+/// 输出文本、耗时及结构化失败原因。
+///
+/// 【核心流程】配置隔离的 shell -> spawn -> 写 stdin -> 等待进程 -> 在等待阶段竞争取消和
+/// timeout -> 收集输出并截断保留文本。
+///
+/// 【重要边界】计时从 spawn 前记录，但 `timeout(...)` 和取消 `select!` 在 stdin
+/// `write_all()` 完成后才开始；因此大输入遇到不读取 stdin 的子进程时，写入等待不受这里的
+/// timeout/取消 select 保护。`wait_with_output()` 会先收集完整 stdout/stderr，之后才调用
+/// 64 KiB 文本截断，所以该阈值限制保留字符串，不限制进程输出的峰值内存。
+///
+/// 超时/取消离开等待 future 后，`kill_on_drop(true)` 会请求终止直接子进程；Unix 还创建
+/// 了新进程组，但此处没有显式向整组发送信号或确认所有后代退出。不要把父 shell 退出等同
+/// 于进程树清理完成。
 async fn run_hook_command(
     command: &str,
     input_json: &str,
@@ -964,6 +1188,8 @@ async fn run_hook_command(
         }
     };
 
+    // stdin 写入在下面的 timeout/select 之外。hook 的输入一般是一个 JSON 对象，但其大小
+    // 取决于调用上下文；如果调整序列化数据规模，应一并评估这里的阻塞范围。
     if let Some(mut stdin) = child.stdin.take() {
         if let Err(error) = stdin.write_all(input_json.as_bytes()).await {
             return HookRun {
@@ -979,6 +1205,8 @@ async fn run_hook_command(
         }
     }
 
+    // wait_with_output 同时等待进程结束并读完 piped stdout/stderr；输出先进入内存，之后
+    // 才会被 bounded_hook_output 截断，因此不能将后者误读为采集端的内存上限。
     let wait = child.wait_with_output();
     tokio::pin!(wait);
     tokio::select! {
@@ -1029,6 +1257,14 @@ async fn run_hook_command(
     }
 }
 
+/// 为 hook 组装尽量小且可预测的 shell 子进程环境。
+///
+/// 两个平台都设置 cwd、清空继承环境并把 PATH 限制到系统目录；Windows 优先选择 Git Bash，
+/// Unix 使用进程 SHELL 或 `/bin/sh`，并把子进程放入新进程组。环境清理降低 hook 意外读到
+/// 调用进程密钥/配置的机会，但并不构成沙箱：命令仍拥有当前 OS 用户可用的文件与系统权限。
+///
+/// ⚠ 注意：Unix 的 `process_group(0)` 只创建组，不代表超时路径已经杀死并回收整个进程组；
+/// 当前明确配置的 drop 行为作用于直接 child。若改动进程管理，必须同时考虑命令派生的后代。
 fn shell_command(command: &str, cwd: &Path) -> Command {
     let path = if cfg!(windows) {
         r"C:\Windows\System32;C:\Windows"
@@ -1064,6 +1300,11 @@ fn shell_command(command: &str, cwd: &Path) -> Command {
     }
 }
 
+/// 将进程字节输出转成 UTF-8 展示文本，并限制最终保留字符串的长度。
+///
+/// 上限为 64 KiB；超长时预留 32 字节放置截断标记，并向后退到合法 UTF-8 边界，避免拆坏
+/// 多字节字符。输入 `bytes` 已由 `wait_with_output()` 完整收集，所以这个函数控制的是
+/// 后续保存/解析的文本长度，而不是子进程可以产生多少输出或峰值内存。
 fn bounded_hook_output(bytes: &[u8]) -> String {
     const MAX_HOOK_OUTPUT_BYTES: usize = 64 * 1024;
     if bytes.len() <= MAX_HOOK_OUTPUT_BYTES {
@@ -1080,6 +1321,10 @@ fn bounded_hook_output(bytes: &[u8]) -> String {
 }
 
 #[cfg(windows)]
+/// 按显式设置、常见 Git 安装路径、PATH 的顺序选择 Windows Bash。
+///
+/// 这里的 `KIANA_BASH_PATH` 只用于挑选解释器，不会被传入清理后的 hook 子进程环境；如果
+/// 都找不到，保留 `bash` 命令名让系统进程启动错误按正常 hook 失败路径处理。
 fn preferred_bash_program() -> OsString {
     if let Some(configured) = std::env::var_os("KIANA_BASH_PATH").filter(|value| !value.is_empty())
     {
@@ -1105,6 +1350,9 @@ fn preferred_bash_program() -> OsString {
 }
 
 #[cfg(windows)]
+/// 在当前进程 PATH 中依次查找 `bash.exe` 或 `bash`。
+///
+/// 这是 Windows 解释器选择的回退步骤；不会改变 Unix 分支使用 SHELL 的行为。
 fn find_bash_on_path() -> Option<PathBuf> {
     let paths = std::env::var_os("PATH")?;
     std::env::split_paths(&paths).find_map(|dir| {
@@ -1119,6 +1367,7 @@ fn find_bash_on_path() -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
+/// 排除 Windows 自带的旧 WSL Bash 路径，优先使用 Git Bash 或其他可执行 Bash。
 fn is_windows_system_bash(path: &Path) -> bool {
     let Ok(canonical) = path.canonicalize() else {
         return false;
@@ -1128,12 +1377,26 @@ fn is_windows_system_bash(path: &Path) -> bool {
         .eq_ignore_ascii_case(r"C:\Windows\System32\bash.exe")
 }
 
+/// 配置解析阶段的结果：可运行命令与按来源归类的错误分开保存。
+///
+/// 即使一个来源出错，其他文件/插件仍可能产生命令；上层会同时保留错误并按当前策略
+/// 执行解析成功的命令。因此“发现错误”不等于“这组命令一个都不会运行”。
 #[derive(Debug, Default)]
 struct HookCommandResolution {
     commands: Vec<String>,
     errors: Vec<HookRuntimeError>,
 }
 
+/// 按固定优先级解析某类 hook 的命令，并附加文件和插件来源。
+///
+/// 优先级是事件专用环境变量 > 通用 `KIANA_HOOKS` > 用户/KIANA_HOME/受信项目文件，再
+/// 追加已安装且有 manifest 的插件。只要环境变量存在就会直接返回它的解析结果：空值可以
+/// 表示空命令集；格式错误会成为错误且不会回退到文件。因而 env override 是替代来源，
+/// 不是在文件命令后再加一层。
+///
+/// 【信任边界】项目文件路径由 `hooks_file_paths_with_trust()` 依 ProjectTrust 过滤；插件
+/// 配置另由已安装插件清单发现逻辑处理。`KIANA_HOOKS_FILE` 是路径直连覆盖项，会在路径
+/// helper 中提前返回，其项目 trust 语义需单独审慎理解。
 fn hook_commands_for(
     hook_name: &str,
     project_trust: ProjectTrust,
@@ -1185,6 +1448,11 @@ fn hook_commands_for(
     resolution
 }
 
+/// 读取普通 hook 配置文件，将该事件对应的字符串命令追加到 resolution。
+///
+/// 每个文件独立解析；读文件、JSON 解码或 schema 验证失败会保留来源路径和错误，再继续看
+/// 后续文件。解析成功的命令和其他文件失败可以同时出现在结果中，后续 executor 当前会
+/// 先报告错误、仍执行这些有效命令。
 fn hook_commands_from_files(
     hook_name: &str,
     project_trust: ProjectTrust,
@@ -1232,6 +1500,11 @@ fn hook_commands_from_files(
     resolution
 }
 
+/// 从启用的已安装插件中读取 `hooks/hooks.json` 并提取指定事件命令。
+///
+/// 插件根目录由 `kiana-types` 提供；没有已识别 manifest 的根目录跳过，没有 hooks 文件或
+/// 文件读取失败也按“没有该插件 hook”处理。文件存在但 JSON/schema 无效时则保留结构化错误。
+/// 插件来源在普通文件解析之后追加，因此配置顺序也决定命令运行顺序。
 fn plugin_hook_commands(hook_name: &str) -> HookCommandResolution {
     // 插件必须有可识别 manifest 才会被考虑；缺失 hooks.json 的插件被视为没有该事件，
     // 而不是错误地执行目录中的任意文件。
@@ -1268,6 +1541,10 @@ fn plugin_hook_commands(hook_name: &str) -> HookCommandResolution {
     resolution
 }
 
+/// 将子进程运行结果包装成可发送给调用方的错误对象。
+///
+/// 错误码优先沿用运行阶段已经确定的稳定码；若没有则使用通用执行错误码。details 先带上
+/// 事件名、命令和耗时，再合并 timeout 等阶段性细节，供上层诊断而不改变错误是否阻断。
 fn hook_command_runtime_error(
     hook_name: &str,
     command: &str,
@@ -1290,6 +1567,7 @@ fn hook_command_runtime_error(
     }
 }
 
+/// 为配置文件读取失败生成带事件名和文件路径的结构化错误。
 fn hook_io_error(hook_name: &str, source: &str, message: String) -> HookRuntimeError {
     HookRuntimeError {
         code: Some("hook_config_io_error".to_string()),
@@ -1301,6 +1579,7 @@ fn hook_io_error(hook_name: &str, source: &str, message: String) -> HookRuntimeE
     }
 }
 
+/// 为配置文件 JSON 语法错误生成结构化错误；它与 schema 错误分开，便于定位失败阶段。
 fn hook_json_error(hook_name: &str, source: &str, message: String) -> HookRuntimeError {
     HookRuntimeError {
         code: Some("hook_config_json_error".to_string()),
@@ -1312,6 +1591,10 @@ fn hook_json_error(hook_name: &str, source: &str, message: String) -> HookRuntim
     }
 }
 
+/// 把 `kiana-types` 配置解析器的 schema 错误保留为 Query 层 hook 错误。
+///
+/// location 指向解析器报告的位置，source 标明环境变量或文件来源；本 helper 只包装诊断，
+/// 不尝试修复配置或把无效字段忽略掉。
 fn hook_config_error(hook_name: &str, source: &str, error: &HookConfigError) -> HookRuntimeError {
     let message = format!(
         "invalid hook schema in {} at {}: {}",
@@ -1329,6 +1612,9 @@ fn hook_config_error(hook_name: &str, source: &str, error: &HookConfigError) -> 
     }
 }
 
+/// 把后续阶段的诊断字段并入已有 JSON 对象；同名键由后加入的 source 值覆盖。
+///
+/// 两边不是对象时直接不合并，避免为了错误诊断把任意 JSON 值强行改写成新形状。
 fn merge_runtime_error_details(target: &mut Value, source: &Value) {
     let (Some(target), Some(source)) = (target.as_object_mut(), source.as_object()) else {
         return;
@@ -1338,10 +1624,14 @@ fn merge_runtime_error_details(target: &mut Value, source: &Value) {
     }
 }
 
+/// 复用 `kiana-types` 的插件发现与启用状态过滤，避免 Query 再维护一套插件目录规则。
 fn installed_plugin_roots() -> Vec<PathBuf> {
     kiana_types::plugin::installed_plugin_roots()
 }
 
+/// 在支持的插件 manifest 位置中寻找第一个存在的清单文件。
+///
+/// 返回的路径只用于确认该目录符合已识别插件布局，不负责解析 manifest 内容或授予插件信任。
 fn find_manifest_path(plugin_root: &Path) -> Option<PathBuf> {
     [
         plugin_root.join(".codex-plugin").join("plugin.json"),
@@ -1352,6 +1642,14 @@ fn find_manifest_path(plugin_root: &Path) -> Option<PathBuf> {
     .find(|path| path.is_file())
 }
 
+/// 按用户级、KIANA_HOME 级和项目级规则生成 hook 文件候选路径。
+///
+/// 默认情况下先选 `KIANA_HOME/hooks.json`，没有 KIANA_HOME 才选 `$HOME/.kiana/hooks.json`；
+/// 然后仅在 `ProjectTrust::Trusted` 时加入 cwd 下 `.kiana/hooks.json`。相同路径不会重复加入。
+///
+/// ⚠ `KIANA_HOOKS_FILE` 是特殊覆盖：一旦设置就只返回该路径，直接跳过后续项目 trust
+/// 过滤。它是显式环境配置而非自动发现的项目文件；维护其语义时要避免把“项目文件候选
+/// 已过滤”的结论误套到这个 override 上。
 fn hooks_file_paths_with_trust(project_trust: ProjectTrust, cwd: &Path) -> Vec<PathBuf> {
     // 用户级/KIANA_HOME 级配置与项目级配置分开处理；只有 trust 允许项目资源时才加入
     // `.kiana/hooks.json`，防止未信任目录注入命令。
@@ -1373,6 +1671,12 @@ fn hooks_file_paths_with_trust(project_trust: ProjectTrust, cwd: &Path) -> Vec<P
     paths
 }
 
+/// 将内部事件和调用上下文序列化成 hook 脚本从 stdin 读取的 JSON 快照。
+///
+/// 通用字段描述事件名、权限模式、查询入口及 agent/team 上下文；事件专属字段只在相应
+/// 变体中加入。兼容字段同时提供 snake_case 与 camelCase 名称，因此修改名称/值需要考虑
+/// 已有脚本。`active` 只输出到 `stop_hook_active` 供脚本判断，不会让 Rust 执行器跳过命令。
+/// 该 JSON 是上下文数据，不能作为 hook 授权、信任或参数验证的证明。
 fn hook_input_json(event: &HookEvent, ctx: &StopHookContext, active: bool) -> String {
     // 同时输出 snake_case 和兼容 camelCase 字段，保证既有 hook 脚本能迁移；输入只是
     // 命令上下文，不会把它变成能力授权或扩大写集。
@@ -1439,6 +1743,10 @@ fn hook_input_json(event: &HookEvent, ctx: &StopHookContext, active: bool) -> St
     input.to_string()
 }
 
+/// 读取单条 hook 等待进程退出时使用的超时。
+///
+/// 缺失、非整数或 0 毫秒时回退到 30 秒；任何正整数都被接受，没有额外最大值。因此注释
+/// 中的默认 30 秒不是配置上限。超时实际包裹 `wait_with_output()`，stdin 写入位于其外。
 fn hook_timeout_duration() -> Duration {
     // 非法、零值或缺失配置统一使用 30 秒，避免把无限等待暴露给查询循环。
     let millis = std::env::var("KIANA_HOOK_TIMEOUT_MS")
@@ -1450,17 +1758,26 @@ fn hook_timeout_duration() -> Duration {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// hook 以非零退出码结束时，是否将其提升为阻断错误。
+///
+/// 该策略只用于 `execute_hook_set()` 的非零退出分支；结构化 JSON blocking_error、启动错误、
+/// timeout 和配置错误仍按各自规则处理。上下文执行器不应用 Warning 放行。
 enum HookNonzeroPolicy {
     Deny,
     Warning,
 }
 
 impl HookNonzeroPolicy {
+    /// 返回该策略是否要求非零退出阻断当前 hook 组。
     fn is_deny(self) -> bool {
         self == HookNonzeroPolicy::Deny
     }
 }
 
+/// 将 `KIANA_HOOK_NONZERO_POLICY` 解析为 Deny 或 Warning。
+///
+/// 只有 warning/warn/non_blocking/non-blocking/allow（忽略大小写和首尾空格）才是 Warning；
+/// 缺失或任何其他拼写都保守回到 Deny。它不会改变命令是否运行，只影响非零退出码是否阻断。
 fn hook_nonzero_policy() -> HookNonzeroPolicy {
     match std::env::var("KIANA_HOOK_NONZERO_POLICY") {
         Ok(value)
@@ -1475,9 +1792,22 @@ fn hook_nonzero_policy() -> HookNonzeroPolicy {
     }
 }
 
+/// 解析兼容 hook stdout 中有限的一组 JSON 字段。
+///
+/// 【输入/输出】输入是已经 trim、且经过文本截断的 stdout；输出包括继续标记、停止原因、
+/// 阻断错误、Ask、上下文以及更新输入。调用者先检查进程启动结果和退出码，再调用本函数。
+///
+/// 【宽松行为】无效 JSON 或非 object JSON 会得到默认结果；缺失/非布尔 continue 默认为 true，
+/// 未识别字段和错误类型通常被忽略。也就是说，此旧解析器不把 malformed stdout 当作错误，
+/// 可能使该条命令表现为“没有结构化决定”。不要把它与 `hook_outcome` 中更严格的解析器
+/// 混为一谈；当前实际 shell 消费路径走的是本函数。
+///
+/// 【失败处理】有效 JSON 中识别出的阻断字段会进入 HookSetResult 并通过 BlockingError
+/// 事件展示；本 helper 自身不记录日志、不重试、不执行权限检查。上下文入口还会把 Ask/阻断
+/// 映射成整组 Err。
+// 非 JSON stdout 视为没有结构化决定；命令退出码和 stderr 仍由上层先行处理。只有
+// 可解析字段才会改变继续、Ask、错误或输入更新状态。
 fn parse_hook_output(stdout: &str) -> ParsedHookOutput {
-    // 非 JSON stdout 视为没有结构化决定；命令退出码和 stderr 仍由上层先行处理。只有
-    // 可解析字段才会改变继续、Ask、错误或输入更新状态。
     let Ok(value) = serde_json::from_str::<Value>(stdout) else {
         return ParsedHookOutput::default();
     };
@@ -1507,6 +1837,10 @@ fn parse_hook_output(stdout: &str) -> ParsedHookOutput {
     }
 }
 
+/// 从兼容字段名中取第一份非 null 的参数更新 JSON 值。
+///
+/// `null` 被视为“没有更新”，但对象、数组、字符串和其他 JSON 标量都可返回；本 helper
+/// 不校验新值是否符合目标工具 schema，调用方需在继续工具执行前重新验证。
 fn updated_input_from_output(value: &Value) -> Option<Value> {
     [
         value.get("update_input"),
@@ -1520,6 +1854,10 @@ fn updated_input_from_output(value: &Value) -> Option<Value> {
     .cloned()
 }
 
+/// 从 UserPromptSubmit 更新值中提取一个可用提示字符串。
+///
+/// 支持直接字符串，或 object 内按 user_prompt/userPrompt/prompt/input 顺序查找第一个非空
+/// 字符串。这里只认文本，不把数组、数字或对象转换成提示；因此复杂更新可能被忽略。
 fn updated_prompt_text_from_value(value: &Value) -> Option<String> {
     match value {
         Value::String(text) => nonempty_prompt(text),
@@ -1537,10 +1875,16 @@ fn updated_prompt_text_from_value(value: &Value) -> Option<String> {
     }
 }
 
+/// 保留原始提示文本，但拒绝去除空白后为空的字符串。
+///
+/// 非空时返回未经 trim 的原文，以免静默改写用户实际提交内容。
 fn nonempty_prompt(text: &str) -> Option<String> {
     (!text.trim().is_empty()).then(|| text.to_string())
 }
 
+/// 从四种兼容字段名中汇总额外上下文；重复字段会按这里的查找顺序分别加入。
+///
+/// 实际数组元素过滤与 trim 由 `contexts_from_value()` / `clean_contexts()` 执行。
 fn add_contexts_from_output(value: &Value) -> Vec<String> {
     [
         value.get("add_context"),
@@ -1554,6 +1898,9 @@ fn add_contexts_from_output(value: &Value) -> Vec<String> {
     .collect()
 }
 
+/// 将单个上下文字段规范为字符串列表。
+///
+/// 字符串成为一个元素；数组中非字符串会被静默丢弃；null、对象和数字都变为空列表。
 fn contexts_from_value(value: &Value) -> Vec<String> {
     match value {
         Value::String(text) => clean_contexts(vec![text.to_string()]),
@@ -1568,6 +1915,7 @@ fn contexts_from_value(value: &Value) -> Vec<String> {
     }
 }
 
+/// 清除上下文两端空白并移除空字符串，保留其余文本和原始顺序。
 fn clean_contexts(contexts: Vec<String>) -> Vec<String> {
     contexts
         .into_iter()
@@ -1576,6 +1924,10 @@ fn clean_contexts(contexts: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+/// 从 decision、blocking_error 或 blocking_errors 字段提取阻断说明。
+///
+/// decision 识别 block/blocked/deny/denied/reject/rejected，并优先使用 reason；数组只拼接
+/// 其中的字符串。其他值不视为阻断，空数组或全非字符串数组得到 None。
 fn blocking_error_from_output(value: &Value) -> Option<String> {
     if let Some(decision) = value.get("decision").and_then(Value::as_str) {
         let fallback = match decision.to_ascii_lowercase().as_str() {
@@ -1609,6 +1961,9 @@ fn blocking_error_from_output(value: &Value) -> Option<String> {
         .filter(|errors| !errors.is_empty())
 }
 
+/// 从 decision/behavior 的 Ask 类取值提取审批原因，没有非空文案时给出固定默认说明。
+///
+/// 此处只产生待上层消费的文本，不弹审批界面，也不会建立 Approval 记录。
 fn ask_reason_from_output(value: &Value) -> Option<String> {
     let decision = value
         .get("decision")
@@ -1632,6 +1987,9 @@ fn ask_reason_from_output(value: &Value) -> Option<String> {
         .or_else(|| Some("Hook requested approval".to_string()))
 }
 
+/// 将单调时钟上的耗时转换成毫秒整数；极端情况下饱和为 u64::MAX。
+///
+/// 单调时钟用于测量经过时间，不受系统日期调整影响；该值用于 hook 诊断，不是时间戳。
 fn elapsed_ms(started: Instant) -> u64 {
     started.elapsed().as_millis().try_into().unwrap_or(u64::MAX)
 }
@@ -1640,6 +1998,11 @@ fn elapsed_ms(started: Instant) -> u64 {
 // Tests
 // ---------------------------------------------------------------------------
 
+/// 本模块的局部行为测试，使用进程环境变量、临时配置文件和短 shell 命令合成 hook 来源。
+///
+/// 这些测试检查命令选择、结果折叠、trust 路径和取消等适配器行为；它们不启动真实
+/// ControlPlane，不验证 EventLog 持久化，也不证明 Stop 已接入产品查询循环。环境变量是
+/// 进程级共享状态，因此本模块用异步互斥锁串行化自己的测试；这个锁不约束其他测试模块。
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1647,6 +2010,7 @@ mod tests {
 
     static ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
+    /// 持有到测试结束的模块内环境锁，避免两个测试同时改写相同 hook 环境变量。
     async fn env_guard() -> tokio::sync::MutexGuard<'static, ()> {
         ENV_LOCK
             .get_or_init(|| tokio::sync::Mutex::new(()))
@@ -1654,6 +2018,7 @@ mod tests {
             .await
     }
 
+    /// 构造使用当前目录、Trusted 项目和空取消信号的 Stop 测试上下文。
     fn make_ctx() -> StopHookContext {
         StopHookContext {
             abort_signal: Arc::new(tokio::sync::Notify::new()),
@@ -1670,6 +2035,7 @@ mod tests {
         }
     }
 
+    /// 消费完整事件流后等待最终结果；先持续读取是为了不让有界 mpsc 反压测试任务。
     async fn run_and_collect(ctx: StopHookContext) -> (Vec<StopHookEvent>, StopHookResult) {
         let mut handle = handle_stop_hooks(ctx);
         let mut events = Vec::new();
@@ -1680,6 +2046,9 @@ mod tests {
         (events, result)
     }
 
+    /// 清除本模块涉及的 hook 配置，确保每个用例从可控的空环境开始。
+    ///
+    /// 该 helper 不保存并恢复测试进程原有值，所以调用点必须持有 env_guard。
     fn clear_hook_env() {
         for key in [
             "KIANA_HOOKS",
@@ -1700,6 +2069,7 @@ mod tests {
         }
     }
 
+    /// 为 PreToolUse trust 测试构造带固定 Bash 参数的输入。
     fn make_pre_tool_ctx(
         cwd: PathBuf,
         project_trust: kiana_types::ProjectTrust,
@@ -1716,6 +2086,7 @@ mod tests {
         }
     }
 
+    /// 为 PostToolUse trust 测试构造成功结果快照；不实际执行 Bash 工具。
     fn make_post_tool_ctx(
         cwd: PathBuf,
         project_trust: kiana_types::ProjectTrust,
@@ -1734,6 +2105,7 @@ mod tests {
         }
     }
 
+    /// 构造 SessionStart 上下文 fixture，供不同 ProjectTrust 值复用。
     fn make_session_start_ctx(
         cwd: PathBuf,
         project_trust: kiana_types::ProjectTrust,
@@ -1747,6 +2119,7 @@ mod tests {
         }
     }
 
+    /// 构造带固定原始提示的 UserPromptSubmit fixture。
     fn make_user_prompt_submit_ctx(
         cwd: PathBuf,
         project_trust: kiana_types::ProjectTrust,
@@ -1761,6 +2134,7 @@ mod tests {
         }
     }
 
+    /// 将一条 shell 命令编码成解析器要求的 JSON 命令数组环境变量。
     fn set_stop_hook(command: &str) {
         std::env::set_var(
             "KIANA_STOP_HOOKS",
@@ -1768,6 +2142,7 @@ mod tests {
         );
     }
 
+    // 第一组：Stop 决定、退出码、warning 策略、timeout 与事件摘要。
     #[tokio::test]
     async fn clean_run_returns_no_errors() {
         let _guard = env_guard().await;
@@ -1879,6 +2254,7 @@ mod tests {
         clear_hook_env();
     }
 
+    // 第二组：文件配置解析与受信/未受信项目路径矩阵。
     #[tokio::test]
     async fn stop_hooks_load_from_persistent_hooks_file() {
         let _guard = env_guard().await;
@@ -2069,6 +2445,7 @@ mod tests {
         clear_hook_env();
     }
 
+    // 第三组：各 hook 类型共享同一项目 trust 来源边界，但分别验证各自输入/输出适配。
     #[tokio::test]
     async fn pre_tool_use_hooks_respect_home_project_plugin_and_trust_sources() {
         let _guard = env_guard().await;
@@ -2386,6 +2763,7 @@ mod tests {
         clear_hook_env();
     }
 
+    // 第四组：插件启用状态、环境变量覆盖、取消及展示文案。
     #[tokio::test]
     async fn stop_hooks_load_from_installed_plugin_hooks_file() {
         let _guard = env_guard().await;

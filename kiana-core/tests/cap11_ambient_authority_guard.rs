@@ -1,5 +1,8 @@
 //! CAP-11 source guard for ambient authority removal and default-deny execution setup.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -11,7 +14,8 @@ fn require(source: &str, markers: &[&str], label: &str) {
 
 #[test]
 fn sandbox_uses_os_enforced_namespace_env_and_fd_fences() {
-    let sandbox = include_str!("../../kiana-daemon/src/harness_sandbox.rs");
+    let sandbox =
+        &source_guard::production_source(include_str!("../../kiana-daemon/src/harness_sandbox.rs"));
     let mcp = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
     let capabilities = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
 
@@ -77,7 +81,8 @@ fn sandbox_uses_os_enforced_namespace_env_and_fd_fences() {
 
 #[test]
 fn ambient_environment_names_are_explicitly_denied() {
-    let sandbox = include_str!("../../kiana-daemon/src/harness_sandbox.rs");
+    let sandbox =
+        &source_guard::production_source(include_str!("../../kiana-daemon/src/harness_sandbox.rs"));
     for marker in [
         "SSH_AUTH_SOCK",
         "SSH_AGENT_PID",

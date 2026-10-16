@@ -1,8 +1,15 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn dep11_health_aggregation_is_projection_only() {
-    let domain = include_str!("../../kiana-domain/src/health_aggregation.rs");
-    let core = include_str!("../src/health_aggregation.rs");
-    let daemon = include_str!("../../kiana-daemon/src/health_aggregation.rs");
+    let domain = source_guard::production_source(include_str!(
+        "../../kiana-domain/src/health_aggregation.rs"
+    ));
+    let core = source_guard::production_source(include_str!("../src/health_aggregation.rs"));
+    let daemon = source_guard::production_source(include_str!(
+        "../../kiana-daemon/src/health_aggregation.rs"
+    ));
     for marker in [
         "HealthAggregationInput",
         "HealthAggregationReport",

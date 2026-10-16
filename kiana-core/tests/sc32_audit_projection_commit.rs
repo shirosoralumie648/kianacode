@@ -80,11 +80,11 @@ fn exact_replay_of_the_published_head_is_a_no_op_and_the_only_cursor_exemption()
 }
 
 #[test]
-fn a_claim_that_moves_backwards_to_an_older_generation_is_not_an_exact_replay() {
+fn a_claim_that_moves_the_cursor_backwards_is_not_an_exact_replay() {
     let head = head();
-    // Generation matches, cursor does not: this is a rollback dressed up as a replay, and it must
-    // fall through to the monotonicity rules instead of passing as a no-op.
-    let rollback = claim(1, 1, 10, 9, digest('a'), digest('a'), None);
+    // The generation advance and predecessor binding are valid. Only the cursor goes backwards,
+    // so the refusal proves cursor monotonicity instead of an earlier generation failure.
+    let rollback = claim(1, 2, 10, 9, digest('a'), digest('a'), None);
     let report =
         AuditProjectionCommitReport::evaluate(&head, &rollback).expect("SC-32 rollback report");
     assert_eq!(report.status, AuditProjectionCommitStatus::Rejected);
@@ -472,7 +472,7 @@ fn a_tampered_rebuild_report_cannot_publish_itself_over_the_re_derived_decision(
     );
 
     let mut edited_state = report;
-    edited_state.state_digest = digest('a');
+    edited_state.state_digest = digest('b');
     edited_state.report_digest = edited_state.digest();
     assert_eq!(
         edited_state.validate_against(&head, &proof).unwrap_err(),

@@ -110,6 +110,15 @@ impl RoleAssignment {
         {
             return Err("role_assignment_header_invalid".to_owned());
         }
+        if self.assignment_id.as_uuid().is_nil()
+            || self.organization_id.as_uuid().is_nil()
+            || self
+                .project_ids
+                .iter()
+                .any(|project_id| project_id.as_uuid().is_nil())
+        {
+            return Err("role_assignment_identity_invalid".to_owned());
+        }
         self.principal.validate()?;
         required(&self.role_id, "role_assignment_role", 128)?;
         required(&self.department_id, "role_assignment_department", 128)?;
@@ -232,6 +241,13 @@ impl ProjectAssignment {
         {
             return Err("project_assignment_header_invalid".to_owned());
         }
+        if self.project_assignment_id.as_uuid().is_nil()
+            || self.role_assignment_id.as_uuid().is_nil()
+            || self.organization_id.as_uuid().is_nil()
+            || self.project_id.as_uuid().is_nil()
+        {
+            return Err("project_assignment_identity_invalid".to_owned());
+        }
         self.principal.validate()?;
         let Some(hex) = self.assignment_digest.strip_prefix("sha256:") else {
             return Err("project_assignment_digest_invalid".to_owned());
@@ -305,9 +321,17 @@ impl ResolvedAssignment {
             || self.assignment_revision == 0
             || self.authority_epoch == 0
             || self.resolved_at_unix_ms == 0
+            || self.valid_from_unix_ms == 0
             || self.expires_at_unix_ms <= self.valid_from_unix_ms
         {
             return Err("resolved_assignment_header_invalid".to_owned());
+        }
+        if self.assignment_id.as_uuid().is_nil()
+            || self.project_assignment_id.as_uuid().is_nil()
+            || self.organization_id.as_uuid().is_nil()
+            || self.project_id.as_uuid().is_nil()
+        {
+            return Err("resolved_assignment_identity_invalid".to_owned());
         }
         self.principal.validate()?;
         required(&self.role_id, "resolved_assignment_role", 128)?;

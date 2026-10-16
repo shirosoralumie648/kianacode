@@ -76,3 +76,18 @@ adapter supplies, so an adapter that reports an artifact as present when it is n
 check entirely; comparing real bytes is later work. The projector/index rebuild this card names is
 represented as a stage transition and a mode, not implemented. Signature verification belongs with
 DEP-34's release preflight, and activation itself to DEP-23.
+
+## Current-head migration-pending reachability correction (2026-10-08)
+
+`RestoreRoot::validate()` now admits a structurally valid root carrying a migration version that
+has not yet been applied. `RestoreScanReport::scan()` can therefore classify it as
+`MigrationPending` with remediation, keep activation ineligible, and leave the separate
+`migration_applied=true` without a version rejection intact. The earlier root validator rejected
+the same input first, making the documented scan branch unreachable.
+
+The focused RED failed at the fixture's structural-validity assertion (exit 101, max RSS 229,928
+KiB, 33% CPU, no swap). After the correction, the complete `dep22_restore_quarantine` target passed
+10/10 (exit 0, max RSS 4,091,388 KiB, 88% CPU, no swap), including the pending-migration and
+unversioned-applied cases. This is selected local quarantine behavior only; filesystem scanning,
+signature/hash verification, projector/index rebuild, durable activation and live/physical proof
+remain open.

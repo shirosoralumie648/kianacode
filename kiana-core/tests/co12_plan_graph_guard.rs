@@ -1,9 +1,13 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn company_plan_graph_is_versioned_and_deterministic() {
     let plan = include_str!("../../kiana-domain/src/plan.rs");
     let domain = include_str!("../../kiana-domain/src/company.rs");
     let core = include_str!("../src/company.rs");
 
+    let variants = source_guard::item_source(plan, "pub enum PlanEdgeKind");
     for marker in [
         "PLAN_PROPOSAL_SCHEMA",
         "PlanProposal",
@@ -24,10 +28,19 @@ fn company_plan_graph_is_versioned_and_deterministic() {
         "coverage_digest",
         "validate_dependency_dag",
     ] {
-        assert!(
-            plan.contains(marker) || domain.contains(marker) || core.contains(marker),
-            "CO-12 marker missing: {marker}"
-        );
+        if let Some(variant) = marker.strip_prefix("PlanEdgeKind::") {
+            assert!(
+                variants
+                    .lines()
+                    .any(|line| line.trim() == format!("{variant},")),
+                "typed variant missing: {marker}"
+            );
+        } else {
+            assert!(
+                plan.contains(marker) || domain.contains(marker) || core.contains(marker),
+                "CO-12 marker missing: {marker}"
+            );
+        }
     }
     assert!(plan.contains("self.digest != self.canonical_digest()"));
     assert!(plan.contains("self.nodes.is_empty()"));

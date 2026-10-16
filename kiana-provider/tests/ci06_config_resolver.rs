@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use kiana_domain::ProviderConfigSource;
 use kiana_domain::{
     json_digest, ModelAssignment, ModelCallPermit, ModelCallSpec, ModelError, ModelMessage,
     ModelPurpose, ModelRequest, ModelResponseFormat, PreparedModelCall, RequestId, RoleSpec, RunId,
@@ -21,13 +22,23 @@ impl EnvRestore {
     fn new() -> Self {
         let values = [
             "KIANA_PROVIDER",
+            "KIANA_MODEL",
+            "KIANA_BASE_URL",
             "KIANA_MODEL_PROFILES_JSON",
             "KIANA_STREAMING",
             "KIANA_OLLAMA_MODEL",
             "KIANA_OLLAMA_BASE_URL",
+            "ANTHROPIC_MODEL",
+            "ANTHROPIC_BASE_URL",
+            "OPENAI_MODEL",
+            "OPENAI_BASE_URL",
+            "GEMINI_MODEL",
+            "GEMINI_BASE_URL",
             "KIANA_MODEL_MAX_CONCURRENCY",
             "KIANA_MODEL_QUEUE_LIMIT",
             "CI06_SECRET_KEY",
+            "CI06_PROJECT_KEY",
+            "ANTHROPIC_API_KEY",
         ]
         .into_iter()
         .map(|key| (key, std::env::var_os(key)))
@@ -230,6 +241,13 @@ fn code(result: Result<kiana_provider::WorkspaceConfig, ModelError>) -> String {
     result.unwrap_err().code
 }
 
+fn gateway_error(config: ProviderConfig, label: &str) -> ModelError {
+    match ProviderGateway::from_env(config) {
+        Ok(_) => panic!("invalid provider configuration must fail closed: {label}"),
+        Err(error) => error,
+    }
+}
+
 #[test]
 fn config_resolver_rejects_untrusted_and_invalid_workspace_inputs() {
     let raw = valid_workspace();
@@ -277,6 +295,158 @@ fn config_resolver_rejects_untrusted_and_invalid_workspace_inputs() {
 }
 
 #[test]
+fn config_resolver_rejects_duplicate_workspace_profile_keys() {
+    let raw = r#"{"schema":"kiana.provider-config.v1","version":1,"profiles":{"planning":{"provider":"ollama","model":"first"},"planning":{"provider":"ollama","model":"second"}}}"#;
+    assert_eq!(
+        code(ConfigResolver::parse_workspace(raw, true)),
+        "config_workspace_invalid"
+    );
+}
+
+#[test]
+fn config_resolver_rejects_duplicate_environment_profile_keys() {
+    let _env = EnvRestore::new();
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        r#"{"planning":{"provider":"ollama","model":"first"},"planning":{"provider":"ollama","model":"second"}}"#,
+    );
+    let error = match ProviderGateway::from_env(ProviderConfig::default()) {
+        Ok(_) => panic!("duplicate environment profile keys must fail closed"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code, "model_profile_config_invalid");
+}
+
+#[test]
+fn config_resolver_rejects_oversized_environment_profile_secret_ref() {
+    let _env = EnvRestore::new();
+    let secret_ref = "A".repeat(129);
+    std::env::set_var(&secret_ref, "CI06_OVERSIZED_KEY_SENTINEL");
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        json!({
+            "planning": {
+                "provider": "openai",
+                "model": "fixture-model",
+                "api_key_env": secret_ref
+            }
+        })
+        .to_string(),
+    );
+    std::env::set_var("OPENAI_API_KEY", "fixture-secret");
+    let error = match ProviderGateway::from_env(ProviderConfig {
+        provider: Some("ollama".to_owned()),
+        base_url: Some("http://127.0.0.1:22114".to_owned()),
+        ..ProviderConfig::default()
+    }) {
+        Ok(_) => panic!("oversized environment secret reference must fail closed"),
+        Err(error) => error,
+    };
+    std::env::remove_var(&secret_ref);
+    assert_eq!(error.code, "model_credential_reference_invalid");
+}
+
+#[test]
+fn config_resolver_rejects_provider_model_control_characters_from_every_source() {
+    let _env = EnvRestore::new();
+
+    for (field, value, expected) in [
+        ("provider", "ollama\n", "config_provider_invalid"),
+        ("model", "workspace\rmodel", "config_model_invalid"),
+    ] {
+        let mut raw = serde_json::from_str::<serde_json::Value>(&valid_workspace()).unwrap();
+        raw[field] = json!(value);
+        assert_eq!(
+            code(ConfigResolver::parse_workspace(&raw.to_string(), true)),
+            expected,
+            "trusted workspace top-level {field}"
+        );
+    }
+
+    for (field, value) in [("provider", "ollama\n"), ("model", "profile\0model")] {
+        let mut raw = serde_json::from_str::<serde_json::Value>(&valid_workspace()).unwrap();
+        raw["profiles"]["planning"][field] = json!(value);
+        assert_eq!(
+            code(ConfigResolver::parse_workspace(&raw.to_string(), true)),
+            "config_profile_invalid",
+            "trusted workspace profile {field}"
+        );
+    }
+
+    for (field, value, expected) in [
+        ("provider", "ollama\r", "model_provider_invalid"),
+        ("model", "explicit\nmodel", "model_id_invalid"),
+    ] {
+        let config = ProviderConfig {
+            provider: (field == "provider").then(|| value.to_owned()),
+            model: (field == "model").then(|| value.to_owned()),
+            base_url: Some("http://127.0.0.1:22114".to_owned()),
+            api_key: None,
+        };
+        let error = gateway_error(config, field);
+        assert_eq!(error.code, expected, "explicit {field}");
+    }
+
+    std::env::set_var("KIANA_PROVIDER", "ol\nlama");
+    let error = gateway_error(
+        ProviderConfig {
+            base_url: Some("http://127.0.0.1:22114".to_owned()),
+            ..ProviderConfig::default()
+        },
+        "environment provider",
+    );
+    assert_eq!(error.code, "model_provider_invalid", "environment provider");
+    std::env::remove_var("KIANA_PROVIDER");
+
+    std::env::set_var("KIANA_OLLAMA_MODEL", "environment\rmodel");
+    let error = gateway_error(
+        ProviderConfig {
+            provider: Some("ollama".to_owned()),
+            base_url: Some("http://127.0.0.1:22114".to_owned()),
+            ..ProviderConfig::default()
+        },
+        "environment model",
+    );
+    assert_eq!(error.code, "model_id_invalid", "environment model");
+    std::env::remove_var("KIANA_OLLAMA_MODEL");
+
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        json!({"planning": {
+            "provider": "ol\nlama",
+            "model": "environment-model",
+            "api_key_env": "CI06_SECRET_KEY"
+        }})
+        .to_string(),
+    );
+    let error = gateway_error(
+        ProviderConfig {
+            base_url: Some("http://127.0.0.1:22114".to_owned()),
+            ..ProviderConfig::default()
+        },
+        "environment profile provider",
+    );
+    assert_eq!(
+        error.code, "model_provider_invalid",
+        "environment profile provider"
+    );
+
+    std::env::set_var(
+        "KIANA_MODEL_PROFILES_JSON",
+        json!({"planning": {"provider": "ollama", "model": "environment\nmodel"}}).to_string(),
+    );
+    let error = gateway_error(
+        ProviderConfig {
+            provider: Some("ollama".to_owned()),
+            base_url: Some("http://127.0.0.1:22114".to_owned()),
+            ..ProviderConfig::default()
+        },
+        "environment profile model",
+    );
+    assert_eq!(error.code, "model_id_invalid", "environment profile model");
+}
+
+#[test]
 fn config_resolver_produces_a_canonical_secret_free_snapshot() {
     let _env = EnvRestore::new();
     let trust = json_digest(&json!("trusted-project"));
@@ -302,6 +472,79 @@ fn config_resolver_produces_a_canonical_secret_free_snapshot() {
     assert_eq!(
         first.configuration_snapshot().unwrap(),
         second.configuration_snapshot().unwrap()
+    );
+}
+
+#[test]
+fn explicit_default_snapshot_source_is_explicit() {
+    let _env = EnvRestore::new();
+    let gateway = ProviderGateway::from_env(ProviderConfig {
+        provider: Some("ollama".to_owned()),
+        model: Some("fixture-model".to_owned()),
+        base_url: Some("http://127.0.0.1:22114".to_owned()),
+        api_key: None,
+    })
+    .expect("explicit provider configuration");
+
+    let default = gateway
+        .configuration_snapshot()
+        .expect("configuration snapshot")
+        .profiles
+        .into_iter()
+        .find(|profile| profile.profile == "default")
+        .expect("default profile");
+    assert_eq!(default.source, ProviderConfigSource::Explicit);
+}
+
+#[test]
+fn default_snapshot_source_distinguishes_builtin_and_route_environment() {
+    let _env = EnvRestore::new();
+    std::env::set_var("ANTHROPIC_API_KEY", "CI06_BUILTIN_SENTINEL");
+    let builtin = ProviderGateway::from_env(ProviderConfig::default())
+        .expect("builtin route with fixture credential");
+    assert_eq!(
+        builtin
+            .configuration_snapshot()
+            .unwrap()
+            .profiles
+            .into_iter()
+            .find(|profile| profile.profile == "default")
+            .unwrap()
+            .source,
+        ProviderConfigSource::BuiltinDefault
+    );
+
+    std::env::remove_var("ANTHROPIC_API_KEY");
+    std::env::set_var("ANTHROPIC_API_KEY", "CI06_ENV_SENTINEL");
+    std::env::set_var("ANTHROPIC_MODEL", "environment-model");
+    let model_environment =
+        ProviderGateway::from_env(ProviderConfig::default()).expect("environment model route");
+    assert_eq!(
+        model_environment
+            .configuration_snapshot()
+            .unwrap()
+            .profiles
+            .into_iter()
+            .find(|profile| profile.profile == "default")
+            .unwrap()
+            .source,
+        ProviderConfigSource::Environment
+    );
+
+    std::env::remove_var("ANTHROPIC_MODEL");
+    std::env::set_var("KIANA_PROVIDER", "ollama");
+    let environment =
+        ProviderGateway::from_env(ProviderConfig::default()).expect("environment route");
+    assert_eq!(
+        environment
+            .configuration_snapshot()
+            .unwrap()
+            .profiles
+            .into_iter()
+            .find(|profile| profile.profile == "default")
+            .unwrap()
+            .source,
+        ProviderConfigSource::Environment
     );
 }
 
@@ -370,7 +613,7 @@ fn workspace_resolution_applies_precedence_and_opaque_secret_refs() {
     )
     .unwrap();
     for (gateway, model) in [
-        (&environment, "environment-model"),
+        (&environment, "workspace-model"),
         (&explicit, "explicit-model"),
     ] {
         let snapshot = gateway.configuration_snapshot().unwrap();
@@ -384,8 +627,42 @@ fn workspace_resolution_applies_precedence_and_opaque_secret_refs() {
                 .model_id,
             model
         );
-        assert_eq!(prepare(gateway).0.wire_body["model"], "environment-plan");
+        assert_eq!(prepare(gateway).0.wire_body["model"], "workspace-plan");
     }
+}
+
+#[test]
+fn trusted_workspace_precedes_provider_environment_for_default_route() {
+    let _env = EnvRestore::new();
+    let revision = json_digest(&json!("server-trust"));
+    let mut raw = overlay("workspace-model");
+    raw["provider"] = json!("anthropic");
+    raw["base_url"] = json!("https://workspace.example.test");
+    raw["api_key_env"] = json!("CI06_PROJECT_KEY");
+    std::env::set_var("KIANA_PROVIDER", "ollama");
+    std::env::set_var("KIANA_OLLAMA_MODEL", "environment-model");
+    std::env::set_var(
+        "KIANA_OLLAMA_BASE_URL",
+        "https://environment.example.test/?credential=sentinel",
+    );
+    std::env::set_var("ANTHROPIC_API_KEY", "CI06_HOST_SENTINEL");
+    std::env::set_var("CI06_PROJECT_KEY", "CI06_PROJECT_SENTINEL");
+
+    let gateway = ProviderGateway::from_workspace(
+        ProviderConfig::default(),
+        &raw.to_string(),
+        trust(&revision),
+    )
+    .expect("trusted workspace route");
+    let metadata = gateway
+        .live_connection_metadata("default")
+        .expect("default metadata");
+    assert_eq!(metadata.route.provider_id, "anthropic");
+    assert_eq!(metadata.route.model_id, "workspace-model");
+    assert_eq!(
+        metadata.credential_revision,
+        json_digest(&json!("CI06_PROJECT_SENTINEL"))
+    );
 }
 
 #[test]

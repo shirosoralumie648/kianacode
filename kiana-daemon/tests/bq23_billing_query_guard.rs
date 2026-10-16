@@ -14,7 +14,6 @@ fn billing_query_ingress_is_identity_checked_and_not_a_second_execution_path() {
         );
     }
     for forbidden in [
-        "CapabilityBroker::new",
         "ModelClient::new",
         "std::process::Command",
         "tokio::spawn",

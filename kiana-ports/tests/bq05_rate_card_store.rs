@@ -1,7 +1,7 @@
 use kiana_domain::{BillingPriceDimension, RateCard, RateCardId, UsageVector};
-use kiana_ports::{InMemoryRateCardStore, RateCardStore};
+use kiana_ports::{InMemoryRateCardStore, RateCardStore, MAX_RATE_CARD_STORE_CARDS};
 
-fn card(id: RateCardId, from: u64, to: Option<u64>, model: &str) -> RateCard {
+fn card(id: RateCardId, from: u64, to: Option<u64>, model: &str, card_version: u64) -> RateCard {
     let mut card = RateCard::new(
         id,
         "provider:test",
@@ -11,7 +11,7 @@ fn card(id: RateCardId, from: u64, to: Option<u64>, model: &str) -> RateCard {
         Some(3),
         from,
         to,
-        1,
+        card_version,
         "fixture",
     )
     .unwrap();
@@ -28,7 +28,7 @@ fn card(id: RateCardId, from: u64, to: Option<u64>, model: &str) -> RateCard {
 async fn rate_card_store_resolves_pinned_model_provider_mapping() {
     let store = InMemoryRateCardStore::new();
     let id = RateCardId::new();
-    let rate_card = card(id, 1_000, Some(10_000), "model:test");
+    let rate_card = card(id, 1_000, Some(10_000), "model:test", 1);
     store.insert(rate_card.clone()).await.unwrap();
     let resolved = store
         .resolve_rate_card("provider:test", "model:test", 2_000)
@@ -51,15 +51,65 @@ async fn rate_card_store_resolves_pinned_model_provider_mapping() {
 }
 
 #[tokio::test]
+async fn rate_card_store_uses_provider_wildcard_after_exact_model_lookup() {
+    let store = InMemoryRateCardStore::new();
+    let wildcard = card(RateCardId::new(), 1_000, Some(10_000), "*", 1);
+    let wildcard_id = wildcard.rate_card_id;
+    store.insert(wildcard).await.unwrap();
+
+    let resolved = store
+        .resolve_rate_card("provider:test", "model:unlisted", 2_000)
+        .await
+        .expect("provider wildcard fallback");
+    assert_eq!(resolved.rate_card_id, wildcard_id);
+
+    let exact = card(RateCardId::new(), 1_000, Some(10_000), "model:unlisted", 2);
+    let exact_id = exact.rate_card_id;
+    store.insert(exact).await.unwrap();
+    let resolved = store
+        .resolve_rate_card("provider:test", "model:unlisted", 2_000)
+        .await
+        .expect("exact model override");
+    assert_eq!(resolved.rate_card_id, exact_id);
+    assert_eq!(resolved.card_version, 2);
+}
+
+#[tokio::test]
 async fn rate_card_store_rejects_overlap_unknown_model_and_expiry() {
     let store = InMemoryRateCardStore::new();
     store
-        .insert(card(RateCardId::new(), 1_000, Some(10_000), "model:test"))
+        .insert(card(
+            RateCardId::new(),
+            1_000,
+            Some(10_000),
+            "model:test",
+            1,
+        ))
         .await
         .unwrap();
     assert_eq!(
         store
-            .insert(card(RateCardId::new(), 9_000, Some(12_000), "model:test"))
+            .insert(card(
+                RateCardId::new(),
+                20_000,
+                Some(30_000),
+                "model:test",
+                1,
+            ))
+            .await
+            .unwrap_err()
+            .to_string(),
+        "port_conflict:rate_card_duplicate_version"
+    );
+    assert_eq!(
+        store
+            .insert(card(
+                RateCardId::new(),
+                9_000,
+                Some(12_000),
+                "model:test",
+                2,
+            ))
             .await
             .unwrap_err()
             .to_string(),
@@ -81,4 +131,66 @@ async fn rate_card_store_rejects_overlap_unknown_model_and_expiry() {
             .to_string(),
         "port_conflict:rate_card_expired"
     );
+}
+
+#[tokio::test]
+async fn rate_card_store_rejects_nil_identity_before_lookup() {
+    let store = InMemoryRateCardStore::new();
+    let nil = RateCardId::parse_str("00000000-0000-0000-0000-000000000000")
+        .expect("nil UUID parses as a typed id");
+    assert_eq!(
+        store.read_rate_card(nil).await.unwrap_err().to_string(),
+        "port_failed:rate_card_lookup_invalid"
+    );
+}
+
+#[tokio::test]
+async fn rate_card_store_rejects_zero_lookup_timestamp_before_lookup() {
+    let store = InMemoryRateCardStore::new();
+    store
+        .insert(card(
+            RateCardId::new(),
+            1_000,
+            Some(10_000),
+            "model:test",
+            1,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .resolve_rate_card("provider:test", "model:test", 0)
+            .await
+            .unwrap_err()
+            .to_string(),
+        "port_failed:rate_card_lookup_invalid"
+    );
+}
+
+#[tokio::test]
+async fn rate_card_store_rejects_capacity_overflow_without_growing() {
+    let store = InMemoryRateCardStore::new();
+    for index in 0..MAX_RATE_CARD_STORE_CARDS {
+        store
+            .insert(card(
+                RateCardId::new(),
+                1_000,
+                Some(10_000),
+                &format!("model:{index}"),
+                1,
+            ))
+            .await
+            .expect("card within bounded fixture capacity");
+    }
+
+    let overflow = card(RateCardId::new(), 1_000, Some(10_000), "model:overflow", 1);
+    assert_eq!(
+        store.insert(overflow).await.unwrap_err().to_string(),
+        "port_unavailable:rate_card_capacity_exceeded"
+    );
+    let retained = store
+        .resolve_rate_card("provider:test", "model:255", 2_000)
+        .await
+        .expect("capacity denial must retain existing cards");
+    assert_eq!(retained.model_selector, "model:255");
 }

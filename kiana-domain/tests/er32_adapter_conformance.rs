@@ -1,7 +1,7 @@
 use kiana_domain::*;
 
 fn hash(byte: char) -> String {
-    format!("sha256:{}", byte.to_string().repeat(64))
+    json_digest(&serde_json::json!({ "fixture_seed": byte }))
 }
 
 fn observation(

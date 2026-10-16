@@ -74,6 +74,13 @@ pub enum RunnerCommand {
         /// 新的提示词。
         prompt: String,
     },
+    /// Resume a previously restored run after ControlPlane has re-authorized and claimed it.
+    /// The checkpoint is installed through `RunnerPort::restore`; this command only re-enters
+    /// the canonical model loop and carries no caller-owned authority or prompt.
+    Resume {
+        /// 对应 run ID。
+        run_id: RunId,
+    },
     /// 请求取消 run。
     Cancel {
         /// 对应 run ID。
@@ -210,8 +217,14 @@ impl RunnerCommand {
             | Self::CapabilityResult { run_id, .. }
             | Self::Inject { run_id, .. }
             | Self::Continue { run_id, .. }
+            | Self::Resume { run_id }
             | Self::Cancel { run_id, .. } => *run_id,
         }
+    }
+
+    /// 构造恢复命令。恢复材料必须先由 ControlPlane 校验并通过 `restore` 安装。
+    pub fn resume(run_id: RunId) -> Self {
+        Self::Resume { run_id }
     }
 }
 
