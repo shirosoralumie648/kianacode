@@ -49,33 +49,41 @@ fn lexical_view(source: &str, mask_literals: bool) -> String {
             if input[i] == b'r' && input.get(raw_quote) == Some(&b'"') {
                 let hashes = raw_quote - i - 1;
                 i = raw_quote + 1;
-                loop {
-                    assert!(i < input.len(), "unterminated Rust raw string");
+                let mut closed = false;
+                while i < input.len() {
                     if input[i] == b'"'
                         && input.get(i + 1..i + 1 + hashes) == Some(&input[start + 1..raw_quote])
                     {
                         i += 1 + hashes;
+                        closed = true;
                         break;
                     }
                     i += 1;
                 }
-                if mask_literals {
+                if !closed {
+                    // Some guarded files are not Rust (for example HTML embedding JS regex
+                    // literals); a stray quote must degrade to an ordinary byte, not panic.
+                    i = start + 1;
+                } else if mask_literals {
                     blank(&mut output, start, i);
                 }
             } else if input[i] == b'"' {
                 i += 1;
-                loop {
-                    assert!(i < input.len(), "unterminated Rust string");
+                let mut closed = false;
+                while i < input.len() {
                     if input[i] == b'\\' {
                         i += 2;
                     } else if input[i] == b'"' {
                         i += 1;
+                        closed = true;
                         break;
                     } else {
                         i += 1;
                     }
                 }
-                if mask_literals {
+                if !closed {
+                    i = start + 1;
+                } else if mask_literals {
                     blank(&mut output, start, i);
                 }
             } else if input[i] == b'\'' {
@@ -163,6 +171,26 @@ pub fn compact_code(source: &str) -> String {
     production_source(source).split_whitespace().collect()
 }
 
+/// True when `needle` appears as a standalone identifier, so detector functions such as
+/// `scan_secret_value` or required fields such as `company_acceptance_required` cannot be
+/// mistaken for the forbidden identifiers `secret_value` or `company_accept`.
+pub fn contains_identifier(source: &str, needle: &str) -> bool {
+    let is_identifier = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_';
+    let bytes = source.as_bytes();
+    let mut offset = 0;
+    while let Some(found) = source[offset..].find(needle) {
+        let start = offset + found;
+        let end = start + needle.len();
+        let boundary_before = start == 0 || !is_identifier(bytes[start - 1]);
+        let boundary_after = end == bytes.len() || !is_identifier(bytes[end]);
+        if boundary_before && boundary_after {
+            return true;
+        }
+        offset = end;
+    }
+    false
+}
+
 #[test]
 fn source_view_keeps_code_literals_and_removes_nested_comments_and_test_only_items() {
     let sample = r###"
@@ -191,6 +219,15 @@ fn item_scope_does_not_include_an_adjacent_effect_or_literal_braces() {
     assert!(item.contains("read_only()"));
     assert!(!item.contains("commit_planned"));
     assert!(!item.contains("fn commit"));
+}
+
+#[test]
+fn identifier_check_sees_standalone_names_not_longer_identifiers() {
+    assert!(contains_identifier("pub secret_value: String", "secret_value"));
+    assert!(!contains_identifier("scan_secret_value(payload)", "secret_value"));
+    assert!(!contains_identifier("scan_secret_value_with_limit(payload)", "secret_value"));
+    assert!(contains_identifier("(company_accept)", "company_accept"));
+    assert!(!contains_identifier("company_acceptance_required", "company_accept"));
 }
 
 /// Check the report validator rather than an obsolete prose spelling of `behavior_verified`.

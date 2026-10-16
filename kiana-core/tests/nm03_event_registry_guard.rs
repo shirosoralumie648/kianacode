@@ -37,7 +37,7 @@ fn notification_registry_is_server_owned_and_checked_at_event_boundary() {
     }
     for marker in [
         "data.get(\"source\").is_some()",
-        "match payload.get(\"source\")",
+        "kiana_domain::validate_notification_event(kind, source, &data)",
         "notification_event_source",
         "validate_notification_event",
         "prepare_event_payload",

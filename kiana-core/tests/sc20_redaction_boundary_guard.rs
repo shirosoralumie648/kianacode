@@ -1,6 +1,6 @@
 #[path = "support/source_guard.rs"]
 mod source_guard;
-use source_guard::{compact_code, item_source, production_source};
+use source_guard::{compact_code, contains_identifier, item_source, production_source};
 
 #[test]
 fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
@@ -172,11 +172,18 @@ fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
         shell,
         mcp,
     ] {
-        for forbidden in ["raw_headers", "raw_response_body", "secret_value"] {
+        for forbidden in ["raw_headers", "raw_response_body"] {
             assert!(
                 !production_source(source).contains(forbidden),
                 "SC-20 raw secret egress marker: {forbidden}"
             );
         }
+        // A raw `secret_value` field crossing a boundary is forbidden; the identifier
+        // `scan_secret_value` names the detector that *blocks* raw values, so the check is
+        // anchored to identifier boundaries instead of substring matching.
+        assert!(
+            !contains_identifier(&production_source(source), "secret_value"),
+            "SC-20 raw secret egress marker: secret_value"
+        );
     }
 }

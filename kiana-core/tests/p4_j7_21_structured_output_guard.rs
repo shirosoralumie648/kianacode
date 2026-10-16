@@ -45,17 +45,20 @@ fn p4_j7_21_structured_output_is_explicit_and_fail_closed() {
     assert!(harness.contains("structured"));
     assert!(harness.contains("ModelPurpose::OutputRepair"));
     for marker in [
-        "unsupported_response_schema_fails_before_send",
-        "refusal_is_not_an_empty_structured_success",
-        "truncated_json_is_never_repaired_silently",
-        "structured_output_validates_against_requested_schema",
-        "structured_output_and_tools_have_distinct_contracts",
+        "invalid_response_schema_remains_terminal",
+        "refusal_length_empty_and_invalid_json_are_distinct",
+        "structured_output_errors_are_typed_format_repair_without_running_a_repair",
+        "structured_output_validates_and_is_exposed_separately",
+        "structured_output_and_tool_calls_are_distinct",
         "cargo fmt --all --check",
         "cargo test -p kiana-provider --lib",
         "cargo test -p kiana-core --test p4_j7_21_structured_output_guard",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker)
+                || workflow.contains(marker)
+                || request.contains(marker)
+                || response.contains(marker),
             "structured-output CI marker missing: {marker}"
         );
     }

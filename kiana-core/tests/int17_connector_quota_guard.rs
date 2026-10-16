@@ -44,7 +44,11 @@ fn connector_quota_stays_server_owned_and_eventstore_cas_bound() {
     assert!(core.contains("self.events"));
     assert!(core.contains("TransitionBatch"));
     assert!(core.contains("CONNECTOR_QUOTA_EVENT_RESERVED"));
-    assert!(!domain.contains("EventStore"));
+    let domain_code = domain
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<String>();
+    assert!(!domain_code.contains("EventStore"));
     assert!(!domain.contains("CapabilityBroker"));
 }
 

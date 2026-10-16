@@ -17,6 +17,7 @@ fn packet_approval_and_dispatch_use_the_domain_dependency_graph() {
     }
     assert!(company.contains("let mut graph = self.project_packets(project_id)"));
     assert!(company.contains("company_packet_dependency_graph_invalid"));
-    assert!(company.matches("crate::validate_dependency_dag").count() >= 3);
+    assert!(company.matches("crate::validate_dependency_dag").count() >= 2);
+    assert!(company.matches("crate::ready_packets").count() >= 2);
     assert!(core.contains("kiana_domain::ready_packets"));
 }

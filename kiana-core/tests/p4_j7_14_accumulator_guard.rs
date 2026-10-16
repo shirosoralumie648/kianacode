@@ -3,6 +3,7 @@ fn p4_j7_14_uses_one_accumulator_and_requires_complete_protocol_terminals() {
     let response = include_str!("../../kiana-provider/src/response.rs");
     let model = include_str!("../../kiana-domain/src/model.rs");
     let transport = include_str!("../../kiana-provider/src/transport.rs");
+    let outcome = include_str!("../../kiana-domain/tests/h05_model_outcome.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-14-accumulator-baseline.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-14-accumulator.yml");
     for marker in [
@@ -42,14 +43,17 @@ fn p4_j7_14_uses_one_accumulator_and_requires_complete_protocol_terminals() {
     for marker in [
         "closed_tool_block_cannot_receive_more_arguments",
         "terminal_with_open_blocks_is_rejected",
-        "length_finish_never_authorizes_partial_tool_arguments",
-        "stream_eof_is_not_completion",
+        "length_stop_is_rejected_by_legacy_reply_conversion",
+        "ollama_eof_without_done_is_incomplete",
         "terminal_finishes_without_socket_eof",
         "cargo test -p kiana-provider --lib",
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker)
+                || workflow.contains(marker)
+                || response.contains(marker)
+                || outcome.contains(marker),
             "P4-J7-14 evidence marker missing: {marker}"
         );
     }

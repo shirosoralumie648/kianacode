@@ -1,5 +1,8 @@
 //! CP-28 source guard for explicit migration, compatibility adapters and legacy bypass closure.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -54,7 +57,7 @@ fn cp_legacy_authority_records_require_reauthorization() {
         &[
             "IdentityMigration",
             "migration_digest",
-            "not an authentication assertion",
+            "不是认证断言",
             "principal_id",
         ],
         "identity migration",
@@ -142,7 +145,7 @@ fn cp_old_writer_cannot_mutate_new_journal() {
             "plan_legacy",
             "apply_legacy",
             "JOURNAL_WRITER_VERSION",
-            "writer_version",
+            "writer_format_version",
             "JOURNAL_WRITER_VERSION",
         ],
         "journal state",
@@ -259,6 +262,7 @@ fn cp_every_product_constructor_enforces_the_same_boundary() {
     );
 
     for source in [harness, cli, client] {
+        let source = source_guard::production_source(source);
         assert!(!source.contains("run_assistant_turn"));
         assert!(!source.contains("CapabilityBroker::new"));
     }

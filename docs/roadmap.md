@@ -1244,6 +1244,8 @@ CI 运行期间可领取其他独立 Step；完成后按 `CURRENT_STATUS.md` 的
 
 | 日期 | 做了什么 | 提交 |
 |---|---|---|
+| 2026-10-16 | `CI 对齐` carry-forward guard 修复：~90 个 source-guard 夹具对齐当前树（SW-00/OA-00/CM-00 摘要重钉 2026-10-16、DEP-27..41 与各模块 marker/扫描对齐、注释剥离与标识符边界检查、kiana-client 依赖 allowlist 按 69394fb1 增补 kiana-domain、reference/ 缺失时跳过）；`DEP-26` dry-run 顺序修复；CI-only 推送验证，未等待回执 | 待本提交 |
+| 2026-10-16 | `CI` 资源约定：`ci.yml` 的 cm02-memory-review 与 rust-tests job、`cm02-memory-lifecycle.yml` 统一提供 `RUST_MIN_STACK=33554432`，消除 5 个 8 MiB 默认栈溢出假失败（记忆生命周期基线已记录为资源限制、非递归缺陷）；不改测试语义 | 待本提交 |
 | 2026-10-13 | `CAP-15` source guard scope correction：no-write guard 将 `preview_codex_patch` 的无锁/无 commit 检查与 `patch_preview` 的 `read_only` projection 检查分开；RED 后 Core guard 4/4 GREEN，生产 preview/commit 逻辑未改，row 245 仍 `🔄` / `implemented/source` | 待本提交 |
 | 2026-10-13 | `CP-13` legacy authority read-set version fence：Broker 不再把缺失 authority `stream_version` 回退到 request-local `sequence`；兼容 reader RED 曾进入 counted handler，修复后 exact 1/1、CAP-05 15/15、CP-13 guard 3/3，全部 swap 0；row 129/143 仍 `🔄` / `partial/source`，migration/upcaster、跨进程事务与 external/live/physical proof 仍开放 | 待本提交 |
 | 2026-10-13 | `PD-01` filesystem-root denial：resolver 在 canonicalize 后拒绝 `KIANA_HOME=/`，避免 lease 在系统根目录创建 11 个 namespace；旧行为 RED 101 后 exact GREEN 1/1、daemon target 13/13、Core guard 1/1，全部 swap 0；row 108 仍 `🔄` / `partial/source`，入口统一 root、重启 identity、fsync、跨进程 recovery 仍开放 | 待本提交 |

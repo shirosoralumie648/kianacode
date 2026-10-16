@@ -11,7 +11,7 @@ fn memory_commit_has_no_unjournaled_visibility() {
         "MemoryMutation",
         "EventStorePort",
         "commit_transition",
-        "projection_rebuild_matches_committed_memory",
+        "matches_records",
     ] {
         assert!(
             core.contains(marker) || daemon.contains(marker) || eventlog.contains(marker),

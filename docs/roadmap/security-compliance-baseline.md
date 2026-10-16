@@ -1,7 +1,7 @@
 # SC-00 安全与合规现状基线
 
 > 快照日期：2026-09-16。本文是 SC-00 的 source-only inventory 和迁移护栏，不是合规认证或
-> 安全完成声明。运行时夹具只在 GitHub Actions 执行；本轮本地不运行测试，也不等待远端 CI。
+> 安全完成声明。运行时夹具只在 GitHub Actions 执行；本轮不在本地运行测试，也不等待远端 CI。
 
 ## 1. 范围、事实权威与证明上限
 
@@ -12,7 +12,7 @@
 | feature_status | `implemented`（现状清单、资产/入口/控制矩阵和迁移护栏）；安全能力总体仍为 `partial`/`target`/`not_supported` |
 | proof_level | `source`；历史局部行为证据仍绑定各自 CURRENT_STATUS 快照，不能迁移成当前全局证明 |
 | security authority | `company-os-security-constitution.md` 定义 SEC-01..12；实际状态只认源码、精确命令回执和 `CURRENT_STATUS.md` |
-| execution spine | `entrypoints → client/protocol → DaemonHost → ControlPlane → policy/gates/approval → Broker/Runner → handlers → EventLog → Receipt/projections` |
+| execution spine | `kiana-entrypoints → kiana-client / kiana-protocol → kiana-daemon::DaemonHost → kiana-core::ControlPlane → policy/gates/approval → kiana-capability-broker / kiana-runner → handlers → EventLog → Receipt/projections` |
 | this step does | 固定资产、入口、信任边界、SEC 状态、已有证据、缺口、SC-01..43 交接和 CI source guard |
 | this step does not | 不新增认证/SecretStore/安全服务，不把类型/单测/CI 文件存在写成 enforcement，不改变唯一执行脊柱 |
 
@@ -34,7 +34,7 @@
 | 资产/边界 | 当前 owner | 当前状态与证明 | 未完成或不可推断 |
 |---|---|---|---|
 | Principal、Session、Role、ProjectTrust、Assignment | DaemonHost + ControlPlane + domain | CP-01 已有 server-owned local principal、canonical project identity、typed assignment/CAS；`source` | OS credential/OAuth/tenant、撤销 epoch、跨进程 authenticated principal 未完成 |
-| Run/Turn/Invocation/Execution | ControlPlane/EventLog/Broker | CP-02 已有 typed Turn/Invocation identity、new-turn/legacy/resume 标记；`source` | 历史 upcast、完整 InvocationLedger/RunSnapshot、跨进程 Resume、重试/对账仍开放 |
+| Run/Turn/Invocation/Execution | ControlPlane/EventLog/Broker | CP-02 已有 typed Turn/Invocation identity、server-derived capability `call_id` 关联、new-turn/legacy/resume 标记；`source` | 历史 upcast、完整 InvocationLedger/RunSnapshot、跨进程 Resume、重试/对账仍开放 |
 | Policy、Gate、Approval、Grant、Budget、Lease | core/policy/gates/approval/cell registry | 现有拒绝、审批、资源和预算边界为 `partial`；局部历史证据不等价当前全局行为 | 完整交集、authority epoch、持久 grant/lease、跨入口零 effect 矩阵仍需 SC/CP/CAP |
 | Capability、Permit、Handler、Sandbox、PathLock | ControlPlane → Broker → Daemon handlers | permit/CAS、sandbox/path/redaction 有源码及局部行为证据；`partial` | 全量 TOCTOU、bind-mount、网络 egress、进程树停止和 physical effect 未证明 |
 | Secret / credential / provider route | Provider/Daemon compatibility boundaries | Provider 局部 redaction 和 route catalog；`partial`/`source` | SecretRef/SecretStore/lease/rotation、raw credential 隔离和真实 provider 账号未完成 |

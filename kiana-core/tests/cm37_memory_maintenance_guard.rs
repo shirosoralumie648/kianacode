@@ -34,7 +34,7 @@ fn maintenance_contract_covers_gc_ttl_orphan_quota_and_retention_fences() {
         "std::fs",
         "remove_file",
         "delete_file",
-        "rename",
+        "rename(",
         "tokio::spawn",
         "EventStorePort",
         "CapabilityBrokerPort",

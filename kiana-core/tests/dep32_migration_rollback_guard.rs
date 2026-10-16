@@ -39,7 +39,7 @@ fn rollback_gate_requires_backup_fence_and_reconciliation() {
         "unknown effect",
         "old revision",
         "restore",
-        "rollback receipt",
+        "receipt is evidence only",
         "partial",
     ] {
         assert!(

@@ -39,7 +39,7 @@ fn sc15_cancel_fence_and_unknown_reconciliation_boundary_is_present() {
         assert!(
             if marker == "DriverTerminal::Unknown" {
                 item_source(driver, "pub enum DriverTerminal").contains("Unknown")
-                    && compact_code(&item_source(driver, "pub fn transition("))
+                    && compact_code(&item_source(driver, "pub fn transition(frame:"))
                         .contains("DriverInput::Terminal{outcome}")
                     && compact_code(driver).contains("next.terminal=Some(outcome)")
             } else {

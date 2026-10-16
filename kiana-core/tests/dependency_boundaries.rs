@@ -6,7 +6,7 @@ use std::process::Command;
 const STRICT_ALLOWED: &[(&str, &[&str])] = &[
     ("kiana-domain", &[]),
     ("kiana-protocol", &["kiana-domain"]),
-    ("kiana-client", &["kiana-protocol"]),
+    ("kiana-client", &["kiana-domain", "kiana-protocol"]),
     (
         "kiana-core",
         &[

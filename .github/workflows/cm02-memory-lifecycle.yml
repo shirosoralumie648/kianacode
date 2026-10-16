@@ -10,6 +10,11 @@ jobs:
   memory-lifecycle:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Same resource convention as ci.yml: the daemon memory integration harness
+      # exceeds the 8 MiB default test-thread stack (bounded async chain, no recursion
+      # identified); project receipts use RUST_MIN_STACK=32 MiB.
+      RUST_MIN_STACK: "33554432"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

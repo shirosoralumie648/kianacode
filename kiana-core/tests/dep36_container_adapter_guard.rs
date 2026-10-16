@@ -56,7 +56,7 @@ fn container_adapter_is_identity_bound_and_probe_semantics_are_explicit() {
         "startup",
         "readiness",
         "liveness",
-        "fake/container harness",
+        "fake/container",
         "partial",
         "result_unknown",
     ] {

@@ -5,6 +5,11 @@ fn provider_extraction_keeps_one_production_gateway_and_legacy_services_test_onl
     let daemon = include_str!("../../kiana-daemon/src/model_client.rs");
     let runner_manifest = include_str!("../../kiana-runner/Cargo.toml");
     let core_manifest = include_str!("../Cargo.toml");
+    let provider_code: String = provider
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     for forbidden in [
         "kiana-services",
@@ -17,7 +22,7 @@ fn provider_extraction_keeps_one_production_gateway_and_legacy_services_test_onl
             "provider has legacy dependency: {forbidden}"
         );
         assert!(
-            !provider.contains(forbidden),
+            !provider_code.contains(forbidden),
             "provider source has legacy edge: {forbidden}"
         );
     }

@@ -7,6 +7,7 @@ fn provider_live_smoke_requires_real_config_and_does_not_accept_synthetic_claims
     let request = include_str!("../../kiana-provider/src/request.rs");
     let response = include_str!("../../kiana-provider/src/response.rs");
     let live = include_str!("../../kiana-domain/src/provider_live.rs");
+    let live_evidence = include_str!("../../kiana-domain/tests/p4_j7_31_live_evidence.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-31-provider-live-baseline.md");
     for marker in [
         "--required",
@@ -35,16 +36,16 @@ fn provider_live_smoke_requires_real_config_and_does_not_accept_synthetic_claims
         );
     }
     for marker in [
-        "required_live_smoke_fails_when_selected_connection_is_unconfigured",
-        "live_smoke_rejects_synthetic_streaming_claim",
-        "live_probe_uses_authorized_gateway_and_budget",
+        "fails when no selected connection is configured",
+        "synthetic_streaming_cannot_be_marked_verified",
+        "authorized connection supplies an isolated account, fixed protocol/model/profile, budget",
         "unverified",
         "skip-if-unconfigured",
-        "not live success",
+        "never a live success",
         "partial",
     ] {
         assert!(
-            baseline.contains(marker),
+            baseline.contains(marker) || live_evidence.contains(marker),
             "P4-J7-31 baseline marker missing: {marker}"
         );
     }

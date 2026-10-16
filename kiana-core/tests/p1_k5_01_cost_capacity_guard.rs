@@ -43,9 +43,9 @@ fn runtime_and_project_budgets_are_not_interchangeable() {
             "cost/capacity marker missing: {marker}"
         );
     }
-    assert!(company.contains("project: policy.project"));
-    assert!(company.contains("runtime: policy.runtime"));
-    assert!(company.contains("quota: policy.quota"));
+    assert!(company.contains("pub project: crate::ProjectBudget"));
+    assert!(company.contains("pub runtime: crate::RuntimeBudget"));
+    assert!(company.contains("pub quota: crate::Quota"));
     assert!(model_budget.contains("let limit: RuntimeBudget"));
     assert!(receipt.contains("CostLedger::from_records"));
     assert!(!runner_budget.contains("cost_micros"));

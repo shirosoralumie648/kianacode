@@ -13,6 +13,9 @@ fn drift_report_is_bucketed_by_version() {
     let prompts = include_str!("../../kiana-domain/src/prompts.rs");
     let provider = include_str!("../../kiana-services/src/api/provider.rs");
     let baseline = include_str!("../../docs/roadmap/p4-l3-01-versioning-baseline.md");
+    // Domain 内存 fixture 承载本切片的验收名（roadmap 卡片验收项）。核心守卫是静态文本扫描，
+    // 因此也读入该文件，让验收测试名进入检查范围。
+    let domain_fixture = include_str!("../../kiana-domain/tests/p4_l3_01_versioning.rs");
 
     // marker 列表让主要归因维度和固定只读语义显式进入源码审查范围。
     for marker in [
@@ -45,16 +48,19 @@ fn drift_report_is_bucketed_by_version() {
                 || domain.contains(marker)
                 || prompts.contains(marker)
                 || provider.contains(marker)
-                || baseline.contains(marker),
+                || baseline.contains(marker)
+                || domain_fixture.contains(marker),
             "versioning marker missing: {marker}"
         );
     }
 
-    // 这些断言要求 Core 使用 Domain 统计合同，而不是自行复制一套版本桶算法。
+    // 这些断言要求 Core 使用 Domain 统计合同，而不是自行复制一套版本桶算法。rustfmt 会把
+    // `report.record(...)`/`report.validate()` 链换行，因此按去掉空白的文本匹配调用形状。
     assert!(core.contains("kiana_domain::DriftReport::default()"));
     assert!(core.contains("kiana_domain::RouteDecision::from_model_turn"));
-    assert!(core.contains("report.record"));
-    assert!(core.contains("report.validate"));
+    let core_compact: String = core.split_whitespace().collect();
+    assert!(core_compact.contains("report.record"));
+    assert!(core_compact.contains("report.validate"));
     assert!(!core.contains("ModelClient"));
     assert!(!core.contains("CapabilityBroker"));
     assert!(!core.contains("\"automatic_model_switch\":true"));

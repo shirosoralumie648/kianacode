@@ -16,12 +16,12 @@ fn persistence_baseline_keeps_facts_projections_and_caches_separate() {
     assert!(jsonl.contains("JOURNAL_HEADER_SCHEMA"));
     assert!(jsonl.contains("MAX_JOURNAL_LOG_BYTES"));
     assert!(jsonl.contains("sync_all"));
-    assert!(memory.contains("durable_commits: false"));
+    assert!(memory.contains("capabilities(false)"));
     assert!(artifact.contains("artifact"));
     assert!(query.contains("generation") || query.contains("content_hash"));
     for required in [
         "single fact source",
-        "Projection/Cache",
+        "Projection、Receipt、Memory、Index、Cache、Notification 和 UI 都只能派生",
         "StorageRoot",
         "MemoryEventLog",
         "JsonlEventLog",
@@ -39,7 +39,7 @@ fn persistence_baseline_keeps_facts_projections_and_caches_separate() {
 fn persistence_baseline_rejects_inferred_durability_or_second_store_authority() {
     let baseline = include_str!("../../docs/roadmap/persistence-data-layer-baseline.md");
     assert!(baseline.contains("不能把 Memory 标成 durable"));
-    assert!(baseline.contains("不允许双写两套事实"));
+    assert!(baseline.contains("不得与 JSONL 双写为第二账本"));
     assert!(baseline.contains("proof ceiling"));
     assert!(baseline.contains("PD-01"));
     assert!(baseline.contains("PD-05"));

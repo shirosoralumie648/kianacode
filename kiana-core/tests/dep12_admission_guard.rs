@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn dep12_admission_reducer_is_pure_and_explicit() {
     let domain = include_str!("../../kiana-domain/src/deployment_admission.rs");
@@ -20,6 +23,9 @@ fn dep12_admission_reducer_is_pure_and_explicit() {
             "DEP-12 marker missing: {marker}"
         );
     }
+    let domain_code = source_guard::production_source(domain);
+    let core_code = source_guard::production_source(core);
+    let daemon_code = source_guard::production_source(daemon);
     for forbidden in [
         "std::fs",
         "std::env",
@@ -33,7 +39,9 @@ fn dep12_admission_reducer_is_pure_and_explicit() {
         "extend_window",
     ] {
         assert!(
-            !domain.contains(forbidden) && !core.contains(forbidden) && !daemon.contains(forbidden),
+            !domain_code.contains(forbidden)
+                && !core_code.contains(forbidden)
+                && !daemon_code.contains(forbidden),
             "DEP-12 admission path crossed forbidden boundary: {forbidden}"
         );
     }

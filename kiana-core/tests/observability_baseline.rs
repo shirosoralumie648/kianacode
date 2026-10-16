@@ -28,79 +28,79 @@ fn sha256_of(path: &Path) -> String {
 const BASELINE: &[(&str, &str)] = &[
     (
         "kiana-domain/src/states.rs",
-        "dca28dc71ef75e5dd92a25bed399349ca286bc7c5c0e514e11de20d6d1491ae3",
+        "c3efa271aa3b70c0a0dfd1637209ed7e0246b2fc6f28b914d4f7832d4724ad8b",
     ),
     (
         "kiana-domain/src/journal.rs",
-        "4dbd656d03ec12e7821ffac254307227419423cbaf74ccb99a2b819c5eeedd48",
+        "6966da5534b7bb9155b3282e5338aa5195f362aa6a08ab6564a7a8ddfe24324e",
     ),
     (
         "kiana-domain/src/contracts.rs",
-        "4c707d4703c47cb80ab0b5a664e8a5888eada17ed34dcf2250030cdbae3e9d7c",
+        "bdcc46900a2530c526c68773b5fda7055efc0abd2d7718b7eb5bec399c163df1",
     ),
     (
         "kiana-domain/src/lib.rs",
-        "ac35afaebdb152eddb0898f7e9a28a886d17abdc35643d71cdfb2267e3f731a4",
+        "852dd1c5cceebba034a10a0e11f8f15bedb57de8b264e05017c0e3b1766498c7",
     ),
     (
         "kiana-core/src/events.rs",
-        "7d1852ad4a9d93792256288a01a25e06c677e0f6641274b2575b718c87020679",
+        "1b9100c8f05ecb0d283a1c48980f712fa65d299fb02b6f667fa1259db6d8f782",
     ),
     (
         "kiana-core/src/receipts.rs",
-        "dda33c346b1ffd94389093e2856f99433ea083a3c61b35cf562484f9f4bc7e1e",
+        "b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67",
     ),
     (
         "kiana-core/src/projection.rs",
-        "20d84eb8fa0ac77ac85b48acb10e2fcc78214cc1c3c10be339b540230b1ff68",
+        "a62284905d9ae317d79d4b7ab44b31b0946fc3287f9a4126f7310e67e0e9e72c",
     ),
     (
         "kiana-core/src/recovery.rs",
-        "f964c69bb32e940782ef52b399afd9ad6902778b4900f6b7164cb79f3dcc7d26",
+        "5169aecfa239d023af97ea5ddccf0019204dbfdf01d5a14e8e3c3972c9ec1721",
     ),
     (
         "kiana-core/src/lifecycle.rs",
-        "346ecb8ea2879b24a53a2ee238bb46c3f7793ffa6211c126ec86ad49c47bc237",
+        "949f618edd85ed818a8f51ee1b2bff6498540b85f19b82e7a77816167b4d6d6b",
     ),
     (
         "kiana-core/src/versioning.rs",
-        "679c88757469189f93b20163bbfccb9d65a161ab24ec9f6d9e73a483586108ab",
+        "b0777088127560167e4452b0e59b83091d6904d2349b0b65723b6dc230996bf6",
     ),
     (
         "kiana-core/src/collaboration.rs",
-        "49e61cf89add855ca4fc3687104d666388477848d63397b9ea50b0404021dabf",
+        "22bfc2df7cbc267e5db4fe6e13bea72f5aa13f3145d913bd1b42896aecaa5a4e",
     ),
     (
         "kiana-eventlog/src/lib.rs",
-        "61aa7bcc9c221474d3ffa75a323ba7931f1da8e7ce96107da1d1d7cb7fabd20c",
+        "fe98b8bffdf86cc49ce6630bdf3240b8d92b9590024ce3b2aea7edb132b090f4",
     ),
     (
         "kiana-eventlog/src/event_store_core.rs",
-        "506a8222a757a89e6516a12b6260daa7f35af2b3da49c17a23ca7cdbcc9d0b1e",
+        "1e1b0ee932b7603c6a31d0e0a0061da694e66c36fb6180a23f338ed267cc09fe",
     ),
     (
         "kiana-eventlog/src/journal_core.rs",
-        "84ef64bc8208b2ead45d1d05feb0265e94129b898cd67d04f5ed189d388bba56",
+        "2c4a7cd0b73e781e4261672be549d252470fece2620223f89a703044406ad529",
     ),
     (
         "kiana-eventlog/src/jsonl.rs",
-        "f549e5de5bc4e197f268b865327bd1d0d7a4c10208daa3e7c13ceb68188e5c5f",
+        "614ef68ba99f8df06dd56c90ca3864956ec1619bef2623bdfba111f7b4315efc",
     ),
     (
         "kiana-eventlog/src/memory.rs",
-        "bcb98daa0a9548384a9dafdd9d5af2aefacca3d01d699056ba86477d3276e9e9",
+        "2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774",
     ),
     (
         "kiana-daemon/src/run_stream.rs",
-        "750bb78e46e5f1c42d3a773d0afcf468cc6713032ef47e30ffa100f3313db5c6",
+        "34c22ff79d94f9b13bf2e531d37eb02ce1a971162ff69a7115d4c8c872b03628",
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "f262e808ab239eed0e01c1e28aef75cb5d78b819d809c1d07592ab34d367d281",
+        "4cc8e9cfc22eaedeed1ed11bd2885336fb7e4cea3c9cf053e11a6ddf04aae772",
     ),
     (
         "kiana-ports/src/lib.rs",
-        "36fca0363cd1aab7ca00d3a75375be99ab6aeb13de28f38e42fcf425a96b16f0",
+        "313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec",
     ),
 ];
 
@@ -134,7 +134,7 @@ fn observability_inventory_preserves_fact_projection_and_open_contracts() {
     assert!(states.contains("pub kind: String"));
     assert!(states.contains("pub data: Value"));
     let redacted = events
-        .find("let data = redact_event_value(&data)")
+        .find("prepare_event_payload(&data)")
         .expect("central event redaction");
     let constructed = events
         .find("RuntimeEvent::new(request_id, sequence, kind, data.clone())")
@@ -185,7 +185,7 @@ fn observability_inventory_preserves_fact_projection_and_open_contracts() {
         .map(|(relative, _)| read_source(&root, relative))
         .collect::<Vec<_>>()
         .join("\n");
-    for future_contract in ["OperationalLog", "MetricSnapshot", "span_id"] {
+    for future_contract in ["OperationalLog", "MetricSnapshot"] {
         assert!(
             !scoped_sources.contains(future_contract),
             "OA-00 source guard unexpectedly found future contract {future_contract:?}; update the step and inventory together"

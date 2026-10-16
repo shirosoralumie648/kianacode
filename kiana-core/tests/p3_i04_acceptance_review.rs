@@ -55,7 +55,7 @@ fn reviewer_cannot_rewrite_builder_facts() {
     assert!(domain.contains("review.criteria_snapshot == acceptance.criteria_snapshot"));
     assert!(domain.contains("review.author_run_id == acceptance.author_run_id"));
     assert!(domain.contains("criterion_results.keys().cloned().collect::<Vec<_>>()"));
-    assert!(company.contains("Self::evidence(p, evidence_refs)"));
+    assert!(domain.contains("Self::evidence(p, evidence_refs)"));
     assert!(company_business.contains("Review this frozen business target independently"));
     assert!(governance.contains("acceptance.author_session_id == review.reviewer_session_id"));
     assert!(collaboration.contains("review_author_session_denied"));

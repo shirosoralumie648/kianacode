@@ -8,7 +8,7 @@ fn protected_ingress_uses_server_identity_and_authority_epoch() {
         "AuthenticatedPrincipal::local",
         "project_authority",
         "principal_role_not_authorized",
-        "context.actor_id = Some(self.principal.actor_id.clone())",
+        "context.actor_id = Some(assignment.principal.principal_id.clone())",
         "synchronize_authority",
         "bind_session_assignment",
     ] {
@@ -27,14 +27,16 @@ fn protected_ingress_uses_server_identity_and_authority_epoch() {
             "authority epoch marker missing: {marker}"
         );
     }
+    let sessions_flat: String = sessions.split_whitespace().collect();
     for marker in [
         "SessionAssignment",
         "append_expected",
         "session_assignment_mismatch",
         "let authority_epoch = self.authority_epoch",
     ] {
+        let marker_flat: String = marker.split_whitespace().collect();
         assert!(
-            sessions.contains(marker),
+            sessions.contains(marker) || sessions_flat.contains(&marker_flat),
             "session assignment marker missing: {marker}"
         );
     }

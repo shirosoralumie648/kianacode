@@ -1,7 +1,13 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::production_source;
+
 #[test]
 fn question_contract_is_separate_from_approval_contract() {
     let domain = include_str!("../../kiana-domain/src/clarification.rs");
-    let core = include_str!("../src/clarification.rs");
+    // The authority words may appear in the header only to deny them; the check runs on the
+    // comment-stripped production view so a denial in prose is not read as consumption in code.
+    let core = production_source(include_str!("../src/clarification.rs"));
     let approval = include_str!("../src/approval_binding.rs");
     for marker in [
         "InteractionId",
@@ -114,7 +120,7 @@ fn restart_material_keeps_the_original_driver_and_inbox_route() {
             "checkpoint lost clarification material: {marker}"
         );
     }
-    for marker in ["resume_run", "run.resume_prepared", "explicit"] {
+    for marker in ["resume_run", "run.resume_prepared", "RequestBody::Resume"] {
         assert!(
             recovery.contains(marker),
             "recovery boundary missing: {marker}"

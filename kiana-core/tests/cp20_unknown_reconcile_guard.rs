@@ -129,7 +129,7 @@ fn cp20_unknown_reconciliation_is_evidence_gated_and_never_an_automatic_retry() 
             "CP-20 capability marker missing: {marker}"
         );
     }
-    assert!(compact_code(reliability).contains("\"automatic_retry_allowed\":false"));
+    assert!(compact_code(reliability).contains(r#"\"automatic_retry_allowed\":false"#));
     assert!(reliability.contains("failure_reconciliation_evidence_required"));
     assert!(connector_fixture.contains("connector_cannot_bypass_the_control_plane"));
     for source in [platform, dispatch, capabilities, connector_daemon] {

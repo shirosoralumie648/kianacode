@@ -68,7 +68,7 @@ fn new_process_rebuilds_the_company_chain() {
     }
 
     assert!(core.contains("CompanyReplayReducer::new"));
-    assert!(core.contains("reducer.apply(event)"));
+    assert!(core.contains("reducer") && core.contains(".apply(event)"));
     assert!(core.contains("events.read_stream(COMPANY_AGGREGATE"));
     assert!(core.contains("company_view(&context"));
     assert!(replay.contains("state.transition"));

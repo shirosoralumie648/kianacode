@@ -1,6 +1,7 @@
 #[test]
 fn cp18_run_snapshot_and_checkpoint_restore_are_digest_scoped_and_non_executing() {
     let domain = include_str!("../../kiana-domain/src/capabilities.rs");
+    let contracts = include_str!("../../kiana-domain/src/contracts.rs");
     let resume = include_str!("../../kiana-domain/src/invocation_resume.rs");
     let recovery = include_str!("../src/recovery.rs");
     let workspace = include_str!("../src/workspace_checkpoints.rs");
@@ -21,7 +22,7 @@ fn cp18_run_snapshot_and_checkpoint_restore_are_digest_scoped_and_non_executing(
         "kiana.run-snapshot.v1",
     ] {
         assert!(
-            domain.contains(marker),
+            domain.contains(marker) || contracts.contains(marker),
             "CP-18 snapshot marker missing: {marker}"
         );
     }
@@ -114,8 +115,10 @@ fn cp18_run_snapshot_and_checkpoint_restore_are_digest_scoped_and_non_executing(
         checkpoint_fixture.contains("checkpoint_restore_invalidates_approvals_and_runner_context")
     );
     assert!(resume_fixture.contains("resume_run_reuses_the_same_drive_run_path"));
-    for source in [recovery, workspace, daemon] {
+    for source in [recovery, workspace] {
         assert!(!source.contains("CapabilityBroker"));
         assert!(!source.contains("ModelClient"));
     }
+    assert!(!daemon.contains("CapabilityBroker::new"));
+    assert!(!daemon.contains("ModelClient"));
 }

@@ -18,6 +18,6 @@ fn extension_dependency_and_binding_contract_is_fail_closed_and_non_authorizing(
             "missing EXT-21 marker: {marker}"
         );
     }
-    assert!(extensions.contains("A declaration never grants capability"));
-    assert!(extensions.contains("ControlPlane and Broker"));
+    assert!(extensions.contains("也不会安装依赖、启动扩展或授予 capability"));
+    assert!(extensions.contains("实际副作用仍归 ControlPlane/Broker"));
 }

@@ -3,29 +3,32 @@
 > 快照日期：2026-09-14。本文是 `CM-00` 的 source-only 基线，不是运行时验收，也不改变产品行为。
 > 验收测试 `context_memory_baseline_is_reproducible`、`reference_inventory_covers_all_directories` 已落地 `kiana-query/tests/context_memory_baseline.rs`，运行时回执由 GitHub CI 负责。
 > 调研基准：`docs/roadmap/context-memory.md` §24.2 的观察固定在 `db77c24 + 2026-09-12 WIP`；本快照为 `e098cc8`，全部关键文件 hash 已复核。
+> 2026-10-16 重新钉扎：WIP merge 后按下表当前工作树的 SHA-256 重新钉扎，并与验收测试的期望值同步；
+> 原 source snapshot 提交仅作历史参照。CI checkout 不含 `reference/` 时 inventory 测试会跳过目录比对，
+> 但仍校验固定清单长度；`reference/` 存在时照常做完整比对。
 
 ## 1. 快照
 
 | 项目 | 记录 |
 |---|---|
-| source snapshot | `e098cc8fcb84bcb2b062f07f054bcbbe02fc1f6d`（P4-J7-04 收口提交） |
+| source snapshot | `e098cc8fcb84bcb2b062f07f054bcbbe02fc1f6d`（P4-J7-04 收口提交；2026-10-16 按 WIP merge 后工作树重新钉扎下表哈希） |
 | worktree 基线 | `master`，工作树干净；基线测试 + 本文件 + 账本回填是本步提交 |
 | 验收测试 | `kiana-query/tests/context_memory_baseline.rs`：12 个入口文件 SHA-256 快照 + 72 目录 reference inventory，漂移即红 |
 
 | 边界 | 文件 | SHA-256 |
 |---|---|---|
-| prompt 合同 | `kiana-domain/src/prompts.rs` | `ddcf19d5f449d11fac615a0e1ebff4c25900da183e359e9285a38e4f48bb69bd` |
-| memory 记录 | `kiana-domain/src/memory.rs` | `7e7330b09e582af7871b0bf6cdfb11a9c62001326bb2f21fb829cff05dadde2f` |
-| 上下文索引 | `kiana-query/src/index.rs` | `a9cfc4767f24a7f790686be8068554aac7ee84c6c8d58ee6c71e78b75afc3716` |
-| repo map | `kiana-query/src/repo_map.rs` | `ead92a58e5de2b391779666007b4972bc79ef0e16226e8937338310ae9e39100` |
-| context 命令（core） | `kiana-core/src/context_query.rs` | `c7694ad6ced9e4b7269c7e9961efb4216861b35c32a5bdaf016e931e281b02ae` |
-| context handler（daemon） | `kiana-daemon/src/context_query.rs` | `4a85812ed61f04e81eb2a16bd1c01044b08540c6457aba289282975c97ff283b` |
-| memory handler | `kiana-daemon/src/harness_memory.rs` | `6379bfb054a745f07f9977cf63122107f97e3753b5e15bcfc90217d8518b953c` |
-| memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `c41a0a9af561904df76ba0391dd010b384e2ff9dcaaeb95e5e2b4d3be5a3dd5b` |
-| 记忆提案 | `kiana-core/src/memory_proposals.rs` | `f59cc310bc5e16960e967da4e1dd62d4fc63cfb6ef7ee69d39d3faca2578e876` |
-| 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `a06724647ee589a998c47c11f97e3c646206d4a57fa32dcfc1c108974633b0b8` |
-| 上下文压缩 | `kiana-runner/src/compact.rs` | `bd021351b20331da36762ffcb55348856d5c1429833c3e703593ab5017325a4d` |
-| 数据治理 | `kiana-daemon/src/data_governance.rs` | `bbecc5f6c1e11d9e09de953ea2313f1c4976ee6aa07dc4833625b23931e2ccf3` |
+| prompt 合同 | `kiana-domain/src/prompts.rs` | `68d6c8136a08e36b01fc299215d3906bf0dc6c68795e56ee0e546fc3bb34f69a` |
+| memory 记录 | `kiana-domain/src/memory.rs` | `7664fd2c0675cf59ff958f75407eb272a30f1bd2c768d1f4594162b140a4d157` |
+| 上下文索引 | `kiana-query/src/index.rs` | `0515f9a2cce54f3d99edac018f3dc079bfe6d907e0523a365cd42cd44647d56c` |
+| repo map | `kiana-query/src/repo_map.rs` | `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
+| context 命令（core） | `kiana-core/src/context_query.rs` | `e4865d44418b195f5fabe8a24d1d9f846f356b87acd2a5bbcdd0215c911282e9` |
+| context handler（daemon） | `kiana-daemon/src/context_query.rs` | `f862a66b00ef8db99ac4c010c65bbc42cbc689944a5e546f87da67fe7025b6f7` |
+| memory handler | `kiana-daemon/src/harness_memory.rs` | `e8b99bb7c6ad7bf447e861f5e368b4cbf2abc0226067d498601c2f2590d27e15` |
+| memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `adaae8cce7e226e27910edc27036ed83bb4d711cdd9a0e595984ea638e74c03f` |
+| 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
+| 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
+| 上下文压缩 | `kiana-runner/src/compact.rs` | `6e3c08972ca24ac02334fafada0f689c5302eb6bc0b8ad6291acbb18cef063f6` |
+| 数据治理 | `kiana-daemon/src/data_governance.rs` | `b701f7e5ba539addedb89e824488da3cd62fca23af449da26d53043d76265fe4` |
 
 reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 个顶层文件（`agentdb.rvf`、`agentdb.rvf.lock`、`ruvector.db`、`COMPANYOS-REFERENCES.md`，只登记不计入）。与专项 §24.3 一致；完整清单编在验收测试里。
 

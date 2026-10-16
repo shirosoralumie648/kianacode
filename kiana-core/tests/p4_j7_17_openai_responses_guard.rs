@@ -29,15 +29,15 @@ fn p4_j7_17_openai_responses_keeps_stateless_item_and_hosted_tool_boundaries() {
         }
     }
     for marker in [
-        "responses_item_id_cannot_replace_call_id",
-        "responses_incomplete_never_completes_the_run",
-        "responses_unrequested_hosted_tool_is_rejected",
+        "responses_item_identity_cannot_replace_call_identity",
+        "explicit_incomplete_statuses_share_one_fail_closed_outcome",
+        "responses_incomplete_and_hosted_items_fail_closed",
         "responses_stateless_tool_round_trip",
         "cargo test -p kiana-provider --lib",
         "cargo fmt --all --check",
     ] {
         assert!(
-            baseline.contains(marker) || workflow.contains(marker),
+            baseline.contains(marker) || workflow.contains(marker) || response.contains(marker),
             "P4-J7-17 evidence marker missing: {marker}"
         );
     }

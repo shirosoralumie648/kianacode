@@ -43,6 +43,10 @@ fn workflow_definition_replay_uses_one_control_plane_spine() {
     assert!(core.contains("authorize_and_execute"));
     assert!(!workflow.contains("tokio::"));
     assert!(!workflow.contains("CapabilityBroker"));
-    assert!(!workflow.contains("EventStore"));
+    let workflow_code = workflow
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<String>();
+    assert!(!workflow_code.contains("EventStore"));
     assert!(!core.contains("tokio::spawn(async move {"));
 }

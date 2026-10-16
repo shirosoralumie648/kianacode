@@ -31,7 +31,7 @@ fn revision_pins_and_drain_reject_drift_and_active_writers() {
         );
     }
     for marker in [
-        "静默换 definition",
+        "silent definition/provider/extension swaps",
         "provider",
         "extension",
         "replay version",

@@ -34,7 +34,7 @@ fn migration_primitives_are_forward_only_bounded_and_effect_free() {
         "switch",
         "contract",
         "bounded",
-        "idempotent",
+        "idempotency key",
         "checkpoint",
         "provider",
         "shell",

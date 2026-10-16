@@ -6,6 +6,8 @@ fn persistence_uat_keeps_restore_upgrade_restart_and_delete_gates_explicit() {
     let evidence = include_str!("../../kiana-domain/src/persistence_uat_evidence.rs");
     let checkpoint = include_str!("../../kiana-core/src/workspace_checkpoints.rs");
     let baseline = include_str!("../../docs/roadmap/pd33-persistence-uat-baseline.md");
+    // The baseline is wrapped prose: a marker must not depend on where a line break falls.
+    let baseline_prose = baseline.split_whitespace().collect::<Vec<_>>().join(" ");
     for marker in [
         "PersistenceUatStage",
         "Backup",
@@ -62,12 +64,12 @@ fn persistence_uat_keeps_restore_upgrade_restart_and_delete_gates_explicit() {
         "old-root",
         "legal-hold",
         "result_unknown",
-        "fake",
+        "Fake",
         "partial",
         "durable",
     ] {
         assert!(
-            baseline.contains(marker),
+            baseline_prose.contains(marker),
             "PD-33 baseline marker missing: {marker}"
         );
     }

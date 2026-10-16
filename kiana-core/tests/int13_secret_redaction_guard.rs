@@ -69,7 +69,12 @@ fn int13_event_and_receipt_boundaries_fail_closed_on_secret_shapes() {
         );
     }
     for source in [events, redaction, receipts, provider, runner] {
-        for forbidden in ["raw_headers", "raw_response_body", "secret_value"] {
+        for forbidden in [
+            "raw_headers",
+            "raw_response_body",
+            "\"secret_value\"",
+            "secret_value:",
+        ] {
             assert!(
                 !source.contains(forbidden),
                 "raw secret source marker: {forbidden}"

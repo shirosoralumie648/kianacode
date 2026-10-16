@@ -352,6 +352,21 @@ pub fn plan_retention_deletion(
         })
         .collect();
 
+    // The order is derived before the dry-run branch empties the set: a dry run still states what
+    // a real run would do, so it cannot be re-derived from the cleared deletable set.
+    let mut order: Vec<RevocationLayer> = deletable
+        .iter()
+        .map(|target| target.layer)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    order.sort_by_key(|layer| {
+        DELETION_ORDER
+            .iter()
+            .position(|candidate| candidate == layer)
+            .unwrap_or(usize::MAX)
+    });
+
     // A dry run that names deletions is not a dry run. The plan says what it decided and then does
     // not do it, so the deletable set has to be empty for it to mean anything.
     if request.mode == DeletionMode::DryRun {
@@ -366,19 +381,6 @@ pub fn plan_retention_deletion(
     } else {
         deletable.sort_by_key(|target| target.order());
     }
-
-    let mut order: Vec<RevocationLayer> = deletable
-        .iter()
-        .map(|target| target.layer)
-        .collect::<std::collections::BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    order.sort_by_key(|layer| {
-        DELETION_ORDER
-            .iter()
-            .position(|candidate| candidate == layer)
-            .unwrap_or(usize::MAX)
-    });
 
     let rebuild_required = deletable
         .iter()

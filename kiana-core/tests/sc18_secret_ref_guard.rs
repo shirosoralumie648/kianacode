@@ -155,7 +155,7 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
         );
     }
     assert!(
-        compact_code(&item_source(daemon, "pub(crate) fn from_env("))
+        compact_code(&item_source(daemon, "pub(crate) fn from_config("))
             .contains("kiana_provider::ProviderGateway::from_env(")
     );
     for source in [

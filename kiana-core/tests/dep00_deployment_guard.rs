@@ -20,7 +20,7 @@ fn inventory_binds_existing_composition_and_fact_sources() {
 fn deployment_inventory_keeps_supervision_and_legacy_boundaries_explicit() {
     let baseline = include_str!("../../docs/roadmap/dep00-deployment-baseline.md");
     assert!(baseline.contains("no supervisor adapter may become a second execution authority"));
-    assert!(baseline.contains("kiana-tools`、`kiana-commands`"));
+    assert!(baseline.contains("`kiana-tools`, `kiana-commands`"));
     assert!(baseline.contains("must not be wired into a new deployment path"));
     assert!(baseline.contains("DEP-01 onward"));
 }

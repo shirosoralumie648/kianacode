@@ -29,15 +29,15 @@ fn migration_runner_has_fence_resume_event_and_quarantine_boundaries() {
         );
     }
     for marker in [
-        "second runner",
-        "lease 过期",
-        "checksum 改变",
+        "concurrent owners",
+        "expired leases",
+        "checksum drift",
         "resume token",
         "quarantine",
-        "MigrationStarted",
-        "MigrationStep",
-        "MigrationBlocked",
-        "MigrationCompleted",
+        "Started",
+        "Step",
+        "Blocked",
+        "Completed",
         "partial",
     ] {
         assert!(

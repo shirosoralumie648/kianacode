@@ -17,7 +17,7 @@ states and proof ceilings; it does not override source code, exact CI receipts o
 | H36 / CM-39 / UI-41 / CO-48 | partial | source | integration, memory, UI and CompanyOS handoff guards | fake/source evidence cannot prove live provider, business delivery or physical outcome |
 | DEP-41 handoff gate | partial | source | this runbook, matrix, evidence validator and CI workflow | documentation cannot promote any dependent slice or close the roadmap |
 
-| Typed evidence contract index | partial | source | Provider/Context/Memory/UI/CompanyOS and DEP-36..40 contracts are named above | contract presence and CI fixtures are not runtime, durable, live or physical receipts |
+| Typed evidence contract index | partial | source | `ProviderLiveConnectionEvidence`, `ContextMemoryGoldenPathEvidence`, `UiEvidenceBundle`, `CompanyLiveCloseoutEvidence` and the DEP-36..40 contracts are named above | contract presence and CI fixtures are not runtime, durable, live or physical receipts |
 
 ## Proof vocabulary
 

@@ -35,10 +35,10 @@ fn er13_result_delivery_is_committed_before_runner_and_shared_by_three_paths() {
         );
     }
     let claim = dispatch
-        .find("result.delivery_claimed")
+        .find("\"result.delivery_claimed\"")
         .expect("delivery claim");
     let runner_send = dispatch
-        .find("RunnerCommand::CapabilityResult")
+        .find(".send(RunnerCommand::CapabilityResult")
         .expect("runner result callback");
     assert!(
         claim < runner_send,

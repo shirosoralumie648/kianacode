@@ -56,5 +56,6 @@ fn communication_layers_are_typed_and_cannot_grant_authority() {
             "core communication marker missing: {marker}"
         );
     }
-    assert!(commands.contains("intent.name == \"communication.send\""));
+    assert!(commands.contains("\"communication.send\""));
+    assert!(commands.contains("handle_communication_command"));
 }

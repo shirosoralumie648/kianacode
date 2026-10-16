@@ -3,6 +3,7 @@ fn terminal_distillation_is_bounded_candidate_only_and_replay_safe() {
     let domain = include_str!("../../kiana-domain/src/memory_distillation.rs");
     let proposals = include_str!("../../kiana-domain/src/memory_proposals.rs");
     let lifecycle = include_str!("../src/lifecycle.rs");
+    let events = include_str!("../src/events.rs");
     let distillation = include_str!("../src/memory_distillation.rs");
     let proposals_core = include_str!("../src/memory_proposals.rs");
     let memory = include_str!("../../kiana-daemon/src/harness_memory.rs");
@@ -47,7 +48,7 @@ fn terminal_distillation_is_bounded_candidate_only_and_replay_safe() {
         );
     }
 
-    assert!(lifecycle.contains("queue_terminal_distillation"));
+    assert!(events.contains("queue_terminal_distillation"));
     assert!(distillation.contains("queue_memory_distillation"));
     assert!(distillation.contains(r#""automatic_execution":false"#));
     assert!(distillation.contains("memory_distillation_result_unknown"));

@@ -40,10 +40,10 @@ fn rollout_lifecycle_keeps_pause_promote_rollback_and_retention_gated() {
     }
     for marker in [
         "pause/resume/promote/rollback",
-        "old revision retirement",
+        "old revision is retired",
         "retention",
         "post-deploy verification",
-        "health window",
+        "health-window",
         "partial",
         "durable",
         "live",
