@@ -6,6 +6,10 @@ latency, queue depth, rejection rate, maintenance share, degradation reason and 
 evidence. Exceeding any budget blocks the report; bounded degradation remains visible instead of
 being reported as healthy.
 
+This slice requires backpressure decisions to preserve already committed facts; an observation that drops accepted
+facts is refused rather than counted as a healthy capacity outcome.
+An explicitly degraded report remains diagnosable and carries its facts-preserved boundary.
+
 `PersistenceCapacityEvidence` now binds the report/baseline digests to benchmark and resource
 receipts, representative-workload, facts-preserved and degradation acknowledgement fields. A
 fixture or source-only report cannot be promoted to durable/physical capacity proof.

@@ -58,3 +58,61 @@ core helper 在 Company read/write、Continue、审批消费或效果派发前�
 - 现有 `RequestContext`/CompanyEvent 仍保留兼容的 actor/role 字段和 String project stream；本步没有批量 upcast 历史 CompanyState，也没有把 assignment facts 伪装成已持久化事实。
 - daemon assignment API 尚未改变所有旧入口的 context 构造；接入每个 dispatch/Continue/approval/effect path 需要后续 CO-05/CO-07 与身份持久化切片继续收口。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
+
+## 6. Current-head focused local assignment lane (2026-10-05)
+
+本地聚焦回归修正了 source guard 中引用旧方法名的测试标记，并验证现有
+assignment deny-first 行为；这只提升所选 fixtures 的证明等级，不改变整张卡的
+durability 或入口接线结论。
+
+```text
+source_snapshot: current dirty worktree; kiana-domain assignment directory; kiana-core Company assignment guard; CO-03 source guard
+worktree_status: corrected the guard marker from stale `resolve_assignment` to the declared `pub fn resolve`; no assignment behavior, manifest or lockfile change
+command_argv: bounded serial `cargo test -p kiana-domain --test co03_assignment --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test co03_assignment --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test co03_assignment_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; max RSS 131372 KiB on the largest selector, 0 swaps
+fixture·cassette: domain 6/6; core assignment guard 1/1; core source guard 1/1; expiry, revocation cascade, actor/role impersonation, digest/window drift and assignment boundary markers
+exit_code: all three selectors 0
+status_change: selected CO-03 contracts and deny-first behavior recorded as `local_behavior`; roadmap row 062 remains `✅`, whole card feature_status=`implemented`, proof_level=`source`
+proof-level_change: selected fixtures `source` → `local_behavior`; no durable/live/physical promotion
+limitations: in-process assignment snapshot, durable membership/epoch facts, all DaemonHost dispatch/Continue/approval/effect paths, cross-process recovery and external/live/physical identity proof remain open
+reviewer: integration agent; focused local assignment reviewer
+```
+
+## 7. 2026-10-08 nil typed identity denial
+
+The shared assignment contracts now reject nil IDs on `RoleAssignment`, `ProjectAssignment` and
+`ResolvedAssignment`. The deny fixtures recompute their digests after mutation and cover the IDs
+that define role, organization, project and assignment identity. SC-07 authority snapshot coverage
+confirms the resolved-assignment rule is enforced at the Core join as well.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/assignment.rs; domain CO-03 assignment fixtures; Core SC-07 authority snapshot fixture
+worktree_status: selected contract hardening only; CO-03 row remains unchanged and the SC-07 whole card remains partial/source
+command_argv: RED exact `co03_assignment` selector; GREEN domain `co03_assignment` + `sc07_trust_snapshots`; GREEN Core `co03_assignment` + `sc07_authority_guard` + `sc07_authority_snapshot`
+cwd·environment: repository root Linux/bash; one Cargo/test worker, 32 MiB test stack, stripped/non-incremental profile, locked offline dependencies; peak RSS 4055948 KiB RED, 3944396 KiB domain GREEN, 330588 KiB Core GREEN; 0 swaps
+fixture·cassette: RED expected failure; domain 7/7 and 3/3; Core 1/1, 1/1 and 3/3; digest-correct nil identity mutations rejected
+exit_code: RED 101 expected; all GREEN 0
+status_change: selected nil identity contract behavior recorded as local_behavior; no roadmap card promoted
+proof-level_change: focused contract denial source → local_behavior; no durable/live/physical promotion
+limitations: in-process assignment directory, mandatory DaemonHost request-path enforcement, durable membership/epoch facts, cross-process recovery and external/live/physical identity proof remain open
+reviewer: root integration agent with read-only SC-07 assignment audit
+```
+
+## 8. 2026-10-13 resolved assignment zero valid-from denial
+
+`ResolvedAssignment::validate` 现在把 `valid_from_unix_ms == 0` 与其它无效窗口一起拒绝，避免一个
+带有有效 digest 的 forged snapshot 以零起始时间进入 Company assignment guard。该修复只收紧 typed
+assignment 边界，没有把 snapshot 误写成 durable authority fact。
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/assignment.rs; kiana-domain/tests/co03_assignment.rs; kiana-core/tests/co03_assignment_guard.rs
+worktree_status: CO-03 row 062 remains ✅ / implemented/source; SC-07 row 118 remains 🔄 / partial/source; selected zero-valid-from denial is local_behavior
+command_argv: RED exact `resolved_assignment_rejects_zero_valid_from_time`; GREEN same selector; full domain `co03_assignment`; Core `co03_assignment`; Core source guard `co03_assignment_guard`; all locked/offline through bounded serial launcher
+cwd·environment: repository root Linux/bash; one Cargo/compiler worker and one Rust test thread per command, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; RED max RSS 248856 KiB / CPU 36%; GREEN max RSS 4079808 KiB / CPU 92%; domain rerun 82932 KiB / 65%; Core exact deny 327476 KiB / 90%; Core target rerun 1214132 KiB / 94%; guard 1217484 KiB / 92%; all observed swap counters 0
+fixture·cassette: forged resolved assignment keeps a recomputed digest while changing only valid_from_unix_ms to zero; RED expected 101, exact GREEN 0; domain 8/8, Core 2/2 (expiry/actor/role plus zero-valid-from), source guard 1/1
+exit_code: RED 101 expected; exact GREEN/domain/Core/guard 0
+status_change: zero valid-from snapshots now fail closed at the domain validator; selected assignment behavior source → local_behavior; no roadmap card promotion
+proof-level_change: focused in-process denial source → local_behavior; no durable/live/physical promotion
+limitations: AssignmentDirectory remains in-process; DaemonHost compatibility dispatch does not yet consume `context_from_assignment`; org membership provisioning, default-unassigned and multi-role policy, durable authority/CAS/recovery, external/live/physical identity proof remain open
+reviewer: root integration agent with read-only SC-07 audit; focused CO-03 assignment reviewer
+```

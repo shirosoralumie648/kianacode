@@ -54,6 +54,47 @@
 - 文件当前内容与历史 artifact bytes 的双向 freshness/availability 查询要在 CO-07+ receipt/evidence 链继续接入；伪造退出码和外部结果仍需独立 adapter 证据。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
 
+## 5.1 Current-head focused local receipt (2026-10-05)
+
+The current worktree ran the artifact contract, port, EventLog retry, local store, Company wiring,
+and historical Company integration selectors serially. All eight targets passed for 27 tests in
+total. This records local behavior for the selected immutable-artifact and integration boundaries;
+the CO-06 card remains `partial/source` because cross-store atomicity, crash recovery,
+reconciliation, retention/deletion, power-loss durability and original-versus-current UI evidence
+are still open.
+
+```text
+source_snapshot: current dirty worktree after ER-02 fixture corrections; CO-06 domain/ports/EventLog/Core/daemon artifact sources and fixtures
+worktree_status: CO-06 remains roadmap row 065 `🔄`; no cross-store transaction, recovery worker, manifest or lockfile change
+command_argv: serial bounded targets `kiana-domain/co06_artifact`, `kiana-ports/co06_artifact_port`, `kiana-eventlog/co06_artifact_retry`, `kiana-eventlog/pd14_artifact_store`, `kiana-core/co06_artifact_guard`, `kiana-core/co06_company_artifact_wiring_guard`, `kiana-daemon/co06_local_artifact_store`, `kiana-daemon/co06_company_artifact_history`, all `cargo test ... --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, 32 MiB test stack, stripped non-incremental profile; 9.87s elapsed, 4.11s user, 1.87s system, max RSS 643152 KiB (~628.1 MiB), swaps 0
+fixture·cassette: domain 2/2; ports 1/1; EventLog 2/2 + 2/2; Core 1/1 + 4/4; daemon local store 13/13 + Company history 2/2; total 27/27
+exit_code: all eight targets exited 0; logs `/tmp/kiana-roadmap-20261005-evidence/co06-focused.log` and resources `/tmp/kiana-roadmap-20261005-evidence/co06-focused.resources`
+status_change: selected CO-06 contracts recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, roadmap row 065 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: EventLog/blob cross-store atomic commit, crash/cross-process recovery, orphan reconciliation/GC, retention/deletion/CAS, power-loss durability, complete business projector/upcast coverage, live/physical proof and historical-versus-current UI remain open
+reviewer: integration agent with read-only CO-06 audit; focused local artifact reviewer
+```
+
+## 5.2 Nil identity denial receipt (2026-10-07)
+
+Stable artifact/evidence/criterion IDs now reject the all-zero UUID before content or reference
+admission. `EvidenceRef` also rejects nil run IDs and an explicitly present nil invocation ID.
+The read port validates the reference before constructing its `(artifact_id, version)` lookup key.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/artifact_contracts.rs; kiana-domain/tests/co06_artifact.rs; kiana-ports/tests/co06_artifact_port.rs; kiana-core/tests/co06_artifact_guard.rs
+worktree_status: CO-06 roadmap row 065 remains 🔄 / feature_status=partial / proof_level=source; nil identity checks are locally verified; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-domain --test co06_artifact artifact_and_evidence_identity_ids_must_be_non_nil --locked --offline -- --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test co06_artifact --locked --offline -- --test-threads=1`; ports `cargo test -p kiana-ports --test co06_artifact_port --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test co06_artifact_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; domain GREEN max RSS 4010020 KiB, ports 267664 KiB, Core guard 4051000 KiB; swaps 0
+fixture·cassette: RED nil ArtifactId was accepted; GREEN domain 3/3 covers version/ref/evidence/criterion identity denial plus existing hash/scope behavior, ports 2/2 rejects nil before lookup, Core guard 1/1 contains all identity markers
+exit_code: RED 101 expected; initial ports compile exposed missing direct uuid dev-dependency and was corrected to use typed `parse_str`; final domain/ports/Core/fmt/diff 0
+status_change: selected nil identity behavior moves source → local_behavior; whole CO-06 remains partial/source
+proof-level_change: nil-ID contract and read-port pre-lookup refusal are locally verified; no durable/live/physical promotion
+limitations: cross-store atomicity, crash/cross-process recovery, orphan reconciliation/GC, retention/deletion/CAS, complete business projector/upcast coverage, historical-versus-current UI, live/physical proof and durable blob guarantees remain open
+reviewer: root integration agent with CO-06 read-only audit; focused artifact identity reviewer
+```
+
 ## 6. 2026-10-02 focused CI receipts and remaining exit conditions
 
 GitHub [run 36677090825](https://github.com/shirosoralumie648/kianacode/actions/runs/36677090825)
@@ -318,4 +359,44 @@ status_change: CO-06 roadmap row 065 remains `🔄`; feature_status=partial; pro
 proof-level_change: source boundary broadened; no local_behavior, durable, live or physical promotion
 limitations: this does not implement a cross-store transaction, orphan-blob cleanup/reconciliation worker, power-loss recovery, UI original/current comparison, retention/deletion or external/live durability
 reviewer: source review of capability negotiation, publication order and result_unknown fence; no local runtime reviewer
+```
+
+## 17. Optional provenance source identity denial (2026-10-08)
+
+`ArtifactProvenance::validate` now rejects an explicitly supplied nil `source_event_id` or
+`source_run_id` before an artifact version can be constructed. Producer identity and `recorded_by`
+checks remain unchanged; absent optional source links remain compatible with legacy provenance.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/artifact_contracts.rs; kiana-domain/tests/co06_artifact.rs; kiana-ports/tests/co06_artifact_port.rs; kiana-core/tests/co06_artifact_guard.rs
+worktree_status: CO-06 roadmap row 065 remains 🔄 / feature_status=partial / proof_level=source; optional provenance source IDs reject the nil UUID before artifact construction; no manifest/lockfile, store transaction or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-domain --test co06_artifact artifact_provenance_source_ids_must_be_non_nil --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test co06_artifact --locked --offline -- --test-threads=1`; ports `cargo test -p kiana-ports --test co06_artifact_port --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test co06_artifact_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 243428 KiB / 36% CPU; domain max RSS 4084780 KiB / 86% CPU; ports max RSS 4050416 KiB / 86% CPU; Core guard max RSS 4088696 KiB / 88% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED accepted nil `source_event_id` and returned an artifact version; GREEN domain 4/4 covers nil event/run source IDs plus valid and absent optional links, ports 2/2 retains artifact-port behavior, Core guard 1/1 locks the validator and stable `artifact_provenance_identity_invalid`
+exit_code: RED 101 expected; domain/ports/Core/fmt/diff 0
+status_change: selected optional provenance source-ID denial moves source → local_behavior; whole CO-06 remains partial/source
+proof-level_change: local provenance validation only; no durable/live/physical promotion
+limitations: no cross-store atomicity or recovery, retention/deletion/GC, projector reconciliation, historical/current UI diff, cross-process recovery or physical deletion proof; this does not close PD-14/ER-29 LocalArtifactStore invalidation
+reviewer: root integration agent with CO-06 read-only artifact audit; focused provenance identity reviewer
+```
+
+## 18. Runtime denial for non-atomic EventStore (2026-10-13)
+
+The Company artifact atomicity capability gate now has a runtime denial fixture. It synchronizes
+authority through a real `JsonlEventLog`, then changes only the test adapter's declared atomic
+capability to false before the artifact command. The command is blocked before blob or manifest
+publication, and no `company.ArtifactRegistered` fact is written. The adapter still delegates its
+EventStore reads and append behavior to the same JSONL log.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/company.rs; kiana-daemon/tests/co06_company_artifact_history.rs; docs/roadmap/artifact-evidence-baseline.md
+worktree_status: CO-06 row 065 remains 🔄 / feature_status=partial; non-atomic artifact publication denial is local_behavior; no store transaction, manifest or lockfile change
+command_argv: focused `cargo test -p kiana-daemon --test co06_company_artifact_history --locked --offline -- --exact artifact_publication_is_denied_when_event_store_lacks_atomic_transitions --test-threads=1`; complete target `cargo test -p kiana-daemon --test co06_company_artifact_history --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental locked/offline test profile
+fixture·cassette: real JsonlEventLog authority snapshot; adapter reports atomic transitions for setup, then false; response is Blocked with `company_artifact_event_atomicity_unsupported`; artifact store remains empty; EventLog contains rejection only and no ArtifactRegistered; focused denial 1/1 and complete CO-06 history target 3/3
+exit_code: focused denial 0; complete target 0; fmt/diff 0; focused max RSS 644516 KiB / 30% CPU / 0 swap; full target max RSS 91476 KiB / 51% CPU / 0 swap
+status_change: selected atomicity denial boundary moves source → local_behavior; CO-06 remains partial and row 065 stays 🔄
+proof-level_change: deny-before-publication behavior is locally verified; no durable/live/physical promotion
+limitations: no cross-store atomic commit protocol, crash/power-loss recovery, orphan reconciliation/GC, retention/deletion, historical/current UI comparison, cross-process guarantee or complete Company projector/upcast proof is claimed
+reviewer: root integration agent with read-only CO-06 atomicity audit; focused artifact publication reviewer
 ```

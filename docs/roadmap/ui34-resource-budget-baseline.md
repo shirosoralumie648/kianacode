@@ -1,7 +1,7 @@
 # UI-34 性能、资源上限和可访问性验收基线
 
-> 快照日期：2026-09-25。Rust 验收由 GitHub Actions 执行；本步骤不在本地运行测试、build、
-> check、clippy 或 smoke，且不等待 CI 结果。
+> 历史快照：2026-09-25 创建时，Rust 验收计划由 GitHub Actions 执行。该历史约定不是当前限制；
+> 当前 head 的受限本地验证见下文。
 
 ## Shared resource budget
 
@@ -27,3 +27,13 @@ fresh remote run 会覆盖 repository-wide fmt dependency；该远程结果 pend
 `feature_status=implemented`; `proof_level=source`。未证明真实长流/100+ sessions/慢磁盘/低带宽、
 RSS/p50/p95/queue metrics、浏览器/PTY/Electron accessibility runner、bundle performance、跨进程
 backpressure、provider/Broker effect 或 live/physical proof；CI 结果保持 pending/unobserved。
+
+## Current-head local fixture validation (2026-10-06)
+
+`cargo test -p kiana-client --test ui34_resource_budget --locked --offline -- --test-threads=1` passed
+4/4 tests (0.53s, max RSS 223,128 KiB, no swap). The protected-item overflow fixture now has
+internally consistent usage (`pending_items + unknown_items <= items`) while still exceeding the
+configured item cap. Production budget behavior was not changed.
+
+This is focused contract evidence only. No long-stream, 100-session, RSS/p95, browser/PTY/Electron
+accessibility or bundle benchmark was run.

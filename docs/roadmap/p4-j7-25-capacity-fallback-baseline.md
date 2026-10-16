@@ -17,6 +17,12 @@ authorizes a capability or silently changes the route.
 - `ProviderGateway` shares capacity, queue slots and breaker state for connection aliases. The
   transport takes a bounded queue slot before waiting for the semaphore and releases the slot when
   capacity is acquired or the attempt is cancelled.
+- Queue entries retain the request's absolute deadline and its digest. Dispatch rejects expired
+  entries with `provider_capacity_queue_wait_expired` instead of extending the deadline from the
+  dispatch clock; expired entries never receive a provider-capacity lease.
+- Breaker failure observation computes the next failure count and cooldown deadline before
+  mutating state. An `open_until` arithmetic overflow therefore returns
+  `provider_circuit_open_until_overflow` without leaving a stale health digest or half-open state.
 
 ## CI-only fixtures
 
@@ -39,3 +45,19 @@ was dispatched. It does not claim a durable cross-process circuit store, distrib
 provider invoice/capacity telemetry, automatic route selection, external/live provider effects or
 physical proof. Any future fallback executor must return through ControlPlane, create a new attempt
 and independently reserve usage and authority.
+
+The overflow regression first reproduced a half-updated breaker: `observe_failure(u64::MAX)` changed
+state before failing its cooldown addition, leaving `validate()` unable to accept the object. The
+fixed path computes all fallible values first, then commits state and digest together. The focused
+regression and full P4-J7-25 domain target (4/4) pass locally; this remains local behavior evidence
+for an in-process boundary only.
+
+## 2026-10-08 absolute queue deadline evidence
+
+The local RED fixture showed that dispatch rebuilt a queued request deadline from
+`now + max_queue_wait_ms`, allowing work whose original absolute deadline had already elapsed.
+`ProviderCapacityQueueEntry` now retains and digests `deadline_unix_ms`; dispatch preserves that
+deadline and returns a typed `provider_capacity_queue_wait_expired` rejection without a lease.
+The focused regression, the BQ-16 domain target (4/4), and the P4-J7-25 domain target (4/4) pass
+with a single Cargo process and no swap. This is local behavior evidence only; the capacity and
+breaker state remains process-local and no provider/external effect was exercised.

@@ -2,9 +2,8 @@
 
 > Snapshot date: 2026-09-28. This slice adds one read-only budget card, one queue projection, one
 > overage-reason vocabulary and one correction-approval card at the CLI/entrypoint surface, plus the
-> `/budget` command that routes them to versioned commands. Local Cargo
-> test/build/check/clippy/smoke commands are intentionally not run; GitHub Actions owns the fixtures
-> and target compilation.
+> `/budget` command that routes them to versioned commands. The original no-local-test note is
+> historical; current-head bounded local evidence is recorded below.
 
 ## Scope and proof ceiling
 
@@ -110,8 +109,20 @@ guards (4 in `bq24_budget_card_guard.rs`, 2 in `bq24_budget_presenter_guard.rs`)
 ## CI and limitations
 
 GitHub Actions runs the unified `.github/workflows/ci.yml` workspace gate, which compiles and tests
-`--workspace`. No separate workflow. Local Cargo tests, builds, checks, clippy and smoke commands are
-intentionally not run, and CI results are not awaited.
+`--workspace`. No separate workflow. A focused local receipt does not replace the workspace gate or
+imply that an unobserved CI run passed.
+
+## Current-head local validation (2026-10-06)
+
+`cargo test -p kiana-commands --test bq24_budget_card --locked --offline -- --test-threads=1` passed
+29/29 tests (29.50s, max RSS 898,452 KiB, no swap). Four rejection fixtures now construct the
+intended invalid cases at the renderer boundary: unpaired remaining, pending reservation with an
+incompatible state, queue over limit, and duplicate queue tickets. Production validation was not
+changed.
+
+This covers the command-side card target only. The entrypoint presenter target, six source guards,
+four live surfaces, DaemonHost budget query wiring, actual billing data and correction approval
+settlement were not part of this command.
 
 ### What this does NOT prove
 

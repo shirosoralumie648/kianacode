@@ -219,15 +219,15 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-01 — 事件 schema、kind registry 与迁移规则　🔄
+##### ER-01 — 事件 schema、kind registry 与迁移规则　✅
 
-当前 source slice 与 CI-only 证据见 [`event-receipt-schema-baseline.md`](event-receipt-schema-baseline.md)。
+当前 source slice 与 CI-only 证据见 [`event-receipt-schema-baseline.md`](event-receipt-schema-baseline.md)。当前头部本地回归已满足本卡的 registry/producer/EventStore 验收；roadmap 行 036 已提升为 ✅。完整历史 literal/upcast 盘点与 durable/live/physical 证据仍受限制。
 
 - **落点：** `kiana-domain/src/contracts.rs`、`states.rs`、`journal.rs`、`kiana-protocol`；关联 `P0-A-01b/02`、`CP-02/03/28`。
 - **动作：** 建立 machine-readable `EventKindSpec`（schema/version、aggregate、required IDs、terminal/secret policy、migration）；为现有 RuntimeEvent 保留 legacy decode，新增 required/optional 字段规则和 unknown kind policy。
 - **先拒绝：** `unknown_required_event_kind_fails_closed`、`event_schema_version_cannot_downgrade`、`event_payload_unknown_field_is_not_silently_dropped`。
 - **成功/回归：** 关键公开 kind 有 owner、serde round trip、migration fixture 和 payload validator；旧 RuntimeEvent/JSONL 只读兼容继续保留，新增 registry/version/unknown guard 由 GitHub CI 执行。
-- **当前证据：** producer 字段矩阵与各 source snapshot 见 [schema baseline](event-receipt-schema-baseline.md) §5.3–§5.35。manual run `37092219974`（head `4fffbe43`）完整 domain target 通过 31/31、Core source guard 通过 1/1，真实 ControlPlane selector 通过 2/2。source `01cd2814` 把 domain registry validator 接入 EventStore 共享 append planner；其第一轮 targeted run `37093780910` 中 domain 32/32、Core guard 1/1 通过，但新 validator 对 request.accepted/rejected 错把 envelope 的 request_id 当成必需 payload 字段，两个真实 producer 因此失败。当前 source 修正保持 typed envelope identity，payload 不再被要求重复 request_id，新 targeted receipt 待观察。legacy migration 名称不等于已运行 upcaster，状态保持 `partial` / `source`。`run.rejected` 三类 aggregate 的命名决策仍待选择。
+- **当前证据：** producer 字段矩阵与各 source snapshot 见 [schema baseline](event-receipt-schema-baseline.md) §5.3–§5.35。2026-10-05 current-head domain 46/46、真实 ControlPlane selector 4/4、EventLog 32 targets/174 tests 均通过；精确命令、资源峰值与局限见 `CURRENT_STATUS.md` ER-01 closure block。legacy migration 名称不等于已运行完整 upcaster，仍只覆盖有界 identity family；完整历史 literal/projector terminal reconciliation、dedicated dual-shape `run.rejected` adapter fixture、durable/live/physical proof 仍保留限制。
 
 <a id="step-er-02"></a>
 
@@ -242,6 +242,8 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 - **先拒绝：** `event_id_reuse_is_denied`、`same_request_different_command_digest_conflicts`、`cross_run_result_cannot_pair_by_sequence`。
 - **成功/回归：** direct、Harness、approval-resume 三入口复用同一 identity chain 和 projection ID 关联；新 RuntimeEvent 带可选 correlation/causation/parent links，legacy 无 stream metadata/links 仅走明确兼容路径，跨 run sequence 错配和 event_id 重用由远程 CI 拒绝。
 - 项目 authority revision 只绑定稳定配置输入；不得把每请求新建的 SecurityContext ID/digest 或递归 authority epoch/policy snapshot 当作项目配置版本。
+
+**Current-head focused verification (2026-10-05):** Core direct identity and approval-resume/replay paths, the broker-failure Unknown boundary, Core identity guard, and EventLog identity fixtures pass locally. The whole card remains open because a real DaemonHost/Harness cross-entrypoint roundtrip, a complete green CI shard, durable InvocationLedger/recovery, and live/physical effect evidence are still absent.
 
 <a id="step-er-03"></a>
 

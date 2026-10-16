@@ -72,3 +72,17 @@ parent look safe; proving the chain against the real store is later work. The ca
 incremental copy, archive storage and retention execution as part of this step, and none of those
 effects are implemented here — only the decision that would authorise them. Merging this with
 PD-22 `SnapshotManifest` and PD-25 retention remains the follow-up recorded in the DEP-20 baseline.
+
+## Current-head cursor-chain correction (2026-10-08)
+
+Chain validation now requires an incremental child's `covered_from_cursor` to equal its parent's
+`source_cursor`, which is the point through which the parent actually observed the event stream.
+Comparing the two `covered_from_cursor` values accepted or rejected chains based on the parent's
+starting boundary and could reject a valid continuation when those cursors differ.
+
+The new RED fixture constructs a valid full root with `covered_from_cursor=0`, `source_cursor=100`
+and a child beginning at 100; the old comparison returned `backup_chain_parent_cursor_mismatch`
+(exit 101, max RSS 232,176 KiB, 32% CPU, no swap). After the correction, the full
+`dep21_backup_lifecycle` target passed 12/12 (exit 0, max RSS 233,532 KiB, 2% CPU, no swap).
+This is selected local chain behavior only; backup copying, archive/retention execution, real-store
+dependency discovery, durable receipts, and live/physical proof remain open.

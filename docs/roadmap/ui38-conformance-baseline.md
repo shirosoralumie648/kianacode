@@ -1,7 +1,7 @@
 # UI-38 协议/入口 conformance 集成门基线
 
-> 快照日期：2026-09-25。测试、workspace check 和 conformance gate 只由 GitHub Actions 执行；本步骤
-> 不在本地运行测试，并且不等待 CI 结果。
+> 历史快照：2026-09-25 创建时，测试、workspace check 和 conformance gate 计划由 GitHub Actions
+> 执行。该历史约定不是当前限制；当前 head 的受限本地验证见下文。
 
 ## Deliverables
 
@@ -25,3 +25,13 @@ approve、不写 EventLog、不启动 provider/Broker 或第二执行循环。
 已知限制：未证明真实四入口 trace capture、browser/PTY/Electron/ACP runtime、跨进程 cursor/replay、
 真实 artifact/receipt 投影、provider/connector effect、差异 cassette 持久化和 live host 兼容；CI 结果
 不等待。
+
+## Current-head local fixture validation (2026-10-06)
+
+`cargo test -p kiana-client --test ui38_conformance --locked --offline -- --test-threads=1` passed
+3/3 tests (0.52s, max RSS 228,100 KiB, no swap). Unsupported capability schema versions are asserted
+as schema-invalid; a separate valid-but-different artifact digest exercises the cross-surface
+mismatch path.
+
+This verifies the focused comparator locally. It does not capture traces from running CLI,
+Workbench, Web, Desktop or ACP surfaces, nor prove transport, receipt projection or live effects.

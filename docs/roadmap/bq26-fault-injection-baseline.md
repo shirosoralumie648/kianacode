@@ -5,8 +5,9 @@
 > (`kiana_core::classify_failure_summary`, extracted from the existing private incident arm so a
 > fixture can drive the same code production uses), an adapter-backed seam in
 > `kiana-core/tests/support/bq26_adapter_seam.rs`, 24 failure-first fixtures and 9 source guards.
-> Local `cargo test` execution is forbidden by the user for this session; GitHub Actions owns the
-> fixtures and target compilation. Only `cargo check` and `cargo clippy` were run locally.
+> The local-test restriction recorded below applied to the 2026-09-28 snapshot session only. The
+> user has since authorized bounded local testing for roadmap completion; current-head receipts
+> are recorded below and do not replace the card's open limitations.
 
 ## Scope and proof ceiling
 
@@ -44,7 +45,7 @@ seam and compares against its real return value:
 | `network_eof` | network EOF | same fixture, clean frame boundary | `provider_stream_incomplete` with `side_effect_state: Unknown` |
 | `unknown_auto_retry` | provider HTTP | `RetryPolicy::classify` on a real `ModelError` | deny `side_effect_unknown` |
 | `provider_429` | provider HTTP | `RetryPolicy::classify` on a real `ModelError` | bounded retry, backoff ≥ `Retry-After`; denied once the request budget is spent |
-| `provider_5xx` | provider HTTP | `RetryPolicy::classify` on a real `ModelError` | deny `side_effect_unknown` — the side-effect fence is checked *before* the retry class |
+| `provider_5xx` | provider HTTP | `RetryPolicy::classify` on a real `ModelError` | deny `recovery_disposition_not_retryable` — a terminal 5xx disposition is rejected before any retry |
 | `clock_rollback` | clock | `ClockObservation::observe` / `require_trusted` / `QuotaWindow::from_clock` | `ClockTrust::Rollback`; `clock_untrusted`; no window, no extended deadline |
 
 ### Where the drivers live, and why that is a feature
@@ -110,7 +111,7 @@ globally, so it is not possible to make a genuine leak look like a correct hold 
 | `over_budget_request_is_never_dispatched_and_the_queue_is_not_a_back_door` | no lease, and the queue cannot hand one out |
 | `disk_full_is_classified_and_never_treated_as_transient` | all three ENOSPC spellings classify; not laundered to transient or to cancel |
 | `provider_429_retries_only_because_it_was_refused_before_any_charge` | bounded retry with `Retry-After` respected |
-| `provider_5xx_after_send_is_never_auto_retried` | denied at the side-effect fence |
+| `provider_5xx_after_send_is_never_auto_retried` | denied at the terminal recovery-disposition fence |
 | `clock_rollback_cannot_build_a_window_or_extend_a_deadline` | rollback untrusted; no quota window; no deadline extension |
 | `leaked_capacity_lease_is_never_recycled_to_another_owner` | foreign owner and unknown lease both refused; counter intact |
 | `run_executes_every_case_in_the_matrix_exactly_once` | 12 cases, no duplicate |
@@ -144,8 +145,23 @@ globally, so it is not possible to make a genuine leak look like a correct hold 
 ## CI and limitations
 
 GitHub Actions runs the unified `.github/workflows/ci.yml` workspace gate, which compiles and
-tests `--workspace`. No separate workflow. Local `cargo test` is forbidden by the user for this
-session and was not run; only `cargo check` and `cargo clippy` were run locally.
+tests `--workspace`. No separate workflow. The statement that local tests were forbidden describes
+the original snapshot session and is not the current user instruction.
+
+## Current-head local receipt (2026-10-06)
+
+```text
+source_snapshot: current dirty worktree; BQ-26 harness, provider replay fixture, adapter seam and focused tests
+worktree_status: BQ-26 remains roadmap row 677 🔄; selected failure-first behavior is observed locally, with no whole-card promotion
+command_argv: `cargo test -p kiana-core --test bq26_fault_injection --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; final cached run 1.27s, max RSS 408288 KiB (~399 MiB), 0 swaps; `/tmp/kiana-roadmap-20261006-final-receipts/bq26.{log,resources}`
+fixture·cassette: 24/24 focused tests; CAS conflict, incomplete provider stream, capacity/RPM refusal, retry/Unknown, disk-full classification, clock rollback, report sealing and refusal fields
+exit_code: 0
+status_change: none; selected fixtures provide `local_behavior`; whole-card status remains partial and proof ceiling remains source
+proof-level_change: selected BQ-26 behaviors source → local_behavior; no durable/live/physical promotion
+limitations: no process kill, real ENOSPC, socket/provider call, genuine concurrent writer, durable reservation replay, cross-process lock proof, or production incident; full workspace remains non-green
+reviewer: root integration agent; focused BQ-26 test review
+```
 
 ### What this does NOT prove
 

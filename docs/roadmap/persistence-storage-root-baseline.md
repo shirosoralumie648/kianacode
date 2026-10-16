@@ -17,7 +17,7 @@
 
 Domain `StorageRoot` 只接受 absolute lexical path（无 `..`/prefix）、LocalFilesystem backend、完整 namespace map（meta/facts/projections/artifacts/memory/indexes/checkpoints/backups/migrations/quarantine/locks）和 owner scope digest；root ID 按 canonical path 稳定派生，重启解析同一路径不会漂移。`StorageOwnerScope` 绑定 owner、instance、optional project、authority epoch；scope/ID/digest/unknown fields fail-closed。
 
-Daemon resolver 优先使用 `KIANA_HOME`，否则 `$HOME/.kiana`，canonicalize 已存在 root/parent，拒绝相对 root、project 内 root、mount probe 识别的 nfs/nfs4/cifs/smbfs/sshfs。`StorageLease` 创建 namespace dirs，`meta/store-identity.json` 使用 create-new/0600/sync 持久化 StoreIdentity；随后 `locks/storage.lock` create-new/0600 写入 strict StorageLockRecord，已存在锁或 owner/instance mismatch 返回不同 Conflict，Drop/release 删除当前锁文件。
+Daemon resolver 优先使用 `KIANA_HOME`，否则 `$HOME/.kiana`，canonicalize 已存在 root/parent，拒绝相对 root、已存在但不是目录的 root、project 内 root、mount probe 识别的 nfs/nfs4/cifs/smbfs/sshfs。`StorageLease` 创建 namespace dirs，`meta/store-identity.json` 使用 create-new/0600/sync 持久化 StoreIdentity；随后 `locks/storage.lock` create-new/0600 写入 strict StorageLockRecord，已存在锁或 owner/instance mismatch 返回不同 Conflict，Drop/release 删除当前锁文件。
 
 DaemonHost 暴露 `storage_root`/`acquire_storage` 生命周期入口，但 CLI/Web/Workbench 尚未通过它们共用同一稳定 root；这些入口本身不接受模型工具或绕过 ControlPlane。现有 EventLog/approval/memory legacy adapter 也仍各自读取 `KIANA_HOME`，迁移留在后续 PD/ER。
 
@@ -30,6 +30,7 @@ DaemonHost 暴露 `storage_root`/`acquire_storage` 生命周期入口，但 CLI/
 | `storage_identity_and_lock_reject_zero_time_and_nested_scope_drift` | zero identity/lock timestamps and lock scope drift fail closed before a record can be accepted |
 | `daemon_storage_resolver_and_lock_reject_scope_conflicts` | resolver root、identity persistence、single-writer lock conflict 与 owner mismatch |
 | `daemon_storage_resolver_rejects_project_local_root` | 项目内 `.kiana` root fail-closed |
+| `daemon_storage_resolver_rejects_existing_non_directory_root` | `KIANA_HOME` 指向已存在普通文件时返回 `storage_root_not_directory`，不构造 StorageRoot |
 | `daemon_storage_lock_initialization_failure_releases_owned_file` | Linux 子进程限制 lock file 写入；初始化失败后 owned lock path 被清理，恢复写入限制后可重新获取 |
 | `storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane` | domain/daemon/host source guard 无 ControlPlane/Broker second path |
 
@@ -122,4 +123,110 @@ status_change: PD-01 roadmap row 108 remains `🔄`; feature_status=partial; pro
 proof-level_change: focused current-head evidence refreshed; no local_behavior, durable, live or physical promotion
 limitations: shared CLI/Web/Workbench root reuse, restart identity, stale-lock recovery, power-loss cleanup and cross-process fencing remain open
 reviewer: exact GitHub job/step receipt and source/fixture review; no local runtime reviewer
+```
+
+## 9. Current-head focused local receipt (2026-10-05)
+
+The current worktree ran the domain, daemon and Core PD-01 selectors with one Cargo/test worker.
+Domain 3/3, daemon 9/9 and the Core source guard 1/1 passed, including the Linux file-size
+failure cleanup child fixture. The selected implementation has local behavior evidence, while the
+card remains `partial/source` because product-entry root reuse, restart identity, stale/crash and
+power-loss recovery, fsync-directory guarantees and cross-process fencing remain unresolved.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/storage.rs; kiana-daemon/src/storage.rs; kiana-daemon/src/lib.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: PD-01 remains roadmap row 108 `🔄`; no shared CLI/Web/Workbench routing, manifest or lockfile change
+command_argv: bounded serial `cargo test -p kiana-domain --test pd01_storage --locked --offline -- --test-threads=1`; `cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test pd01_storage_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, 32 MiB test stack, stripped non-incremental profile; 2.39s elapsed, 1.59s user, 0.77s system, max RSS 569548 KiB (~556.2 MiB), swaps 0
+fixture·cassette: domain 3/3; daemon 9/9 including RLIMIT_FSIZE lock initialization cleanup; Core guard 1/1; logs `/tmp/kiana-roadmap-20261005-evidence/pd01-focused.log` and resources `/tmp/kiana-roadmap-20261005-evidence/pd01-focused.resources`
+exit_code: all three targets exited 0
+status_change: selected PD-01 storage/root contracts recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, roadmap row 108 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: CLI/Web/Workbench shared root routing, restart identity/authority rebinding, stale/crash/power-loss recovery, fsync-dir, cross-process fencing, runtime network matrix, same-UID check-to-unlink race and legacy adapter migration remain open
+reviewer: integration agent with read-only PD-01 audit; focused local storage reviewer
+```
+
+## 2026-10-06 stable root-ID binding receipt
+
+`StorageRoot::validate` now recomputes the root ID from the validated absolute
+`canonical_path`. A serialized record with a different valid root ID is rejected even when its
+root digest has been recomputed to match the altered record. This closes the gap between the
+constructor's stable-ID rule and validation of persisted/deserialized roots.
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-domain/src/storage.rs and kiana-domain/tests/pd01_storage.rs
+worktree_status: PD-01 remains roadmap row 108 🔄 / feature_status=partial; no shared product-entry root routing, manifest, lockfile or ControlPlane path change
+command_argv: RED `cargo test -p kiana-domain --test pd01_storage storage_root_rejects_id_not_derived_from_path_even_with_recomputed_digest --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test pd01_storage --locked --offline -- --test-threads=1`; downstream `cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; each Cargo invocation used one build job, one test thread, 32 MiB test stack, stripped/non-incremental test profile; combined targeted peak RSS 4,095,400 KiB (~4.0 GiB), each measured process reported 0 swaps; logs/resources under `/tmp/kiana-roadmap-20261006-pd01-{red,green,daemon}.{log,resources}`
+fixture·cassette: RED reproduced forged non-nil root ID with recomputed digest returning `Ok(())`; GREEN domain target 4/4 including the new denial case; daemon storage target 9/9 including lock conflict and failed initialization cleanup
+exit_code: RED 101 as expected; GREEN domain and daemon targets 0
+status_change: selected root identity binding behavior recorded as `local_behavior`; whole PD-01 remains `feature_status=partial`, `proof_level=source`, row 108 🔄
+proof-level_change: selected domain and daemon behavior `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: Core `pd01_storage_guard` not rerun after this source change; CLI/Web/Workbench shared root, restart identity, migration/upcast, stale/crash/power-loss cleanup, directory fsync and cross-process fencing remain open
+reviewer: root integration agent; read-only PD-01 audit; focused domain/daemon test review
+```
+
+## 10. Current-head lock integrity precedence receipt (2026-10-07)
+
+The daemon conflict reader previously compared `store_id`, owner and instance scope before
+checking the lock record's timestamp and digest. A damaged record that also belonged to a foreign
+scope could therefore be reported as `storage_lock_owner_mismatch`. `StorageLockRecord` now exposes
+`validate_integrity`, and both domain validation and the daemon conflict path perform this
+self-contained timestamp/digest check before scope comparison. A valid foreign record remains an
+owner mismatch; a foreign record with zero acquisition time or an invalid/mismatched digest is
+classified as `storage_lock_corrupt`.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/storage.rs; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: PD-01 row 108 remains 🔄 / feature_status=partial; no shared product-entry root, ControlPlane path, manifest or lockfile change
+command_argv: RED `cargo test -p kiana-daemon --test pd01_storage daemon_storage_lock_conflict_rejects_foreign_scope_with_invalid_digest_as_corrupt --locked --offline -- --exact --test-threads=1`; GREEN daemon `cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`; domain `cargo test -p kiana-domain --test pd01_storage --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test pd01_storage_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; every completed Cargo command used one build job/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 1m46.99s/87% CPU/max RSS 4,076,316 KiB, expected exit 101; daemon GREEN 1m48.57s/86% CPU/max RSS 4,041,152 KiB; domain GREEN 59.29s/89% CPU/max RSS 4,010,220 KiB; final Core guard GREEN 0.59s/57% CPU/max RSS 136,780 KiB after the marker update; all completed commands reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261007-pd01/{red-digest,daemon-final2,domain-final2,core-guard-final}.{log,resources}`
+fixture·cassette: new daemon fixtures cover foreign owner + invalid digest and foreign owner + zero time with a recomputed digest; initial RED returned `Conflict("storage_lock_owner_mismatch")` for the invalid-digest case; final daemon 11/11, domain 4/4, Core source guard 1/1; valid foreign scope behavior remains covered by existing resolver conflict fixture
+exit_code: RED 101 expected; daemon/domain/Core/fmt/diff 0; one accidental concurrent Core retry was cancelled while waiting on the Cargo build lock (exit 130, no test executed) and is excluded from the green receipt
+status_change: selected lock-corruption classification moves source → local_behavior; whole PD-01 remains `feature_status=partial`, `proof_level=source`, roadmap row 108 🔄
+proof-level_change: deny-first integrity-before-scope behavior is locally verified; no durable/live/physical promotion
+limitations: CLI/Web/Workbench shared root routing, stable restart identity and authority rebinding, stale/crash/power-loss recovery, directory fsync, cross-process fencing, network filesystem matrix, same-UID replacement race and legacy adapter migration remain open; this slice does not close PD-01
+reviewer: root integration agent with PD-01 read-only audit; no human release reviewer
+```
+
+## 11. Existing non-directory root fence (2026-10-08)
+
+The daemon resolver now rejects a configured storage root that already exists but is not a
+directory. Previously `canonicalize_nonexistent` returned the canonical path for a regular file,
+after which backend detection and `StorageRoot::new` accepted it as a usable root. The new
+`storage_root_not_directory` denial occurs before backend detection and before any StorageRoot is
+constructed; a missing leaf remains allowed for later lease initialization.
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: resolver rejects existing regular-file KIANA_HOME roots with storage_root_not_directory; no KIANA_HOME=/ architecture change, manifest/lockfile change, or second execution path
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test pd01_storage daemon_storage_resolver_rejects_existing_non_directory_root --locked --offline -- --exact --test-threads=1`; GREEN daemon `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`; domain and Core guard use the same bounded environment and serial test threads; final format/diff checks remain required by integration
+cwd·environment: repository root Linux/bash; one Cargo build job/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED exit 101 / 16.68s / 83% CPU / max RSS 951396 KiB / 0 swaps; daemon GREEN 12/12 / 10.38s / 88% CPU / max RSS 952500 KiB / 0 swaps; domain GREEN 4/4 / 1.87s / 38% CPU / max RSS 251460 KiB / 0 swaps; Core guard GREEN 1/1 / 0.57s / 60% CPU / max RSS 138608 KiB / 0 swaps
+fixture·cassette: `daemon_storage_resolver_rejects_existing_non_directory_root` writes a regular file as KIANA_HOME and expects `PortError::Failed("storage_root_not_directory")`; daemon full target 12/12, domain target 4/4, Core source guard 1/1
+exit_code: RED 101 expected; daemon/domain/Core focused GREEN 0; format/diff follow-up handled by integration agent
+status_change: selected resolver type boundary promoted source → local_behavior; whole PD-01 remains `feature_status=partial`, `proof_level=source`, roadmap row 108 `🔄`
+proof-level_change: local_behavior for existing non-directory denial only; no durable/live/physical promotion
+limitations: missing-root creation, symlink/race handling, shared CLI/Web/Workbench root routing, restart identity, stale/crash/power-loss recovery, directory fsync, cross-process fencing, network filesystem matrix and legacy adapter migration remain open; the exact KIANA_HOME=/ case is covered only by the later filesystem-root deny fence in section 12, not by this historical regular-file slice
+reviewer: root integration agent with PD-01 read-only audit; focused local storage reviewer
+```
+
+## 12. Filesystem-root deny fence (2026-10-13)
+
+The daemon resolver now rejects the exact filesystem root after canonicalization and before
+backend detection or `StorageRoot` construction. This prevents a configured `KIANA_HOME=/` from
+being handed to `StorageLease::acquire`, which would otherwise try to create the storage namespace
+under the operating-system root. The fixture calls only the resolver and never acquires a lease on
+`/`; non-root missing leaves keep their existing creation path.
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: PD-01 row 108 remains 🔄 / feature_status=partial / proof_level=source; resolver-only deny-first correction, no manifest/lockfile, shared entrypoint or ControlPlane path change
+command_argv: bounded serial RED exact `cargo test -p kiana-daemon --test pd01_storage daemon_storage_resolver_rejects_filesystem_root --locked --offline -- --exact --test-threads=1`; GREEN same selector; full daemon `cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test pd01_storage_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo/compiler worker and one Rust test thread; 32 MiB stack; stripped/non-incremental profile; locked/offline dependencies
+fixture·cassette: temporary project with `KIANA_HOME=/`; old resolver accepted `/` (RED assertion failure), corrected resolver returns `storage_root_filesystem_root_denied` before backend/lease setup; daemon target 13/13, Core guard 1/1
+exit_code: RED 101 / max RSS 4095944 KiB / CPU 90% / swap 0; exact GREEN 0 / max RSS 4105356 KiB / CPU 88% / swap 0; daemon target 0 / max RSS 4092004 KiB / CPU 90% / swap 0; Core guard 0 / max RSS 4087256 KiB / CPU 90% / swap 0; all swaps 0
+status_change: exact filesystem-root input is fail-closed before any storage namespace write
+proof-level_change: selected resolver denial source → local_behavior; whole PD-01 remains partial/source
+limitations: Windows volume-root coverage, shared CLI/Web/Workbench root routing, stable restart identity, legacy adapter migration, stale/crash/power-loss recovery, directory fsync, cross-process fencing and network filesystem race proof remain open
+reviewer: root integration agent with PD-01 read-only audit; focused storage resolver reviewer
 ```

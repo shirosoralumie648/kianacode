@@ -1,8 +1,1239 @@
 # Kiana 当前状态账本
 
+### 2026-10-13 CAP-15 guard 作用域回归
+
+```text
+source_snapshot: current dirty worktree; kiana-core/tests/cap15_patch_plan_guard.rs; kiana-daemon/src/apply_patch.rs
+worktree_status: CAP-15 row 245 remains 🔄 / feature_status=implemented / proof_level=source; guard-only correction, unrelated WIP preserved
+command_argv: bounded serial RED exact selector; GREEN `cargo test -p kiana-core --test cap15_patch_plan_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root; one Cargo job/test thread, 32 MiB stack, stripped/non-incremental profile, locked/offline dependencies
+fixture·cassette: preview no-lock/no-commit assertions stay in `preview_codex_patch`; `read_only` is checked in `patch_preview`; GREEN 4/4
+exit_code: RED 101 / max RSS 4055916 KiB / CPU 89% / swap 0; GREEN 0 / max RSS 141552 KiB / CPU 44% / swap 0
+status_change: corrected a source-guard scope bug; production preview/commit behavior unchanged
+proof-level_change: none; no card promotion
+limitations: daemon runtime fixture, transaction/recovery, physical filesystem behavior and full workspace regression remain open
+reviewer: root integration agent; source guard ownership reviewed against apply_patch.rs
+```
+
+### 2026-10-13 CP-13 legacy authority read-set version fence
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/dispatch.rs; kiana-core/tests/cap05_permit.rs
+worktree_status: CP-13 row 129 and CAP-05 row 143 remain 🔄 / feature_status=partial / proof_level=source; selected legacy authority read-set denial is local_behavior; no manifest/lockfile change
+command_argv: bounded serial RED exact selector `broker_rejects_legacy_authority_read_without_stream_version`; GREEN same selector; full `cargo test -p kiana-core --test cap05_permit --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test cp13_dispatch_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile, locked/offline dependencies
+fixture·cassette: compatibility EventStore adapter drops `stream_version` only when reading the authority stream; the old request-local sequence fallback reached the handler, while the corrected verifier returns `old_epoch_permit_rejected` before dispatch and leaves only `execution.prepared`; CAP-05 15/15, CP-13 guard 3/3
+exit_code: RED 101 / max RSS 554888 KiB / CPU 92% / swap 0; exact GREEN 0 / max RSS 1212972 KiB / CPU 93% / swap 0; CAP-05 0 / max RSS 85300 KiB / CPU 71% / swap 0; guard 0 / max RSS 141416 KiB / CPU 58% / swap 0
+status_change: verifier no longer treats request-local sequence as an authority aggregate version; missing explicit authority version now fails closed and requires re-authorization
+proof-level_change: selected in-memory denial behavior source → local_behavior; no durable/live/physical promotion
+limitations: EventStorePort does not distinguish migration metadata loss from malformed modern tuples; authority migration/upcaster, cross-process CAS/recovery, budget/lease/fence/result/cancel/Unknown transaction and external/live/physical effects remain open
+reviewer: root integration agent; focused CAP-05 permit reviewer
+```
+
+### 2026-10-13 PD-01 filesystem-root denial
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: PD-01 row 108 remains 🔄 / feature_status=partial / proof_level=source; resolver-only deny-first correction, no lease acquisition on `/`, no manifest/lockfile or shared product-entry routing change
+command_argv: bounded serial RED exact `daemon_storage_resolver_rejects_filesystem_root`; GREEN same selector; full daemon `pd01_storage`; Core `pd01_storage_guard`
+cwd·environment: repository root; one Cargo/compiler worker, one Rust test thread, 32 MiB stack, stripped/non-incremental profile, locked/offline dependencies
+fixture·cassette: temporary project plus `KIANA_HOME=/`; old resolver returned a usable root, corrected resolver rejects before backend detection with `storage_root_filesystem_root_denied`; daemon target 13/13 and Core guard 1/1
+exit_code: RED 101 / max RSS 4095944 KiB / CPU 90% / swap 0; exact GREEN 0 / max RSS 4105356 KiB / CPU 88% / swap 0; daemon target 0 / max RSS 4092004 KiB / CPU 90% / swap 0; Core guard 0 / max RSS 4087256 KiB / CPU 90% / swap 0
+status_change: exact filesystem root is now rejected before any StorageRoot/lease namespace creation; missing non-root leaves retain existing behavior
+proof-level_change: selected resolver denial source → local_behavior; whole PD-01 remains partial/source
+limitations: CLI/Web/Workbench shared root routing, restart identity and authority rebinding, stale/crash/power-loss recovery, fsync-dir, cross-process fencing, network filesystem matrix, same-UID replacement race and legacy adapter migration remain open
+reviewer: root integration agent with PD-01 read-only audit; focused local storage reviewer
+```
+
+### 2026-10-13 DEP-11 startup Unknown preservation
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/health_aggregation.rs; kiana-domain/tests/dep11_health_aggregation.rs; kiana-core/tests/dep11_health_aggregation_guard.rs; kiana-daemon/tests/dep11_health_route_guard.rs
+worktree_status: DEP-11 row 616 remains 🔄 / feature_status=partial / proof_level=source; selected startup Unknown mapping is local_behavior; source guards now use lexical production views so explanatory comments do not masquerade as effect dependencies
+command_argv: bounded serial RED/GREEN exact selector `startup_unknown_is_preserved_as_unknown_and_never_ready`; domain full `dep11_health_aggregation`; Core `dep11_health_aggregation_guard`; daemon `dep11_health_route_guard`; all locked/offline
+cwd·environment: repository root; one Cargo/compiler worker and one Rust test thread per command, 32 MiB stack, stripped/non-incremental profile
+fixture·cassette: valid Startup input with `StartupCoordinatorStatus::Unknown` and recomputed input digest; old reducer returned `Degraded`, corrected reducer returns `SignalStatus::Unknown` and `admission_allowed=false`; Blocked remains Degraded; domain 6/6, Core guard 3/3, daemon guard 3/3
+exit_code: RED 101 / max RSS 4093768 KiB / CPU 92% / swap 0; exact GREEN 0 / max RSS 4099324 KiB / CPU 93% / swap 0; domain target 0 / max RSS 83788 KiB / CPU 39% / swap 0; Core guard 0 / max RSS 139256 KiB / CPU 42% / swap 0; daemon guard 0 / max RSS 136812 KiB / CPU 53% / swap 0
+status_change: Startup Unknown is preserved as Unknown instead of being collapsed into ordinary Degraded; no readiness/liveness/drain/maintenance priority expansion
+proof-level_change: selected in-memory startup status behavior source → local_behavior; whole DEP-11 remains partial/source
+limitations: this does not prove the upstream StartupCoordinator fact, durable health checkpoint, live provider/exporter probe, admission wiring, or cross-process recovery; other probe modes intentionally retain their existing precedence
+reviewer: root integration agent with DEP-11 read-only audit; focused health aggregation reviewer
+```
+
+### 2026-10-13 PD-03 zero-time DTO denial
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/storage_health.rs; kiana-domain/tests/pd03_health.rs; kiana-ports/tests/pd03_error_mapping.rs; kiana-core/tests/pd03_health_guard.rs
+worktree_status: PD-03 row 110 remains ✅ / feature_status=implemented / proof_level=source; selected zero-time DTO denial is local_behavior; no manifest/lockfile or adapter wiring change
+command_argv: bounded serial RED/GREEN exact selectors `storage_health_rejects_zero_observed_time` and `storage_integrity_incident_rejects_zero_detected_time`; full domain `pd03_health`; ports `pd03_error_mapping`; Core `pd03_health_guard`; final fmt/diff/workflow validator and receipt archive
+cwd·environment: repository root Linux/bash; one Cargo/compiler worker and one Rust test thread; `RUST_MIN_STACK=33554432`, stripped/non-incremental profile, locked/offline dependencies
+fixture·cassette: valid health/incident constructed at nonzero time, timestamp changed to zero, digest recomputed, and stable `storage_health_invalid` / `storage_integrity_incident_invalid` required; domain 4/4, ports 1/1, Core guard 1/1
+exit_code: observed-time RED 101 / max RSS 254220 KiB / CPU 29% / swap 0; observed-time GREEN 0 / max RSS 4096368 KiB / CPU 93% / swap 0; detected-time RED 101 / max RSS 4037296 KiB / CPU 92% / swap 0; full domain 0 / max RSS 4089612 KiB / CPU 93% / swap 0; ports 0 / max RSS 4098732 KiB / CPU 37% / swap 0; Core guard with time markers 0 / max RSS 84624 KiB / CPU 29% / swap 0; static gates 0; archived receipts 310
+status_change: `StorageHealth` and `StorageIntegrityIncident` now reject zero Unix timestamps at the typed DTO boundary without successful fallback or side effects
+proof-level_change: selected in-memory validation behavior source → local_behavior; PD-03 overall remains implemented/source because durable/live/physical evidence is absent
+limitations: adapter-wide error migration, health projector/CLI/HTTP/Receipt wiring, fsync/kill/reopen, EventLog quarantine, cross-process recovery, remote CI run ID and live/physical storage evidence remain open; workspace full regression remains exit 124 as recorded below
+reviewer: root integration agent with PD-03 read-only audit; focused storage health reviewer
+```
+
+### 2026-10-13 SC-07/CO-03 resolved assignment zero valid-from denial
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/assignment.rs; kiana-domain/tests/co03_assignment.rs; kiana-core/tests/co03_assignment_guard.rs
+worktree_status: CO-03 row 062 remains ✅ / implemented/source; SC-07 row 118 remains 🔄 / partial/source; selected zero-valid-from denial is local_behavior
+command_argv: bounded serial RED/GREEN exact `resolved_assignment_rejects_zero_valid_from_time`; full domain `co03_assignment`; Core `co03_assignment`; Core source guard `co03_assignment_guard`; all locked/offline
+cwd·environment: repository root Linux/bash; one Cargo/compiler worker and one Rust test thread per command, 32 MiB stack, stripped/non-incremental profile; RED max RSS 248856 KiB / CPU 36%; exact GREEN 4079808 KiB / 92%; domain rerun 82932 KiB / 65%; Core exact deny 327476 KiB / 90%; Core target rerun 1214132 KiB / 94%; guard 1217484 KiB / 92%; all swap 0
+fixture·cassette: forged resolved assignment recomputes its digest after changing valid_from_unix_ms to zero; RED 101 expected; exact GREEN 0; domain 8/8, Core 2/2 (expiry/actor/role plus zero-valid-from), source guard 1/1
+exit_code: RED 101 expected; exact GREEN/domain/Core/guard 0
+status_change: zero valid-from assignment snapshots now fail closed; selected behavior source → local_behavior; no roadmap card promotion
+proof-level_change: focused typed denial source → local_behavior; no durable/live/physical promotion
+limitations: in-process AssignmentDirectory, compatibility DaemonHost dispatch without context_from_assignment, org provisioning/default-unassigned/multi-role decisions, durable authority/CAS/recovery and external/live/physical identity proof remain open
+reviewer: root integration agent with read-only SC-07 audit; focused CO-03 assignment reviewer
+```
+
+### 2026-10-13 SC-10 approved-after-expiry consume denial
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/approval_binding.rs; kiana-core/tests/sc10_approval_binding.rs; kiana-core/tests/sc10_approval_guard.rs
+worktree_status: SC-10 row 121 remains 🔄 / partial/source; selected approved-after-expiry denial is local_behavior; shared approval-binding WIP preserved
+command_argv: bounded serial RED/GREEN exact `human_inbox_rejects_consumption_after_approval_expiry`; full `sc10_approval_binding`; source guard `sc10_approval_guard`; all locked/offline
+cwd·environment: repository root Linux/bash; one Cargo/compiler worker and one Rust test thread per command, 32 MiB stack, stripped/non-incremental profile; RED max RSS 227772 KiB / CPU 46%; exact GREEN 1212512 KiB / 95%; binding 85452 KiB / 57%; guard 139552 KiB / 63%; all swap 0
+fixture·cassette: item approved at 100 with expiry 500 is consumed at 1000; old signature RED 101, corrected method returns PolicyApprovalExpired; binding target 6/6 and source guard 3/3
+exit_code: RED 101 expected; exact GREEN/binding/guard 0
+status_change: approved HumanInbox projection rejects Consumed at or after binding expiry; selected behavior source → local_behavior; no roadmap card promotion
+proof-level_change: focused in-memory expiry denial source → local_behavior; no durable/live/physical promotion
+limitations: no production call site, independent approver identity/scope, durable inbox/CAS, trusted clock, GrantScope intersection, Broker dispatch, redaction/TOCTOU or cross-process recovery proof
+reviewer: root integration agent with read-only SC-10 audit; focused approval-binding reviewer
+```
+
+### 2026-10-13 PD-34 maintenance budget owner fence
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/storage_capacity_budget.rs; kiana-ports/tests/pd34_storage_capacity_budget.rs
+worktree_status: PD-34 row 745 remains 🔄 / feature_status=partial / proof_level=source; selected maintenance decision is local_behavior
+command_argv: bounded serial RED exact selector; GREEN `cargo test -p kiana-ports --test pd34_storage_capacity_budget maintenance_ --locked --offline -- --test-threads=1`; full target attempted for classification
+cwd·environment: repository root; one Cargo job/test thread, 32 MiB stack, stripped/non-incremental profile, locked/offline dependencies
+fixture·cassette: EventFrame/Artifact/Index/WriterQueue declare zero maintenance share while BackupPrune declares 2500 bps; 1000 bps remains Refused, 4000 bps names BackupPrune
+exit_code: RED 101 / max RSS 4107788 KiB / CPU 92% / swap 0; focused GREEN 2/2 exit 0 / max RSS 83856 KiB / CPU 64% / swap 0; initial full target 12/16, then final port target 16/16 after separate envelope/order/fixture corrections
+status_change: maintenance predicate is restricted to BackupPrune; whole PD-34 remains partial/source
+proof-level_change: selected in-memory degradation decision only; no durable/live/physical promotion
+limitations: no pressure/throughput/latency or backup/prune workload ran; durable filesystem, cross-process recovery, platform-resource and full workspace proof remain open
+reviewer: root integration agent with read-only workspace failure triage; no performance operator reviewer
+```
+
+### 2026-10-13 PD-34 partial envelope and denial-order corrections
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/storage_capacity_budget.rs; kiana-ports/tests/pd34_storage_capacity_budget.rs; docs/roadmap/pd34-persistence-capacity-baseline.md
+worktree_status: PD-34 row 745 remains 🔄 / feature_status=partial / proof_level=source; selected report-denial behavior is local_behavior
+command_argv: RED exact undeclared-observation selector; GREEN exact undeclared-observation and unbounded-bound selectors; full `cargo test -p kiana-ports --test pd34_storage_capacity_budget --locked --offline -- --test-threads=1`; Core persistence guard
+cwd·environment: repository root; one Cargo job/test thread, 32 MiB stack, stripped/non-incremental profile, locked/offline dependencies
+fixture·cassette: partial budget reports preserve canonical envelope defaults; undeclared observations return `capacity_observation_subject_undeclared`; tampered measured subjects return `capacity_budget_receipt_missing`; malformed summary fixture now starts valid then tampers its digest; port target 16/16 and persistence guard 1/1
+exit_code: RED 101 / max RSS 473208 KiB / CPU 89% / swap 0; final port target 0 / max RSS 268676 KiB / CPU 102% / swap 0; Core persistence guard 0; matrix Core guard 3/3
+status_change: partial-envelope overlay, measured-receipt precedence, and malformed-fixture boundary corrected; whole PD-34 remains partial/source
+proof-level_change: selected in-memory report validation only; no durable/live/physical promotion
+limitations: no pressure/throughput/latency, backup/prune, filesystem, cross-process or platform resource workload; PD-34 roadmap acceptance and full workspace regression remain open
+reviewer: root integration agent with read-only workspace failure triage; no storage-performance operator reviewer
+```
+
+### 2026-10-13 CI-06 环境 profile SecretRef 长度边界回归
+
+```text
+source_snapshot: current dirty worktree; kiana-provider/src/config.rs; kiana-provider/tests/ci06_config_resolver.rs
+worktree_status: CI-06 row 166 remains 🔄 / feature_status=partial / proof_level=source; selected environment-profile `api_key_env` bound is local_behavior; no DaemonHost project wiring or durable snapshot
+command_argv: RED/GREEN exact oversized environment-profile selector; provider `ci06_config_resolver`; daemon/Core CI-06 guards; `cargo fmt --all --check`; `git diff --check`; workflow validator; all through bounded serial launcher with locked/offline Cargo
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental profile; RED max RSS 368392 KiB / 70% CPU; GREEN 437704 KiB / 76% CPU; provider 85500 KiB / 47% CPU; daemon 4075148 KiB / 87% CPU; Core 130440 KiB / 49% CPU; all observed swap counters 0
+fixture·cassette: 129-byte dynamic uppercase environment variable name bound to a sentinel; old parser accepted it; new parser returns `model_credential_reference_invalid`; provider 16/16, daemon guard 4/4, Core guard 1/1
+exit_code: RED 101 expected; exact GREEN/provider/daemon/Core 0; fmt/diff/workflow validator 0
+status_change: selected CI-06 environment-profile lexical/resource bound moves source → local_behavior; whole card remains partial/source
+proof-level_change: selected resolver boundary only; no durable/live/physical promotion
+limitations: DaemonHost project config path/trust revision/reload wiring, ConfigSnapshotStore, cross-process generation, migration/upcaster, lease lifecycle and remote-cancel fencing remain open
+reviewer: root integration agent with read-only CI-06 resolver audit; focused environment-profile boundary reviewer
+```
+
+### 2026-10-13 ER-02 legacy invocation append-order fence
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/invocation_projection.rs; kiana-core/tests/er02_identity.rs
+worktree_status: ER-02 row 037 remains 🔄 / feature_status=partial / proof_level=source; selected legacy append-order behavior is local_behavior; no durable ledger or second execution path
+command_argv: RED/GREEN exact legacy-order selector; full `cargo test -p kiana-core --test er02_identity`; `er02_identity_guard`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental profile; RED max RSS 4100792 KiB / 92% CPU; GREEN 331344 KiB / 105% CPU; full identity 84696 KiB / 28% CPU; guard 135744 KiB / 55% CPU; all observed swap counters 0
+fixture·cassette: five legacy events without stream metadata, legal lifecycle in append order and intentionally reversed request-local sequence; RED returned `invocation_request_missing`; GREEN projects `Succeeded`; full identity 4/4, guard 1/1
+exit_code: RED 101 expected; exact GREEN/full/guard 0; final fmt/diff/workflow validator 0
+status_change: selected legacy projector ordering moves source → local_behavior; whole ER-02 remains partial/source
+proof-level_change: in-memory projector only; no durable/live/physical promotion
+limitations: durable InvocationLedger, cross-process ordering/recovery, terminal reconciliation, legacy upcast, complete CI shard and external effect receipts remain open
+reviewer: root integration agent with read-only ER-02 projection audit; focused legacy ordering reviewer
+```
+
+### 2026-10-13 受控 workspace 全量回归边界
+
+```text
+source_snapshot: current dirty worktree after CI-06 environment-profile and ER-02 legacy-order slices
+worktree_status: project goal remains active; 708 dirty entries include pre-existing WIP plus current evidence; no commit/push/merge/rebase or destructive cleanup
+command_argv: `cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1` through `/tmp/kiana-roadmap-20261010-evidence/run-serial-test.py workspace-regression-20261013`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; single Cargo worker/test thread, 32 MiB stack, stripped/non-incremental profile, 900 s timeout; max RSS 4040700 KiB, CPU 90%, swap 0
+fixture·cassette: many completed targets and doc-tests reached; observed current-head failures include `kiana-daemon` DEP-10/11/14/15 guards, `kiana-ports` PD-32/34 storage guards, `kiana-protocol` UI-40 release evidence, `kiana-query` context-memory baseline, `kiana-skills` trust/source resolver fixtures and `kiana-tools` skill fixtures; final log ended while entering `kiana-capability-broker` doc-tests
+exit_code: wrapper exit 124 after 900 s; this is neither a full green result nor evidence that all remaining targets failed; no Cargo/rustc process remained afterward
+status_change: no roadmap card promoted; full workspace proof remains incomplete and current-head failures are recorded for later classification
+proof-level_change: none; focused CI-06/ER-02 local_behavior evidence is not upgraded by the bounded workspace run
+limitations: complete test matrix still requires failure classification and a successful bounded or GitHub CI run; current failure groups may include baseline WIP/fixture drift and were not changed in this turn
+reviewer: root integration agent; resource and exit receipt `/tmp/kiana-roadmap-20261010-evidence/workspace-regression-20261013.{log,resources,exit}`
+```
+
+### 2026-10-13 OA-03 流式 URL/JWT 有界脱敏回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/redaction.rs; kiana-domain/tests/oa03_redaction.rs
+worktree_status: OA-03 row 094 remains 🔄 / feature_status=partial / proof_level=source; selected StreamingRedactor URL/JWT split behavior is local_behavior; no manifest/lockfile, second redaction system or execution loop
+command_argv: RED split URL selector; GREEN split URL, split JWT, split eyJ prefix selectors; streaming target `cargo test -p kiana-domain --lib redaction::tests::streaming_redactor --locked --offline -- --test-threads=1`; OA-03 regression `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental locked/offline profile; no swap
+fixture·cassette: split URL no longer exposes `stream-user`/`stream-pass`, output is `fetch https://[REDACTED]@example.test/path`; split JWT/prefix output is `response [REDACTED] tail`; overlong candidates remain bounded and fail closed; streaming 8/8; OA-03 regression 7/7; full kiana-domain lib 144/144; INT-13 4/4; Core guard 1/1
+exit_code: expected RED 101; final selectors, INT-13/Core regressions, full domain lib, fmt/diff 0; focused compile peak 3594232 KiB / 97% CPU / 34.90s; OA-03 regression peak 4113920 KiB / 91% CPU / 53.37s; full domain lib cache-hit peak 81364 KiB / 80% CPU / 0.41s; Core guard peak 4112120 KiB / 85% CPU / 86.17s; receipts under `/tmp/kiana-roadmap-20261010-evidence/oa03-stream-*`, `oa03-domain-regression.*`, `oa03-domain-lib-full.*`, `oa03-int13-regression.*` and `oa03-core-guard-final.*`
+status_change: selected bounded streaming URL/JWT redaction moves source → local_behavior; whole OA-03 and project remain open
+proof-level_change: local_behavior only; no durable/live/physical promotion
+limitations: bounded shape heuristics only; complete producer/sink/profile wiring, arbitrary unmarked secrets, JSON stream parsing, EventLog/Receipt/Metric/Trace exporter integration and durable/live proof remain open
+reviewer: root integration agent with OA-03 streaming audit; focused red/green redaction reviewer
+```
+
+### 2026-10-13 P0-A-01a ID 注册表当前源快照与 CI lane 回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/contracts.rs; .github/workflows/p0-a01a-id-contracts.yml
+worktree_status: P0-A-01a row 001 remains 🔄; selected ID registry is local_behavior; manual workflow source-wired only; no commit/push/merge/rebase
+command_argv: bounded domain `cargo test -p kiana-domain --lib contracts::tests --locked --offline -- --test-threads=1`; `bash scripts/ci/validate-workflows.sh`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental locked/offline profile; no swap
+fixture·cassette: `contracts::tests` 105/105; source validator covers ids/correlation registration and exact owner; workflow structure 255 files / 5 automatic / 250 manual, shard coverage 41 / 1473 integration targets
+exit_code: local test 0, workflow validator 0, final static checks 0; peak RSS 3594924 KiB / 93% CPU / 36.29s; receipt `/tmp/kiana-roadmap-20261010-evidence/p0a01a-contracts-current.*`
+status_change: selected P0-A-01a ID registry behavior stays local_behavior; manual CI evidence lane defined, no remote run yet; project remains open
+proof-level_change: selected registry source → local_behavior; workflow definition source only; no CI/durable/live/physical promotion
+limitations: GitHub workflow has no current run ID/result; full workspace remains bounded-timeout; source-text scan does not prove cross-crate/durable registry; P0-A-01b schema/event migration remains separate
+reviewer: root integration agent with read-only P0-A-01a CI-wiring audit; focused contracts test reviewer
+```
+
+### 2026-10-13 BQ-06 RuntimeBudget/ProjectBudget 不可互换边界回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/tests/bq06_budget_intersection.rs; existing billing_budgets.rs and Core BQ-06 guard
+worktree_status: BQ-06 row 195 remains 🔄 / feature_status=implemented / proof_level=source; selected runtime/project separation fixture is local_behavior; no production authority, manifest/lockfile or second budget loop
+command_argv: exact domain 1/1; full BQ-06 domain 12/12; Core guard 1/1; all locked/offline and launched through the single-Cargo serial wrapper
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental profile; no swap
+fixture·cassette: changing RuntimeBudget model-call limit changes only `max_model_calls`; changing ProjectBudget token/run limits changes the corresponding project-scoped dimensions; no runtime/project interchange
+exit_code: exact 0, full domain 0, Core guard 0; peak RSS 232896 KiB / 32% CPU, 81828 KiB / 64% CPU, 132520 KiB / 55% CPU; elapsed 1.79s, 0.22s, 0.51s; receipts under `/tmp/kiana-roadmap-20261010-evidence/`
+status_change: selected BQ-06 runtime/project separation moves source → local_behavior; whole BQ-06 and project remain open
+proof-level_change: local_behavior only; no durable/live/physical promotion
+limitations: remaining calculations, lease lineage, sibling CAS, quota windows, ControlPlane admission, durable recovery, provider dispatch and financial authority remain open
+reviewer: root integration agent with BQ-06 read-only source audit; focused budget separation reviewer
+```
+
+### 2026-10-13 CM-09 格式化电话 PII 边界回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/text_normalization.rs; kiana-domain/tests/cm09_text_normalization.rs; kiana-core/tests/cm09_text_normalization_guard.rs
+worktree_status: CM-09 row 320 remains 🔄 / feature_status=partial / proof_level=source; selected formatted-phone detector/redactor is local_behavior; no index/provider/manifest/lockfile or second redaction system
+command_argv: domain `cargo test -p kiana-domain --test cm09_text_normalization --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cm09_text_normalization_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`; all test launches used the single-Cargo serial wrapper
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental profile; no swap in completed samples
+fixture·cassette: `138 0013 8000` rejects before normalized text/tokens, Redact emits one `[PII_REDACTED]` marker, ReferenceOnly emits no text/tokens; domain 6/6 and Core guard 1/1
+exit_code: domain 0, Core guard 0, format/diff 0; domain peak RSS 4094316 KiB / 91% CPU / 53.64s; Core peak RSS 4098492 KiB / 91% CPU / 78.52s; receipts under `/tmp/kiana-roadmap-20261010-evidence/`
+status_change: selected formatted-phone PII boundary moves source → local_behavior; whole CM-09 and project remain open
+proof-level_change: local_behavior only; no durable/live/physical promotion
+limitations: bounded heuristic only, not full locale-aware PII classification; production normalization call sites, durable index enforcement and dedicated CI evidence remain open
+reviewer: root integration agent with CM-09 read-only audit; focused PII/text-normalization reviewer
+```
+
+### 2026-10-13 CM-09 合法 JSON secret 边界回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/text_normalization.rs; kiana-domain/src/redaction.rs; kiana-domain/tests/cm09_text_normalization.rs; kiana-core/tests/cm09_text_normalization_guard.rs
+worktree_status: CM-09 row 320 remains 🔄 / feature_status=partial / proof_level=source; valid JSON secret detection now reuses the shared redaction field vocabulary; no index/provider/manifest/lockfile or second redaction system
+command_argv: domain `cargo test -p kiana-domain --test cm09_text_normalization --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cm09_text_normalization_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`; all test launches used the single-Cargo serial wrapper
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB stack, stripped/non-incremental profile; no swap in completed samples
+fixture·cassette: valid `{"api_key":"CM09_RAW","note":"safe"}` now Rejects before text/tokens/metadata; Redact removes the raw value through structured `redact_value`; ReferenceOnly retains no text/tokens; domain 5/5 and Core guard 1/1
+exit_code: domain 0, Core guard 0, format/diff 0; domain peak RSS 4094996 KiB / 87% CPU / 56.56s; Core peak RSS 4107896 KiB / 91% CPU / 79.45s; receipts under `/tmp/kiana-roadmap-20261010-evidence/`
+status_change: selected valid JSON secret boundary moves source → local_behavior; whole CM-09 and project remain open
+proof-level_change: local_behavior only; no durable/live/physical promotion
+limitations: formatted phone PII, heuristic/full classification, production normalization call sites, durable index enforcement and dedicated CI evidence remain open; detail-card status drift was corrected to 🔄
+reviewer: root integration agent with CM-09 read-only audit; focused redaction/text-normalization reviewer
+```
+
+### 2026-10-13 BQ-05 bounded RateCardStore 容量回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/lib.rs; kiana-ports/tests/bq05_rate_card_store.rs; kiana-core/tests/bq05_rate_card_guard.rs
+worktree_status: BQ-05 row 194 remains 🔄 / feature_status=implemented / proof_level=source; selected in-memory capacity boundary is local_behavior; no manifest/lockfile or financial authority change
+command_argv: `cargo test -p kiana-ports --test bq05_rate_card_store --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test bq05_rate_card_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`; all launched through the single-Cargo serial wrapper
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one Rust test thread, 32 MiB test stack, stripped/non-incremental profile; no swap in completed samples
+fixture·cassette: `MAX_RATE_CARD_STORE_CARDS=256`; ports 6/6 accepts 256 distinct cards, rejects the 257th with `port_unavailable:rate_card_capacity_exceeded`, and resolves an existing card afterward; Core guard 1/1
+exit_code: ports 0, Core guard 0, final format/diff checks 0; ports peak RSS 4081692 KiB / 89% CPU / 59.80s; Core peak RSS 4039880 KiB / 91% CPU / 83.17s; receipts under `/tmp/kiana-roadmap-20261010-evidence/`
+status_change: selected bounded adapter behavior moves source → local_behavior; whole BQ-05 and project remain open
+proof-level_change: local_behavior only; no durable/live/physical promotion
+limitations: durable rate-card projector, provider discovery, invoice/currency conversion, reservation authority, cross-process recovery and full workspace/remote acceptance remain open
+reviewer: root integration agent with BQ-05/BQ-06/CAP-07 read-only audit; focused rate-card port reviewer
+```
+
+### 2026-10-13 EQ-10 fake provider DaemonHost 集成回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/tests/eq10_fake_provider.rs; existing eval_runtime FakeProviderAdapter; kiana-core/tests/eq10_fake_provider_guard.rs
+worktree_status: EQ-10 row 182 remains 🔄 / feature_status=implemented / proof_level=local_behavior; selected completion path now crosses real DaemonHost → ControlPlane → KianaHarness and projects EventLog/receipt/UI facts; no manifest/lockfile or second execution path
+command_argv: exact Host integration 1/1; full daemon target 11/11; Core guard 1/1; all locked/offline and bounded with one Cargo job/test thread; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, `CARGO_PROFILE_TEST_DEBUG=0`, `CARGO_PROFILE_TEST_STRIP=symbols`, `CARGO_INCREMENTAL=0`; completed samples reported 0 swap
+fixture·cassette: trusted temp project and fixed authority; FakeProvider completes once; persisted `run.authorized`, `run.completed`, `run.receipt` plus UI completion retain request/correlation identity; Core guard keeps no-real-executor boundary
+exit_code: exact Host 0, full daemon 0, Core guard 0; peak RSS 4093400 KiB / 80% CPU, 3560800 KiB / 75% CPU, 4058788 KiB / 82% CPU respectively; resource files are under `/tmp/kiana-roadmap-20261010-evidence/`
+status_change: selected EQ-10 Host completion/event/receipt behavior moves source → local_behavior; whole card and project remain open
+proof-level_change: local_behavior only; no durable restart/recovery, live/physical provider or external-effect proof
+limitations: in-memory event persistence and fixed trusted authority fixture; malformed/deny Host paths, EQ-11 broker composition, full evaluation evidence capture, fault/restart recovery and live provider remain open
+reviewer: root integration agent with EQ-10 read-only audit; focused Host/Core guard reviewers
+```
+
+### 2026-10-13 OA-02 authenticated ingress traceparent 边界回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-protocol/src/lib.rs; kiana-daemon/src/lib.rs; kiana-daemon/tests/ci04_ingress.rs; kiana-domain/src/ui_snapshot.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: OA-02 row 093 remains 🔄 / feature_status=partial; optional traceparent is validated at ingress and converted to a server-owned CorrelationContext foreign-parent link; no manifest/lockfile or execution-path split
+command_argv: ingress 3/3; protocol 11/11; domain OA-02 9/9; ports OA-02 4/4; daemon library 136/136; all under CARGO_BUILD_JOBS=1/RUST_TEST_THREADS=1/RUST_MIN_STACK=33554432/CARGO_PROFILE_TEST_DEBUG=0/CARGO_PROFILE_TEST_STRIP=symbols/CARGO_INCREMENTAL=0; cargo fmt --all --check and git diff --check pending final receipt refresh
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo/compiler job, one test thread, 32 MiB test stack, locked/offline mode; no swap in completed samples
+fixture·cassette: invalid W3C traceparent denied before ControlPlane; valid foreign parent creates a fresh server trace and one ForeignParent link while actor/project/session/authority/data epochs remain server-owned; protocol serde round-trip retains optional field
+exit_code: final selectors 0; ingress peak RSS 564740 KiB, protocol 2417516 KiB, domain 272636 KiB, ports 4100828 KiB, daemon library 4096356 KiB; CPU 10%/49%/44%/87%/84%; all 0 swap
+status_change: selected OA-02 ingress contract moves source → local_behavior; roadmap card and full project remain open
+proof-level_change: local_behavior only; no durable/live/physical/provider/exporter proof
+limitations: typed correlation is not yet persisted through run/turn/invocation/provider/Broker/EventLog; durable restart/recovery, exporter/sink wiring, full workspace and remote CI remain unproven; the existing full workspace command previously timed out at 900 seconds
+reviewer: root integration agent with OA-02 read-only audit; focused ingress/domain/ports reviewers
+```
+
+### 2026-10-13 当前源快照回归与 P0-A-01a 证据更新
+
+```text
+source_snapshot: HEAD d02bcd5a308ecbe468212f90070cf6f07b8b8296 plus the preserved dirty worktree; exact per-launch source hashes and argv are archived in docs/roadmap/roadmap-regression-receipt-20261010.json and /tmp/kiana-roadmap-20261010-evidence/
+worktree_status: active whole-roadmap goal; roadmap inventory remains 749 steps / 354 index-complete / 395 open / 21 dependency-closure ready; P0-A-01a remains 🔄; no commit/push/merge/rebase/worktree deletion
+command_argv: current-source `cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1` under CARGO_BUILD_JOBS=1/RUST_TEST_THREADS=1 timed out at the bounded 900s limit; `cargo test -p kiana-domain --lib contracts::tests --locked --offline -- --test-threads=1` passed 105/105; `cargo check --workspace --locked --offline`, `cargo clippy --workspace --all-targets --locked --offline`, and `cargo build --bin kiana --locked --offline` each exited 0; focused pd26/quality-promote/sc33 targets passed 14/14, 17/17, and 5/5
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one active Cargo/compiler job and one test thread; 32 MiB Rust test stack; stripped, non-incremental, locked/offline profile; launch preflight rejects overlapping Cargo/rustc/rust-lld
+fixture·cassette: current full-workspace log reaches `kiana-entrypoints` `cli_web` after earlier targets report ok; it was interrupted by the timeout wrapper before the target completed, so no whole-workspace pass claim is made. Current release smoke, harness golden smoke, v10 workbench smoke, and v10 P0 closeout smoke all exited 0; smoke proof remains local_behavior only
+exit_code: workspace-full-final 124 after 15:00.02 / 94% CPU / 4,049,776 KiB maximum RSS / GNU time Swaps=0; P0-A-01a contracts 0; workspace check 0; clippy 0; debug binary build 0; release smoke 0; pd26 0; quality-promote 0; sc33 0; `cargo fmt --all --check` 0; `git diff --check` 0
+status_change: current source behavior and resource evidence refreshed; revocation propagation, quality promotion replay/rollback, incident rejection routing, daemon fixtures, redaction and smoke expectation fixes remain locally verified; no roadmap card promotion and no full-project acceptance
+proof-level_change: selected boundaries retain local_behavior; source guards remain source; no durable/live/physical/provider or external publish proof
+limitations: full workspace regression remains incomplete because of the 900s resource bound and stops in entrypoint CLI web tests; the roadmap's remote CI/commit evidence is not available; older failed guard targets remain classified in the receipt and were not weakened; 7.5 GiB host RAM and prior full-run ~4 GiB RSS justify the single-job bound
+reviewer: root integration agent; read-only P0-A-01a, CP-13 and ER-02 frontier audits pending
+```
+
+本轮新增回执仍归档于 [roadmap-regression-receipt-20261010.json](docs/roadmap/roadmap-regression-receipt-20261010.json) 及 `/tmp/kiana-roadmap-20261010-evidence/`；Goal 继续 active。
+
+### 2026-10-13 CP-13 post-prepare Unknown 终结回归更新
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/dispatch.rs; kiana-core/src/dispatch_delivery_tests.rs; kiana-core/tests/cp13_dispatch_guard.rs; docs/roadmap/control-plane-dispatch-permit-baseline.md
+worktree_status: CP-13 row 129 remains 🔄 / feature_status=partial; one shared post-prepare terminal helper now covers data-revocation failure, checkpoint preparation failure and cancellation before Broker; no manifest/lockfile, second dispatch loop, automatic commit/push/merge/rebase or worktree deletion
+command_argv: RED `cargo test -p kiana-core --test cp13_dispatch_guard --locked --offline -- --test-threads=1` before helper implementation; GREEN source guard with the same selector after implementation; behavior `cargo test -p kiana-core --lib dispatch::delivery_tests::prepared_pre_broker_failure_is_closed_once_as_result_unknown --locked --offline -- --exact --test-threads=1`; full delivery module `cargo test -p kiana-core --lib dispatch::delivery_tests --locked --offline -- --test-threads=1`; final source guard rerun after ordering assertions
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental locked/offline profile; preflight rejects overlapping Cargo/rustc/rust-lld
+fixture·cassette: RED guard failed because `dispatch_authorized` had no post-prepare terminal writer; GREEN guard requires all three stable `result_unknown` reasons and three helper call sites; behavior fixture uses real `MemoryEventLog` and verifies exactly `execution.prepared → execution.result_committed` v2, typed receipt `effect_known=false`/`fenced=true`, cancellation metadata and idempotent replay; full delivery module 13/13
+exit_code: RED 101 expected; prior GREEN source guard 0; behavior 0; delivery module 0; final source guard 0; resource samples for completed runs: RED 4092988 KiB/90% CPU/0 swap, GREEN 4099488 KiB/93% CPU/0 swap, behavior 4104888 KiB/93% CPU/0 swap, delivery 4083436 KiB/89% CPU/0 swap
+status_change: selected post-prepare failure/cancellation terminalization moves source → local_behavior; CP-13 whole card remains partial/source because reservation atomicity, live epochs/fencing, cross-process recovery and full dispatch-authorized failure injection remain open
+proof-level_change: helper CAS terminalization and direct MemoryEventLog behavior are locally verified; no durable/live/physical promotion
+limitations: behavior fixture drives the shared helper directly rather than every ControlPlane authority/policy setup; budget/resource reservation remains separate from preparation, live epoch/fencing binding and cross-process/crash recovery remain unproven
+reviewer: root integration agent with CP-13 read-only audit; focused permit/delivery reviewer
+```
+
+### 2026-10-13 ER-02 入口与 CO-06 atomicity deny 切片
+
+```text
+source_snapshot: current dirty worktree; kiana-entrypoints/src/harness_run.rs; kiana-daemon/tests/co06_company_artifact_history.rs; docs/roadmap/event-receipt-identity-baseline.md; docs/roadmap/artifact-evidence-baseline.md
+worktree_status: active whole-roadmap goal; ER-02 row 037 and CO-06 row 065 remain 🔄 / partial; selected entrypoint identity and artifact atomicity denial boundaries are local_behavior; no commit/push/merge/rebase/worktree deletion
+command_argv: entrypoint selector `cargo test -p kiana-entrypoints --lib harness_run::tests::run_envelope_on_host_preserves_event_identity_chain --locked --offline -- --exact --test-threads=1`; entrypoint lib `cargo test -p kiana-entrypoints --lib --locked --offline --no-fail-fast -- --test-threads=1`; CO-06 selector `cargo test -p kiana-daemon --test co06_company_artifact_history --locked --offline -- --exact artifact_publication_is_denied_when_event_store_lacks_atomic_transitions --test-threads=1`; complete CO-06 target `cargo test -p kiana-daemon --test co06_company_artifact_history --locked --offline -- --test-threads=1`; current CP-13 delivery 13/13, guard 3/3, workspace check/clippy/bin build 0
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; one Cargo job and one Rust test thread; 32 MiB test stack; stripped/non-incremental locked/offline profile; preflight rejects overlapping Cargo/rustc/rust-lld
+fixture·cassette: ER-02 real entrypoint wrapper→LocalDaemonTransport→DaemonHost→EventLog identity 1/1; entrypoint library 459/459; CO-06 non-atomic EventStore gate denies before artifact publication 1/1; existing artifact history/retry target 3/3; CP-13 prepared post-Broker failures commit one idempotent Unknown terminal fact
+exit_code: listed selectors and package target 0; workspace check/clippy/debug binary build 0; current full-workspace test remains timed out at 900 seconds from prior receipt, so no whole-workspace pass claim; peak RSS: entrypoint identity 4060016 KiB, entrypoint lib 4071508 KiB, CO-06 denial 644516 KiB, CO-06 target 91476 KiB; all completed runs reported 0 swaps
+status_change: selected ER-02/CO-06/CP-13 boundaries are locally verified; no roadmap card promoted and no full-project acceptance
+proof-level_change: selected boundaries `source` → `local_behavior`; no durable/live/physical promotion
+limitations: ER-02 pending approval restart and full clean shard remain open; CO-06 cross-store atomic commit/recovery/UI diff remains open; CP-13 reservation atomicity, live fencing and cross-process recovery remain open; full workspace regression did not finish within the 900-second resource bound
+reviewer: root integration agent with read-only ER-02 and CO-06 audits; focused behavior reviewers
+```
+
+### 2026-10-13 H05 stop/recovery/provider 回归
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider/src/{response.rs,transport.rs}; docs/roadmap/harness-stop-retry-baseline.md
+worktree_status: H05 row 047 remains 🔄 / feature_status=partial; Domain/Runner/provider selected stop and recovery boundaries are local_behavior; no new model error codes, automatic repair loop, manifest/lockfile or commit/push/merge/rebase/worktree deletion
+command_argv: `cargo test -p kiana-domain --test h05_model_outcome --locked --offline -- --test-threads=1`; `cargo test -p kiana-runner --test h05_stop_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-provider --lib --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root; one Cargo job and one Rust test thread; 32 MiB stack; stripped/non-incremental locked/offline profile; all completed runs reported 0 swaps
+fixture·cassette: H05 Domain 14/14, Runner 4/4, provider 78/78; typed length/refusal/incomplete/unknown and repair dispositions remain fail-closed; no automatic retry is inferred
+exit_code: all listed targets/fmt/diff 0; max RSS Domain 4100544 KiB, Runner 4068044 KiB, provider 4062672 KiB; CPU 87%/89%/87%
+status_change: selected H05 boundaries refreshed to local_behavior; H05 remains partial/source and roadmap row 047 remains 🔄
+proof-level_change: selected stop/recovery/provider contract behavior source → local_behavior; no durable/live/physical promotion
+limitations: CLI/wire mapping, automatic/budgeted repair, complete unified shard, H06/H07 integration, provider live/billing/external effect and physical proof remain open
+reviewer: root integration agent with read-only H05 frontier audit; focused Domain/Runner/provider reviewer
+```
+
+### 2026-10-10 全量 roadmap Goal、回归基线与阻塞修复
+
+```text
+source_snapshot: HEAD d02bcd5a308ecbe468212f90070cf6f07b8b8296 plus preserved pre-existing dirty work; initial binary diff/status, whole-workspace launch snapshot and subsequent per-launch source hashes/argv are bound in docs/roadmap/roadmap-regression-receipt-20261010.json; a comments-only external data_governance.rs change during the first full run is recorded separately
+worktree_status: active whole-roadmap goal; 749 steps / 354 index-complete / 395 open; 21 ready after dependency closure; 98 completed rows still have open prerequisites; one writer per isolated worktree, root integrates; no commit/push/merge/rebase/worktree deletion
+command_argv: completed full baseline: env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1; named RED, corrected fixture runs and focused multi-package follow-ups retain exact command argv/source binding in the linked receipt; cargo check --workspace --locked --offline was an earlier baseline, not the final gate
+cwd·environment: repository root /media/shirosora/4A183E5C183E46EB/codestorage/kianacode; Linux x86_64; 7.5 GiB RAM / 16 logical CPUs / 31 GiB swap; exactly one active Cargo, one compiler job and one test thread; 32 MiB Rust test stack, stripped/non-incremental profile, locked/offline; launch preflight rejects existing Cargo/compiler processes; process RSS/CPU and system memory/swap counters sampled
+fixture·cassette: first complete workspace run finished 1543 targets with 5872 passed / 406 failed / 7 ignored and 224 failed targets; after scoped repairs, latest Core control_plane 150/150, Core library 27/27 and daemon library 130/130 pass; CAP05 14/14, ACP UI29/UI39, query SC32 23/23, BQ20/CM12, policy library, quality EQ18/EQ28/EQ31/EQ35 and CI10/UI13 presentation targets pass in their separately bound follow-ups; latest BQ25 30/31, daemon control_plane 7/13, entry library 445/456 and EQ19 2/3 remain non-green
+exit_code: first full workspace 101; named rejection reproductions 101 expected, fixture compile/invalid-target failures explicitly excluded from behavioral RED; latest mixed follow-up 101 with four failed targets; original control-plane stall has been removed; earlier Node desktop 46/46, roadmap parser 12/12 and document/workflow/static gates passed within their recorded scope
+status_change: selected startup, cancellation CAS/late-error, revocation binding, execution-permit ownership, receipt pagination, protected snapshot material, prompt checkpoint formatting, query projection drift, legacy tool-result identity, shell FD/stop identity, MCP result metadata, bounded tool catalog search and ACP hydration boundaries repaired; no entire roadmap card promotion and no full-project acceptance
+proof-level_change: named local rejection/runtime boundaries only; source guards remain source evidence; no durable/live/physical promotion; MCP HTTP/SSE remains unsupported in the ordinary product registry, and native-platform/live-provider proof is absent
+limitations: final whole-workspace regression, check/clippy/fmt and fresh-binary release/harness/workbench smoke gates remain open; query full dispatch, entrypoint failures, telemetry classification, EQ19 and explicit resume-to-drive_run still require completion; first full-run resource receipt: 15m55.12s / 94% CPU / 4059200 KiB peak RSS; system swap occupancy/pageout increased despite GNU time Swaps=0; raw temporary logs and file-hash snapshots are retained locally with archived hashes; earlier focused passes do not certify later source; no live credentials, target hardware or external publish was used
+reviewer: root integration agent; isolated roadmap/source-guard, runtime/authority and contract/entrypoint audits
+```
+
+本轮回执：[roadmap-regression-receipt-20261010.json](docs/roadmap/roadmap-regression-receipt-20261010.json)。
+完整 Goal 仍在执行；本记录不把测试夹具、静态扫描或索引完成数当成全项目验收。
+
+### 2026-10-08 ER-02 幂等重放治理元数据漂移拒绝
+
+source_snapshot: current dirty worktree; `kiana-eventlog/src/event_store_core.rs`; `kiana-eventlog/tests/er02_identity.rs`; `kiana-core/tests/er02_identity_guard.rs`; `docs/roadmap/event-receipt-identity-baseline.md`
+worktree_status: ER-02 row 037 remains 🔄 / feature_status=partial / proof_level=local_behavior for the selected EventStore boundary; idempotent replay now compares redaction profile, payload recoverability, data epoch and artifact references
+command_argv: RED `/usr/bin/time -v -o /tmp/er02-metadata-red.resources env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-eventlog --test er02_identity idempotent_replay_rejects_redaction_or_artifact_metadata_drift --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector with `/tmp/er02-metadata-green.resources`; full EventLog ER-02 target with `/tmp/er02-identity-full.resources`; Core guard with `/tmp/er02-core-guard-metadata.resources`; final static/workspace checks
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux x86_64; single Cargo worker/test thread; 32 MiB test stack, stripped/non-incremental profile; targeted runs `--locked --offline`
+fixture·cassette: RED same idempotency key with fresh event envelope and changed profile/epoch/artifact metadata incorrectly replayed; GREEN returns `event_idempotency_key_payload_mismatch` and `read_all().len()==1`; EventLog ER-02 full 14/14; Core guard passed after baseline marker update
+exit_code: RED 101 expected; focused GREEN 0; EventLog full 0; Core guard 0; final fmt/diff/roadmap scripts/workspace check 0; RED 4023604 KiB/87% CPU/0 swap; GREEN 425952 KiB/93% CPU/0 swap; EventLog full 83828 KiB/67% CPU/0 swap; Core guard 132644 KiB/54% CPU/0 swap; final workspace check 3677832 KiB/87% CPU/0 swap
+status_change: selected EventStore governance/artifact identity moves source → local_behavior; ER-02 remains partial because DaemonHost/Harness parity, complete CI shard, durable recovery and external receipt proof are open
+proof-level_change: selected replay comparator `source` → `local_behavior`; no durable/live/physical promotion
+limitations: fresh `event_id` remains intentionally allowed for idempotent retry; this slice does not add generic redaction validation for ordinary events, which is a separate ER-03 boundary; no cross-process/durable EventStore, crash recovery or external effect proof is claimed
+reviewer: root integration agent with ER-02 EventLog audit; focused governance/artifact replay reviewer
+
+### 2026-10-08 P4-J7-25 熔断器溢出状态原子性
+
+source_snapshot: current dirty worktree; `kiana-domain/src/provider_capacity.rs`; `kiana-domain/tests/p4_j7_25_capacity_fallback.rs`; `docs/roadmap/p4-j7-25-capacity-fallback-baseline.md`
+worktree_status: P4-J7-25 remains 🔄 / feature_status=implemented / proof_level=local_behavior for the selected breaker boundary; `ProviderCircuitBreaker::observe_failure` now computes the next failure count and open-until timestamp before mutating any state
+command_argv: RED `/usr/bin/time -v -o /tmp/p4j7-25-breaker-overflow-red.resources env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test p4_j7_25_capacity_fallback observe_failure_overflow_does_not_leave_a_half_updated_breaker --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector with `/tmp/p4j7-25-breaker-overflow-green.resources`; full P4-J7-25 domain target with `/tmp/p4j7-25-breaker-full.resources`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux x86_64; stable Rust; one Cargo process/test thread; bounded stack, stripped test profile and incremental disabled; all targeted runs `--locked --offline`
+fixture·cassette: RED `observe_failure(u64::MAX)` returned `provider_circuit_open_until_overflow` after mutating state to Open/failure_count=1 while retaining the old digest; GREEN preserves the original breaker value and `validate()` succeeds; full P4-J7-25 domain target 4/4
+exit_code: RED 101 expected; selector GREEN 0; full target 0; RED 233728 KiB/34% CPU/0 swap; GREEN 4027336 KiB/86% CPU/0 swap; full target 82844 KiB/14% CPU/0 swap
+status_change: selected breaker overflow mutation moves source → local_behavior; P4-J7-25 remains 🔄 because capacity/breaker state is process-local and durable/shared/live/physical evidence is absent
+proof-level_change: `feature_status=implemented`; selected boundary `proof_level=local_behavior`; no durable/live/physical promotion
+limitations: only arithmetic overflow atomicity is covered; no distributed breaker store, provider failure classifier, cancellation reconciliation, external/live provider request or physical proof is claimed
+reviewer: root integration agent with P4-J7-25 capacity audit; focused breaker state reviewer
+
+### 2026-10-08 P4-J7-25 排队请求绝对 deadline 拒绝
+
+source_snapshot: current dirty worktree; `kiana-domain/src/provider_capacity.rs`; `kiana-domain/tests/bq16_provider_capacity.rs`; `kiana-core/tests/{bq16_provider_capacity_guard.rs,p4_j7_25_capacity_fallback_guard.rs}`; `docs/roadmap/p4-j7-25-capacity-fallback-baseline.md`; `docs/roadmap/bq16-provider-capacity-baseline.md`
+worktree_status: P4-J7-25/BQ-16 rows remain 🔄 / feature_status=implemented / proof_level=local_behavior for the selected queue deadline boundary; `ProviderCapacityQueueEntry` now retains and digests the request's absolute `deadline_unix_ms`, and dispatch rejects expired entries without extending the deadline or creating a lease
+command_argv: RED `/usr/bin/time -v -o /tmp/p4j7-25-deadline-red.resources env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test bq16_provider_capacity queued_request_deadline_is_not_extended_at_dispatch --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector with `/tmp/p4j7-25-deadline-green.resources`; full domain BQ-16 target with `/tmp/p4j7-25-bq16-domain-full.resources`; P4-J7-25 domain target with `/tmp/p4j7-25-p4-domain.resources`; P4-J7-25 Core guard with `/tmp/p4j7-25-core-p4-guard.resources`; BQ-16 Core guard with `/tmp/p4j7-25-core-bq16-guard.resources`; final `cargo fmt --all --check`, `git diff --check`, roadmap contract/goal scripts and `cargo check --workspace --locked --offline`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux x86_64; stable Rust; one Cargo process; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, test debug/symbol stripping and incremental disabled; all targeted runs `--locked --offline`
+fixture·cassette: RED old dispatch accepted a queued request whose deadline was 60_003 at dispatch time 60_100; GREEN returns `Reject` with `provider_capacity_queue_wait_expired` and no lease; BQ-16 full 4/4, P4-J7-25 domain 4/4 and P4-J7-25 Core guard 1/1 pass; BQ-16 Core guard reproduces an existing forbidden-marker failure
+exit_code: RED 101 (expected); focused GREEN 0; BQ-16 full 0; P4-J7-25 domain/Core 0; BQ-16 Core guard 101 on pre-existing `send_inner_attempt(connection, prepared` forbidden marker; fmt/diff/roadmap scripts/workspace check 0; resource samples: RED 233728 KiB/34% CPU/0 swap, GREEN 4011672 KiB/86% CPU/0 swap, BQ-16 full 82844 KiB/14% CPU/0 swap, P4-J7-25 domain 235000 KiB/83% CPU/0 swap, P4-J7-25 Core guard 129748 KiB/50% CPU/0 swap, BQ-16 Core guard 4038536 KiB/86% CPU/0 swap, workspace check 3731240 KiB/89% CPU/0 swap
+status_change: selected absolute queue deadline boundary moves source → local_behavior; P4-J7-25 and BQ-16 remain 🔄 because durable shared capacity, provider receipts, cross-process recovery and live/physical evidence are not established
+proof-level_change: `feature_status=implemented`; selected boundary `proof_level=local_behavior`; no durable/live/physical promotion
+limitations: queue state remains process-local and old serialized queue entries without `deadline_unix_ms` are rejected by strict serde; no production gateway call site, durable CAS/lease, provider capacity receipt, cancellation-vs-dispatch reconciliation, external/live provider request or physical proof is claimed
+reviewer: root integration agent with P4-J7-25 capacity audit; focused absolute-deadline reviewer
+
+### 2026-10-08 BQ-18 fallback connection identity 拒绝
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/fallback_admission.rs; kiana-domain/tests/bq18_fallback_admission.rs; kiana-provider/src/fallback.rs; kiana-provider/tests/bq18_fallback_admission.rs; kiana-core/tests/bq18_fallback_admission_guard.rs; docs/roadmap/bq18-fallback-admission-baseline.md
+worktree_status: BQ-18 row 488 remains 🔄 / feature_status=implemented / proof_level=source; fallback allowlist and provider validation now bind explicit connection_id
+command_argv: RED `cargo test -p kiana-domain --test bq18_fallback_admission allowlist_rejects_connection_identity_drift --locked --offline -- --exact --nocapture --test-threads=1`; GREEN full domain BQ-18 target; provider unit boundary; provider/Core guards; protected replay and route-attestation regression targets; final format/diff/roadmap/workspace check
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 240688 KiB / 32% CPU; domain full 255724 KiB / 104% CPU; provider behavior 4058288 KiB / 79% CPU; provider guard 4049656 KiB / 84% CPU; Core guard 1197184 KiB / 86% CPU; protected/replay route regression 254728 KiB / 93% CPU; all measured runs reported 0 swaps
+fixture·cassette: same provider/model with changed connection was accepted by old allowlist and is now denied; two same provider/model connections are independently allowlisted; strict serde rejects entries without connection_id; domain BQ-18 6/6, provider behavior 1/1 + guard 2/2, Core guard 2/2, protected replay 3/3 and route attestation 5/5
+exit_code: RED 101 expected; all focused/regression targets 0
+status_change: selected BQ-18 cross-connection identity denial moves source → local_behavior; whole BQ-18 remains implemented/source
+proof-level_change: fallback allowlist/provider boundary source → local_behavior; no ModelRoute global digest migration, Gateway hot-path wiring, durable CAS, provider invoice, live or physical promotion
+limitations: old serialized fallback allowlists without connection_id are rejected and need trusted regeneration; ModelRoute::digest remains unchanged for persisted compatibility; provider validator has no production call site, and durable authority/credential/price truth remain open
+reviewer: root integration agent with CI-08/BQ-18 fallback audit; focused connection-identity reviewer
+```
+
+### 2026-10-08 CI-06 配置来源 provenance 拒绝
+
+```text
+source_snapshot: current dirty worktree; kiana-provider/src/config.rs; kiana-provider/tests/ci06_config_resolver.rs; kiana-core/tests/ci06_config_resolver.rs; docs/roadmap/ci06-config-resolver-baseline.md
+worktree_status: CI-06 row 166 remains 🔄 / feature_status=partial / proof_level=source; ProviderConfigSnapshot now carries the resolved source from Connection instead of inferring default by profile name
+command_argv: RED `cargo test -p kiana-provider --test ci06_config_resolver explicit_default_snapshot_source_is_explicit --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector; provider full CI-06 target; P4-J7-08 config regression; Core CI-06 guard; final `cargo fmt --all --check`, `git diff --check`, roadmap contract and workspace check
+cwd·environment: repository root Linux/bash; serial Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 359696 KiB / 53% CPU; selector GREEN 429660 KiB / 83% CPU; provider full 360092 KiB / 73% CPU; P4-J7-08 312260 KiB / 83% CPU; Core guard 129916 KiB / 55% CPU; all measured runs reported 0 swaps
+fixture·cassette: explicit provider/model/base_url default route; builtin route with fixture credential; route environment override; existing named profile; RED misclassified explicit default as `BuiltinDefault`; GREEN provider CI-06 15/15, P4-J7-08 3/3 and Core guard 1/1 distinguish `Explicit`, `Environment`, `BuiltinDefault` and `Profile`
+exit_code: RED 101 expected; selector/provider/P4-J7/Core/final checks 0
+status_change: selected CI-06 configuration-source provenance moves source → local_behavior; whole CI-06 remains partial/source
+proof-level_change: canonical snapshot source labeling source → local_behavior; no DaemonHost project path, durable snapshot/generation, migration, lease, live or physical promotion
+limitations: source classification is bounded to the resolver inputs; trusted workspace and environment-profile provenance are still represented as explicit/profile at this boundary, cross-process ConfigSnapshotStore and authoritative project source identity remain open; no provider network request was made
+reviewer: root integration agent with CI-06 configuration audit; focused provenance reviewer
+```
+
+### 2026-10-08 CAP-07 backend version identity 拒绝
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/container_environment.rs; kiana-daemon/tests/dep36_container_adapter.rs; kiana-core/tests/cap07_environment_backend_guard.rs
+worktree_status: CAP-07 row 237 remains 🔄 / feature_status=partial / proof_level=source; EnvironmentPort::plan now rejects empty or malformed backend_version before plan digest/state insertion
+command_argv: RED `cargo test -p kiana-daemon --test dep36_container_adapter plan_rejects_invalid_backend_version --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector; full dep36 target; Core CAP-07 guard
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 943724 KiB / 69% CPU; selector GREEN 945656 KiB / 92% CPU; full adapter 91096 KiB / 57% CPU; Core guard 132088 KiB / 60% CPU; all runs reported 0 swaps
+fixture·cassette: existing supported container probe with `backend_version.clear()`; RED accepted the plan path, GREEN returns `container_backend_version_invalid`, full dep36 7/7 and Core guard 2/2; no container runtime started
+exit_code: RED 101 expected; selector/full adapter/Core guard 0
+status_change: selected CAP-07 backend-version identity denial moves source → local_behavior; whole CAP-07 remains partial/source
+proof-level_change: plan input validation source → local_behavior; no kernel/TOCTOU/DaemonHost/Broker/live/physical promotion
+limitations: backend version is now bounded but runtime probe still reports enforcement conservatively, plan/prepare inode identity is not pinned, full lifecycle wiring and kernel/userns/network isolation remain open
+reviewer: root integration agent with CAP-07 environment audit; focused backend-version reviewer
+```
+
+### 2026-10-08 BQ-05 cache/reasoning 重复计价拒绝
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_pricing.rs; kiana-domain/tests/bq04_pricing.rs; kiana-core/tests/bq04_pricing_guard.rs
+worktree_status: BQ-05 row 194 remains 🔄 / feature_status=implemented / proof_level=source; positive cumulative input/output plus cache/reasoning subdimensions now fail closed as unknown
+command_argv: RED `cargo test -p kiana-domain --test bq04_pricing estimate_rejects_unproven_cache_and_reasoning_overlap --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector; full BQ-04 pricing target; Core pricing guard; BQ-05 ports target; BQ-10 provider target
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 224392 KiB / 30% CPU; selector GREEN 4091672 KiB / 87% CPU; full pricing 83152 KiB / 14% CPU; Core guard 4061864 KiB / 86% CPU; ports 4063712 KiB / 88% CPU; provider 299344 KiB / 27% CPU; all runs reported 0 swaps
+fixture·cassette: input=10, cache_read=4, output=8, reasoning=2 and all corresponding prices=1; RED returned payable amount 50, GREEN selector returns amount=None with `BillingUnknownReason::Unsupported`, full pricing 4/4, ports 5/5 and provider 6/6
+exit_code: RED 101 expected; pricing selector/full target, Core guard, ports and provider targets 0
+status_change: selected cache/reasoning overlap denial moves source → local_behavior; whole BQ-05 remains implemented/source
+proof-level_change: fail-closed estimate boundary source → local_behavior; no provider receipt, durable ledger, ControlPlane admission, live or physical billing proof
+limitations: provider inclusion metadata is not modeled, so positive cumulative+subset combinations remain unknown; measured receipts, durable billing projection, reservation/invoice reconciliation and live/physical proof remain open
+reviewer: root integration agent with BQ-05 billing audit; focused overlap reviewer
+```
+
+### 2026-10-08 BQ-05 cost receipt line boundary
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_pricing.rs; kiana-domain/src/billing_cost.rs; kiana-domain/tests/bq13_cost_receipt.rs
+worktree_status: BQ-05 remains 🔄 / feature_status=implemented / proof_level=source; overlap unknown is propagated to CostBreakdown without emitting payable lines
+command_argv: RED/GREEN `cargo test -p kiana-domain --test bq13_cost_receipt overlapping_usage_is_unknown_before_cost_lines_are_emitted --locked --offline -- --exact --nocapture --test-threads=1`; full `cargo test -p kiana-domain --test bq13_cost_receipt --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB stack, stripped/non-incremental profile; focused selector 237328 KiB / 32% CPU / 0 swaps; full target 83700 KiB / 66% CPU / 0 swaps
+fixture·cassette: known usage with positive input/output plus cache-read/reasoning subsets; focused test passes with `Unknown(Unsupported)` and empty lines; full target 6/7 passes, existing measured receipt serialization assertion fails because the serialized provider receipt is not at the legacy top-level path
+exit_code: focused 0; full target 101 baseline failure
+status_change: selected CostBreakdown propagation boundary is local_behavior; no BQ-05 card promotion
+proof-level_change: estimate-to-line suppression source → local_behavior; no durable/live/physical billing proof
+limitations: full BQ-13 target has an unrelated legacy serialization assertion failure; provider inclusion metadata, measured receipt parity, durable ledger/invoice and reconciliation remain open
+reviewer: root integration agent with BQ-05/BQ-13 billing audit; focused cost-line reviewer
+```
+
+### 2026-10-08 DEP-03 projection minor lag 拒绝
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/deployment_compatibility.rs; kiana-domain/tests/dep03_compatibility.rs; kiana-core/tests/dep03_compatibility_guard.rs
+worktree_status: DEP-03 row 608 remains 🔄 / feature_status=partial / proof_level=source; candidate projection minor below current is now blocked with a stable reason
+command_argv: RED `cargo test -p kiana-domain --test dep03_compatibility projection_minor_lag_is_blocked --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector; full domain target; Core guard
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 4090176 KiB / 87% CPU, GREEN 4089756 KiB / 84% CPU, full domain 82956 KiB / 14% CPU, Core guard 4031540 KiB / 90% CPU; all runs reported 0 swaps
+fixture·cassette: current projection_version 1.3 versus candidate 1.2 with recomputed axes digest; RED returned Compatible, GREEN selector 1/1, domain 5/5 and Core guard 1/1 return Blocked with `projection_version_downgrade`
+exit_code: RED 101 expected; selector/full domain/Core guard 0
+status_change: selected DEP-03 projection minor lag denial moves source → local_behavior; whole DEP-03 remains partial/source
+proof-level_change: pure compatibility matrix projection lag source → local_behavior; no startup/admission/durable/live/physical promotion
+limitations: matrix is still read-only and not enforced before startup or new-work admission; rebuilding state, migration, durable replay, CI, lease/provider and external operation proof remain open
+reviewer: root integration agent with DEP-03 compatibility audit; focused projection-version reviewer
+```
+
+### 2026-10-08 OA-08 model-attempt EventId 内容漂移拒绝
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/model_attempt_projection.rs; kiana-core/tests/oa08_model_instrumentation.rs
+worktree_status: OA-08 remains 🔄 / feature_status=implemented / proof_level=source; exact model-attempt replay remains idempotent, same event_id with envelope/kind/payload drift fails closed
+command_argv: RED `cargo test -p kiana-core --test oa08_model_instrumentation model_attempt_projection_rejects_event_id_content_drift_but_allows_exact_replay --locked --offline -- --exact --nocapture --test-threads=1`; GREEN selector and full `cargo test -p kiana-core --test oa08_model_instrumentation --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 1200720 KiB / 82% CPU, selector GREEN 1196084 KiB / 92% CPU, full target 84232 KiB / 38% CPU; all runs reported 0 swaps
+fixture·cassette: RED old HashSet dedup accepted same-event-id terminal payload drift; GREEN selector 1/1 and OA-08 target 4/4 preserve exact replay and return `model_attempt_event_identity_conflict:<event_id>` for drift
+exit_code: RED 101 expected; selector/full GREEN 0
+status_change: selected OA-08 model-attempt replay identity moves source → local_behavior; whole OA-08 remains implemented/source
+proof-level_change: direct model-attempt projector replay identity source → local_behavior; no durable/live/physical promotion
+limitations: provider/model ingress, EventStore durable duplicate enforcement, checkpoint/restart/recovery, exporter/live backend and physical trace proof remain open
+reviewer: root integration agent with OA-07/OA-08 projection audit; focused model-attempt replay reviewer
+```
+
+### 2026-10-08 workspace 全量回归与资源采样
+
+```text
+source_snapshot: current dirty worktree after INT-15, ER-08/ER-02, H28, CO-17 and OA-07 slices; workspace manifest/lockfile unchanged
+worktree_status: roadmap remains 354 ✅ / 395 🔄; focused slices are locally verified, but the workspace suite is not green and no feature card is promoted by this run
+command_argv: `/usr/bin/time -v -o /tmp/kiana-workspace-full-20261008.resources env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test --workspace --locked --offline --no-fail-fast`; stopped after control_plane emitted no output for 3m50s; workspace check separately ran `cargo check --workspace --locked --offline`
+cwd·environment: repository root Linux/bash; one Cargo worker and one test thread; full test elapsed 17:42.10, peak RSS 4047780 KiB (~3.86 GiB), CPU 76%, Swap 0; check elapsed 1:15.16, peak RSS 3730232 KiB (~3.56 GiB), CPU 89%, Swap 0
+fixture·cassette: full test compiled and reached kiana-core control_plane (116 tests); observed 40 failed targets/98 failed tests before the stalled target was terminated, including existing control-plane, ACP/UI and billing/observability integration failures; workspace check completed
+exit_code: full test process interrupted with shell exit 130 after no-output stall; time wrapper recorded 0; workspace check 0; fmt/diff/roadmap contract checks 0
+status_change: no roadmap feature-status promotion; full workspace regression remains non-green with baseline failures and a control-plane stall
+proof-level_change: none; focused local_behavior receipts remain limited to their named selectors
+limitations: complete workspace test execution is blocked by the control_plane integration target's low-CPU no-output stall; failure inventory is not a clean final suite because the target was intentionally terminated; no durable/live/physical claims
+reviewer: root integration agent; resource and regression audit
+```
+
+### 2026-10-08 EXT-22 install staging fence
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/extensions.rs; kiana-core/tests/ext22_extension_lifecycle_guard.rs
+worktree_status: EXT-22 row 357 remains 🔄 / feature_status=partial / proof_level=source; Skill install/upgrade/rollback now stages all verified packages before explicit enable
+command_argv: RED `cargo test -p kiana-daemon --lib extensions::tests::extension_install_state_is_staged_before_explicit_enable --locked --offline -- --exact --nocapture --test-threads=1`; GREEN same selector; Core guard `cargo test -p kiana-core --test ext22_extension_lifecycle_guard --locked --offline -- --test-threads=1`; daemon extensions module regression `cargo test -p kiana-daemon --lib extensions::tests --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 90492 KiB / 24% CPU, GREEN 915464 KiB / 65% CPU, Core guard 129576 KiB / 39% CPU, module regression 90992 KiB / 53% CPU; all runs reported 0 swaps
+fixture·cassette: existing private Skill manifest fixture; RED install-state assertion observed `enabled`, GREEN daemon 1/1 returns `staged`, Core guard 1/1 preserves ControlPlane/CAS markers; module regression is 1 passed/1 failed on pre-existing signature error prefix (`port_failed:extension_signature_verification_failed`)
+exit_code: RED 101 expected; GREEN daemon/Core guard 0; module regression 101 baseline failure
+status_change: selected EXT-22 install-state boundary moves source → local_behavior; whole EXT-22 remains partial/source
+proof-level_change: install staging source → local_behavior; no durable/live/physical promotion
+limitations: ExtensionCommandRequest still omits approval/config/dependency/trust snapshot fields, daemon enable does not consume those typed snapshots, the broader daemon extension unit module retains a pre-existing signature error-prefix failure, and durable CAS/recovery/UI integration remain open
+reviewer: root integration agent with EXT-22 lifecycle audit; focused install-state reviewer
+```
+
+### OA-07 span projector EventId 内容漂移拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/span_projection.rs; kiana-core/tests/oa07_span_lifecycle.rs; docs/roadmap/observability-audit-baseline.md
+worktree_status: OA-07 remains 🔄 / feature_status=implemented / proof_level=source; exact span event replay remains idempotent, same event_id with envelope/kind/payload drift fails closed; no EventStore mutation or exporter path
+command_argv: RED `cargo test -p kiana-core --test oa07_span_lifecycle span_projection_rejects_event_id_content_drift_but_accepts_exact_replay --locked --offline -- --exact --nocapture --test-threads=1`; GREEN `cargo test -p kiana-core --test oa07_span_lifecycle --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 1200100 KiB / 90% CPU; GREEN 1197180 KiB / 95% CPU; all runs reported 0 swaps
+fixture·cassette: RED old HashSet dedup accepted same-event-id terminal payload drift; GREEN OA-07 4/4 preserves exact replay and returns `span_event_identity_conflict:<event_id>` for drift
+exit_code: RED 101 expected; GREEN 0
+status_change: selected OA-07 span EventId identity moves source → local_behavior; whole card remains implemented/source
+proof-level_change: direct span projection source → local_behavior; no durable/live/physical promotion
+limitations: OA-08 model-attempt projector, durable duplicate enforcement, checkpoint/restart/recovery, exporter/live backend and physical trace proof remain open
+reviewer: root integration agent with OA-07/OA-08 projection audit; focused span replay reviewer
+```
+
+### CO-17 same-principal handoff 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/company_handoff.rs; kiana-domain/tests/co17_company_handoff.rs; kiana-core/tests/co17_company_handoff_guard.rs; docs/roadmap/co17-company-handoff-baseline.md
+worktree_status: CO-17 row 516 remains 🔄 / feature_status=partial / proof_level=source; same principal is denied across assignment/session rotation, and Expired is a valid no-ACK state only with timeout escalation; no runtime lease or second execution path
+command_argv: RED principal selector and timeout selector; exact GREEN principal selector; full domain `cargo test -p kiana-domain --test co17_company_handoff`; Core guard `cargo test -p kiana-core --test co17_company_handoff_guard`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; principal RED 347912 KiB / 50% CPU; exact GREEN 83564 KiB / 23% CPU; full domain GREEN 83788 KiB / 14% CPU; Core guard 4049500 KiB / 89% CPU; all runs reported 0 swaps
+fixture·cassette: principal RED returned Ok for same principal with distinct assignment/session; timeout RED returned `handoff_terminal_ack_missing`; GREEN domain 4/4 and Core guard 1/1 return stable same-party denial and accept Expired with escalation/no ACK
+exit_code: RED 101 expected for both boundaries; exact/domain/Core GREEN 0
+status_change: selected CO-17 same-principal and Expired/no-ACK validation moves source → local_behavior; whole CO-17 remains partial/source
+proof-level_change: handoff party and timeout-state validation source → local_behavior; no durable/live/physical promotion
+limitations: EventLog CAS, external identity resolution, cross-process delivery and live/physical effects remain open
+reviewer: root integration agent with CO-17 handoff audit; focused same-principal reviewer
+```
+
+### H28 首次空 turn 有界反馈（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/progress_stall.rs; kiana-domain/tests/h28_progress.rs; kiana-core/tests/h28_progress_guard.rs; docs/roadmap/harness-stop-retry-baseline.md
+worktree_status: H28 row 083 remains 🔄 / feature_status=partial / proof_level=source; first empty observation no longer claims progress and enters existing bounded feedback ladder; no new execution loop
+command_argv: RED `cargo test -p kiana-domain --test h28_progress empty_turn_and_stop_hook_feedback_are_bounded --locked --offline -- --exact --nocapture --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test h28_progress --locked --offline -- --test-threads=1 --nocapture`; Core guard `cargo test -p kiana-core --test h28_progress_guard --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 242224 KiB / 30% CPU; domain GREEN 3971932 KiB / 83% CPU; Core guard 4081956 KiB / 85% CPU; all runs reported 0 swaps
+fixture·cassette: RED first empty turn returned Continue; GREEN H28 domain 4/4 and Core guard 2/2 cover FeedbackOnce then RequestClarification, stop-hook budget and progress fingerprints
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected H28 first-empty-turn boundary moves source → local_behavior; whole H28 remains partial/source
+proof-level_change: progress reducer source → local_behavior; no durable/live/physical promotion
+limitations: automatic repair loop, provider/live behavior, durable replay and external/physical proof remain open
+reviewer: root integration agent with H28 progress audit; focused empty-turn reviewer
+```
+
+### ER-08 run projector EventId 内容漂移拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/projection.rs; kiana-core/src/persistence_read_model.rs; kiana-core/tests/er08_run_projection.rs; kiana-core/tests/er08_projection_guard.rs; docs/roadmap/event-receipt-run-projection-baseline.md
+worktree_status: ER-08 row 134 remains ✅ / feature_status=implemented / proof_level=source; exact RuntimeEvent replay remains idempotent, same event_id with envelope/kind/payload drift returns structured conflict; no EventStore mutation or second execution path
+command_argv: RED `cargo test -p kiana-core --test er08_run_projection run_projection_rejects_event_id_content_drift_but_accepts_exact_replay --locked --offline -- --exact --nocapture --test-threads=1`; GREEN `cargo test -p kiana-core --test er08_run_projection --test er08_projection_guard --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 1196652 KiB / 94% CPU; GREEN 1199760 KiB / 93% CPU; all runs reported 0 swaps
+fixture·cassette: RED old HashMap/skip behavior returned Ok for same-event-id payload drift; GREEN run projection 6/6 and Core guard 1/1; stable `run_event_identity_conflict:<event_id>` plus persistence read-model mapping
+exit_code: RED 101 expected; GREEN 0
+status_change: selected ER-08 EventId content-drift denial moves source → local_behavior; whole ER-08 remains implemented/source
+proof-level_change: direct projector replay identity source → local_behavior; no durable/live/physical promotion
+limitations: legacy/mixed-stream ordering, full EventLog projector orchestration, checkpoint/restart/resume, cross-process recovery and external/live/physical proof remain open
+reviewer: root integration agent with ER-02 projector audit; focused EventId replay reviewer
+```
+
+### ER-08 legacy projector append 顺序保持（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/projection.rs; kiana-core/tests/er08_run_projection.rs; kiana-core/tests/er08_projection_guard.rs; docs/roadmap/event-receipt-run-projection-baseline.md
+worktree_status: ER-08 row 134 remains ✅ / feature_status=implemented / proof_level=source; absent or mixed aggregate metadata no longer gets reordered by request-local sequence; complete aggregate streams still sort by stream_version
+command_argv: RED `cargo test -p kiana-core --test er08_run_projection legacy_run_projection_preserves_append_order_without_stream_metadata --locked --offline -- --exact --nocapture --test-threads=1`; GREEN `cargo test -p kiana-core --test er08_run_projection --test er08_projection_guard --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 323596 KiB / 110% CPU; GREEN 128256 KiB / 65% CPU; all runs reported 0 swaps
+fixture·cassette: RED legacy `run.completed(seq=5)` followed by `run.prompt(seq=1)` incorrectly returned Terminal; GREEN run projection 7/7 and Core guard 1/1 return Running/None in append order
+exit_code: RED 101 expected; GREEN 0
+status_change: selected ER-08 legacy/mixed ordering moves source → local_behavior; whole ER-08 remains implemented/source
+proof-level_change: direct projector ordering source → local_behavior; no durable/live/physical promotion
+limitations: invocation/span/model-attempt legacy ordering, full EventLog projector orchestration, checkpoint/restart/resume, cross-process recovery and external/live/physical proof remain open
+reviewer: root integration agent with ER-02 projector audit; focused legacy ordering reviewer
+```
+
+### INT-15 connector payload digest 编码兼容（2026-10-08）
+### INT-15 connector payload digest 编码兼容（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/connector_policy.rs; kiana-domain/src/connector_fixture.rs; kiana-domain/tests/int15_connector_policy.rs; kiana-core/tests/int15_connector_policy_guard.rs; docs/roadmap/int15-connector-policy-baseline.md
+worktree_status: INT-15 row 492 remains 🔄 / feature_status=implemented / proof_level=source; ConnectorOnceApproval payload_digest accepts bare or historical sha256:<hex>, while approval_digest remains strict; no connector adapter or second execution path
+command_argv: RED `cargo test -p kiana-domain --test int15_connector_policy r3_is_one_shot_and_binds_the_final_payload_digest --locked --offline -- --exact --nocapture --test-threads=1`; GREEN `cargo test -p kiana-domain --test int15_connector_policy --locked --offline -- --test-threads=1 --nocapture`; Core guard `cargo test -p kiana-core --test int15_connector_policy_guard --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 231384 KiB / 34% CPU; GREEN 4007892 KiB / 88% CPU; Core guard 3940648 KiB / 90% CPU; all runs reported 0 swaps
+fixture·cassette: RED existing R3 fixture failed at ConnectorOnceApproval::issue with connector_once_approval_invalid; GREEN INT-15 domain 6/6 covers R0/R1/R2/R3/R4 plus bare/prefixed/malformed payload digests; Core guard 1/1 pins shared payload helper and strict approval digest validation
+exit_code: RED 101 expected; GREEN/Core 0
+status_change: selected INT-15 payload digest boundary moves source → local_behavior; whole INT-15 remains implemented/source
+proof-level_change: payload digest encoding source → local_behavior; no durable/live/physical promotion
+limitations: durable approval consumption, reservation/CAS, effect-time authority/data fencing, provider receipts, external transport and live/physical connector outcomes remain open; full workspace regression is not green
+reviewer: root integration agent with INT-15 connector policy audit; focused R3 digest reviewer
+```
+
+### CI-06 provider/model 配置控制字符拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/provider_config.rs; kiana-provider/src/resolver.rs; kiana-provider/src/config.rs; provider/domain CI-06 fixtures; Core/daemon CI-06 source guards
+worktree_status: CI-06 row 166 remains 🔄 / feature_status=partial / proof_level=source; trusted workspace, explicit, environment and environment-profile provider/model labels reject NUL/CR/LF before provider route construction
+command_argv: RED `cargo test -p kiana-provider --test ci06_config_resolver config_resolver_rejects_provider_model_control_characters_from_every_source --locked --offline -- --exact --test-threads=1`; domain `cargo test -p kiana-domain --test ci06_config_values --locked --offline -- --test-threads=1`; provider `cargo test -p kiana-provider --test ci06_config_resolver --locked --offline -- --test-threads=1`; Core/daemon `cargo test -p kiana-core --test ci06_config_resolver --locked --offline -- --test-threads=1`; `cargo test -p kiana-daemon --test ci06_config_resolver --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 428324 KiB / 55% CPU; domain 4044540 KiB / 86% CPU; final provider 359144 KiB / 74% CPU; Core 128596 KiB / 65% CPU; daemon 943628 KiB / 89% CPU; all runs reported 0 swaps
+fixture·cassette: RED old resolver accepted trusted workspace `provider="ollama\n"`; GREEN domain 1/1, provider 13/13, Core guard 1/1 and daemon guard 1/1; stable provider/config source errors
+exit_code: RED 101 expected; GREEN domain/provider/Core/daemon/fmt/diff/roadmap 0
+status_change: selected CI-06 lexical denial source → local_behavior; whole CI-06 remains partial/source
+proof-level_change: source → local_behavior for provider/model control-character denial only; no durable/live/physical promotion
+limitations: DaemonHost project config/trust-revision path, durable cross-process snapshot/generation, migration/upcaster, redirect, credential lease and cancellation after remote send remain open
+reviewer: root integration agent with CI-06 read-only config audit; focused provider route reviewer
+```
+
+### BQ-06 reserved_budget 单调性拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_budgets.rs; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs
+worktree_status: BQ-06 row 195 remains 🔄 / feature_status=implemented / proof_level=source; child `reserved_budget` cannot reset or widen a parent reservation; no durable reservation/CAS or second execution path
+command_argv: RED `cargo test -p kiana-domain --test bq06_budget_intersection child_reserved_budget_cannot_ --locked --offline -- --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test bq06_budget_intersection --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq06_budget_intersection_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 4091068 KiB / 87% CPU; GREEN domain 4074832 KiB / 87% CPU; Core guard 4080752 KiB / 86% CPU; all runs reported 0 swaps
+fixture·cassette: RED old implementation returned `Ok` for parent reservation 3 → child 0 and 3 → child 4; GREEN domain 11/11 and Core guard 1/1; stable `budget_child_reservation_reset_rejected` / `budget_child_reservation_widening_rejected`
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected reserved_budget monotonicity source → local_behavior; whole BQ-06 remains implemented/source
+proof-level_change: local child reservation validation only; no durable/live/physical promotion
+limitations: lease lineage, sibling remaining_reserved accounting, ControlPlane admission, durable CAS/recovery, provider settlement and financial authority remain open
+reviewer: root integration agent with BQ-06 read-only billing audit; focused reservation reviewer
+```
+
+### ER-08 direct projection malformed identity-link fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/projection.rs; kiana-core/src/persistence_read_model.rs; kiana-core/tests/er08_run_projection.rs; kiana-core/tests/er08_projection_guard.rs
+worktree_status: ER-08 row 134 remains ✅ / feature_status=implemented / proof_level=source; direct project_run_state validates present parent/causation links before run filtering; no new execution path, manifest or lockfile change
+command_argv: RED `cargo test -p kiana-core --test er08_run_projection run_projection_rejects_malformed_present_identity_links_but_accepts_legacy_absence --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-core --test er08_run_projection --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er08_projection_guard --locked --offline -- --test-threads=1`; regression `cargo test -p kiana-core --test pd10_read_model --test er16_terminal_uniqueness --test h02_lifecycle --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 324332 KiB / 43% CPU; ER-08 GREEN max RSS 1197420 KiB / 85% CPU; Core guard max RSS 130480 KiB / 65% CPU; regression max RSS 340452 KiB / 122% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED old projector accepted self-parent; GREEN ER-08 5/5 covers self-parent, self-causation, nil parent/causation and legacy optional-link absence; Core guard 1/1 enforces validation-before-filtering; pd10/er16/h02 regression 13/13; stable `run_identity_links_invalid:<reason>` and `persistence_read_model_run:run_identity_links_invalid:<reason>` mappings
+exit_code: RED 101 expected; GREEN/guard/regression 0
+status_change: selected malformed present identity-link denial moves source → local_behavior; whole ER-08 remains implemented/source
+proof-level_change: direct run projector input validation source → local_behavior; no durable/live/physical promotion
+limitations: full EventLog projector orchestration, checkpoint/restart/resume, cross-process recovery, external/live/physical proof and upstream ingress identity guarantees remain open
+reviewer: root integration agent with ER-08 read-only projection audit; focused malformed-link reviewer
+```
+
+### BQ-05 zero lookup timestamp denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/lib.rs; kiana-ports/tests/bq05_rate_card_store.rs; kiana-core/tests/bq05_rate_card_guard.rs
+worktree_status: BQ-05 row 194 remains 🔄 / feature_status=implemented / proof_level=source; `resolve_rate_card` rejects `at_unix_ms=0` before the card read lock; no provider, invoice, reservation or second execution path
+command_argv: RED `cargo test -p kiana-ports --test bq05_rate_card_store rate_card_store_rejects_zero_lookup_timestamp_before_lookup --locked --offline -- --exact --test-threads=1`; GREEN ports `cargo test -p kiana-ports --test bq05_rate_card_store --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq05_rate_card_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; ports GREEN max RSS 83016 KiB / 65% CPU; Core guard max RSS 429016 KiB / 87% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED old resolver classified zero lookup time as `rate_card_expired`; GREEN ports 5/5 covers zero timestamp plus nil identity, pinned/exact/wildcard/overlap/expiry behavior; Core guard 1/1 pins early input validation and stable `rate_card_lookup_invalid`
+exit_code: RED 101 expected; ports/Core 0
+status_change: selected BQ-05 zero-time lookup boundary moves source → local_behavior; whole card remains implemented/source
+proof-level_change: pre-read timestamp validation source → local_behavior; no durable/live/physical promotion
+limitations: bounded-memory policy, durable projector, provider discovery, invoice/currency conversion, reservation admission, full workspace and remote CI remain open
+reviewer: root integration agent with BQ-05 read-only rate-card audit; focused lookup-input reviewer
+```
+
+### H08 HTTP/SSE MCP discover transport fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/harness_mcp.rs; kiana-runner/tests/h08_cancellation_guard.rs
+worktree_status: H08 row 147 remains 🔄 / feature_status=partial / proof_level=source; trusted MCP prepare rejects HTTP/SSE after server selection, including mcp.discover; no network client or second execution path
+command_argv: daemon unit `cargo test -p kiana-daemon --lib harness_mcp::tests::http_and_sse_transports_are_rejected_before_connect --locked --offline -- --exact --test-threads=1`; Runner guard `cargo test -p kiana-runner --test h08_cancellation_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; daemon max RSS 90868 KiB / 28% CPU; Runner guard max RSS 83060 KiB / 25% CPU; all measured runs reported 0 swaps
+fixture·cassette: HTTP/SSE configs return `mcp_transport_unsupported` before connect; daemon unit 1/1 and Runner guard 1/1
+exit_code: daemon/Runner/fmt/diff/roadmap 0
+status_change: selected H08 HTTP/SSE discover escape moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: transport fence source → local_behavior; no durable/live/physical promotion
+limitations: HTTP/SSE cancellation is not implemented because transports remain unsupported; stdio cancellation/live daemon shell, cross-process and physical proof remain open
+reviewer: root integration agent with H08 read-only cancellation audit; focused transport-boundary reviewer
+```
+
+### P0-A-01b Breaking schema compatibility enforcement（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/contracts.rs; kiana-domain/tests/p0_a01b_schema.rs; kiana-core/tests/p0_a01b_schema_guard.rs
+worktree_status: P0-A-01b row 068 remains 🔄 / feature_status=implemented / proof_level=source; `check_schema_compatibility` now consumes Breaking vs BackwardCompatible policy; no migration runner or second registry
+command_argv: RED `cargo test -p kiana-domain --test p0_a01b_schema schema_registry_separates_layers_and_fails_closed_on_unknown_major --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test p0_a01b_schema --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test p0_a01b_schema_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; RED max RSS 221548 KiB / 34% CPU; domain GREEN max RSS 82932 KiB / 15% CPU; Core guard max RSS 85324 KiB / 27% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED Breaking startup fact accepted v1.1; GREEN domain 2/2 and Core guard 1/1 enforce exact Breaking version while preserving BackwardCompatible minor behavior
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected P0-A-01b Breaking policy moves source → local_behavior; whole card remains feature_status=implemented, proof_level=source
+proof-level_change: compatibility policy source → local_behavior; no durable/live/physical promotion
+limitations: explicit migration selection/upcasters, full legacy payload coverage, durable migration runner, workspace regression and remote CI remain open
+reviewer: root integration agent with P0-A registry audit; focused schema compatibility reviewer
+```
+
+### BQ-07 current-time retry-after hardening（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_quota.rs; kiana-domain/tests/bq07_quota_window.rs; kiana-core/tests/bq07_quota_window_guard.rs
+worktree_status: BQ-07 row 196 remains 🔄 / feature_status=implemented / proof_level=source; additive `QuotaWindowBudget::check_at` computes retry-after from trusted observation; no durable reservation/CAS/provider capacity wiring
+command_argv: RED `cargo test -p kiana-domain --test bq07_quota_window quota_window_budget_rejects_over_limit_with_retry_after --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test bq07_quota_window --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq07_quota_window_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 223968 KiB / 42% CPU; domain GREEN max RSS 83080 KiB / 34% CPU; Core guard max RSS 85228 KiB / 35% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED 125000 ms current time returned 60000 ms; GREEN domain 4/4 returns exact 55000 ms through `check_at`, rejects untrusted/pre-window clocks, and preserves old `check` compatibility; Core guard 1/1
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected BQ-07 current-time retry-after moves source → local_behavior; whole card remains feature_status=implemented, proof_level=source
+proof-level_change: exact current-time retry-after source → local_behavior; no durable/live/physical promotion
+limitations: compatibility `check` intentionally uses window start; durable reservation/fence/CAS, fair queue, cross-process clock store and provider capacity remain open
+reviewer: root integration agent with BQ-07 read-only quota audit; focused clock/retry reviewer
+```
+
+### ER-08 run projection identity conflict hardening（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/projection.rs; kiana-core/src/persistence_read_model.rs; kiana-core/tests/er08_run_projection.rs; kiana-core/tests/er08_projection_guard.rs
+worktree_status: ER-08 row 134 remains ✅ / feature_status=implemented / proof_level=source; direct run projection validates aggregate/payload run identity before filtering; no new execution path
+command_argv: RED `cargo test -p kiana-core --test er08_run_projection run_projection_rejects_aggregate_and_payload_identity_conflicts --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-core --test er08_run_projection --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er08_projection_guard --locked --offline -- --test-threads=1`; regression `cargo test -p kiana-core --test pd10_read_model --test er16_terminal_uniqueness --test h02_lifecycle --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 324032 KiB / 95% CPU; ER-08 GREEN max RSS 1198536 KiB / 96% CPU; guard max RSS 129844 KiB / 62% CPU; regression max RSS 339984 KiB / 122% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED aggregate/payload run drift was accepted or silently filtered; GREEN ER-08 4/4, Core guard 1/1, and persistence/terminal/lifecycle regression 13/13; stable `run_event_run_id_conflict`/`run_event_run_id_invalid`
+exit_code: RED 101 expected; GREEN/guard/regression 0
+status_change: selected ER-08 identity conflict denial moves source → local_behavior; row remains ✅ / implemented/source
+proof-level_change: direct projection identity source → local_behavior; no durable/live/physical promotion
+limitations: checkpoint/restart/resume, cross-process recovery, full EventLog projector runner and external/live/physical proof remain open
+reviewer: root integration agent with ER-08 read-only projection audit; focused identity reviewer
+```
+
+### OA-02 source cursor builder revalidation（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/correlation.rs; kiana-domain/tests/oa02_correlation.rs; kiana-core/tests/er02_identity_guard.rs
+worktree_status: OA-02 row 093 remains 🔄 / feature_status=partial / proof_level=source; `with_source_cursor` validates the cloned context before return; no ingress/provider/Broker/EventLog bridge
+command_argv: RED `cargo test -p kiana-domain --test oa02_correlation source_cursor_builder_revalidates_forged_links_and_preserves_foreign_parent --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test oa02_correlation --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 260180 KiB / 35% CPU; domain GREEN max RSS 83364 KiB / 16% CPU; Core guard max RSS 85528 KiB / 36% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED forged Parent link was accepted; GREEN domain 9/9 and Core guard 1/1; valid W3C ForeignParent remains accepted and preserved
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected OA-02 source-cursor builder validation moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: builder output validation source → local_behavior; no durable/live/physical promotion
+limitations: ingress/provider/Broker/EventLog runtime bridge, recovery durability, exporter/sink integration and physical trace proof remain open; correlation never grants authority
+reviewer: root integration agent with OA-02 read-only correlation audit; focused builder reviewer
+```
+
+### BQ-06 BudgetLease identity denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/work_packets.rs; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs
+worktree_status: BQ-06 row 195 remains 🔄 / feature_status=implemented / proof_level=source; `BudgetLease::validate` rejects nil BudgetLeaseId before intersection; no reservation/CAS or financial authority wiring
+command_argv: RED `cargo test -p kiana-domain --test bq06_budget_intersection budget_lease_with_nil_identity_is_rejected --locked --offline -- --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test bq06_budget_intersection --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq06_budget_intersection_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 227252 KiB / 32% CPU; domain GREEN max RSS 83448 KiB / 1% CPU; Core guard max RSS 129524 KiB / 66% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED nil lease identity produced `EffectiveBudget`; GREEN domain 9/9 and Core guard 1/1; stable `budget_lease_invalid`, valid and other deny-first budget cases remain green
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected BQ-06 lease identity denial moves source → local_behavior; whole card remains feature_status=implemented, proof_level=source
+proof-level_change: nil lease identity guard source → local_behavior; no durable/live/physical promotion
+limitations: no lease lineage persistence, ControlPlane admission, quota/provider binding, durable reservation/CAS, recovery or financial authority proof; `EffectiveBudget` omits lease identity
+reviewer: root integration agent with BQ-06 read-only billing audit; focused budget identity reviewer
+```
+
+### CAP-07 prepared backend identity binding（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/container_environment.rs; kiana-daemon/tests/dep36_container_adapter.rs; kiana-core/tests/cap07_environment_backend_guard.rs
+worktree_status: CAP-07 row 237 remains 🔄 / feature_status=partial / proof_level=source; planned container state retains backend_version/required_dimensions and rejects forged prepared backend claims before execute_argv; no DaemonHost/Broker lifecycle or second execution path
+command_argv: RED `cargo test -p kiana-daemon --test dep36_container_adapter forged_prepared_backend_is_denied_before_container_exec --locked --offline -- --exact --test-threads=1`; GREEN daemon `cargo test -p kiana-daemon --test dep36_container_adapter --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cap07_environment_backend_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; RED max RSS 950596 KiB / 84% CPU; daemon GREEN max RSS 948076 KiB / 96% CPU; Core guard max RSS 131112 KiB / 64% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-cap07-{red,daemon,core}.{log,resources}`
+fixture·cassette: RED forged backend was not denied at the prepared boundary; GREEN adapter 6/6 and Core guard 2/2, stable `container_environment_identity_mismatch`, no container process started
+exit_code: RED 101 expected; GREEN daemon/Core 0
+status_change: selected CAP-07 prepared identity binding moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: backend/version/required-dimension binding source → local_behavior; no kernel/live/physical promotion
+limitations: conservative false probe, bwrap executable path TOCTOU, full EnvironmentPort/DaemonHost/Broker lifecycle, kernel/userns/network enforcement and physical isolation remain open
+reviewer: root integration agent with CAP-07 read-only audit; focused prepared-environment identity reviewer
+```
+
+### CM-09 malformed JSON-like secret key denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/text_normalization.rs; kiana-domain/tests/cm09_text_normalization.rs; kiana-core/tests/cm09_text_normalization_guard.rs
+worktree_status: CM-09 row 320 remains 🔄 / feature_status=partial / proof_level=source; bounded parser-failure scan detects quoted secret keys before normalization policy; no index/provider/manifest/lockfile or second redaction system
+command_argv: RED `cargo test -p kiana-domain --test cm09_text_normalization malformed_json_like_secret_key_is_rejected_without_original_fallback --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test cm09_text_normalization --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cm09_text_normalization_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; RED max RSS 3996548 KiB / 89% CPU; domain GREEN max RSS 4053428 KiB / 89% CPU; Core guard max RSS 4090024 KiB / 68% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-cm09-malformed-{red,domain,core}.{log,resources}`
+fixture·cassette: RED returned `{"access_token":"CM09_RAW",}` unchanged; GREEN domain 4/4 and Core guard 1/1; stable `normalization_sensitive_input_rejected`
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected CM-09 malformed JSON-like secret denial moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: bounded malformed-key scan source → local_behavior; no durable/live/physical promotion
+limitations: Redact output for malformed structures, formatted phone PII, full classification and durable index generation/switch/invalidation remain open
+reviewer: root integration agent with CM-09 read-only audit; focused malformed-input reviewer
+```
+
+### ER-02 direct append top-level identity denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-eventlog/src/journal_core.rs; kiana-eventlog/tests/er02_identity.rs; kiana-core/tests/er02_identity_guard.rs
+worktree_status: ER-02 row 037 remains 🔄 / feature_status=partial / proof_level=source; legacy direct append rejects nil RuntimeEvent.event_id/request_id before CAS/index mutation; no manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-eventlog --test er02_identity nil_top_level_event_identity_is_denied_before_append --locked --offline -- --exact --test-threads=1`; GREEN EventLog `cargo test -p kiana-eventlog --test er02_identity --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; compile-only RED correction max RSS 4065232 KiB / 87% CPU; behavior RED max RSS 277280 KiB / 44% CPU; EventLog GREEN max RSS 428204 KiB / 96% CPU; Core guard final rerun max RSS 131820 KiB / 68% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-er02-{red,red2,eventlog,core}.{log,resources}`
+fixture·cassette: RED accepted nil top-level identity; GREEN EventLog 13/13 and Core guard 1/1; stable `event_identity_invalid`, rejected events leave `read_all()` empty
+exit_code: initial RED compile 101 (fixture type correction); behavior RED 101 expected; GREEN EventLog/Core 0
+status_change: selected ER-02 direct append identity denial moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: direct append top-level identity source → local_behavior; no durable/live/physical promotion
+limitations: complete ER-02 shard, legacy upcast, durable InvocationLedger, cross-process ordering/recovery, terminal reconciliation and external effect receipts remain open
+reviewer: root integration agent with ER-02 read-only EventLog audit; focused identity reviewer
+```
+
+### CM-09 credential marker expansion（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/text_normalization.rs; kiana-domain/tests/cm09_text_normalization.rs; kiana-core/tests/cm09_text_normalization_guard.rs
+worktree_status: CM-09 row 320 remains 🔄 / feature_status=partial / proof_level=source; Reject normalization now recognizes access/refresh/ID token, hyphenated API key, client secret and proxy authorization markers; no index/provider/manifest/lockfile or second redaction system
+command_argv: RED `cargo test -p kiana-domain --test cm09_text_normalization secret_never_enters_index_or_embedding --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test cm09_text_normalization --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cm09_text_normalization_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; RED max RSS 4024888 KiB / 88% CPU; domain GREEN max RSS 4047916 KiB / 84% CPU; Core guard max RSS 4077596 KiB / 64% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-cm09-{red,domain,core}.{log,resources}`
+fixture·cassette: RED accepted `api-key:CM09_RAW`; GREEN domain 3/3 and Core guard 1/1; stable `normalization_sensitive_input_rejected` for the expanded marker set
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected CM-09 credential marker coverage moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: focused marker denial source → local_behavior; no durable/live/physical promotion
+limitations: malformed JSON-like quoted secret keys and formatted phone PII remain open; full classification, durable index generation/switch/invalidation and dedicated CI evidence remain open
+reviewer: root integration agent with CM-09 read-only audit; focused text-normalization reviewer
+```
+
+### BQ-06 ProjectBudget identity denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_budgets.rs; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs
+worktree_status: BQ-06 row 195 remains 🔄 / feature_status=implemented / proof_level=source; `intersect_budgets` rejects nil ProjectBudget.project_id before producing an effective budget; no reservation/CAS or financial authority wiring
+command_argv: RED `cargo test -p kiana-domain --test bq06_budget_intersection project_budget_with_nil_identity_is_rejected --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test bq06_budget_intersection --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq06_budget_intersection_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; RED max RSS 4083776 KiB / 88% CPU; domain GREEN max RSS 3992416 KiB / 85% CPU; Core guard max RSS 4090588 KiB / 62% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-bq06-{red,domain,core}.{log,resources}`
+fixture·cassette: RED nil `ProjectId` was accepted and produced `EffectiveBudget`; GREEN domain 8/8 and Core guard 1/1; stable `project_budget_invalid`, with valid, zero-effect and child monotonicity cases green
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected BQ-06 project identity denial moves source → local_behavior; whole card remains feature_status=implemented, proof_level=source
+proof-level_change: nil project identity guard source → local_behavior; no durable/live/physical promotion
+limitations: `EffectiveBudget` still omits project identity from its digest; ControlPlane admission, reservation/CAS, quota/provider binding, durable recovery and financial authority remain open
+reviewer: root integration agent with BQ-06 read-only billing audit; focused budget reviewer
+```
+
+### DEP-04 ResultUnknown operation identity（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-protocol/src/ops.rs; kiana-protocol/tests/dep04_ops.rs; kiana-core/tests/dep04_ops_protocol_guard.rs
+worktree_status: DEP-04 row 609 remains 🔄 / feature_status=partial / proof_level=source; `ResultUnknown` now requires a non-nil original operation_id at constructor, DTO and envelope validation; typed ops admission remains open
+command_argv: RED `cargo test -p kiana-protocol --test dep04_ops --locked --offline -- --test-threads=1`; GREEN protocol `cargo test -p kiana-protocol --test dep04_ops --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test dep04_ops_protocol_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; RED max RSS 83568 KiB / 67% CPU; protocol GREEN max RSS 457460 KiB / 95% CPU; Core guard max RSS 430924 KiB / 86% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-dep04-{red,protocol,core}.{log,resources}`
+fixture·cassette: RED accepted digest-valid `ResultUnknown` with `operation_id=None`; GREEN protocol 3/3 and Core guard 1/1; stable `ops_result_unknown_operation_invalid`, while retryable Unknown remains separately denied
+exit_code: RED 101 expected; GREEN protocol/Core 0
+status_change: selected DEP-04 ResultUnknown identity moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: protocol identity denial source → local_behavior; no durable/live/physical promotion
+limitations: typed ops query still uses the generic command spine; DaemonHost/Core admission, operation journal reconciliation, approval/Broker effects and durable/live proof remain open
+reviewer: root integration agent with DEP-04 read-only audit; focused ops protocol reviewer
+```
+
+### CI-06 trusted workspace precedence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-provider/src/config.rs; kiana-provider/tests/ci06_config_resolver.rs; kiana-daemon/tests/ci06_config_resolver.rs; kiana-core/tests/ci06_config_resolver.rs
+worktree_status: CI-06 row 166 remains 🔄 / feature_status=partial / proof_level=source; explicit ProviderConfig > trusted workspace/project > environment > builtin is enforced for provider/model/base URL, and workspace profile definitions win same-name environment profiles; no DaemonHost project route, manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-provider --test ci06_config_resolver trusted_workspace_precedes_provider_environment_for_default_route --locked --offline -- --test-threads=1`; GREEN provider `cargo test -p kiana-provider --test ci06_config_resolver --locked --offline -- --test-threads=1`; daemon guard `cargo test -p kiana-daemon --test ci06_config_resolver --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test ci06_config_resolver --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental tests; RED max RSS 360496 KiB / 52% CPU; provider GREEN 429124 KiB / 78% CPU; daemon guard 948188 KiB / 88% CPU; Core guard 129760 KiB / 53% CPU; all measured runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261008-ci06-{red,provider,daemon,core}.{log,resources}`
+fixture·cassette: RED old resolver selected an invalid environment endpoint and returned `model_endpoint_credentials_or_query_denied`; GREEN provider 12/12, daemon guard 1/1 and Core guard 1/1; workspace provider/model and `CI06_PROJECT_KEY` credential digest are asserted against conflicting environment values
+exit_code: RED 101 expected; GREEN provider/daemon/Core 0
+status_change: selected CI-06 source selectors move source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: precedence and same-name profile merge source → local_behavior; no durable/live/physical promotion
+limitations: DaemonHost still constructs `ProviderGateway::from_env`; project config path/trust revision wiring, durable cross-process snapshot/generation, migration/upcaster, redirect, lease lifecycle and cancellation-after-remote-send remain open
+reviewer: root integration agent with CI-06 read-only audit; no human release reviewer
+```
+
+### OA-03 malformed JSON-like secret key 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/redaction.rs; kiana-domain/tests/oa03_redaction.rs; kiana-core/tests/oa03_redaction_guard.rs
+worktree_status: OA-03 row 094 remains 🔄 / feature_status=partial / proof_level=source; `encode_bounded_text` rejects malformed JSON-like text with quoted sensitive key before returning original text; no runtime stream sink expansion, manifest/lockfile or second redaction system
+command_argv: RED `cargo test -p kiana-domain --test oa03_redaction malformed_json_like_secret_key_is_rejected_without_original_fallback --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test oa03_redaction_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 262428 KiB / 43% CPU; final domain GREEN max RSS 83356 KiB / 17% CPU; Core guard max RSS 85412 KiB / 29% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED accepted `{"token": "oa03-malformed-json-sentinel",}` unchanged; GREEN domain 7/7 and Core guard 1/1; stable `redaction_secret_sentinel_detected`; ordinary malformed structured text without sensitive quoted key remains compatible
+exit_code: RED 101 expected; domain/Core/fmt/diff/roadmap 0
+status_change: selected malformed JSON-like secret-key denial moves source → local_behavior; whole OA-03 remains partial/source
+proof-level_change: local bounded encoder refusal only; no durable/live/physical promotion
+limitations: runtime stream renderer still lacks complete profile/split-marker/URL-userinfo/JWT wiring; EventLog/Receipt/Metric/Trace sink coverage, arbitrary unmarked secrets, classification ceilings and durable/live export remain open
+reviewer: root integration agent with OA-03 read-only redaction audit; focused bounded-encoder reviewer
+```
+
+### PD-06 Transition frame event identity 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/journal.rs; kiana-domain/tests/cp07_journal_frame.rs; kiana-core/tests/cp07_journal_guard.rs
+worktree_status: PD-06 row 200 remains 🔄 / feature_status=implemented / proof_level=source; `TransitionBatch::validate` now rejects nil event_id/request_id before receipt validation; no JSONL writer/fsync/lock/manifest/lockfile change
+command_argv: RED `cargo test -p kiana-domain --test cp07_journal_frame transition_frame_rejects_nil_command_and_receipt_commit_ids --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test cp07_journal_frame --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cp07_journal_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 253264 KiB / 38% CPU; domain GREEN max RSS 83536 KiB / 16% CPU; Core guard max RSS 84456 KiB / 29% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED accepted valid-checksum transition frames with nil event/request and command/commit identities; GREEN domain 5/5 and Core guard 1/1; stable `journal_event_identity_invalid`, `journal_command_id_invalid` and `command_receipt_commit_id_invalid`; standalone Event frame behavior remains covered
+exit_code: RED 101 expected; domain/Core/fmt/diff/roadmap 0
+status_change: selected transition event identity denial moves source → local_behavior; whole PD-06 remains implemented/source
+proof-level_change: local transition-frame validation only; no durable/live/physical promotion
+limitations: duplicate-key wire parsing, fsync/power-loss/kill-9, cross-process contention, recovery/indexing and physical durability remain open
+reviewer: root integration agent with PD-06 read-only journal audit; focused transition-frame identity reviewer
+```
+
+### PD-06 JSONL duplicate-key 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-eventlog/src/jsonl.rs; kiana-eventlog/tests/pd06_jsonl_recovery.rs; kiana-core/tests/pd06_jsonl_guard.rs
+worktree_status: PD-06 row 200 remains 🔄 / feature_status=implemented / proof_level=source; JSONL reader now uses recursive StrictValueSeed/visitor and rejects duplicate keys before schema/frame decode; no manifest/lockfile, writer/fsync/lock architecture or second fact source changed
+command_argv: RED `cargo test -p kiana-eventlog --test pd06_jsonl_recovery jsonl_v2_rejects_duplicate_wire_keys_before_header_or_frame_decode --locked --offline -- --exact --test-threads=1`; focused GREEN same selector; PD-06 `cargo test -p kiana-eventlog --test pd06_jsonl_recovery --locked --offline -- --test-threads=1`; ER-05 `cargo test -p kiana-eventlog --test er05_jsonl_v2 --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test pd06_jsonl_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 425424 KiB / 94% CPU; focused GREEN max RSS 281400 KiB / 102% CPU; PD-06 final rerun max RSS 427364 KiB / 86% CPU; ER-05 max RSS 279440 KiB / 105% CPU; Core guard final rerun max RSS 84468 KiB / 30% CPU; all completed runs reported 0 swaps
+fixture·cassette: RED old serde_json Value parser accepted duplicate top-level `schema`; GREEN rejects top-level duplicate header keys and nested duplicate `body.type`; PD-06 3/3 and ER-05 4/4 preserve torn-tail/checksum/lock/sync/transition/reopen behavior; Core guard 1/1 pins parser and visitor markers
+exit_code: RED 101 expected; focused/PD-06/ER-05/Core guard 0
+status_change: selected JSONL duplicate-key denial moves source → local_behavior; whole PD-06 remains implemented/source
+proof-level_change: recursive parser refusal is locally verified; no durable/live/physical promotion
+limitations: duplicate-key refusal is scoped to this JSONL parser; other wire boundaries, fsync/power-loss/kill-9, cross-process contention, recovery/indexing and physical durability remain open; this does not claim the JSONL adapter is durable
+reviewer: root integration agent with PD-06 read-only storage audit; focused JSONL duplicate-key reviewer
+```
+
+### CAP-05 execution.prepared owner binding（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/dispatch.rs; kiana-core/tests/cap05_permit.rs
+worktree_status: CAP-05 row 143 remains 🔄 / feature_status=partial / proof_level=source; `JournalPermitVerifier::verify_and_consume` now requires prepared top-level `request_id` to equal derived `execution.prepare` owner before consume CAS; no second dispatch path, manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-core --test cap05_permit prepared_top_level_request_owner_drift_does_not_consume_execution_permit --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-core --test cap05_permit --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 1197868 KiB / 85% CPU; GREEN max RSS 1198748 KiB / 90% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED accepted a valid permit payload under foreign top-level request_id; GREEN cap05_permit 13/13; stable `execution_permit_invalid`, stream remains prepared-only and handler/effect calls remain zero
+exit_code: RED 101 expected; GREEN/fmt/diff/roadmap 0
+status_change: selected prepared-event owner binding moves source → local_behavior; whole CAP-05 remains partial/source
+proof-level_change: local pre-handler owner denial only; no durable/live/physical promotion
+limitations: no full ControlPlane prepare/approval/budget/lease transaction, crash/power-loss/cross-process recovery, external exactly-once, provider/connector effect or physical/live proof
+reviewer: root integration agent with CAP-05 read-only permit audit; focused Broker/permit reviewer
+```
+
+### EQ-10 fake provider 空 streaming chunk 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq10_fake_provider.rs; kiana-core/tests/eq10_fake_provider_guard.rs
+worktree_status: EQ-10 row 182 remains 🔄 / feature_status=implemented / proof_level=local_behavior; `FakeProviderScenario::Stream` rejects empty chunks before callback emission; no DaemonHost/ControlPlane integration, manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-daemon --test eq10_fake_provider fake_provider_rejects_empty_stream_chunk --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-daemon --test eq10_fake_provider --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test eq10_fake_provider_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 571652 KiB / 61% CPU; daemon GREEN max RSS 944532 KiB / 90% CPU; Core guard max RSS 128780 KiB / 53% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED old validator accepted mixed `("first", "")` stream; GREEN daemon 9/9 and Core guard 1/1; stable `fake_provider_stream_invalid`; no empty `ModelDelta::Text` can be emitted from a valid stream cassette
+exit_code: RED 101 expected; daemon/Core/fmt/diff/roadmap 0
+status_change: selected EQ-10 empty-stream validation moves source → local_behavior; whole card remains implemented/local_behavior
+proof-level_change: local fake-provider validation only; no durable/live/physical promotion
+limitations: no DaemonHost/ControlPlane/Broker/EventLog/receipt/recovery integration, no total-stream memory cap or restart/fault proof, and no live/physical provider effect; complete empty replies and malformed partial-stream semantics remain open
+reviewer: root integration agent with EQ-10 read-only audit; focused fake-provider boundary reviewer
+```
+
+### EQ-10 fake provider total streaming text cap 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq10_fake_provider.rs; kiana-core/tests/eq10_fake_provider_guard.rs
+worktree_status: EQ-10 row 182 remains 🔄 / feature_status=implemented / proof_level=local_behavior; `FakeProviderScenario::Stream` checked-sums chunk bytes and rejects totals above 512 KiB while accepting the exact 32 × 16 KiB boundary; no DaemonHost/ControlPlane integration, manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-daemon --test eq10_fake_provider fake_provider_rejects_stream_over_total_text_limit --locked --offline -- --exact --test-threads=1`; GREEN `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test eq10_fake_provider --locked --offline -- --test-threads=1`; Core guard same bounded serial command; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 953652 KiB / 91% CPU; daemon GREEN max RSS 942808 KiB / 93% CPU; Core guard max RSS 130996 KiB / 62% CPU; all observed runs reported 0 swaps
+fixture·cassette: RED old validator accepted 33 × 16 KiB and assertion failed; GREEN daemon 10/10 includes oversized denial plus exact-limit acceptance; Core guard 1/1 locks `MAX_STREAM_TEXT_BYTES`, checked fold and offline ModelClient-only boundary
+exit_code: RED 101 expected; daemon/Core/fmt/diff/roadmap 0
+status_change: selected EQ-10 total-stream memory boundary moves source → local_behavior; whole EQ-10 remains implemented/local_behavior
+proof-level_change: checked fake-cassette total text bound locally verified; no durable/live/physical promotion
+limitations: no DaemonHost/ControlPlane/Broker/EventLog/receipt/recovery integration, restart/fault or durable proof; malformed partial-stream semantics and complete empty replies remain separate decisions; no live/physical provider effect
+reviewer: root integration agent with EQ-10 read-only audit; focused fake-provider memory-boundary reviewer
+```
+
+### H05 `run.model_turn` 嵌套 ModelOutcome 校验（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/event_contracts.rs; kiana-domain/tests/h05_model_outcome.rs; kiana-core/tests/er01_event_contract_guard.rs
+worktree_status: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; optional `outcome` is now typed-decoded and validated when present, while legacy omission remains accepted; no new execution loop, wire schema, manifest or lockfile
+command_argv: RED `cargo test -p kiana-domain --test h05_model_outcome model_turn_event_contract_rejects_invalid_nested_outcome --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test h05_model_outcome --locked --offline -- --test-threads=1`; compatibility `cargo test -p kiana-domain --test er01_event_contract --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er01_event_contract_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; RED max RSS 257252 KiB / 99% CPU; domain GREEN max RSS 3893684 KiB / 87% CPU; compatibility max RSS 288928 KiB / 35% CPU; Core guard max RSS 4020880 KiB / 90% CPU; all completed runs reported 0 swaps
+fixture·cassette: RED accepted empty-phase nested outcome; GREEN H05 domain 13/13 covers malformed nested outcome classes, valid typed outcome and legacy compatibility; event-contract regression 46/46; Core guard 1/1 locks `ModelOutcome` decode/validate and `event_model_outcome_invalid`
+exit_code: RED 101 expected; domain/compatibility/Core/fmt/diff/roadmap 0
+status_change: selected H05 nested outcome validation moves source → local_behavior; whole card remains partial/source
+proof-level_change: local event-contract denial and compatibility only; no durable/live/physical promotion
+limitations: automatic repair loop, full shard/live provider, CLI/wire projection, durable event recovery, billing/external effect and physical proof remain open; `outcome` is intentionally optional for legacy payloads
+reviewer: root integration agent with H05 read-only audit; focused event-contract reviewer
+```
+
+### CO-06 可选 provenance source identity 拒绝（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/artifact_contracts.rs; kiana-domain/tests/co06_artifact.rs; kiana-ports/tests/co06_artifact_port.rs; kiana-core/tests/co06_artifact_guard.rs
+worktree_status: CO-06 row 065 remains 🔄 / feature_status=partial / proof_level=source; `ArtifactProvenance::validate` rejects explicitly supplied nil `source_event_id`/`source_run_id` before artifact construction, while absent optional links remain compatible; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-domain --test co06_artifact artifact_provenance_source_ids_must_be_non_nil --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test co06_artifact --locked --offline -- --test-threads=1`; ports `cargo test -p kiana-ports --test co06_artifact_port --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test co06_artifact_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 243428 KiB / 36% CPU; domain GREEN max RSS 4084780 KiB / 86% CPU; ports GREEN max RSS 4050416 KiB / 86% CPU; Core guard max RSS 4088696 KiB / 88% CPU; all measured runs reported 0 swaps
+fixture·cassette: RED accepted nil `source_event_id`; GREEN domain 4/4, ports 2/2 and Core guard 1/1; stable `artifact_provenance_identity_invalid`; valid and absent optional provenance links remain accepted
+exit_code: RED 101 expected; domain/ports/Core/fmt/diff/roadmap 0
+status_change: selected optional provenance source-ID denial moves source → local_behavior; whole CO-06 remains partial/source
+proof-level_change: local provenance validation only; no durable/live/physical promotion
+limitations: no cross-store atomicity/reconciliation, crash or cross-process recovery, retention/deletion/GC, historical/current UI comparison or physical deletion proof; PD-14/ER-29 LocalArtifactStore invalidation remains open
+reviewer: root integration agent with CO-06 read-only audit; focused provenance identity reviewer
+```
+
+### EXT-25 forged contract digest denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/extensions.rs; kiana-domain/tests/ext25_signed_skill_scope.rs; kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs; kiana-core/tests/ext25_signed_skill_scope_guard.rs
+worktree_status: EXT-25 row 360 remains 🔄 / feature_status=partial / proof_level=source; `ExtensionExecutionContract` now recomputes the server-owned scope digest in validate_at, matches_manifest and check; no manifest/lockfile or second execution path
+command_argv: RED `cargo test -p kiana-domain --test ext25_signed_skill_scope signed_skill_contract_rejects_scope_digest_drift --locked --offline -- --test-threads=1`; GREEN `cargo test -p kiana-domain --test ext25_signed_skill_scope --locked --offline -- --test-threads=1`; compatibility `cargo test -p kiana-domain --test p4_l5_01_skill_allowed_tools --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test ext25_signed_skill_scope_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; RED max RSS 230576 KiB / 4% CPU; final domain GREEN max RSS 83112 KiB / 30% CPU; compatibility max RSS 228116 KiB / 65% CPU; final Core guard max RSS 4055184 KiB / 86% CPU; all completed runs reported 0 swaps
+fixture·cassette: RED accepted a forged valid-looking digest; GREEN domain 3/3 rejects digest drift and malformed policy digest shape at validate_at/matches_manifest while preserving future-issued and issue-instant behavior; compatibility 1/1 recalculates valid contracts and denies forged Broker check; Core guard 1/1
+exit_code: RED 101 expected; domain/compatibility/Core/fmt/diff/roadmap 0
+status_change: selected EXT-25 forged-contract digest behavior moves source → local_behavior; whole card remains partial/source
+proof-level_change: local domain and source-guard denial only; no durable/live/physical promotion
+limitations: direct Broker/DaemonHost runtime admission, durable scope storage, cross-process recovery, cryptographic bearer token and external/live effect proof remain open; workspace-wide test remains non-green/resource-intensive
+reviewer: root integration agent with EXT-25 read-only audit; focused signed-scope reviewer
+```
+
 > 本文件是“当前状态”的唯一汇总入口。  
 > 更新规则：只有绑定源码快照、精确命令和证据产物后，才能提升状态或证明等级。  
 > 各结论只绑定各自证据块的源码快照；2026-09-12 核对时共享工作树另有持续变化的 WIP，不能把历史证据套用到整个当前工作树。
+
+### BQ-05 nil RateCardId lookup denial（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/lib.rs; kiana-ports/tests/bq05_rate_card_store.rs; kiana-core/tests/bq05_rate_card_guard.rs
+worktree_status: BQ-05 row 194 remains 🔄 / feature_status=implemented / proof_level=source; `read_rate_card` rejects nil identity before map lookup; no manifest/lockfile/provider/financial authority change
+command_argv: RED `cargo test -p kiana-ports --test bq05_rate_card_store rate_card_store_rejects_nil_identity_before_lookup --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-ports --test bq05_rate_card_store --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq05_rate_card_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; 32 MiB test stack; stripped/non-incremental profile; RED max RSS 468172 KiB / 96% CPU; ports GREEN max RSS 468260 KiB / 96% CPU; Core guard max RSS 1198724 KiB / 91% CPU; all completed runs reported 0 swaps
+fixture·cassette: RED old adapter returned `Ok(None)` for nil UUID; GREEN ports 4/4, Core guard 1/1; stable `port_failed:rate_card_lookup_invalid`
+exit_code: RED 101 expected; ports/Core/fmt/diff 0
+status_change: selected nil identity lookup denial moves source → local_behavior; whole BQ-05 remains implemented/source
+proof-level_change: local adapter denial is verified; no durable/live/physical promotion
+limitations: bounded-memory policy, durable projector, provider discovery, invoice/currency conversion, reservation admission and external proof remain open; full workspace remains non-green/resource-intensive
+reviewer: root integration agent with BQ-05 read-only audit; focused rate-card port reviewer
+```
+
+### CP-13 post-prepare Unknown 终结（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/dispatch.rs; kiana-core/src/dispatch_delivery_tests.rs; kiana-core/tests/cp13_dispatch_guard.rs
+worktree_status: CP-13 row 129 remains 🔄 / feature_status=partial / proof_level=source; shared `commit_prepared_result_unknown` writes one execution-permit terminal fact; no manifest/lockfile, second dispatch loop, automatic commit/push/merge/rebase or worktree deletion
+command_argv: RED `cargo test -p kiana-core --lib dispatch::delivery_tests::prepared_post_prepare_failure_commits_terminal_unknown --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-core --lib dispatch::delivery_tests --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cp13_dispatch_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED compile failure max RSS 944864 KiB / 75% CPU; final delivery GREEN max RSS 85448 KiB / 88% CPU; final Core guard max RSS 130852 KiB / 69% CPU; all completed runs reported 0 swaps
+fixture·cassette: RED had no post-prepare terminal writer; GREEN MemoryEventLog fixture asserts `execution.prepared → execution.result_committed` v2, `outcome_state=unknown`, `effect_known=false`, `fenced=true`, and stable `result_unknown:checkpoint_restore_scope_changed`; delivery module 12/12; Core guard 1/1
+exit_code: RED 101 expected; delivery/Core/fmt/diff 0
+status_change: selected post-prepare helper-failure/cancel terminalization moves source → local_behavior; CP-13 whole card stays partial/source
+proof-level_change: local CAS terminalization is verified; no durable/live/physical promotion
+limitations: direct helper fixture does not yet drive all ControlPlane authority/policy setup or cancellation timing; budget/resource reservation remains separate, helper-specific integration and crash/power-loss/cross-process recovery remain open, as do CP-14 settlement, CP-20 reconciliation and external exactly-once
+reviewer: root integration agent with CP-13 read-only audit; focused permit/delivery reviewer
+```
+
+### P0-A-01a 公开 correlation ID 注册表补漏（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/contracts.rs and correlation.rs; P0-A-01a registry lane
+worktree_status: P0-A-01a row 001 remains 🔄; `TraceId` and `SpanId` are now registered as string-shaped IDs with round-trip samples; source guard scans ids.rs and correlation.rs; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED then GREEN `cargo test -p kiana-domain --lib contracts::tests --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test p0_a01b_schema_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED 40.21s/93% CPU/max RSS 3,565,620 KiB; domain GREEN 38.64s/95% CPU/max RSS 3,580,256 KiB; Core guard 1m30.61s/86% CPU/max RSS 3,995,748 KiB; each measured command reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261007-p0a01a/{red,green,green2,core}.{log,resources}`
+fixture·cassette: RED after adding the two new samples was 102/105 passed with three expected failures (missing `TraceId`/`SpanId` contracts and count mismatch); an intermediate run then exposed the test's UUID-shaped-string misclassification (104/105), corrected by requiring canonical UUID hyphens for UUID wire shape; final GREEN exercises both deterministic lowercase-hex serde round trips, string wire-shape classification, duplicate/owner/count checks and source registration scan; Core single-registry guard 1/1
+exit_code: RED 101 expected; GREEN domain 0; Core guard 0; fmt/diff 0
+status_change: selected P0-A-01a registry coverage moves source → local_behavior; roadmap row 001 and dependent cards remain unchanged 🔄/existing state
+proof-level_change: selected ID registry and round-trip behavior is `local_behavior`; no whole-card durable/live/physical promotion
+limitations: full workspace test remains non-green; remote CI, durable/cross-process identity storage and all downstream P0-A-01a dependent acceptance are not proven; this receipt does not promote P0-A-01a or P0-A-01b
+reviewer: root integration agent with P0-A-01a read-only audit; no human release reviewer
+```
+
+### PD-01 storage lock integrity precedence（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/storage.rs; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs
+worktree_status: PD-01 row 108 remains 🔄 / feature_status=partial; `StorageLockRecord::validate_integrity` now runs before scope comparison; no shared product-entry root, ControlPlane path, manifest or lockfile change
+command_argv: RED `cargo test -p kiana-daemon --test pd01_storage daemon_storage_lock_conflict_rejects_foreign_scope_with_invalid_digest_as_corrupt --locked --offline -- --exact --test-threads=1`; GREEN daemon `cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`; domain `cargo test -p kiana-domain --test pd01_storage --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test pd01_storage_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; every completed Cargo command used one build job/test thread, 32 MiB test stack, stripped/non-incremental profile; RED 1m46.99s/87% CPU/max RSS 4,076,316 KiB; daemon GREEN 1m48.57s/86% CPU/max RSS 4,041,152 KiB; domain GREEN 59.29s/89% CPU/max RSS 4,010,220 KiB; final Core guard GREEN 0.59s/57% CPU/max RSS 136,780 KiB after the marker update; all completed runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261007-pd01/{red-digest,daemon-final2,domain-final2,core-guard-final}.{log,resources}`
+fixture·cassette: new daemon fixtures cover foreign owner + invalid digest and foreign owner + zero time with a recomputed digest; RED returned `Conflict("storage_lock_owner_mismatch")` for invalid digest; final daemon 11/11, domain 4/4, Core source guard 1/1; valid foreign scope mismatch remains covered by the existing resolver fixture
+exit_code: RED 101 expected; daemon/domain/Core/fmt/diff 0; one accidental concurrent Core retry was cancelled while waiting on the Cargo build lock (exit 130, no test executed) and is excluded from the green receipt
+status_change: selected lock-corruption classification moves source → local_behavior; whole PD-01 remains `feature_status=partial`, `proof_level=source`, roadmap row 108 🔄
+proof-level_change: deny-first integrity-before-scope behavior is locally verified; no durable/live/physical promotion
+limitations: CLI/Web/Workbench shared root routing, stable restart identity and authority rebinding, stale/crash/power-loss recovery, directory fsync, cross-process fencing, network filesystem matrix, same-UID replacement race and legacy adapter migration remain open; this slice does not close PD-01
+reviewer: root integration agent with PD-01 read-only audit; no human release reviewer
+```
+
+### OA-03 audit export 全格式拒绝证据（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/audit_export.rs; kiana-core/tests/oa03_redaction_guard.rs; kiana-domain/tests/oa03_redaction.rs; kiana-domain/tests/int13_secret_redaction.rs
+worktree_status: OA-03 row 094 remains 🔄 / feature_status=partial; shared redaction profile remains the only encoder; no manifest, lockfile or second execution path
+command_argv: Core unit `cargo test -p kiana-core --lib audit_export::tests::oa03_audit_export_rejects_secret_sentinel --locked --offline -- --test-threads=1`; domain `cargo test -p kiana-domain --test oa03_redaction --locked --offline -- --test-threads=1`; domain full-channel `cargo test -p kiana-domain --test int13_secret_redaction --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test oa03_redaction_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, 32 MiB test stack, stripped/non-incremental profile; Core full-format 7.53s/96% CPU/max RSS 968,616 KiB; domain OA-03 0.73s/101% CPU/max RSS 269,264 KiB; INT-13 0.60s/105% CPU/max RSS 240,324 KiB; Core guard 14.97s/91% CPU/max RSS 1,196,328 KiB; all completed runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261007-oa03/{core-export-formats-final2,domain-oa03,domain-int13,core-guard}.{log,resources}`
+fixture·cassette: shared valid `AuditRecord` with a secret-bearing reason; renderer loop rejects JSONL/JSON/CSV before content generation; existing domain OA-03 6/6, INT-13 4/4 and Core source guard 1/1 remain green. A first over-specific selector ran 0 tests and an initial assertion expected a lower-level redaction error; the module-prefix rerun passed 2/2 after aligning with the `AuditRecord::validate` fail-closed contract.
+exit_code: all final selectors, fmt and diff 0; no separate RED production behavior because this slice adds regression coverage for an existing fail-closed path; intermediate incorrect assertion exit 101 is retained in `/tmp/kiana-roadmap-20261007-oa03/core-export-formats-final.log`
+status_change: selected full-format audit-export refusal evidence moves source → local_behavior; whole OA-03 remains `feature_status=partial`, `proof_level=source`, roadmap row 094 🔄
+proof-level_change: local renderer refusal and existing scanner fixtures are locally verified; no durable/live/physical promotion
+limitations: EventLog/Receipt/Metric/Trace/Artifact producer/sink integration, streaming split-marker use at every runtime boundary, arbitrary unmarked secret formats, downstream data-class ceilings, durable/live export and physical proof remain open
+reviewer: root integration agent with OA-03 read-only audit; no human release reviewer
+```
+
+### CAP-07 container required-dimension enforcement（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/container_environment.rs; kiana-daemon/tests/dep36_container_adapter.rs; kiana-core/tests/cap07_environment_backend_guard.rs; docs/roadmap/cap07-environment-backend-baseline.md
+worktree_status: CAP-07 roadmap row 237 remains 🔄 / feature_status=partial / proof_level=source; `plan` now requires every required capability to have an explicit enforced=true marker; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-daemon --test dep36_container_adapter --locked --offline -- --test-threads=1`; GREEN same target; Core `cargo test -p kiana-core --test cap07_environment_backend_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental test profile; RED max RSS 944948 KiB, GREEN 945336 KiB, CPU 84%/82%, all completed runs swaps=0
+fixture·cassette: RED explicit false and missing enforced markers were accepted by the prior capability-only check; GREEN daemon adapter 5/5 and Core guard 2/2; no container runtime started
+exit_code: RED 101 expected; GREEN daemon/Core/fmt/diff 0
+status_change: selected container plan enforcement moves source → local_behavior; whole CAP-07 remains partial/source
+proof-level_change: deny-first required-dimension enforcement is locally verified; no kernel/live/physical promotion
+limitations: probe reports enforcement false until real preparation support is wired; full EnvironmentPort lifecycle, DaemonHost/Broker routing, kernel/userns/network enforcement, non-Linux/cross-host behavior and physical isolation remain open
+reviewer: root integration agent with CAP-07 read-only audit; focused container deny-path reviewer
+```
+
+### Roadmap 本地完整验收启动与聚焦回归（2026-10-05）
+
+```text
+source_snapshot: base c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus pre-existing uncommitted startup fixes and this turn's ER09/inventory/smoke/document corrections; source hashes and exact command receipts are archived under /tmp/kiana-roadmap-20261005-evidence
+worktree_status: goal/roadmap-completion-20261004-01a10602; preserve existing seven tracked startup changes and untracked PD14 workflow; integration agent is sole main-checkout writer; inventory worker uses detached /tmp/kiana-roadmap-inventory-20261005; no commit/push/merge/rebase/worktree deletion
+command_argv: cargo test -p kiana-core --test er09_invocation_projection --test er01_event_contract_guard --test er12_receipt_aggregation --test er02_identity --locked --offline -- --test-threads=1; cargo test -p kiana-domain --test er01_event_contract --test h05_model_outcome --test p4_j7_26_model_events --test bq11_attempt_lifecycle --test pd28_storage_security --locked --offline -- --test-threads=1; cargo test -p kiana-core --test control_plane --locked --offline er01_real_ -- --test-threads=1; same control_plane target selector model_budget; python3 -B -m unittest discover -s scripts/tests -p test_roadmap_goal.py -v; node --test contrib/desktop/tests/*.js; cargo fmt --all --check; bash scripts/ci/validate-workflows.sh; bash scripts/ci/validate-doc-references.sh; bash scripts/harness-golden-smoke.sh; bash scripts/v10-workbench-smoke.sh; bash scripts/v10-p0-closeout-smoke.sh; bash -n on all 63 scripts
+cwd·environment: repository root, Linux/bash, Rust/Cargo 1.97.1, Node 26.7.0; Cargo jobs=1, test threads=1, RUST_MIN_STACK=33554432; 7.5 GiB RAM/31 GiB swap/16 logical CPUs; one Cargo process at a time, independent read-only audits and small Node/Python/static gates parallel; smoke uses existing target/debug/kiana from the startup snapshot, no fresh release binary claimed
+fixture·cassette: existing domain/core event/model/receipt fixtures; new ER09 malformed and well-formed but mismatched receipt_digest rejection through real project_invocations; roadmap fixtures cover missing/duplicate/cyclic/deep dependencies and open predecessors; existing harness-golden-apply-patch cassette; trust-denial smoke checks structured blocked/project_untrusted/null output, nonzero process exit, and no written file
+exit_code: core focused 0 (ER01 guard 1, ER02 identity 3, ER09 7, ER12 6); domain focused 0 (BQ11 3, ER01 41, H05 12, model events 6, PD28 7); real producer selector 0 (4), model_budget selector 0 (3); Python 0 (10), Node 0 (46), fmt 0, workflows 0 (254 workflows/1471 targets), shell syntax 0 (63), golden/workbench/P0 smokes 0; ER09 old-binary guard RED 101 and Workbench RED 1 reproduced first; doc references RED 1 (four local artifacts misread as repository references), corrected directory qualification GREEN 0 (732 documents); full workspace command intentionally interrupted at compile phase with signal 2/tool exit 130, never counted as completed
+status_change: Codex goal active; current roadmap inventory is 749 steps / 351 completed-index / 398 open / 51 ready-index, with 87 completed-index rows having open prerequisites; inventory now validates DAG and exposes this discrepancy without changing roadmap completion states; ER09 guard follows its actual domain digest owner and behavior regression preserves corruption rejection; Workbench smoke preserves current structured trust rejection rather than swallowing exit status; ER01 stale blocker text corrected against current bounded receipts
+proof-level change: no whole-card or whole-project proof promotion; script and bounded fixture results only; existing cassette smokes are local_behavior for the observed startup binary, not durable/live/physical
+limitations: complete EventLog/runner/provider/memory and workspace/check/clippy/release/platform/live acceptance remain pending; initial full workspace compilation took 7m37s, GNU time maximum process RSS 3705876 KiB, average CPU 102%, later EventLog test-library compilation exceeded 4 GiB and increased system swap; subsequent broad tests must reduce test debug information and retain one-job scheduling; temporary artifacts need durable external retention before release claims; no automatic CI/publishing or actual external provider/device effect executed; 87 dependency discrepancies require individual evidence review, not automatic downgrade or completion
+reviewer: integration agent reviewed RED/GREEN outputs and patches; read-only baseline_audit verified actual receipt digest owner and legacy smoke mismatch; roadmap_audit independently counted and tested inventory; no human release approval
+```
+
+### Current-head focused receipts: BQ-26 / DEP-23 / SC-26 / SC-37..39 / DEP-19（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; BQ-26 fault harness/provider seam; DEP-23 restore activation; SC-26 CapabilityCatalog; SC-37/38/39 security fixtures; DEP-19 redaction scanner
+worktree_status: BQ-26 row 677, DEP-23 row 692, SC-26 row 304, SC-37/38/39 rows 707–709 and DEP-19 row 688 remain 🔄; no automatic commit/push/merge/rebase
+command_argv: bounded serial selectors recorded in the corresponding baselines: BQ-26 24/24; DEP-23 20/20; SC-26 3/3; combined SC-37/38/39 30/30; SC-39 selector 9/9; DEP-19 8/8; INT-13 4/4; final `cargo fmt --all --check` and `git diff --check`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; per-command peak RSS ranged from ~80 MiB cached fixtures to ~1.14 GiB DEP-23 and ~3.90 GiB first compile for DEP-19; all measured runs reported 0 swaps
+fixture·cassette: failure-first fault/refusal/activation/catalog/security/secret-redaction fixtures; stale SC-37/38 fixture resealing, seed order and constructor assumptions corrected without widening production validation
+exit_code: all listed focused selectors and final formatting/diff checks 0; prior workspace full-test run remains non-green (268 failed summaries) and is recorded separately
+status_change: selected test surfaces gain `proof_level=local_behavior`; no roadmap card promoted and no whole-card durable/live/physical claim
+proof-level_change: selected source evidence → local_behavior only
+limitations: no full workspace green proof, real provider/socket/OS/filesystem effect, durable or cross-process recovery, live red-team, external receipt, remote CI, or physical/live acceptance; ACP recovery and sponsor registration policy decisions remain pending
+reviewer: root integration agent; DEP-19 security audit; SC-37/38 read-only fixture audit; focused crate reviewers
+```
+
+### BQ-06 child lease monotonicity repair（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_budgets.rs; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs
+worktree_status: BQ-06 remains roadmap row 195 🔄 / feature_status=implemented / proof_level=source; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED then GREEN `cargo test -p kiana-domain --test bq06_budget_intersection --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test bq06_budget_intersection_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; stripped/non-incremental profile; final domain 1.46s/max RSS 228280 KiB, Core guard 1m19.73s/max RSS 4086940 KiB, all measured commands 0 swaps
+fixture·cassette: RED fresh child lease reset parent tool/model/token/effect usage and was accepted; GREEN domain 6/6 rejects reset, usage widening and legacy zero-reservation expansion; Core no-financial-authority guard 1/1
+exit_code: RED 101 expected; GREEN/guard/fmt/diff 0
+status_change: selected child lease monotonicity and normalized reservation comparison corrected; no whole-card promotion
+proof-level_change: selected BQ-06 source behavior → local_behavior; no durable/live/physical change
+limitations: no lineage persistence, ControlPlane admission, quota/provider scope binding, durable CAS/reservation, queue/capacity, provider dispatch or financial authority; BQ-07 quota-group boundary still needs its own contract
+reviewer: root integration agent; BQ-06 billing audit; focused Rust test review
+```
+
+### BQ-06 zero-effect read-only budget（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/billing_budgets.rs; kiana-domain/tests/bq06_budget_intersection.rs; kiana-core/tests/bq06_budget_intersection_guard.rs; docs/roadmap/billing-budget-intersection-baseline.md
+worktree_status: BQ-06 row 195 remains 🔄 / feature_status=implemented / proof_level=source; `EffectiveBudget::validate` now permits max_effects=0 for read-only intersections; no admission/reservation, manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-domain --test bq06_budget_intersection zero_effect_lease_remains_valid_for_read_only_work --locked --offline -- --test-threads=1`; GREEN `cargo test -p kiana-domain --test bq06_budget_intersection --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test bq06_budget_intersection_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; final domain max RSS 83132 KiB, Core max RSS 85384 KiB; first uncached Core compile max RSS 4048848 KiB; CPU/resource runs reported swaps=0
+fixture·cassette: RED returned `effective_budget_invalid`; GREEN domain 7/7 retains all existing deny paths and adds zero-effect read-only intersection; Core guard 1/1
+exit_code: RED 101 expected; GREEN domain/Core/fmt/diff 0
+status_change: selected zero-effect intersection behavior moves source → local_behavior; whole BQ-06 remains implemented/source
+proof-level_change: read-only zero-effect validation locally verified; no durable/live/physical promotion
+limitations: no lineage persistence, ControlPlane admission, quota/provider scope binding, durable CAS/reservation, queue/capacity, provider dispatch or financial authority; BQ-07 remains separate
+reviewer: root integration agent with BQ-06 billing audit; focused budget reviewer
+```
+
+### DEP-03 config revision drift denial（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/deployment_compatibility.rs; kiana-domain/tests/dep03_compatibility.rs; kiana-core/tests/dep03_compatibility_guard.rs; docs/roadmap/dep03-compatibility-baseline.md
+worktree_status: DEP-03 roadmap row 608 remains 🔄 / feature_status=partial / proof_level=source; `compatibility_reasons` now blocks candidate config_revision drift; no startup/admission/migration, manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-domain --test dep03_compatibility config_revision_drift_is_blocked --locked --offline -- --test-threads=1`; GREEN `cargo test -p kiana-domain --test dep03_compatibility --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test dep03_compatibility_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; domain GREEN max RSS 4034712 KiB, Core guard 4049724 KiB; CPU ~93%/86%; swaps=0; cached logs/resources under `/tmp/kiana-roadmap-20261007-corrective/dep03-*`
+fixture·cassette: RED accepted config-r1→config-r2 as Compatible; GREEN domain 4/4 and Core guard 1/1; stable reason `config_revision_drift`
+exit_code: RED 101 expected; GREEN domain/Core/fmt/diff 0
+status_change: selected config-revision deny behavior moves source → local_behavior; whole DEP-03 remains partial/source
+proof-level_change: config drift comparison is locally verified; no durable/live/physical promotion
+limitations: read-only matrix is not yet enforced at startup/new-work admission; schema/store mismatch, migration, durable replay, CI, lease/provider and external operation proof remain open
+reviewer: root integration agent with DEP-03 read-only audit; focused compatibility reviewer
+```
+
+### CO-06 nil identity denial（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/artifact_contracts.rs; kiana-domain/tests/co06_artifact.rs; kiana-ports/tests/co06_artifact_port.rs; kiana-core/tests/co06_artifact_guard.rs; docs/roadmap/artifact-evidence-baseline.md
+worktree_status: CO-06 row 065 remains 🔄 / feature_status=partial / proof_level=source; ArtifactVersion/Ref/EvidenceRef/Criterion reject nil UUID identities and the read port validates before lookup; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-domain --test co06_artifact artifact_and_evidence_identity_ids_must_be_non_nil --locked --offline -- --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test co06_artifact --locked --offline -- --test-threads=1`; ports `cargo test -p kiana-ports --test co06_artifact_port --locked --offline -- --test-threads=1`; Core `cargo test -p kiana-core --test co06_artifact_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; domain max RSS 4010020 KiB, ports 267664 KiB, Core guard 4051000 KiB; CPU 84%/59%/86%; swaps=0
+fixture·cassette: RED accepted nil ArtifactId; GREEN domain 3/3, ports 2/2 and Core guard 1/1; initial ports test-only uuid import failed to compile and was corrected without manifest change
+exit_code: RED 101 expected; final domain/ports/Core/fmt/diff 0
+status_change: selected nil identity and pre-lookup denial moves source → local_behavior; whole CO-06 remains partial/source
+proof-level_change: nil-ID checks are locally verified; no durable/live/physical promotion
+limitations: cross-store atomicity, crash/cross-process recovery, orphan reconciliation/GC, retention/deletion/CAS, full business projector/upcast coverage, historical/current UI and durable/live/physical proof remain open
+reviewer: root integration agent with CO-06 read-only audit; focused artifact identity reviewer
+```
+
+### 本机 Web / Electron / 文件夹工作台演示启动（2026-10-04）
+
+```text
+source_snapshot: base `c9b8360fd87a5d3809da84cf73b8ba27247b85b6` plus local uncommitted startup fixes; kiana-domain/src/event_contracts.rs; kiana-domain/tests/er01_event_contract.rs; kiana-core/src/{model_budget.rs,receipts.rs}; kiana-core/tests/{control_plane.rs,er12_receipt_aggregation.rs}; source-file SHA-256 values in the evidence manifest below
+worktree_status: branch `goal/roadmap-completion-20261004-01a10602`; only the integration agent writes; existing untracked `.github/workflows/pd14-artifact-store.yml` preserved; no commit/push/merge/rebase; own failed-startup instance artifacts archived outside the worktree
+command_argv: `cargo build --bin kiana --locked --offline`; `cargo test -p kiana-domain --test er01_event_contract --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test control_plane --locked --offline model_budget -- --test-threads=1`; `cargo test -p kiana-domain --test pd28_storage_security --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test er12_receipt_aggregation --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test er09_invocation_projection --test er02_identity --locked --offline -- --test-threads=1`; `node --test contrib/desktop/tests/*.js`; `bash scripts/harness-golden-smoke.sh`; `bash scripts/v10-workbench-smoke.sh`; `cargo fmt --all --check`; `git diff --check`; exact UI/CDP/CLI launch argv and exit receipts are in `/tmp/kiana-startup-20261004-58glg3mn/*-result.json` and `*-process.json`
+cwd·environment: `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash; Rust/Cargo 1.97.1; Node 26.7.0; npm 11.19.0; DISPLAY=:1; launchers in `/home/shirosora/.local/bin` default to KIANA_PROVIDER=fake, KIANA_HOME=/home/shirosora/.local/share/kiana/local-runtime/demo-state, RUST_MIN_STACK=33554432 and umask 077; original user event history retained separately; local Electron path.txt restored only in the installed copy, with no manifest/lockfile change
+fixture·cassette: existing `scripts/fixtures/harness-golden-apply-patch.json`; new ModelTurn cell-accounting deny/accept fixtures; synthetic credential-revision redaction/drift/replay-denial fixtures; ER12 interleaved-run isolation and both directions of stream/payload identity conflict; native browser Web and Electron both create a fresh Thread and receive the fixed deterministic fake response; file-demo Workbench writes `/home/shirosora/.kiana/workspaces/project-20261004-130059/GOLDEN_PATH.txt` with exact contents `hello\n`, then a separate CLI process reads its Receipt
+exit_code: final build 0; ER01 domain 41/41, model_budget 3/3, PD28 storage 6/6, ER12 aggregation 6/6, desktop Node 46/46, Harness golden smoke 0, fresh Web/Electron CDP checks 0 with no JavaScript exceptions, file-demo and Receipt CLI 0; unauthenticated /api/state returns HTTP 401 and /api/health returns HTTP 200/ok; ER02 identity 3/3 and ER09 behavioral fixtures 5/5, but the combined regression command exits 101 because the unchanged ER09 source guard expects `receipt_digest` in projection modules; Workbench smoke exits 1 because the unchanged script expects the legacy trust error while actual denial is `project_untrusted`; RED tests reproduce all three startup defects before their minimal fixes
+artifact paths and SHA-256: historical temporary manifest at /tmp/kiana-startup-20261004-58glg3mn/evidence-manifest.json (sha256:cb4815914c04b68969e056628bf1b3a5f238760705573fece5fb82d0b68c242b) originally bound final logs, command results, receipts, screenshots and source files; this temporary manifest is unavailable in the 2026-10-10 environment and is not a current repository artifact; installed binary at `/home/shirosora/.local/share/kiana/local-runtime/bin/kiana` and Electron resources/kiana has sha256:b3ea23921d73018e2b83a9519ffd38c1d2e19613d10c784c77a09db7246e92fc; external artifacts under `/tmp/kiana-startup-20261004-58glg3mn/`: web-receipt.json, desktop-receipt.json, file-demo-receipt.json, web-screenshot.png, desktop-screenshot.png, baseline-failures.json (local evidence artifacts, not repository file references); local launch runbook `/home/shirosora/.local/share/kiana/local-runtime/README.md`
+status_change: bounded startup defects fixed: register the three existing Core ModelTurn cell-accounting fields; persist/compare redacted model-budget permit audits while original prepared-request seals and permission validation remain authoritative; validate each event payload against its own run stream before filtering a requested Receipt. Web on http://127.0.0.1:3080 opens the source repository; installed Electron opens the trusted ext4 demo workspace; both local fake turns and file/cassette execution produce completed protocol responses and readable corresponding Receipts. No roadmap card or whole-product completion claim changed.
+proof-level change: three fixes are implemented with focused regressions; only this source snapshot's observed fake/cassette browser, Electron and Workbench paths are `local_behavior`; existing broader UI/provider/release statuses remain unchanged
+limitations: no successful live-provider call claimed and user selected local demo; the fixed fake response cannot demonstrate arbitrary AI coding; fake usage is unknown and Receipt aggregation correctly remains partial; full workspace test/check/clippy and release gate not executed; two baseline checks above remain failed without weakened assertions; debug Web requires the larger launcher stack; fuseblk/NTFS cannot satisfy Desktop private-sidecar mode checks, so Desktop uses an ext4 scratch rather than the NTFS source folder; restarting the prior demo worker left its instance record/lock, which were preserved by archiving only after its known PID had exited, and robust shutdown/restart recovery is not claimed; local home installation and fresh CLI Receipt reads do not establish durable/live/physical or signed-release acceptance
+reviewer: integration agent performed RED/GREEN tests, native browser/Electron actions, HTTP auth denial and file/Receipt checks; read-only startup_audit independently reviewed all three source fixes and confirmed ER09 guard failure exists identically in HEAD; no human release reviewer
+```
 
 ### ER-01/ER-02 source-guard ownership and test compile repair (2026-10-04)
 
@@ -23485,4 +24716,874 @@ status_change: OA-02 roadmap row 093 remains `🔄`; feature_status=partial; pro
 proof-level_change: none; no local_behavior, durable, live or physical promotion
 limitations: authenticated ingress propagation, provider/Broker/EventLog correlation, durable recovery links, exporter/live trace and physical evidence remain open
 reviewer: source review matched request-binding validation order and correlation target partition; no local runtime reviewer
+```
+
+### 本轮 2026-10-05 聚焦回归更新
+
+```text
+source_snapshot: current worktree after ER09/Workbench/inventory/CO06/OA03/provider/runner/approval-shape slices; exact source diff remains uncommitted
+worktree_status: same integration branch; no automatic commit/push/merge/rebase; detached research worktrees preserved
+command_argv: `cargo test -p kiana-eventlog --locked --offline --no-fail-fast -- --test-threads=1`; `cargo test -p kiana-runner --locked --offline --no-fail-fast -- --test-threads=1` with `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; `cargo test -p kiana-provider --lib --locked --offline -- --test-threads=1`; domain/Core focused commands above; CM-02 daemon evidence selector rerun after approval schema fix
+cwd·environment: Linux/bash, Rust/Cargo 1.97.1, serial Cargo; RAM 7.5 GiB, swap 31 GiB, 16 logical CPUs; EventLog max RSS 5,467,368 KiB, 174 tests passed; CO06/OA03 max RSS 2,062,192 KiB; runner full 132 tests passed, 0 failed; provider 77 passed, 0 failed; domain approval 45 passed, 0 failed
+fixture·cassette: EventLog 33 targets / 174 tests; runner 29 targets / 132 tests; provider full lib 77; approval direct/typed schema fixtures; CM02 real daemon_host evidence denial; remaining failure was real event-contract identity mismatch in result_unknown path, not weakened
+exit_code: EventLog 0; runner 0; provider 0; approval contract 0; CM02 evidence selector remains 101 with `result_unknown:result_event_persistence_failed` after validator logs missing non-null run_id on invocation/result events; full workspace baseline interrupted at signal 2 after 7m37s and is not complete
+status_change: runner, provider, EventLog and focused contracts advanced to local_behavior for this snapshot; CO06 response now matches persisted immutable manifest on fault/retry; OA03 allowed trace attribute values reject secret/NUL without rewriting source; roadmap inventory has execution_ready_count=20
+proof-level change: focused local_behavior only; no durable/live/physical promotion and no roadmap mass completion
+limitations: CM02 still blocked by event producer/registry identity shape mismatch on result_unknown; full workspace/check/clippy/release and remaining roadmap cards pending; EventLog compile peak uses substantial memory and swap; warnings remain
+reviewer: integration agent with read-only runner/baseline/roadmap audits; no human release reviewer
+```
+
+### 本轮完整测试与事件契约修正（2026-10-05）
+
+```text
+source_snapshot: current worktree after the focused ER09/CO06/OA03/runner/provider slices; exact source diff remains uncommitted
+worktree_status: no automatic commit/push/merge/rebase; focused product and contract changes remain in the shared integration worktree
+command_argv: `cargo test -p kiana-domain --test er01_event_contract --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test er09_invocation_projection --test er12_receipt_aggregation --locked --offline -- --test-threads=1`; CM-02 daemon evidence selector; full workspace command was run with `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1`
+cwd·environment: Linux/bash, Rust/Cargo 1.97.1, serial Cargo and serial test threads; full workspace run was stopped after a hanging legacy `kiana-core --test control_plane` process; `/usr/bin/time -v` recorded maximum RSS 4,091,416 KiB and no swap operations
+fixture·cassette: approval journal schema plus direct capability/run-bound event shapes now accept the real producers while retaining typed schema and exact-field validation; ER-09 7 passed; ER-12 6 passed; domain event-contract target 46 passed; CM-02 evidence selector passed
+exit_code: focused domain/Core/CM-02 commands 0; full workspace command signal 2 after the control-plane hang; first reproducible legacy failure is `runner_model_assignment_unsupported`, and the workspace log also contains unrelated stale source-guard/fixture failures
+status_change: corrected the prior CM-02 limitation; local event-contract behavior now covers both journal approval schema and direct capability events; no roadmap mass completion
+proof-level_change: affected focused slices remain `local_behavior`; no durable/live/physical promotion
+limitations: complete workspace green status is not established because the legacy control-plane suite hangs after multiple baseline failures; stale tests still require fixture/API migration; clippy, release smoke and remaining roadmap execution are pending
+reviewer: integration agent; no human release reviewer
+```
+
+### CM-02 本地 focused closure（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after ER-01 event-contract producer-shape correction
+worktree_status: CM-02 roadmap row/card updated to ✅; implementation and evidence remain uncommitted; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 cargo test -p kiana-domain --test cm02_memory --locked --offline -- --test-threads=1`; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test daemon_host model_written_memory_without_evidence_is_rejected_and_stays_unsearchable --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo/test threads; daemon selector required the existing 32 MiB test-thread stack setting; no build/test processes remain running
+fixture·cassette: domain `cm02_memory.rs` 6/6; daemon evidence-denial selector 1/1; model-written record without evidence is denied before searchable projection and remains unsearchable
+exit_code: domain 0; daemon controlled-stack 0; default-stack daemon retry SIGABRT/stack overflow retained as a resource limitation, not suppressed
+status_change: CM-02 promoted from 🔄 to ✅ in `docs/roadmap.md` and `docs/roadmap/context-memory.md`
+proof-level_change: CM-02 lifecycle/legacy-import/evidence-denial slice promoted from source to local_behavior
+limitations: no durable cross-process recovery, retention/revocation/delete propagation, semantic recall, live provider or physical storage proof; full workspace remains non-green due unrelated legacy control-plane fixtures and hang
+reviewer: integration agent; focused local runtime reviewer
+```
+
+### DEP-00 current-head inventory closure（2026-10-05）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 with dirty integration worktree
+worktree_status: DEP-00 row promoted to ✅; 30 existing status entries intentionally preserved; no commit/push/merge/rebase or WIP deletion
+command_argv: inventory command captured in `/tmp/kiana-roadmap-20261005-evidence/dep00-inventory-final.txt`; `git diff --check`; `python3 -B scripts/roadmap-goal.py --json`
+cwd·environment: repository root Linux/bash; source-only inventory; no deployment or external side effect
+fixture·cassette: module-map/CURRENT_STATUS present; release/package/provenance script inventory; DaemonHost; EventLog source modules; domain/protocol schema and migration anchors; DEP-00 workflow guard
+exit_code: inventory 0; diff check 0; roadmap helper 0
+status_change: DEP-00 promoted from 🔄 to ✅ in `docs/roadmap.md`; current source/gap classification refreshed
+proof-level_change: source-only; no durable/live/physical deployment proof
+limitations: DEP-00 is an inventory handoff only; DeploymentProfile, operation journal/lease, startup coordinator, backup/restore, supervisor, health/admission and cross-process fencing remain DEP-01+
+reviewer: integration agent; source inventory review
+```
+
+### DEP-01 / DEP-02 focused local closure（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after DEP-00 inventory closure; implementation sources were already present and this slice adds focused verification/status receipts
+worktree_status: DEP-01 and DEP-02 rows promoted to ✅; baseline summaries refreshed; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test dep01_deployment -p kiana-core --test dep01_deployment_guard --locked --offline -- --test-threads=1`; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test dep02_release_bundle -p kiana-core --test dep02_release_bundle_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile to constrain build memory
+fixture·cassette: DEP-01 domain 3/3 + Core source guard 1/1; DEP-02 domain 2/2 + Core source guard 1/1; deny paths and success digest/round-trip fixtures
+exit_code: DEP-01 0; DEP-02 0
+status_change: DEP-01/DEP-02 promoted from 🔄 to ✅ in `docs/roadmap.md`; baseline pages now report current local evidence
+proof-level_change: `source` → `local_behavior` for these value/evidence contracts only
+limitations: DEP-01 remains lexical and does not prove runtime trust resolution, symlink/hardlink/capacity preflight, root creation or durable fencing; DEP-02 does not cryptographically verify a real artifact/signature/transparency log, contact a registry, install/start, or prove durable/live/physical release; remote CI was not awaited; full workspace test remains non-green and resource-intensive per the separate workspace test block
+reviewer: integration agent; focused local contract reviewer
+```
+
+### DEP-03 focused verification with open card gaps（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after DEP-00/DEP-01/DEP-02 closure; DEP-03 matrix sources were already present and this slice adds focused verification
+worktree_status: DEP-03 remains 🔄; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test dep03_compatibility -p kiana-core --test dep03_compatibility_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile; combined `/tmp/kiana-roadmap-20261005-evidence/dep04-05-client.resources`: 2.35s user, 0.41s system, 436268 KiB max RSS, 0 swaps
+fixture·cassette: DEP-03 domain 3/3 + Core source guard 1/1; unknown major, store/epoch/generation rollback, workflow/provider/extension drift, forged status/reasons/digest and stable round-trip
+exit_code: 0
+status_change: no roadmap promotion; local matrix behavior is recorded while the whole card stays open
+proof-level_change: focused matrix contract `source` → `local_behavior`; no whole-card completion claim
+limitations: compatibility is read-only and not enforced before startup/new-work admission; app_build/config_revision are not comparison reasons; schema/store mismatch is not explicit; no durable replay fixture or successful CI run was observed; migration, lease, provider, durable/live and physical proof remain open
+reviewer: integration agent with read-only DEP-03 audit; focused local contract reviewer
+```
+
+### DEP-04 protocol/client focused verification with open cross-surface gaps（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after DEP-00 through DEP-03 verification; typed KianaClient ops command/query methods added on the existing RequestEnvelope route
+worktree_status: DEP-04 remains 🔄; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-protocol --test dep04_ops -p kiana-core --test dep04_ops_protocol_guard -p kiana-client --test client_methods --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile; combined `/tmp/kiana-roadmap-20261005-evidence/dep04-05-client.resources`: 2.35s user, 0.41s system, 436268 KiB max RSS, 0 swaps
+fixture·cassette: protocol 2/2; Core no-effect guard 1/1; client_methods 3/3 including typed ops request/query shared-envelope decoding and transport-error preservation
+exit_code: 0
+status_change: no whole-card promotion; DEP-04 local protocol/client behavior recorded
+proof-level_change: focused wire/client slice `source` → `local_behavior`; full card remains partial/open
+limitations: DaemonHost/Core still has no typed ops authority/admission route; Web/Workbench/Desktop do not use these methods; no operation journal, approval, Broker dispatch, durable/live/physical effect or successful remote CI evidence
+reviewer: integration agent with read-only DEP-04 audit; focused client/protocol reviewer
+```
+
+### DEP-05 lifecycle focused verification with dependency open（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after DEP-00 through DEP-04 verification
+worktree_status: DEP-05 remains 🔄 because DEP-04 is still open; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test dep05_operation_lifecycle -p kiana-core --test dep05_operation_lifecycle_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile
+fixture·cassette: domain lifecycle 4/4 + Core purity/replay guard 1/1; skip preflight, late revision, drain timeout, duplicate terminal, cursor regression, forged state and deterministic replay
+exit_code: 0
+status_change: no roadmap promotion; local lifecycle/replay behavior recorded
+proof-level_change: focused reducer contract `source` → `local_behavior`; full card remains partial/open
+limitations: journal persistence, lease/fence, supervisor, startup/health/shutdown admission and DEP-04 protocol admission are not integrated; no durable/live/physical evidence or successful remote CI run
+reviewer: integration agent; focused local lifecycle reviewer
+```
+
+### ER-01 current-head local closure（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after event-contract producer-shape corrections and DEP focused verification
+worktree_status: ER-01 row/card promoted to ✅; no automatic commit/push/merge/rebase; historical CI receipts remain historical context
+command_argv: `/usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/er01-eventlog.resources bash -lc 'CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-eventlog --tests --locked --offline -- --test-threads=1'`; focused domain/Core/producer command captured in `/tmp/kiana-roadmap-20261005-evidence/er01-focused.log`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile; EventLog receipt: 11.70s user, 4.53s system, 428300 KiB max RSS (~418 MiB), 0 swaps; focused producer receipt: 2.26s user, 0.98s system, 329360 KiB max RSS, 0 swaps
+fixture·cassette: domain `er01_event_contract` 46/46; Core source guard; real producer selectors 4/4; EventLog 32 targets / 174 tests; shared EventStore validator, run rejection fields, invalid-start denial, model budget deny/prepared/settle, lifecycle/session identities and atomic transitions
+exit_code: EventLog full 0; focused producer/domain commands 0
+status_change: ER-01 promoted from 🔄 to ✅ in `docs/roadmap.md`
+proof-level_change: ER-01 event registry/validator/producers and EventLog regression `source` → `local_behavior`
+limitations: no durable/live/physical deployment claim; legacy upcaster coverage remains bounded to current identity family, not every historical literal/projector terminal reconciliation; EventLog adapter coverage lacks a dedicated replay fixture for both run.rejected payload shapes; remote CI was not awaited; workspace-wide test remains non-green per separate baseline block
+reviewer: integration agent with read-only ER-01 audit; focused EventLog/producer reviewer
+```
+
+### 本轮静态门更新（2026-10-05）
+
+```text
+source_snapshot: same current worktree snapshot as the preceding block
+worktree_status: exact diff remains uncommitted; no automatic repository mutation beyond the requested implementation and evidence updates
+command_argv: `cargo fmt --all --check`; `git diff --check`; `python3 -B -m unittest discover -s scripts/tests -p test_roadmap_goal.py`; `cargo check --workspace --locked --offline`; `CARGO_BUILD_JOBS=1 cargo clippy --workspace --all-targets --locked --offline`; three local smoke scripts
+cwd·environment: repository root Linux/bash; serial Cargo; clippy completed in 7m20s; no concurrent build process left running
+fixture·cassette: roadmap inventory snapshot reports total=749, ready_count=51, execution_ready_count=20, completed_with_open_dependencies_count=87; smoke fixtures unchanged
+exit_code: all commands in this block exited 0
+status_change: formatting, diff, roadmap helper tests, workspace check and workspace clippy are green for this snapshot
+proof-level_change: source/static local checks only; no durable/live/physical promotion
+limitations: clippy reports the repository's existing warning volume; full workspace test remains non-green because legacy control-plane tests use unsupported runner assignment and the suite hangs; roadmap execution_ready work remains
+reviewer: integration agent; no human release reviewer
+```
+
+### ER-02 focused local identity/approval receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after ER-01 local closure and ER-02 fixture corrections
+worktree_status: ER-02 remains roadmap row 037 🔄; no automatic commit/push/merge/rebase
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 /usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/er02-core-regression.resources bash -lc 'cargo test -p kiana-core --test control_plane capability_policy_and_broker_failures_preserve_event_order --locked --offline -- --test-threads=1; cargo test -p kiana-core --test control_plane direct_capability_events_keep_request_identity_without_run_scope --locked --offline -- --test-threads=1; cargo test -p kiana-core --test control_plane approval_resumes_the_stored_request_once_with_monotonic_events --locked --offline -- --test-threads=1; cargo test -p kiana-core --test er02_identity --locked --offline -- --test-threads=1; cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1; cargo test -p kiana-eventlog --test er02_identity --locked --offline -- --test-threads=1'`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental test profile; 4.29s user, 0.86s system, 553284 KiB peak RSS, 0 swaps
+fixture·cassette: Core direct identity 1/1; Core approval resume/replay 1/1; broker failure preserves `ResultUnknown`/`capability.result_unknown` 1/1; Core ER-02 identity 3/3; Core guard 1/1; EventLog ER-02 identity 9/9
+exit_code: 0
+status_change: focused direct/approval/EventLog identity behavior recorded; roadmap card remains 🔄 because cross-surface parity is incomplete
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: real DaemonHost/Harness approval proof roundtrip, complete green CI shard, full legacy upcast/projector terminal reconciliation, durable InvocationLedger/cross-process ordering, and external effect receipts remain open; full workspace test remains non-green/resource-intensive
+reviewer: integration agent; focused local identity/approval reviewer
+```
+
+### H05 focused local stop/recovery receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after ER-02 fixture corrections; H05 domain/Runner/provider sources and fixtures
+worktree_status: H05 remains roadmap row 047 `🔄`; no automatic repair loop, CLI/wire error DTO mapping, manifest or lockfile change
+command_argv: serial bounded `cargo test -p kiana-domain --test h05_model_outcome`; `cargo test -p kiana-runner --test h05_stop_guard`; full `cargo test -p kiana-provider --lib`, all `--locked --offline -- --test-threads=1`; exact provider resource receipt `/tmp/kiana-roadmap-20261005-evidence/h05-provider.resources`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, 32 MiB test stack, stripped non-incremental profile; domain/Runner max RSS 416360 KiB, provider max RSS 472072 KiB, 0 swaps
+fixture·cassette: H05 domain 12/12; Runner 4/4; provider 77/77, including incomplete/unknown/refusal/length stops, typed FormatRepair/ToolRepair/ContextRepair and no-handoff boundaries
+exit_code: all successful selectors 0; provider 2.27s user, 0.41s system, 3.64s elapsed; domain/Runner log `/tmp/kiana-roadmap-20261005-evidence/h05-focused.log`
+status_change: focused H05 selectors recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, roadmap row 047 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: automatic/budgeted repair, full shard, H06 stream/H07 budget integration, structured CLI/wire recovery mapping, provider live/billing/external effect and physical proof remain open
+reviewer: integration agent; focused domain/Runner/provider local test reviewer
+```
+
+### H05 post-send unknown effect retry denial（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/model.rs; kiana-domain/tests/h05_model_outcome.rs; kiana-core/tests/er01_event_contract_guard.rs; kiana-runner/tests/h05_stop_guard.rs; docs/roadmap/harness-stop-retry-baseline.md
+worktree_status: ModelOutcome::validate now rejects TransportRetry when a request was sent and side_effect_state remains Unknown; known no-effect transport fixture supplies side_effect_state=None; H05 row 047 remains 🔄 / partial / source
+command_argv: RED `cargo test -p kiana-domain --test h05_model_outcome model_outcome_rejects_transport_retry_with_unknown_post_send_effect --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test h05_model_outcome --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er01_event_contract_guard --locked --offline -- --test-threads=1`; Runner guard `cargo test -p kiana-runner --test h05_stop_guard --locked --offline -- --test-threads=1`; final format/diff/roadmap checks
+cwd·environment: repository root Linux/bash; one Cargo/test worker, 32 MiB stack, stripped/non-incremental profile, locked offline dependencies; RED max RSS 4034672 KiB / 86% CPU; domain GREEN 4043564 KiB / 85% CPU; Core guard 4078880 KiB / 90% CPU; Runner guard 4046516 KiB / 86% CPU; all measured runs reported zero swaps
+fixture·cassette: RED accepted full post-send unknown-effect retry tuple; GREEN domain 14/14, Core contract guard 1/1, Runner stop guard 4/4; 429 round-trip remains valid only with explicit no-effect state
+exit_code: RED 101 expected; all focused GREEN/static checks 0
+status_change: selected ModelOutcome consistency denial promoted source → local_behavior; H05 whole card remains feature_status=partial, proof_level=source
+proof-level_change: local_behavior for typed outcome validation only; no durable/live/physical promotion
+limitations: automatic repair loops, full provider/shard/live behavior, CLI/wire projection, durable replay, billing/external effect reconciliation and physical proof remain open
+reviewer: root integration agent with H05 read-only audit; focused domain/Core/Runner reviewer
+```
+
+### DEP-21 parent/source cursor continuity（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/backup_lifecycle.rs; kiana-domain/tests/dep21_backup_lifecycle.rs; docs/roadmap/dep21-backup-lifecycle-baseline.md
+worktree_status: BackupChain validation compares child covered_from_cursor with parent source_cursor; selected DEP-21 row 690 remains 🔄 / partial / source
+command_argv: RED `cargo test -p kiana-domain --test dep21_backup_lifecycle a_child_continues_from_the_parent_source_cursor_not_its_covered_from_cursor --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test dep21_backup_lifecycle --locked --offline -- --test-threads=1`; final format/diff/roadmap checks
+cwd·environment: repository root Linux/bash; one Cargo/test worker, 32 MiB stack, stripped/non-incremental profile, locked offline dependencies; RED max RSS 232176 KiB / 32% CPU; GREEN max RSS 233532 KiB / 2% CPU; both runs reported zero swaps
+fixture·cassette: full root covered_from=0/source=100 plus incremental child covered_from=100/source=200; RED old comparison returned backup_chain_parent_cursor_mismatch; GREEN dep21 target 12/12
+exit_code: RED 101 expected; GREEN/static checks 0
+status_change: selected backup chain continuity promoted source → local_behavior; no whole-card promotion
+proof-level_change: local_behavior for in-memory parent/child cursor validation only; no durable/live/physical promotion
+limitations: backup copy/archive/retention execution, real-store dependency completeness, durable deletion/restore receipts, key resolution, cross-process recovery and live/physical proof remain open
+reviewer: root integration agent with read-only DEP-21 audit; focused backup chain reviewer
+```
+
+### DEP-22 MigrationPending reachability correction（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/restore_quarantine.rs; kiana-domain/tests/dep22_restore_quarantine.rs; kiana-core/tests/dep22_restore_quarantine_guard.rs; docs/roadmap/dep22-restore-quarantine-baseline.md
+worktree_status: RestoreRoot validation now permits migration_version + migration_applied=false so scan can emit MigrationPending; applied=true without version remains denied; DEP-22 row 691 remains 🔄 / partial / source
+command_argv: RED `cargo test -p kiana-domain --test dep22_restore_quarantine a_required_migration_that_was_not_applied_blocks_the_restore --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test dep22_restore_quarantine --locked --offline -- --test-threads=1`; final format/diff/roadmap checks
+cwd·environment: repository root Linux/bash; one Cargo/test worker, 32 MiB stack, stripped/non-incremental profile, locked offline dependencies; RED max RSS 229928 KiB / 33% CPU; GREEN max RSS 4091388 KiB / 88% CPU; both measured runs reported zero swaps
+fixture·cassette: RED structural-validity assertion hit restore_migration_not_applied before scan; GREEN dep22 target 10/10 covers pending migration, unversioned applied migration, active-root, epoch, cursor, artifact, stage and report fences
+exit_code: RED 101 expected; GREEN/static checks 0
+status_change: selected MigrationPending reachability promoted source → local_behavior; no whole-card promotion
+proof-level_change: local_behavior for in-memory restore quarantine validation/scan only; no durable/live/physical promotion
+limitations: real filesystem/manifest/signature/hash verification, projector/index rebuild, activation lease/fence, durable recovery, cross-process restore and live/physical proof remain open
+reviewer: root integration agent with read-only DEP-22 audit; focused quarantine reviewer
+```
+
+### OA-02 focused local correlation receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; OA-02 correlation domain/ports sources and ER-02 guard
+worktree_status: OA-02 remains roadmap row 093 `🔄`; no authenticated ingress/span bridge or provider/Broker/EventLog propagation added
+command_argv: `cargo test -p kiana-domain --test oa02_correlation --locked --offline -- --test-threads=1`; `cargo test -p kiana-ports --test oa02_correlation_port --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; serial tests; max RSS domain 266076 KiB, ports 250252 KiB, guard 132372 KiB; 0 swaps for all three
+fixture·cassette: domain 8/8; ports 4/4; ER-02 guard 1/1; source audit confirms no runtime `CorrelationContext::from_request`/port construction beyond tests and guards
+exit_code: all three selectors 0; elapsed 0.82s, 1.22s and 0.46s respectively
+status_change: focused OA-02 contracts recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, roadmap row 093 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: authenticated ingress→run→turn→invocation→provider→Broker→EventLog chain, durable recovery links, exporter, full CI, live trace and physical proof remain open
+reviewer: integration agent with read-only OA-02 audit; focused local correlation reviewer
+```
+
+### CO-06 focused local immutable-artifact receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; CO-06 domain/ports/EventLog/Core/daemon artifact sources and fixtures
+worktree_status: CO-06 remains roadmap row 065 `🔄`; no cross-store transaction or recovery worker added
+command_argv: serial bounded CO-06 targets `co06_artifact`, `co06_artifact_port`, `co06_artifact_retry`, `pd14_artifact_store`, `co06_artifact_guard`, `co06_company_artifact_wiring_guard`, `co06_local_artifact_store`, `co06_company_artifact_history`, all `--locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo/test worker, 32 MiB stack, stripped non-incremental profile; 9.87s elapsed; max RSS 643152 KiB; 0 swaps
+fixture·cassette: eight targets, 27/27 tests passed; logs/resources `/tmp/kiana-roadmap-20261005-evidence/co06-focused.{log,resources}`
+exit_code: 0
+status_change: focused CO-06 behavior recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, row 065 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: cross-store atomicity, crash/recovery/reconciliation, retention/deletion, power-loss durability, full business projector coverage and historical/current UI remain open
+reviewer: integration agent with read-only CO-06 audit; focused local artifact reviewer
+```
+
+### PD-01 focused local storage receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; PD-01 domain/daemon/Core storage sources and fixtures
+worktree_status: PD-01 remains roadmap row 108 `🔄`; no shared product-entry root routing or cross-process fencing added
+command_argv: serial bounded domain `pd01_storage`, daemon `pd01_storage`, Core `pd01_storage_guard`, all `--locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; 2.39s elapsed; max RSS 569548 KiB; 0 swaps; logs/resources `/tmp/kiana-roadmap-20261005-evidence/pd01-focused.{log,resources}`
+fixture·cassette: domain 3/3; daemon 9/9 including RLIMIT_FSIZE cleanup; Core guard 1/1
+exit_code: 0
+status_change: focused PD-01 behavior recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, row 108 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: shared CLI/Web/Workbench root, restart identity, stale/crash/power-loss recovery, fsync-dir and cross-process fencing remain open
+reviewer: integration agent with read-only PD-01 audit; focused local storage reviewer
+```
+
+### OA-03 focused local redaction/export receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; OA-03 domain/Core redaction and audit-export sources and fixtures
+worktree_status: OA-03 remains roadmap row 094 `🔄`; no second redaction system or runtime sink expansion added
+command_argv: serial bounded domain `oa03_redaction`, Core `oa03_redaction_guard`, Core audit-export refusal unit target, all `--locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; 8.71s elapsed; max RSS 969124 KiB; 0 swaps; logs/resources `/tmp/kiana-roadmap-20261005-evidence/oa03-focused.{log,resources}`
+fixture·cassette: domain 6/6; Core guard 1/1; audit-export refusal 1/1
+exit_code: 0
+status_change: focused OA-03 behavior recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`, row 094 `🔄`
+proof-level_change: focused selectors `source` → `local_behavior`; no whole-card promotion
+limitations: complete producer/sink and streaming coverage, downstream classification, durable/live export and physical proof remain open
+reviewer: integration agent; focused local redaction/export reviewer
+```
+
+### Roadmap queue snapshot after local focused wave（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after H05, ER-02, OA-02, OA-03, CO-06 and PD-01 focused verification
+worktree_status: no automatic commit/push/merge/rebase; all pre-existing implementation and documentation changes preserved
+command_argv: `python3 -B scripts/roadmap-goal.py --json > /tmp/kiana-roadmap-20261005-evidence/roadmap-snapshot-after-co06-pd01-oa03.json`
+cwd·environment: repository root Linux/bash; source inventory only; no external side effect
+fixture·cassette: roadmap helper dependency-cycle and readiness inventory
+exit_code: 0; total=749, ready_count=51, execution_ready_count=21, completed_with_open_dependencies_count=85
+status_change: queue snapshot refreshed; no roadmap card promoted by focused local evidence
+proof-level_change: none; focused cards retain local_behavior only for selected tests, whole cards retain source ceiling
+limitations: 398 roadmap rows remain 🔄; execution-ready cards still require their open runtime, durability, CI, integration or platform exit conditions
+reviewer: integration agent; roadmap inventory review
+```
+
+### CP-13 invocation/request derived identity fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/dispatch.rs; kiana-domain/tests/cp13_dispatch_permit.rs; kiana-core/tests/cp13_dispatch_guard.rs; docs/roadmap/control-plane-dispatch-permit-baseline.md; docs/roadmap.md
+worktree_status: CP-13 row 129 remains 🔄 / feature_status=partial / proof_level=source; DispatchPermit now enforces server-derived invocation/request identity, while valid Harness context/request independence is retained; no manifest/lockfile, second execution path or automatic commit/push/merge/rebase
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test cp13_dispatch_permit dispatch_permit_rejects_invocation_request_mismatch_even_with_valid_digest --locked --offline -- --exact --test-threads=1`; GREEN bounded serial `cargo test -p kiana-domain --test cp13_dispatch_permit --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cp13_dispatch_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; RED max RSS 242772 KiB / 65% CPU; domain GREEN max RSS 83228 KiB / 19% CPU; Core guard max RSS 3967896 KiB / 86% CPU; all completed runs reported 0 swaps
+fixture·cassette: `dispatch_permit_rejects_invocation_request_mismatch_even_with_valid_digest` mutates a valid permit to a fresh InvocationId and recomputes `permit_digest`; old validator returned `Ok(())`, new validator returns `dispatch_permit_invocation_request_mismatch`; `dispatch_permit_keeps_harness_context_request_independent` proves context.request_id is not the binding source; domain target 4/4 and Core guard 1/1
+exit_code: RED 101 expected; domain GREEN 0; Core guard 0
+status_change: selected CP-13 permit identity boundary moves source → local_behavior; whole CP-13 remains partial/source
+proof-level_change: one local DTO/Broker-facing denial boundary is locally tested; no whole-card durable/live/physical promotion
+limitations: no complete budget/lease/fence/result/cancel/Unknown atomic transaction, crash/power-loss/cross-process recovery, external exactly-once, Secret/egress, live-provider or physical proof; context/request independence is covered only by the domain permit fixture
+reviewer: root integration agent with CP-13 read-only audit; focused permit identity reviewer
+```
+
+### CI-07 connector exact effect binding（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/connector.rs; kiana-ports/src/connector_https.rs; kiana-ports/tests/int11_https_connector.rs; kiana-ports/tests/int07_connector_ports.rs; kiana-core/tests/int11_https_connector_guard.rs; docs/roadmap/ci07-secret-store-baseline.md; docs/roadmap/int11-https-connector-baseline.md; docs/roadmap.md
+worktree_status: `ConnectorPreparedPermit::validate_for_binding` now calls `CredentialLease::validate_for` with server-derived account/purpose/audience/effect target; existing no-network/local_fixture boundary preserved; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-ports --test int11_https_connector forged_credential_endpoint_binding_is_rejected_before_dispatch --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-ports --test int11_https_connector --locked --offline -- --test-threads=1`; `cargo test -p kiana-ports --test int07_connector_ports --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test int11_https_connector_guard --locked --offline -- --test-threads=1`; final fmt/diff checks pending this status update
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test stack; stripped/non-incremental profile; max RSS 276696 KiB RED, 463692 KiB HTTPS GREEN, 292700 KiB INT-07 regression, 131388 KiB Core guard; all reported zero swaps
+fixture·cassette: forged lease endpoint digest is recomputed but no longer matches `effect_target_digest(binding)`; HTTPS 3/3, connector-port 4/4, Core INT-11 guard 2/2; dispatch count remains zero on denial
+exit_code: RED 101 expected; GREEN targets 0; one initial guard marker failure after implementation was corrected to inspect the actual connector source and all final focused targets passed
+status_change: exact connector lease binding promoted source → local_behavior for the selected boundary; CI-07/INT-11 whole cards remain open
+proof-level_change: local_behavior for metadata binding only; no durable/live/physical promotion
+limitations: effect-time wall-clock permit/lease expiry is still checked at the existing issuance-time API, cloned leases can be replayed without a server-owned consume registry, protected keyring/file/OS backends and restart/cross-process revocation remain absent, and no provider/live/physical effect was contacted
+reviewer: root integration with CI-07/INT-11 audit; no human release reviewer
+```
+
+### ER-13 committed stop metadata delivery fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/dispatch.rs; kiana-core/src/dispatch_delivery_tests.rs; kiana-core/tests/er13_result_delivery.rs; docs/roadmap/event-receipt-result-delivery-baseline.md; docs/roadmap.md; CURRENT_STATUS.md
+worktree_status: `committed_delivery_source` now validates top-level stop_requested/stop_state/stop_confirmed against CapabilityResultReceipt.stop_confirmed; no second delivery path, manifest/lockfile change, or automatic commit/push/merge/rebase
+command_argv: RED source audit of committed_delivery_source identified forged stop metadata acceptance; GREEN `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-core --lib dispatch::delivery_tests --locked --offline -- --test-threads=1`; `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-core --test er13_result_delivery --locked --offline -- --test-threads=1`; targeted contradictory test selector also passed; final fmt/diff checks pending this status update
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test stack; stripped/non-incremental test profile; delivery behavior max RSS 85404 KiB, 88% CPU, swaps 0; source guard max RSS 1196576 KiB, 91% CPU, swaps 0
+fixture·cassette: `contradictory_committed_payloads_or_tampered_receipts_never_deliver` now covers 12 source drift variants including stop_requested=true/stop_confirmed=true/stop_state=confirmed with receipt.stop_confirmed=None; Core delivery behavior 12/12 and `er13_result_delivery` source guard 1/1 passed; forged stop data returns `result_unknown:result_delivery_stop_mismatch` before claim/callback
+exit_code: 0 for targeted behavior, full delivery behavior group, and source guard; no swap observed
+status_change: selected ER-13 committed stop metadata consistency promoted source → local_behavior; roadmap row 139 remains open at `feature_status=implemented`, `proof_level=source` because callback crash/replay, cross-process recovery, provider reconciliation and external/live/physical effects remain unproven
+proof-level_change: bounded local behavior for stop metadata deny-first path; no durable/live/physical promotion
+limitations: no crash/restart or cross-process delivery proof, no provider receipt/reconcile or terminal shutdown proof, and full workspace remains non-green/resource-intensive; the connector CI-07 effect-boundary audit is separate and unresolved
+reviewer: root integration with ER-13 delivery audit; no human release reviewer
+```
+
+### CAP-07 / P4-J7-24 current-head focused receipts（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/harness_sandbox.rs; kiana-domain/src/provider_usage_settlement.rs; focused fixtures and guards
+worktree_status: CAP-07 row 237 and P4-J7-24 row 401 remain 🔄; selected probe/settlement behaviors are local_behavior only; no automatic commit/push/merge/rebase
+command_argv: `cargo test -p kiana-daemon --lib harness_sandbox --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test cap07_environment_backend_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-domain --test p4_j7_24_usage_settlement --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test p4_j7_24_usage_settlement_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-domain --test bq01_billing_contracts --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB stack, stripped/non-incremental profile; CAP-07 daemon max RSS 913160 KiB, CAP-07 Core guard 134592 KiB, final P4 domain 258440 KiB, P4 Core guard 4098280 KiB, BQ-01 238908 KiB; all measured commands swaps 0; final P4 logs/resources `/tmp/kiana-roadmap-20261006-p4j7-24/{green-final,core-final}.{log,resources}` and CAP-07 `/tmp/kiana-roadmap-20261006-cap07-exec/{harness,core-guard}.{log,resources}`
+fixture·cassette: CAP-07 non-executable bwrap rejection; P4-J7-24 unknown-cost state derivation, explicit identity, measured replay, transition no-mutation and serde receipt validation; no external provider/device effect
+exit_code: all focused targets, fmt and diff checks 0; prior full-workspace test remains non-green and is recorded separately
+status_change: selected CAP-07 probe and P4-J7-24 settlement invariants promoted source → local_behavior; roadmap cards remain 🔄 and whole-project goal remains active
+proof-level_change: local focused behavior only; no durable/live/physical promotion
+limitations: EnvironmentPort/DaemonHost/Broker wiring, kernel isolation, provider workspace routing, durable EventLog/CAS billing integration, reservation/release/late correction and full workspace green proof remain open; remote CI not queried
+reviewer: root integration agent with CAP-07 and P4-J7-24 read-only audits
+```
+
+### UI-33 / UI-34 / UI-38 / BQ-24 fixture validation receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-client recovery/resource/conformance targets and kiana-commands BQ-24 budget card target
+worktree_status: corrected UI-33 fixture classification, UI-34 protected-item usage, UI-38 invalid-schema expectation plus valid digest-drift coverage, and four BQ-24 negative fixtures; no production behavior changed in this slice; rows 648/649/653/675 remain 🔄
+command_argv: `cargo test -p kiana-client --test ui33_recovery --locked --offline -- --test-threads=1`; `cargo test -p kiana-client --test ui34_resource_budget --locked --offline -- --test-threads=1`; `cargo test -p kiana-client --test ui38_conformance --locked --offline -- --test-threads=1`; `cargo test -p kiana-commands --test bq24_budget_card --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; serial cargo commands; max RSS UI-33/UI-34/UI-38/BQ-24 = 447236/223128/228100/898452 KiB; each measured test reported 0 swaps; larger preceding workspace run peaked at 4092620 KiB and remains non-green
+fixture·cassette: UI-33 3/3 (gap-blocked property classified accepted; silent gap continuation denied); UI-34 4/4 (protected counts internally consistent and over budget); UI-38 3/3 (unsupported schema rejected before comparator, valid artifact digest mismatch reaches comparator); BQ-24 29/29 (unpaired remainder, invalid pending state, queue cap, duplicate ticket rejected by renderer); format and diff checks pass
+exit_code: four focused targets 0; `cargo fmt --all --check` 0; `git diff --check` 0; prior isolated UI-29 reproduction 101 with 2/4 tests due resume/gap expectations
+status_change: no roadmap step promoted; selected UI recovery/resource/conformance and BQ-24 card behaviors have focused local evidence; whole steps remain partial/source
+proof-level_change: selected tested fixture behavior recorded at `local_behavior`; no whole-card durable/live/physical promotion
+limitations: no daemon kill/restart, authenticated snapshot hydration, browser/PTY/Electron/ACP transport, multi-session/RSS/p95/accessibility benchmarks, actual four-surface trace capture, DaemonHost budget query, live billing numbers, or correction settlement. UI-33 requires snapshot hydration to clear a gap fence while UI-39 currently says explicit resume is enough; this contract conflict awaits user direction. Full workspace test remains non-green.
+reviewer: root integration agent; read-only UI/BQ-24 and ACP audit agents; no human release reviewer
+```
+
+### SC-36 protocol parity local receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-client/src/protocol_parity.rs and SC-36 fixtures/guard
+worktree_status: corrected fixture validation precedence, decoupled Unknown outcome from approval/receipt presence, and bound UI command_id/operation to daemon reference; no transport or ControlPlane route added; roadmap row 706 remains 🔄
+command_argv: RED `cargo test -p kiana-client --test sc36_protocol_parity --locked --offline -- --test-threads=1`; GREEN `cargo test -p kiana-client --test sc36_protocol_parity --locked --offline -- --test-threads=1`; guard `cargo test -p kiana-client --test sc36_protocol_parity_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one test thread per command; 32 MiB stack; stripped/non-incremental test profile; RED 9/12 before changes; GREEN 14/14, 4.60s, max RSS 441312 KiB, 0 swaps; source guard green
+fixture·cassette: decided approvals with missing references now fail at ApprovalReferenceMissing; valid differing references fail at ApprovalReferenceMismatch; receipt mismatch uses a valid alternate digest; daemon Unknown vs UI applied/rejected is UnknownRenderedAsSettled; Unknown with valid receipt and pending approval remains valid; command_id/operation drift is named; no transport/effect path
+exit_code: RED 101 expected; final behavior/guard/format/diff commands 0; logs/resources `/tmp/kiana-roadmap-20261006-sc36-{red,green,green2,guard}.*`
+status_change: selected SC-36 comparator behavior recorded as `local_behavior`; whole SC-36 remains `feature_status=partial`, `proof_level=source`
+proof-level_change: focused comparator/fixtures source → local_behavior; no live surface, durable trace, or physical proof
+limitations: comparator is not wired into a release gate or entrypoint; no actual CLI/Workbench/Web/Desktop/daemon trace capture, browser/PTY/Electron/ACP transport, EventLog receipt projection or cross-process replay; full workspace remains non-green
+reviewer: root integration agent; SC-36 read-only contract audit; no human release reviewer
+```
+
+### Workspace full-test receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree (76 changed paths before this receipt)
+worktree_status: full workspace test completed non-green; roadmap queue remains 356 ✅ / 393 🔄, with no card promotion; no automatic commit/push/merge/rebase
+command_argv: `timeout --signal=INT --kill-after=15s 1200s env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test --workspace --locked --offline --no-fail-fast -- --test-threads=1`, measured with `/usr/bin/time -v -o /tmp/kiana-roadmap-20261006-workspace-test.resources`
+cwd·environment: repository root `/media/shirosora/4A183E5C183E46EB/codestorage/kianacode`; Linux/bash; one Cargo build job and one Rust test thread; 32 MiB test stack; stripped, non-incremental test profile; elapsed 18m16.91s, user 606.91s, system 202.95s, peak RSS 4,092,620 KiB (~3.90 GiB), `/usr/bin/time` swaps 0; system swap was already in use at about 2.3 GiB after the command, available memory about 5.2 GiB
+fixture·cassette: workspace unit/integration tests and doctests with `--no-fail-fast`; 268 test-result summaries were `FAILED` and 267 Cargo `error: test failed` rerun notices were emitted. The Core `control_plane` test binary stopped producing progress for over three minutes at `cancel_reason_is_redacted_for_runner_response_and_events`; its child process received SIGINT so Cargo could continue other targets. Multiple other targets reported failures, including Core/DaemonHost/domain/quality/query/skills/tools fixtures and doctests.
+exit_code: workspace test 101 (outer 1200-second timeout did not fire); follow-up `git diff --check`, `cargo fmt --all --check`, and `python3 -B -m unittest discover -s scripts/tests -p 'test_roadmap_goal.py' -v` all 0 (12/12); logs `/tmp/kiana-roadmap-20261006-workspace-test.log` and `/tmp/kiana-roadmap-20261006-workspace-test.resources`
+status_change: recorded a non-green full-workspace verification result; no feature status or roadmap row changed
+proof-level_change: none; this run does not establish a passing workspace proof level
+limitations: failure triage found host-dependent `/repo` and sandbox startup issues plus multiple stale/malformed fixtures; the daemon compaction happy-path and Company idempotency failures may involve current-tree changes and need focused reproduction; the interrupted Core test binary did not execute later cases in that binary; remote CI was not checked
+reviewer: root integration agent; read-only Core, DaemonHost and domain failure triage complete
+```
+
+### P0-A-01a / P0-A-01b current-head registry receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-domain/src/contracts.rs; docs/roadmap.md; docs/roadmap/schema-registry-baseline.md
+worktree_status: reopened P0-A-01a/01b from ✅ to 🔄 after the full-workspace run exposed eight missing public ID registrations and two schema-owner allow-list omissions; one schema authority retained; no manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED/GREEN `cargo test -p kiana-domain --lib contracts::tests --locked --offline -- --test-threads=1`; `cargo test -p kiana-domain --test p0_a01b_schema --locked --offline -- --test-threads=1`; Core guard RED then GREEN `cargo test -p kiana-core --test p0_a01b_schema_guard --locked --offline -- --test-threads=1`; `cargo fmt --all`; final `cargo fmt --all --check` and `git diff --check`
+cwd·environment: repository root Linux/bash; Cargo tests used `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; contracts final 35.67s/max RSS 3,580,072 KiB, schema domain 54.02s/max RSS 4,085,736 KiB, initial Core guard compile 79.69s/max RSS 4,085,792 KiB, final Core guard 0.68s/max RSS 133,000 KiB; each measured command 0 swaps; `/tmp/kiana-roadmap-20261006-p0a-{contracts-final,schema-domain,schema-core,schema-core-final}.resources`
+fixture·cassette: RED identified `WorkflowInstanceId`, `UsageId`, `ReservationId`, `LedgerEntryId`, `CostAllocationId`, `RateCardId`, `CostCorrectionId`, `QuotaReservationId`, plus missing schema-owner allow-list entries `kiana-policy` and `kiana-skills`; GREEN `contracts::tests` 103/103 and `p0_a01b_schema` 2/2; Core guard first failed because protocol omitted the domain `check_schema_compatibility` re-export, then passed 1/1 after adding the re-export without a second registry
+exit_code: contracts RED 101/GREEN 0; schema domain 0; Core guard RED 101/GREEN 0; `cargo fmt --all`, final `cargo fmt --all --check` and `git diff --check` 0
+status_change: roadmap summary and execution index rows 001/068 are 🔄; focused registry contract checks are `local_behavior`, whole cards remain partial and workspace-wide acceptance remains open
+proof-level_change: selected ID/schema-owner registry checks `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: full workspace test remains non-green; current-head remote CI not run; complete schema/event/migration history, durable migration runner and all dependent cards remain subject to their own acceptance evidence
+reviewer: root integration agent; read-only domain/Core/daemon failure audits; focused registry reviewer
+```
+
+### Roadmap queue snapshot after P0-A registry audit（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; docs/roadmap.md and scripts/roadmap-goal.py
+worktree_status: derived inventory only; no roadmap card promoted; P0-A-01a/01b remain 🔄; no automatic commit/push/merge/rebase
+command_argv: `python3 scripts/roadmap-goal.py --limit 30`
+cwd·environment: repository root Linux/bash; Python 3; no network/runtime/build side effects
+fixture·cassette: parser checks roadmap row IDs, dependency edges, cycles, ready frontier and completion/open-ancestor relationships
+exit_code: 0; total=749; ready_count=52; execution_ready_count=21; completed_with_open_dependencies_count=98; counts=`{"✅":354,"🔄":395}`
+status_change: execution snapshot refreshed; two reopened P0-A dependencies increase open-ancestor warnings; dependent rows remain untouched pending individual evidence review
+proof-level_change: none; roadmap inventory is derived planning data, not test or feature proof
+limitations: 395 roadmap rows remain 🔄; 98 indexed-complete rows have open prerequisites; full workspace verification is non-green and remote CI has not been run for the current dirty tree
+reviewer: root integration agent; roadmap helper test suite 12/12 and dependency inventory review
+```
+
+### ER-25 retry guard ownership refresh（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-core/tests/er25_retry_policy_guard.rs; kiana-runner/src/{harness.rs,retry.rs}; kiana-domain/src/retry_policy.rs
+worktree_status: ER-25 remains roadmap row 234 🔄 / feature_status=implemented / proof_level=source; source guard now follows Harness → retry helper → domain RetryPolicy ownership; no runtime retry behavior, manifest or lockfile changed
+command_argv: RED `cargo test -p kiana-core --test er25_retry_policy_guard --locked --offline -- --test-threads=1`; GREEN same command after guard refresh; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; Cargo `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; RED 0.61s/max RSS 135,492 KiB; GREEN 0.44s/max RSS 136,004 KiB; both 0 swaps; `/tmp/kiana-roadmap-20261006-er25-guard-{red,green,final}.resources`
+fixture·cassette: RED reproduced both source guard tests failing because `ModelRetryClass::{BeforeSend,Rejected}` had moved out of Harness; final 2/2 verifies Harness delegation, shared helper, domain deny-first class/effect/delta/idempotency/retry-after policy, plus existing CP/H05/H07/H08/H11 markers
+exit_code: RED 101; final GREEN 0; formatting and diff checks 0
+status_change: corrected the guard's source ownership checks; ER-25 remains 🔄 because whole-card/current-head CI and live/cross-process acceptance remain open
+proof-level_change: selected ER-25 guard moves from failing source check to local_behavior; no whole-card, durable, live or physical promotion
+limitations: full workspace remains non-green; current-head remote CI not run; provider-specific live backoff, cross-process retry durability and external effect reconciliation remain open
+reviewer: root integration agent; read-only H05 audit; focused ER-25 guard review
+```
+
+### P1-C-01 child grant fixture correction receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-domain/tests/p1_c01_contract.rs; kiana-domain/src/capabilities.rs; docs/roadmap/cell-contract-baseline.md
+worktree_status: corrected only the parent CapabilityGrant fixture to set `delegation_allowed=false`, making the child true mutation a real widening attempt; no permission implementation change; P1-C-01 remains ✅
+command_argv: RED/GREEN `cargo test -p kiana-domain --test p1_c01_contract --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; RED and GREEN each 0.52s, max RSS 255,040/254,724 KiB; 0 swaps; `/tmp/kiana-roadmap-20261006-p1c01-{red,final}.resources`
+fixture·cassette: RED showed the original parent allowed delegation, so changing child false→true remained contained; corrected target verifies path widening, expiry widening and delegation widening denial plus templates; 2/2
+exit_code: RED 101; GREEN 0
+status_change: fixed the invalid negative fixture; P1-C-01 completion status unchanged, and no whole-card promotion is based on this fixture alone
+proof-level_change: corrected test now provides local_behavior for the child delegation boundary; no durable/live/physical change
+limitations: Cell registry remains process-local; durable assignment, cross-process recovery and full scheduler lifecycle are outside this fixture; current-head CI not run
+reviewer: root integration agent; read-only domain audit; focused child-grant boundary review
+```
+
+### CAP-30 tool-discovery fixture correction receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-domain/tests/cap30_tool_discovery.rs; kiana-domain/src/{tool_discovery.rs,tool_authority.rs}; docs/roadmap/cap30-tool-extension-baseline.md
+worktree_status: corrected the renamed built-in shadow and read-only manifest fixtures to match current operation/capability identifiers; no discovery implementation, manifest or lockfile change; roadmap row 714 remains 🔄
+command_argv: RED/GREEN `cargo test -p kiana-domain --test cap30_tool_discovery --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; RED 0.78s/max RSS 266,604 KiB; final GREEN 0.66s/max RSS 266,572 KiB; both measured processes 0 swaps; `/tmp/kiana-roadmap-20261006-cap30-{red,final}.resources`
+fixture·cassette: RED had 2/4 pass: renamed tool got `None` instead of built-in conflict because it used `ext.shell.fast.read`, and `filesystem.transaction` did not match the canonical write-capability identifier; final 4/4 verifies built-in name/operation conflicts, precedence over trust, canonical write-scope denial, trust/version/health/role filters and non-granting search
+exit_code: initial RED 101; final GREEN 0
+status_change: test inputs now exercise the intended conflict and effect-denial branches; CAP-30 remains `feature_status=partial`, `proof_level=source`, row 714 🔄
+proof-level_change: selected domain fixture behavior `source` → `local_behavior`; no whole-card, durable/live/physical promotion
+limitations: BM25/tag ranking, trustworthy runtime candidate construction, broker promotion integration and current-head remote CI remain open
+reviewer: root integration agent; read-only domain audit; focused CAP-30 fixture review
+```
+
+### BQ-07 quota-window fixture correction receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-domain/tests/bq07_quota_window.rs; kiana-domain/src/billing_quota.rs; docs/roadmap/billing-quota-window-baseline.md
+worktree_status: corrected a quota denial fixture whose request fit remaining capacity; no quota implementation, API, manifest or lockfile change; roadmap row 196 remains 🔄
+command_argv: RED/GREEN `cargo test -p kiana-domain --test bq07_quota_window --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; RED 0.64s/max RSS 230,688 KiB; GREEN 0.50s/max RSS 230,824 KiB; both 0 swaps; `/tmp/kiana-roadmap-20261006-bq07-{red,green}.resources`
+fixture·cassette: RED showed `max_requests=2, used_requests=1` leaves one slot and `check(1, 10, 0)` is valid; GREEN requests 2 against one remaining slot, checks the `quota_exhausted:retry_after_ms=` code, then resets usage and verifies the accepted path; target 3/3
+exit_code: RED 101; GREEN 0
+status_change: fixture now reaches the intended over-limit branch; BQ-07 stays `feature_status=implemented`, `proof_level=source`, row 196 🔄
+proof-level_change: selected quota check fixture `source` → `local_behavior`; no full-card/durable/live/physical promotion
+limitations: `QuotaWindowBudget::check()` has no current-time input and currently derives retry-after from window start; exact current-time retry-after semantics remain open; workspace test remains non-green
+reviewer: root integration agent; read-only domain audit; focused quota boundary reviewer
+```
+
+### PD-01 stable root-ID binding local receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-domain/src/storage.rs and kiana-domain/tests/pd01_storage.rs
+worktree_status: PD-01 remains roadmap row 108 🔄 / feature_status=partial; no shared product-entry root routing, manifest, lockfile or ControlPlane path change
+command_argv: RED `cargo test -p kiana-domain --test pd01_storage storage_root_rejects_id_not_derived_from_path_even_with_recomputed_digest --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test pd01_storage --locked --offline -- --test-threads=1`; downstream `cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo build job and one test thread; 32 MiB test stack; stripped/non-incremental test profile; max RSS 4,095,400 KiB (~4.0 GiB), each measured process reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261006-pd01-{red,green,daemon}.{log,resources}`
+fixture·cassette: RED reproduced a non-nil root ID replaced with a different valid ID and recomputed digest being accepted; GREEN domain 4/4 and daemon storage 9/9, including lock conflict and failed initialization cleanup
+exit_code: RED 101 as expected; GREEN domain and daemon targets 0
+status_change: selected root identity binding recorded as `local_behavior`; whole PD-01 remains `feature_status=partial`, `proof_level=source`, row 108 🔄
+proof-level_change: selected domain/daemon behavior `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: Core `pd01_storage_guard` not rerun after this source change; CLI/Web/Workbench shared root, restart identity, migration/upcast, stale/crash/power-loss cleanup, directory fsync and cross-process fencing remain open
+reviewer: root integration agent; read-only PD-01 audit; focused domain/daemon test review
+```
+
+### H22 compaction happy-path fixture receipt（2026-10-06）
+
+```text
+source_snapshot: HEAD c9b8360fd87a5d3809da84cf73b8ba27247b85b6 plus current dirty worktree; kiana-runner compaction contract and kiana-daemon/tests/daemon_host.rs
+worktree_status: corrected the H22 daemon happy-path fixture budget only; roadmap row 309 remains 🔄; no production compaction behavior changed in this slice
+command_argv: `cargo test -p kiana-daemon --test daemon_host continue_after_compact_still_writes_golden_path --locked --offline -- --exact --test-threads=1` with one Cargo job, one test thread, 32 MiB test stack and stripped/non-incremental profile; `/usr/bin/time -v -o /tmp/kiana-roadmap-20261006-compact-daemon-final.resources`
+cwd·environment: repository root Linux/bash; 6.01s elapsed; max RSS 712,656 KiB (~696 MiB); 0 swaps
+fixture·cassette: prior workspace run reproduced `compact_latest_group_exceeds_budget` with 40 retained tokens; isolated run confirmed 100 and 200 were still below the complete tool-group requirement; final happy-path fixture uses 1,000-token trigger/retain and an 8,000-character initial prompt, then verifies compaction, continuation and the expected file write; 1/1 passed
+exit_code: final focused selector 0; log `/tmp/kiana-roadmap-20261006-compact-daemon-final.log`
+status_change: happy-path fixture now supplies a budget large enough for the complete recent assistant/tool group; no feature status or roadmap row promotion
+proof-level_change: none; H22 remains partial/source pending admitted summary generation, durable commit/recovery and full acceptance
+limitations: this selector does not prove real summary generation, event-cursor CAS, restart recovery, complete product surface parity or whole-workspace green; other workspace failures remain open
+reviewer: root integration agent; read-only DaemonHost failure audit; focused H22 fixture review
+```
+
+### CI-06 / EQ-10 / BQ-05 focused local receipts（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; CI-06 ConfigResolver, EQ-10 FakeProviderAdapter and BQ-05 RateCardStore fixtures/guards
+worktree_status: rows 166/182/194 remain 🔄; CI-06 and EQ-10 stale source guards narrowed to their owned source intervals; BQ-05 fixture versioning corrected; no manifest/lockfile or second execution path
+command_argv: bounded serial cargo test -p kiana-provider --test ci06_config_resolver --locked --offline -- --test-threads=1; cargo test -p kiana-daemon --test ci06_config_resolver --locked --offline -- --test-threads=1; cargo test -p kiana-core --test ci06_config_resolver --locked --offline -- --test-threads=1; cargo test -p kiana-daemon --test eq10_fake_provider --locked --offline -- --test-threads=1; cargo test -p kiana-core --test eq10_fake_provider_guard --locked --offline -- --test-threads=1; cargo test -p kiana-ports --test bq05_rate_card_store --locked --offline -- --test-threads=1; cargo test -p kiana-core --test bq05_rate_card_guard --locked --offline -- --test-threads=1; cargo fmt --all --check; git diff --check
+cwd·environment: repository root Linux/bash; CARGO_BUILD_JOBS=1, RUST_TEST_THREADS=1, RUST_MIN_STACK=33554432, stripped non-incremental tests; one Cargo worker; observed max RSS CI provider/daemon/Core 85452/91080/85644 KiB, EQ daemon/Core 91360/130340 KiB, BQ ports/Core 265992/85744 KiB; swaps 0
+fixture·cassette: CI provider 9/9 plus daemon/Core guards 1/1; EQ daemon 5/5 plus Core guard 1/1; BQ ports 2/2 (pinned dimensions, duplicate-version, overlap, unknown-model, expiry) plus Core guard 1/1; formatting and diff checks green
+exit_code: all listed commands 0; logs/resources under `/tmp/kiana-roadmap-20261005-evidence/{ci06-*,eq10-*,bq05-*}`
+status_change: selected tests/guards for CI-06, EQ-10 and BQ-05 recorded as local_behavior; no roadmap card promoted; whole-card statuses remain CI-06 partial/source, EQ-10 implemented/source, BQ-05 implemented/source
+proof-level_change: selected fixture/guard evidence source → local_behavior only; no durable/live/physical promotion
+limitations: CI-06 still lacks DaemonHost project config/trust-revision/reload and production snapshot-store integration; EQ-10 remains outside DaemonHost/ControlPlane/Broker/EventLog/receipt/recovery and still lacks malformed partial-stream, durable restart/fault and live-provider proof; BQ-05 lacks cache/reasoning inclusion reconciliation, broader invalid-ID policy, bounded-memory enforcement, durable projector, discovery/invoice/currency/reservation; wildcard exact-precedence/fallback is covered only by the focused adapter fixture; full workspace remains non-green/resource-intensive
+reviewer: integration agent with CI-06/EQ-10/BQ-05 read-only audits; no human release reviewer
+```
+
+### BQ-05 wildcard resolution focused local receipt（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/lib.rs and kiana-ports/tests/bq05_rate_card_store.rs
+worktree_status: roadmap row 194 remains 🔄; exact-model then provider-wide wildcard lookup is recorded as local_behavior; no manifest/lockfile or second execution path
+command_argv: bounded serial `cargo test -p kiana-ports --test bq05_rate_card_store --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test bq05_rate_card_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; one Cargo worker; ports max RSS 4100564 KiB (~3.91 GiB), Core guard max RSS 1197964 KiB (~1.14 GiB), 0 swaps
+fixture·cassette: ports 3/3 (pinned dimensions, wildcard fallback, exact-model precedence, duplicate-version, overlap, unknown-model and expiry denial); Core guard 1/1; format and diff checks green; logs/resources `/tmp/kiana-roadmap-20261006-bq05-wildcard/{ports,core}.{log,resources}`
+exit_code: all listed commands 0
+status_change: selected wildcard resolution behavior source → local_behavior; whole card remains feature_status=implemented, proof_level=source
+proof-level_change: selected adapter/fixture source → local_behavior; no durable/live/physical promotion
+limitations: cache/reasoning inclusion consistency, broader invalid-ID policy, bounded-memory enforcement, durable projector, provider discovery, invoice/currency conversion, reservation admission and external proof remain open; full workspace remains non-green/resource-intensive
+reviewer: root integration agent with BQ-05 read-only audit; no human release reviewer
+```
+
+### BQ-06 / AUT-07 / CAP-07 focused local receipts（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; billing budget intersection, workflow queue claim/ready, harness sandbox and environment backend fixtures
+worktree_status: rows 195/276/237 remain 🔄; stale fixture/guard assertions corrected; no manifest/lockfile, durable queue, scheduler or second execution path
+command_argv: bounded serial cargo test -p kiana-domain --test bq06_budget_intersection --locked --offline -- --test-threads=1; cargo test -p kiana-core --test bq06_budget_intersection_guard --locked --offline -- --test-threads=1; cargo test -p kiana-domain --test aut07_workflow_queue_claim --locked --offline -- --test-threads=1; cargo test -p kiana-core --test aut07_workflow_queue_ready --locked --offline -- --test-threads=1; cargo test -p kiana-core --test aut07_workflow_queue_claim_guard --locked --offline -- --test-threads=1; cargo test -p kiana-core --test cp24_scheduler_transaction --locked --offline -- --test-threads=1; cargo test -p kiana-daemon --lib harness_sandbox --locked --offline -- --test-threads=1; cargo test -p kiana-core --test cap07_environment_backend_guard --locked --offline -- --test-threads=1; cargo test -p kiana-daemon --test cap33_container --locked --offline -- --test-threads=1; cargo test -p kiana-daemon --test dep36_container_adapter --locked --offline -- --test-threads=1
+cwd·environment: repository root Linux/bash; CARGO_BUILD_JOBS=1, RUST_TEST_THREADS=1, RUST_MIN_STACK=33554432, stripped non-incremental tests; one Cargo worker; BQ-06 max RSS 227700/129952 KiB, AUT-07 83948/84996/129712/84660 KiB, CAP-07 917940/133220/944132/569784 KiB; swaps 0
+fixture·cassette: BQ-06 domain 3/3 + Core guard 1/1; AUT-07 domain 3/3 + ready 3/3 + guard 1/1 + CP-24 transaction 2/2; CAP-07 harness 5/5 + Core guard 2/2 + container 2/2 + adapter 3/3; duplicate/widening, scope/budget/path/expiry, stale owner/fence, FD-pinned mount and no-host-fallback denial paths covered
+exit_code: all listed commands 0; logs/resources under `/tmp/kiana-roadmap-20261005-evidence/{bq06-*,aut07-*,cap07-*}`
+status_change: selected BQ-06/AUT-07/CAP-07 fixtures and guards recorded as local_behavior; no roadmap card promoted; whole-card statuses remain BQ-06 implemented/source, AUT-07 partial/source, CAP-07 partial/source
+proof-level_change: selected fixture/guard behavior source → local_behavior only; no durable/live/physical/kernel enforcement promotion
+limitations: BQ-06 Continue cumulative usage/reset semantics remain unresolved and no admission/reservation/CAS; AUT-07 active count is caller-derived and durable QueueStore lease/fence/recovery remain open; CAP-07 bwrap lacks full EnvironmentPort lifecycle/DaemonHost wiring and executable-bit/kernel/userns/non-Linux/physical proof; full workspace test remains non-green/resource-intensive
+reviewer: integration agent with BQ-06/AUT-07/CAP-07 read-only audits; no human release reviewer
+```
+
+### CM-09 / EXT-22 / EXT-25 focused local receipts（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; text normalization/redaction, extension lifecycle and signed-scope source/guards
+worktree_status: rows 320/357/360 remain 🔄; CM-09 redaction validation fixed; EXT-22/25 stale guard markers aligned; no manifest/lockfile or second execution path
+command_argv: bounded serial cargo test -p kiana-domain --test cm09_text_normalization --locked --offline -- --test-threads=1; cargo test -p kiana-core --test cm09_text_normalization_guard --locked --offline -- --test-threads=1; cargo test -p kiana-domain --test ext22_extension_lifecycle --locked --offline -- --test-threads=1; cargo test -p kiana-core --test ext22_extension_lifecycle_guard --locked --offline -- --test-threads=1; cargo test -p kiana-domain --test ext25_signed_skill_scope --locked --offline -- --test-threads=1; cargo test -p kiana-core --test ext25_signed_skill_scope_guard --locked --offline -- --test-threads=1; cargo fmt --all --check; git diff --check
+cwd·environment: repository root Linux/bash; CARGO_BUILD_JOBS=1, RUST_TEST_THREADS=1, RUST_MIN_STACK=33554432, stripped non-incremental tests; one Cargo worker; cached max RSS CM domain/Core 82700/85656 KiB, EXT-22 82804/84508 KiB, EXT-25 83480/84720 KiB; swaps 0
+fixture·cassette: CM-09 domain 3/3 plus raw/redacted-marker suffix denial and Core guard 1/1; EXT-22 domain 3/3/Core 1/1; EXT-25 domain 2/2/Core 1/1; redaction, lifecycle route and signed-scope generation/role/expiry/policy boundaries covered
+exit_code: all listed commands 0; logs/resources under `/tmp/kiana-roadmap-20261005-evidence/{cm09-*,ext22-*,ext25-*}`
+status_change: selected CM-09/EXT-22/EXT-25 behavior recorded as local_behavior; no roadmap card promoted; whole-card statuses remain partial/source pending integration and durable evidence
+proof-level_change: selected production/fixture/guard evidence source → local_behavior; no durable/live/physical promotion
+limitations: CM-09 remains heuristic normalization without durable index integration; EXT-22 typed lifecycle/config snapshots have no production consumers and lacks Stage/durable CAS; EXT-25 lacks direct Broker/DaemonHost behavior fixture and durable/cross-process/live proof; canonical roadmap/detail-card status drift remains to reconcile
+reviewer: integration agent with CM-09/EXT-22/EXT-25 read-only audits; no human release reviewer
+```
+
+### EXT-25 future-issued scope deny receipt（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/extensions.rs and kiana-domain/tests/ext25_signed_skill_scope.rs
+worktree_status: roadmap row 360 remains 🔄; scope and derived contract now reject use before issued_at; no manifest/lockfile or second execution path
+command_argv: RED then GREEN `cargo test -p kiana-domain --test ext25_signed_skill_scope --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test ext25_signed_skill_scope_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; one Cargo worker; GREEN domain max RSS 4092852 KiB (~3.90 GiB), Core guard max RSS 83660 KiB (~81.7 MiB), 0 swaps
+fixture·cassette: RED 1/2 failed as expected before implementation; GREEN domain 2/2 and Core guard 1/1; future-issued scope/contract denied with `extension_scope_not_yet_valid`, issue instant accepted; logs/resources `/tmp/kiana-roadmap-20261006-ext25/{red,green}.{log,resources}` and `/tmp/kiana-roadmap-20261006-ext25-root/core.{log,resources}`
+exit_code: RED 101 expected; GREEN/Core/fmt/diff 0
+status_change: selected EXT-25 time-window behavior source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: selected deny-first scope/contract behavior only; no durable/live/physical promotion
+limitations: no direct Broker/DaemonHost admission fixture, durable scope storage, cross-process recovery or external/live effect proof; canonical roadmap/detail-card status drift remains
+reviewer: root integration agent with EXT-25 read-only audit; no human release reviewer
+```
+
+### DEP-04 query authority deny receipt（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; kiana-protocol/src/ops.rs and kiana-protocol/tests/dep04_ops.rs
+worktree_status: roadmap row 609 remains 🔄; `OpsQueryRequest::validate_authority` now mirrors command authority comparison; no DaemonHost/Core admission or second execution path
+command_argv: RED then GREEN `cargo test -p kiana-protocol --test dep04_ops --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test dep04_ops_protocol_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; one Cargo worker; protocol GREEN max RSS 461576 KiB (~450.8 MiB), Core guard max RSS 131424 KiB (~128.3 MiB), 0 swaps
+fixture·cassette: RED compile failure (four missing query methods); GREEN protocol 3/3 with forged query actor/epoch/scope denial and Core guard 1/1; logs/resources `/tmp/kiana-roadmap-20261006-dep04/{red,green,core}.{log,resources}`
+exit_code: RED 101 expected; GREEN/Core/fmt/diff 0
+status_change: selected DEP-04 query authority behavior source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: selected query deny-first wire contract only; no durable/live/physical promotion
+limitations: no typed DaemonHost/Core authority admission, operation journal, approval/Broker dispatch, cross-surface route or successful remote CI evidence; full workspace remains non-green/resource-intensive
+reviewer: root integration agent with DEP-04 read-only audit; focused protocol reviewer
+```
+
+### ER-02 EventLog aggregate metadata deny receipt（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-eventlog/src/event_store_core.rs and kiana-eventlog/tests/er02_identity.rs
+worktree_status: roadmap row 037 remains 🔄 / feature_status=partial; malformed aggregate ordering metadata now fails before append; legacy events with all metadata fields absent remain compatible
+command_argv: RED and GREEN `cargo test -p kiana-eventlog --test er02_identity --locked --offline -- --test-threads=1`; current-head GREEN re-run `cargo test -p kiana-core --test er02_identity_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; one Cargo worker; agent RED max RSS 471884 KiB; current EventLog/Core GREEN max RSS 83560/85568 KiB; 0 swaps
+fixture·cassette: agent RED report: zero/partial metadata fixtures failed before implementation; RED stdout and exact total were not retained. Current EventLog 12/12 covers zero version, missing type/id, whitespace type/id, valid positive metadata and legacy cases; Core identity guard 1/1; complete GREEN logs/resources `/tmp/kiana-roadmap-20261007-er02-final/{eventlog,core}.{log,resources}`
+exit_code: RED agent-reported 101; current EventLog/Core GREEN re-runs 0; fmt/diff 0
+status_change: selected EventLog metadata/order boundary source → local_behavior; whole ER-02 remains partial/source
+proof-level_change: focused local append behavior only; no durable/live/physical promotion
+limitations: no full ER-02 shard or full workspace green; durable InvocationLedger, cross-process recovery, terminal reconciliation and external effect receipts remain open
+reviewer: root integration agent; read-only ER-02 audit; EventLog/Core fixture review
+```
+
+### CM-09 colon-form secret boundary receipt（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/text_normalization.rs and kiana-domain/tests/cm09_text_normalization.rs
+worktree_status: CM-09 row 320 remains 🔄 / feature_status=partial / proof_level=source; selected colon-form rejection is local_behavior; no automatic commit/push/merge/rebase
+command_argv: RED then GREEN `cargo test -p kiana-domain --test cm09_text_normalization --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test cm09_text_normalization_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB stack, stripped/non-incremental profile; domain 3/3 max RSS 4086720 KiB, Core guard 1/1 max RSS 4092300 KiB, all measured runs swaps 0; logs/resources `/tmp/kiana-roadmap-20261006-cm09/{red2,green,core}.{log,resources}`
+fixture·cassette: RED colon-form `api_key:` leaked normalized text; GREEN five marker forms rejected before text/tokens/metadata; no external provider/index/model effect
+exit_code: RED 101 expected; GREEN/Core/fmt/diff 0
+status_change: selected CM-09 sensitive-input behavior promoted source → local_behavior; roadmap card and whole-project goal remain active
+proof-level_change: local focused behavior only; no durable/live/physical promotion
+limitations: heuristic marker scope, full Unicode/PII classification, durable index enforcement and remote CI evidence remain open; full workspace regression remains non-green
+reviewer: root integration agent with CM-09 read-only audit
+```
+
+### UI-04 / DEP-03 / DEP-04 current focused receipts（2026-10-06）
+
+```text
+source_snapshot: current dirty worktree; UI-04 action journal/facade, DEP-03 compatibility matrix, DEP-04 ops protocol DTOs/tests
+worktree_status: roadmap rows 420/608/609 remain 🔄; UI-04 stale guard fixed; DEP-04 protocol now binds event name to kind and forbids retryable ResultUnknown; no typed ops admission or permit-binding integration added
+command_argv: bounded serial cargo test -p kiana-domain --test ui04_action_journal --locked --offline -- --test-threads=1; cargo test -p kiana-core --test ui04_action_journal_guard --locked --offline -- --test-threads=1; cargo test -p kiana-domain --test dep03_compatibility --locked --offline -- --test-threads=1; cargo test -p kiana-core --test dep03_compatibility_guard --locked --offline -- --test-threads=1; cargo test -p kiana-protocol --test dep04_ops --locked --offline -- --test-threads=1; cargo test -p kiana-core --test dep04_ops_protocol_guard --locked --offline -- --test-threads=1; existing client_methods target 3/3 from read-only audit
+cwd·environment: repository root Linux/bash; one Cargo worker, one test thread, 32 MiB stack, stripped non-incremental tests; UI-04 max RSS 83188/133552 KiB; DEP-03 83312/85220 KiB; DEP-04 protocol/Core 456376/130528 KiB; client target 4088628 KiB; swaps 0
+fixture·cassette: UI domain 4/4/Core guard 1/1; DEP-03 domain 3/3/Core guard 1/1; DEP-04 protocol 3/3/Core guard 1/1, including six event-kind pairs and retryable-unknown deny; client methods 3/3
+exit_code: focused selectors 0; prior DEP-04 RED reproduction was 101 on digest-valid failed/Accepted event before implementation; final protocol/Core logs `/tmp/kiana-roadmap-20261006-dep04-{protocol,core}-final.{log,resources}`, UI logs `/tmp/kiana-roadmap-20261006-ui04-{domain,core}-final.{log,resources}`, DEP-03 logs `/tmp/kiana-roadmap-20261006-dep03-{domain,core}-final.{log,resources}`
+status_change: selected UI-04/DEP-03/DEP-04 contracts and fixtures recorded as local_behavior; no roadmap row promoted
+proof-level_change: selected domain/protocol behavior source → local_behavior; no durable/live/physical promotion
+limitations: UI-04 permit digest remains unbound to command/journal and lacks Core/EventStore behavior; DEP-03 is not connected to startup/new-work admission and omits schema/store/app/config comparison plus migration proof; DEP-04 still has no typed DaemonHost/Core admission, operation journal, approval/Broker dispatch or cross-surface routes; full workspace tests remain incomplete/resource-intensive
+reviewer: integration agent with UI-04/DEP-03/DEP-04 read-only audits; focused local reviewers
+```
+
+### ER-02 DaemonHost approval-resume parity receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/approvals.rs; kiana-core/src/invocation_projection.rs; kiana-daemon/tests/daemon_host.rs; ER-02 identity fixtures
+worktree_status: ER-02 remains roadmap row 037 🔄; no automatic commit/push/merge/rebase; unrelated WIP preserved
+command_argv: bounded serial selectors: `cargo test -p kiana-core --test control_plane capability_policy_and_broker_failures_preserve_event_order`; `direct_capability_events_keep_request_identity_without_run_scope`; `approval_resumes_the_stored_request_once_with_monotonic_events`; `cargo test -p kiana-core --test er02_identity`; `cargo test -p kiana-core --test er02_identity_guard`; `cargo test -p kiana-eventlog --test er02_identity`; `cargo test -p kiana-daemon --test daemon_host approval`, all `--locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; serial daemon/control-plane execution; per-target max RSS 554540/85632/85740/330096/132596/83472/712920 KiB; all observed swap counters 0
+fixture·cassette: Core broker/direct/approval 1/1 each; Core ER-02 identity 3/3; Core guard 1/1; EventLog ER-02 identity 9/9; DaemonHost approval filter 2/2 (`cancel_after_awaiting_approval_rejects_later_approve`, `wire_approval_proof_retry_resumes_original_run`); invalid request hash denied before dispatch; valid proof resumes the original Run/Turn/request/invocation identity; cancellation returns structured `approval_cancelled`; persisted scope fencing token is `[REDACTED]` and is not reconstructed
+exit_code: all seven commands 0
+status_change: DaemonHost/Harness identity and approval-resume parity is recorded as focused `local_behavior`; ER-02 whole card remains `feature_status=partial`, roadmap row 037 🔄
+proof-level_change: focused Core/EventLog/DaemonHost selectors `source` → `local_behavior`; no durable/live/physical promotion
+limitations: no complete green CI shard, full workspace test remains non-green/resource-intensive, legacy upcast and terminal reconciliation remain bounded, durable InvocationLedger/cross-process ordering/restart recovery and external effect receipts remain open
+reviewer: integration agent; focused Core/EventLog/DaemonHost identity and approval reviewer
+```
+
+### SC-07 focused local authority receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain trust/assignment snapshots; kiana-core security authority/guards; kiana-daemon assignment helper
+worktree_status: SC-07 remains roadmap row 118 🔄; typed assignment remains disconnected from DaemonHost::handle; no automatic commit/push/merge/rebase
+command_argv: serial bounded `cargo test -p kiana-domain --test sc07_trust_snapshots --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test sc07_authority_snapshot --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test sc07_authority_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-daemon --test control_plane --no-run --locked --offline`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, 32 MiB test stack, stripped/non-incremental profile; one Cargo/test worker; 5.02s elapsed, 3.16s user, 1.13s system, max RSS 700204 KiB (~683.8 MiB), 0 swaps
+fixture·cassette: domain trust/department/assignment 3/3; Core authority snapshot 2/2; Core source guard 1/1; daemon control-plane target compile; foreign project/root/role/trust revision, wire trust escalation and untrusted effect denial
+exit_code: all four commands 0
+status_change: focused SC-07 contract/deny behavior recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`
+proof-level_change: focused snapshot and guard selectors `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: DaemonHost::handle does not consume AssignmentDirectory/context_from_assignment; server OrganizationId/provisioning, default unassigned and multi-role semantics, durable CAS/revoke/refresh, cross-process recovery and external/live/physical auth proof remain open
+reviewer: integration agent with read-only SC-07 audit; focused local authority reviewer
+```
+
+### CAP-05 focused local permit/effect receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/dispatch.rs; kiana-capability-broker/src/lib.rs; kiana-core/tests/cap05_permit.rs
+worktree_status: CAP-05 remains roadmap row 143 🔄; real Broker/JournalPermitVerifier CAS path is exercised locally; no automatic commit/push/merge/rebase
+command_argv: bounded serial `cargo test -p kiana-core --test cap05_permit --locked --offline -- --test-threads=1` with `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`, wrapped by `/usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/cap05-local.resources`
+cwd·environment: repository root Linux/bash; one Cargo/test worker; 32 MiB test stack; stripped, non-incremental test profile; 2.26s elapsed, 1.07s test time, max RSS 357436 KiB (~349.1 MiB), 0 swaps
+fixture·cassette: `cap05_permit` 12/12; opaque/empty authorization, one-shot and concurrent CAS consume, stale authority/read-set/request/identity drift, failed/Unknown/TOCTOU commit, cancellation and preexisting executing deny; handler/effect calls remain zero on refusal
+exit_code: 0
+status_change: focused Broker permit/effect behavior recorded as `local_behavior`; whole card remains `feature_status=partial`, `proof_level=source`
+proof-level_change: focused deny-first and single-consume selectors `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: ControlPlane complete prepare/approval/budget/lease transaction, post-prepare crash/power-loss/cross-process recovery, external exactly-once, provider/connector effects, Secret/egress and physical/live proof remain open
+reviewer: integration agent with read-only CAP-05 audit; focused local Broker/permit reviewer
+```
+
+### CO-03 focused local assignment receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain assignment directory; kiana-core Company assignment guard; CO-03 source guard
+worktree_status: corrected the stale source-guard marker from `resolve_assignment` to the declared `pub fn resolve`; no assignment behavior, manifest or lockfile change
+command_argv: bounded serial `cargo test -p kiana-domain --test co03_assignment --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test co03_assignment --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test co03_assignment_guard --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, `RUST_MIN_STACK=33554432`, stripped/non-incremental test profile; max RSS 131372 KiB, 0 swaps
+fixture·cassette: domain 6/6; Core assignment behavior 1/1; Core source guard 1/1; expiry, revocation cascade, actor/role impersonation, digest/window drift and assignment boundary markers
+exit_code: all three selectors 0
+status_change: selected CO-03 contracts and deny-first behavior recorded as `local_behavior`; roadmap row 062 remains `✅`, feature_status=`implemented`, proof_level=`source`
+proof-level_change: selected fixtures `source` → `local_behavior`; no durable/live/physical promotion
+limitations: in-process assignment snapshot, durable membership/epoch facts, all DaemonHost dispatch/Continue/approval/effect paths, cross-process recovery and external/live/physical identity proof remain open
+reviewer: integration agent; focused local assignment reviewer
+```
+
+### CP-13 focused local permit parity receipt（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/dispatch.rs; kiana-core/src/dispatch.rs and capabilities; CP-13/CAP-05 fixtures
+worktree_status: permit deny-first lane and Harness broker parity pass after test-only fixture prerequisites were restored; no second dispatch path, manifest or lockfile change
+command_argv: bounded serial `cargo test -p kiana-domain --test cp13_dispatch_permit --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test cp13_dispatch_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-core --test cap05_permit --locked --offline -- --test-threads=1`; daemon regression `cargo test -p kiana-daemon --test daemon_host model_written_memory_without_evidence_is_rejected_and_stays_unsearchable --locked --offline -- --test-threads=1`; Core parity selectors run separately for `start_run_brokers_harness_tools`, `direct_capability_events_keep_request_identity_without_run_scope` and `approval_resumes_the_stored_request_once_with_monotonic_events`
+cwd·environment: repository root Linux/bash; `CARGO_BUILD_JOBS=1`, `RUST_TEST_THREADS=1`, 32 MiB test stack, stripped/non-incremental profile; permit lane max RSS 241292 KiB, daemon regression max RSS 713168 KiB, parity selectors max RSS 85908 KiB; 0 swaps
+fixture·cassette: domain 2/2; Core CP-13 guard 1/1; CAP-05 permit/effect deny-first 12/12; daemon memory/evidence regression 1/1; direct identity, approval-resume and Harness broker parity selectors 1/1 each; Harness fixture uses a real temporary project root, synchronizes authority before dispatch, and filters request-aggregate memory incident events out of run-stream version assertions
+exit_code: all listed selectors 0; logs/resources `/tmp/kiana-roadmap-20261005-evidence/cp13-{focused,daemon-memory,harness-parity-fixed}.{log,resources}`
+status_change: CP-13 remains roadmap row 129 `🔄`; feature_status=`partial`; proof_level=`source`; no whole-card promotion from the passing permit lane
+proof-level_change: passing deny-first and direct/Harness/approval-resume parity selectors `source` → `local_behavior`; no whole-card durable/live/physical promotion
+limitations: budget/resource reservation is not atomic with execution.prepared, post-prepare helper failure can leave Prepared, cancel-after-prepare reconciliation, crash/power-loss/cross-process permit recovery and external exactly-once remain open
+reviewer: integration agent with read-only CP-13 audit; focused local permit/parity reviewer
+```
+
+### EQ-10 complete-streaming delta local receipt（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/eval_runtime.rs; kiana-daemon/tests/eq10_fake_provider.rs; kiana-core/tests/eq10_fake_provider_guard.rs; docs/roadmap/evaluation-provider-baseline.md; docs/roadmap.md
+worktree_status: EQ-10 roadmap row 182 remains 🔄; FakeProviderAdapter Complete streaming now emits the required non-empty ModelDelta::Text; no manifest/lockfile change, second execution path or automatic commit/push/merge/rebase
+command_argv: RED `cargo test -p kiana-daemon --test eq10_fake_provider fake_provider_streaming_complete_emits_non_empty_text_delta --locked --offline -- --test-threads=1`; GREEN `cargo test -p kiana-daemon --test eq10_fake_provider --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test eq10_fake_provider_guard --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped non-incremental tests; daemon GREEN max RSS 946904 KiB (~924.7 MiB), Core guard 130308 KiB (~127.3 MiB), CPU 94%/63%, all observed swap counters 0; logs/resources `/tmp/kiana-roadmap-20261007-eq10/{red,green,core}.{log,resources}`
+fixture·cassette: RED Complete streaming delta 0/1 with exit 101 before fix; GREEN daemon 8/8 and Core guard 1/1; complete-streaming emits one non-empty text delta, malformed provider emits zero deltas, callback error stops after the failing delta, and normal chunks pass ModelStreamAccumulator::finish
+exit_code: RED 101 as expected; GREEN daemon/Core/format/diff all 0
+status_change: selected EQ-10 adapter/stream behavior promoted to `local_behavior`; whole card remains `feature_status=implemented`, `proof_level=local_behavior`, roadmap 🔄
+proof-level_change: Complete streaming delta, malformed deny, callback propagation and accumulator normalization source → local_behavior; no durable/live/physical promotion
+limitations: fake adapter is still outside DaemonHost/ControlPlane/Broker/EventLog/receipt/recovery; no durable restart/fault proof, malformed partial-stream scenario, live provider or external effect evidence
+reviewer: integration agent with EQ-10 read-only audit; no human release reviewer
+```
+
+### CI-06 duplicate profile key deny receipt（2026-10-07）
+
+```text
+source_snapshot: current dirty worktree; kiana-provider/src/resolver.rs; kiana-provider/src/config.rs; kiana-provider/tests/ci06_config_resolver.rs; kiana-daemon/tests/ci06_config_resolver.rs; kiana-core/tests/ci06_config_resolver.rs
+worktree_status: CI-06 roadmap row 166 remains 🔄 / feature_status=partial; workspace and environment profile JSON now pass through `parse_bounded_json` before typed conversion, rejecting duplicate object keys; no DaemonHost project route, manifest/lockfile or automatic commit/push/merge/rebase
+command_argv: RED duplicate selector `cargo test -p kiana-provider --test ci06_config_resolver config_resolver_rejects_duplicate --locked --offline -- --test-threads=1`; GREEN provider full target, daemon source guard, Core source guard; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental profile; provider GREEN max RSS 423888 KiB (~414.0 MiB), daemon guard 130136 KiB, Core guard 130112 KiB; CPU 59%/54%/67%; all completed runs reported 0 swaps; logs/resources `/tmp/kiana-roadmap-20261007-ci06/{red2,provider,daemon2,core}.{log,resources}`
+fixture·cassette: RED two duplicate-key fixtures failed because serde_json/BTreeMap silently kept the last profile; GREEN provider 11/11, daemon guard 1/1, Core guard 1/1; duplicate workspace returns `config_workspace_invalid`, duplicate env profiles return `model_profile_config_invalid`, and existing trust/schema/precedence/reload fixtures remain green
+exit_code: RED 101 expected; GREEN provider/daemon/Core/format/diff 0; one initial source-guard mismatch after the intentional parser change exited 101 and was corrected before the final green run
+status_change: selected CI-06 resolver/duplicate-key behavior promoted source → local_behavior; whole card remains partial/source at the roadmap level
+proof-level_change: duplicate-key fail-closed behavior and parser-boundary guards source → local_behavior; no durable/live/physical promotion
+limitations: DaemonHost still builds `ProviderGateway::from_env`; project-scoped config path, authoritative trust revision/reload wiring, durable cross-process snapshots/generation, migration/upcaster registry, redirect loopback fixture and cancellation after remote send remain open; full workspace remains non-green/resource-intensive
+reviewer: root integration agent with CI-06/SC-07 read-only audit; no human release reviewer
+```
+
+### Roadmap queue snapshot after CP-13/CO-03 fixture closure（2026-10-05）
+
+```text
+source_snapshot: current dirty worktree after CO-03 guard correction and CP-13 Harness parity fixture correction
+worktree_status: no automatic commit/push/merge/rebase; all unrelated implementation and documentation changes preserved
+command_argv: `python3 -B scripts/roadmap-goal.py --json > /tmp/kiana-roadmap-20261005-evidence/roadmap-snapshot-final.json`
+cwd·environment: repository root Linux/bash; derived roadmap inventory only; no external side effect
+fixture·cassette: roadmap dependency-cycle and readiness inventory
+exit_code: 0; total=749, ready_count=51, execution_ready_count=21, completed_with_open_dependencies_count=85, counts=`{"✅":356,"🔄":393}`
+status_change: queue snapshot refreshed; no roadmap card promoted by these focused receipts
+proof-level_change: none; whole-card proof ceilings remain unchanged
+limitations: 393 roadmap rows remain `🔄`; execution-ready cards still require their open runtime, durability, CI, integration or platform exit conditions; full workspace test remains non-green/resource-intensive
+reviewer: integration agent; roadmap inventory review
+```
+
+### UI-04 authority digest lexical fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/ui_actions.rs; kiana-core/tests/ui04_action_authority.rs; kiana-core/tests/ui04_action_journal_guard.rs; kiana-domain/tests/ui04_action_journal.rs; docs/roadmap/ui04-action-cas-baseline.md
+worktree_status: UI-04 roadmap row 420 remains 🔄 / feature_status=partial; `UiActionAuthoritySnapshot` now applies strict `sha256:` plus 64 hexadecimal character validation to scope and permit digests before admission; no command schema, manifest or lockfile change
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-core --test ui04_action_authority authority_rejects_non_hex_permit_digest_before_admission --locked --offline -- --exact --test-threads=1`; GREEN same env `cargo test -p kiana-core --test ui04_action_authority --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test ui04_action_journal_guard --locked --offline -- --test-threads=1`; domain regression `cargo test -p kiana-domain --test ui04_action_journal --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; one Cargo/test worker and one test thread, 32 MiB stack, stripped/non-incremental test profile, offline locked dependencies; RED max RSS 318568 KiB / CPU 26%; GREEN Core authority max RSS 1193608 KiB / CPU 84%; Core guard max RSS 132264 KiB / CPU 28%; domain max RSS 4020116 KiB / CPU 84%; all observed swap counters 0
+fixture·cassette: `authority_rejects_non_hex_permit_digest_before_admission` mutates a valid permit to `sha256:` plus 64 `g` characters; old validator returned `Ok(())` (RED exit 101), strict validator returns `ui_action_permit_digest_invalid`; Core source guard requires `valid_digest` and `is_ascii_hexdigit`; domain UI-04 journal remains 4/4
+exit_code: RED 101 expected; final authority, Core guard and domain commands 0
+status_change: selected authority lexical deny behavior promoted source → local_behavior; whole UI-04 row/card remains 🔄 / partial
+proof-level_change: focused validator fixture and source guard now have local_behavior evidence; no durable/live/physical promotion
+limitations: permit digest remains unbound to `UiActionCommand`/journal digest; `query_original_ui_action` still lacks owner/scope arguments and must remain internal until authorized; no Core/EventStore response-loss restart, cross-process CAS, external effect receipt or human identity proof
+reviewer: root integration agent with UI-04 read-only audit; no human release reviewer
+```
+
+### PD-01 existing non-directory storage-root fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/storage.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs; docs/roadmap/persistence-storage-root-baseline.md; docs/roadmap.md
+worktree_status: PD-01 resolver now rejects an existing regular-file KIANA_HOME/storage root before backend detection with storage_root_not_directory; no KIANA_HOME=/ architecture change, manifest/lockfile change, second execution path, or automatic commit/push/merge/rebase
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test pd01_storage daemon_storage_resolver_rejects_existing_non_directory_root --locked --offline -- --exact --test-threads=1`; GREEN daemon `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-daemon --test pd01_storage --locked --offline -- --test-threads=1`; domain and Core guard used the same bounded serial environment
+cwd·environment: repository root Linux/bash; one Cargo build job/test thread, 32 MiB stack, stripped/non-incremental profile; RED exit 101 / 16.68s / 83% CPU / max RSS 951396 KiB / 0 swaps; daemon GREEN 12/12 / 10.38s / 88% CPU / max RSS 952500 KiB / 0 swaps; domain GREEN 4/4 / 1.87s / 38% CPU / max RSS 251460 KiB / 0 swaps; Core guard GREEN 1/1 / 0.57s / 60% CPU / max RSS 138608 KiB / 0 swaps
+fixture·cassette: `daemon_storage_resolver_rejects_existing_non_directory_root` writes a regular file as KIANA_HOME and expects `PortError::Failed("storage_root_not_directory")`; daemon full target 12/12, domain target 4/4, Core source guard 1/1
+exit_code: RED 101 expected; daemon/domain/Core focused GREEN 0; final format/diff validation is recorded separately by the integration agent
+status_change: selected resolver type boundary promoted source → local_behavior; whole PD-01 remains `feature_status=partial`, `proof_level=source`, roadmap row 108 `🔄`
+proof-level_change: local_behavior for existing non-directory denial only; no durable/live/physical promotion
+limitations: missing-root creation, symlink/race handling, shared CLI/Web/Workbench root routing, restart identity, stale/crash/power-loss recovery, directory fsync, cross-process fencing, network filesystem matrix and legacy adapter migration remain open; this slice does not address KIANA_HOME=/
+reviewer: root integration agent with PD-01 read-only audit; focused local storage reviewer
+```
+
+### SC-07 nil assignment identity deny receipt（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/assignment.rs; kiana-domain/tests/co03_assignment.rs; kiana-core/tests/sc07_authority_snapshot.rs; kiana-core/tests/sc07_authority_guard.rs
+worktree_status: RoleAssignment, ProjectAssignment and ResolvedAssignment now reject nil typed identity fields after header checks; digest-correct forgeries are covered at domain and authority-snapshot boundaries; SC-07 row 118 remains 🔄 / feature_status=partial
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test co03_assignment assignment_contracts_reject_nil_typed_identity_with_recomputed_digests --locked --offline -- --exact --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test co03_assignment --test sc07_trust_snapshots --locked --offline -- --test-threads=1`; GREEN Core `cargo test -p kiana-core --test sc07_authority_snapshot --test sc07_authority_guard --test co03_assignment --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo build job/test thread, 32 MiB test stack, stripped/non-incremental test profile, locked offline dependencies; RED max RSS 4055948 KiB / CPU 88%; domain GREEN max RSS 3944396 KiB / CPU 85%; Core GREEN max RSS 330588 KiB / CPU 81%; observed swap counters 0
+fixture·cassette: RED received `Ok(())` for digest-recomputed nil identity and failed as expected; domain GREEN `co03_assignment` 7/7 plus `sc07_trust_snapshots` 3/3; Core GREEN `co03_assignment` 1/1, `sc07_authority_guard` 1/1, `sc07_authority_snapshot` 3/3; nil IDs covered across role, project and resolved assignments, including authority snapshot validation
+exit_code: RED 101 expected; all GREEN, format and diff checks 0
+status_change: selected assignment identity denial recorded as `local_behavior`; SC-07 remains `feature_status=partial`, `proof_level=source`, roadmap row 118 🔄
+proof-level_change: digest-correct nil-identity denial source → local_behavior for the focused fixtures; no durable/live/physical promotion
+limitations: DaemonHost::handle still does not consume AssignmentDirectory/context_from_assignment; server OrganizationId/provisioning, default unassigned and multi-role semantics, durable CAS/revoke/refresh, cross-process recovery and external/live/physical auth proof remain open; no full workspace regression or remote CI run was performed
+reviewer: root integration agent with read-only SC-07 assignment audit; focused local domain/Core reviewer
+```
+
+### P0-A-01a ID owner metadata fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/contracts.rs; P0-A-01a ID_CONTRACTS and source scan for ids.rs/correlation.rs
+worktree_status: every ID owner is now required to equal the package defining the scanned ID declarations; registry values and wire representation remain unchanged; roadmap row 001 remains 🔄
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --lib contracts::tests::every_public_type_has_one_owner_and_a_conversion_test --locked --offline -- --exact --test-threads=1`; GREEN `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --lib contracts::tests --locked --offline -- --test-threads=1`; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo build job/test thread, 32 MiB test stack, stripped/non-incremental test profile, locked offline dependencies; RED max RSS 3577792 KiB / CPU 89%; GREEN max RSS 3581472 KiB / CPU 94%; both commands reported 0 swaps
+fixture·cassette: RED 0/1 passed after temporarily setting `RequestId.owner_crate="kiana-protocol"`, a valid workspace member; GREEN `contracts::tests` 105/105 after restoring `env!("CARGO_PKG_NAME")`
+exit_code: RED 101 expected; GREEN and static checks 0
+status_change: selected owner metadata test behavior recorded as `local_behavior`; P0-A-01a remains 🔄 because full workspace regression and remote CI remain open
+proof-level_change: exact ID owner matching source → local_behavior for the focused test group; no durable/live/physical promotion
+limitations: owner is checked against the current package and scanned declarations, not inferred via Rust reflection; full workspace regression, current-head remote CI and downstream P0-A-01a acceptance remain open
+reviewer: root integration agent with read-only P0-A-01a frontier audit
+```
+
+### P1-E-02 initiating symposium chair correction（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/roles.rs; kiana-domain/src/tests.rs; docs/roadmap/p1-e02-symposium-baseline.md
+worktree_status: initiating DepartmentSpec now selects Sponsor as convene chair when the role is configured and authorized; other departments retain configured-role selection; P1-E-02 remains implemented/source
+command_argv: RED `/usr/bin/time -v env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --lib tests::each_department_can_convene_without_a_joint_meeting --locked --offline -- --exact --test-threads=1`; GREEN same selector after the roles.rs correction; full bounded domain regression `/usr/bin/time -v -o /tmp/kiana-domain-full-20261008.resources env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --locked --offline --no-fail-fast -- --test-threads=1`; final format/diff/roadmap checks
+cwd·environment: repository root Linux/bash; one Cargo build job/test thread, 32 MiB test stack, stripped/non-incremental test profile, locked offline dependencies; focused RED max RSS 83440 KiB / CPU 33%; focused GREEN max RSS 3580032 KiB / CPU 95%; full domain run max RSS 4078164 KiB / CPU 108%, process monitor reported zero swap
+fixture·cassette: focused RED observed left chair `analyst`, expected `sponsor`; GREEN selected regression 1/1; full domain library tests 136/136 passed but 36 integration targets failed on fixture/API/error-order mismatches; log `/tmp/kiana-domain-full-20261008.log`, resources `/tmp/kiana-domain-full-20261008.resources`
+exit_code: focused RED 101 expected; focused GREEN 0; full domain regression 101; static checks are recorded after this evidence update
+status_change: selected initiating-chair behavior is corrected; roadmap row 182 remains `✅`, feature_status `implemented`, proof_level `source`
+proof-level_change: no whole-card proof increase; selected regression is local behavior evidence only
+limitations: full domain regression is not green and failures were not all root-caused; this receipt does not establish durable/cross-process chair projection, P4-E-03 department RAG admission, external human decisions, or live/physical proof
+reviewer: root integration agent; focused regression reviewed against the existing Sponsor go/no-go contract
+```
+
+### ER-09 capability attempt event identity fence（2026-10-08）
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/capability_attempt_projection.rs; kiana-core/tests/er09_invocation_projection.rs; docs/roadmap/event-receipt-invocation-baseline.md
+worktree_status: capability-attempt projection now compares duplicate EventId events structurally; exact replay remains idempotent, while envelope/payload drift returns capability_attempt_event_identity_conflict; ER-09 row 148 remains ✅ / implemented / source
+command_argv: RED `/usr/bin/time -v -o /tmp/er02-event-identity-drift-red.resources env CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-core --test er09_invocation_projection capability_attempt_projection_rejects_event_id_content_drift_but_allows_exact_replay --locked --offline -- --exact --test-threads=1`; GREEN same selector; regression `cargo test -p kiana-core --test er09_invocation_projection --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, 32 MiB stack, stripped/non-incremental test profile, locked offline dependencies; RED exit 101 / max RSS 4053264 KiB / 85% CPU; focused GREEN exit 0 / max RSS 1198548 KiB / 93% CPU; ER-09 regression exit 0 / 85748 KiB / 59% CPU; all measured runs reported zero swaps
+fixture·cassette: new fixture mutates `operation` under a cloned EventId and expects the stable identity conflict; exact duplicated event projects once; focused GREEN 1/1 and ER-09 regression 8/8
+exit_code: RED 101 expected because the old HashSet silently accepted drift; focused and full ER-09 GREEN 0; static checks 0
+status_change: selected event-identity replay behavior is promoted source → local_behavior; ER-09 whole card remains `implemented` / `source`, and no ER-02 roadmap status is inferred from this projection slice
+proof-level_change: local_behavior for in-memory capability-attempt projection only; no durable/live/physical promotion
+limitations: EventStore duplicate enforcement remains the durable boundary; projector checkpoints, restart/cross-process recovery, terminal reconciliation, external effect receipts and live/physical proof remain open
+reviewer: root integration agent with read-only ER-02/ER-09 projection audit; focused Core projection reviewer
 ```

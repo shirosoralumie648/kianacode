@@ -1,6 +1,6 @@
 # P1-C-01 organization and Cell contract baseline
 
-> 快照日期：2026-09-16。本页记录 AgentTemplate、CellSpec、SpawnPlan、BudgetLease、CapabilityGrant、SupervisionLease 六类合同及子授权收窄规则；本地不运行测试，运行时/guard 夹具只由 GitHub Actions 执行。
+> 原始快照日期：2026-09-16。本页记录 AgentTemplate、CellSpec、SpawnPlan、BudgetLease、CapabilityGrant、SupervisionLease 六类合同及子授权收窄规则。历史本地测试限制已被 2026-10-06 用户要求完整测试的指示取代；current-head 聚焦回执见 `CURRENT_STATUS.md`。
 
 ## 1. 目标与证明上限
 
@@ -30,6 +30,12 @@
 | `cell_admission_consumes_versioned_contracts_and_intersects_child_scope` | core 注册表解析模板版本，重复校验合同，并在 child admission 检查 parent grant containment、delegation、budget、supervision |
 
 `.github/workflows/p1-c01-contract.yml` 在 GitHub runner 执行 domain fixtures、core source guard、fmt 和 domain/core test-target 编译；本地只做格式、静态编译和 diff 检查。
+
+The current-head domain target `cargo test -p kiana-domain --test p1_c01_contract --locked
+--offline -- --test-threads=1` passed 2/2 after correcting the parent fixture to disallow delegation
+before asserting that a child cannot enable it. The previous fixture had a delegable parent, so
+the child change did not widen permission. No production permission behavior changed; the result
+is recorded as selected local behavior only.
 
 ## 4. 限制与交接
 

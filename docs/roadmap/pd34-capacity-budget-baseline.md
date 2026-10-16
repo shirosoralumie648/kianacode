@@ -81,7 +81,7 @@ The decision order in `derive` is fixed, so the reported reason is the first vio
 |---|---|
 | **an unbounded frame / batch / queue** | every budget's bound is read from the `CapacityEnvelope` for its subject (`capacity_budget_envelope_field_mismatch`, `capacity_budget_envelope_bound_mismatch`), and a zero bound is named (`capacity_subject_not_bounded`). `CapacityEnvelope::validate` refuses a zero field first, so a validating envelope cannot leave a subject unbounded |
 | **a long reader blocking the writer** | `CapacityRefusalObservation::reader_held_writer` is its own decision (`capacity_reader_blocked_writer`), checked after the maintenance share and before the receipt rule |
-| **maintenance squeezing out user commands** | the share is basis points bounded by `MAX_MAINTENANCE_SHARE_BPS`, and exceeding any budget's share is named on that budget's subject (`capacity_maintenance_budget_exceeded`, remediation: defer maintenance) |
+| **maintenance squeezing out user commands** | the share is basis points bounded by `MAX_MAINTENANCE_SHARE_BPS`, and exceeding the `BackupPrune` maintenance budget is named on `backup_prune` (`capacity_maintenance_budget_exceeded`, remediation: defer maintenance) |
 | **backpressure that is not fact-preserving** | every `CapacityBackpressure` strategy declares `preserves_accepted_facts`; an observation that lost a committed fact is refused at construction and by the report (`capacity_backpressure_dropped_facts`) |
 | a refusal an operator cannot act on | a rejection with no stable code is refused (`capacity_refusal_observation_invalid`), and a rejection filed under a PD-30 reconciling class is refused for the same reason — capacity and corruption are not the same thing |
 | a second number for one subject | one declared budget per subject (`capacity_budget_duplicate`) |
@@ -139,10 +139,10 @@ the affected targets and `rustfmt` on the files this slice touched.
 - **The maintenance share is a declared policy, not an observation.** 2500 bps for backup/prune is
   a number somebody chose. Whether user admission stays observable above it is PD-29/PD-33
   territory and was not checked.
-- **The report's envelope is reconstructed from its budgets.** `StorageDegradationReport::evaluate`
-  builds `capacity` from the declared bounds so a report and its budgets cannot disagree. That is a
-  consistency guarantee, not a second source of truth; DEP-17's envelope remains authoritative and
-  is not written by this slice.
+- **The report's envelope starts from the canonical DEP-17 defaults and overlays declared budgets.**
+  `StorageDegradationReport::evaluate` preserves bounds for subjects that are not present in a
+  partial report, while a supplied positive budget still binds its subject-specific fields. This
+  keeps partial deny-first reports diagnosable without inventing a second capacity source.
 - **`StorageDegradationReport` is `PartialEq`, not `Eq`.** `CapacityEnvelope` and `BenchmarkSummary`
   are not `Eq`, and adding a second capacity model to make this `Eq` would be the drift the card
   rejects. The reason is recorded in the struct's doc comment.
@@ -154,3 +154,24 @@ the affected targets and `rustfmt` on the files this slice touched.
   `CapacityEnvelope` value, not from a probe of the mount the tests happened to execute on. The
   PD-32 matrix is what records how the same subjects behave on Linux/ext4, Linux/tmpfs, a network
   filesystem, Windows and macOS; this slice reads the envelope only and is silent on all of them.
+
+## 2026-10-13 maintenance-owner predicate regression
+
+`derive` previously compared `maintenance_share_bps` with every declared budget. The non-maintenance
+subjects deliberately carry a zero maintenance allowance, so a normal 1000 bps share was reported
+against `EventFrame` before the `BackupPrune` policy could be evaluated. The predicate now limits
+this decision to the `BackupPrune` budget; the capacity-envelope reconstruction and other PD-34
+validation failures remain separate follow-up defects.
+
+```text
+source_snapshot: current dirty worktree; kiana-ports/src/storage_capacity_budget.rs; kiana-ports/tests/pd34_storage_capacity_budget.rs
+worktree_status: PD-34 remains 🔄 / feature_status=partial / proof_level=source; selected maintenance-owner behavior is local_behavior
+command_argv: RED exact `every_subject_has_a_declared_bound_a_measurement_method_and_a_backpressure`; GREEN `cargo test -p kiana-ports --test pd34_storage_capacity_budget maintenance_ --locked --offline -- --test-threads=1`
+cwd·environment: repository root; one Cargo job/test thread, 32 MiB stack, stripped/non-incremental profile, locked/offline dependencies
+fixture·cassette: five declared subjects with non-maintenance max share 0 and `BackupPrune` max share 2500; RED reported `EventFrame` at 1000 bps; focused GREEN maintenance selectors 2/2
+exit_code: RED 101 / max RSS 4107788 KiB / CPU 92% / swap 0; initial full-target attempt 101 with four separate failures; focused GREEN 0 / max RSS 83856 KiB / CPU 64% / swap 0; follow-up port target 16/16, persistence guard 1/1 and matrix Core guard 3/3
+status_change: maintenance comparison is now owned by `BackupPrune`; whole PD-34 remains partial/source
+proof-level_change: selected in-memory report decision only; no durable/live/physical capacity promotion
+limitations: no pressure, throughput, latency, backup or prune workload ran; durable, cross-process and platform resource proof remain open
+reviewer: root integration agent with read-only PD-34 failure triage; no storage-performance reviewer
+```

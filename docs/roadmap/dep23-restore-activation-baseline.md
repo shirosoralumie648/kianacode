@@ -3,8 +3,9 @@
 > Snapshot date: 2026-09-28. This slice consumes DEP-22's "eligible for activation" and decides
 > whether a quarantined root may actually be served: it mints a new lease and a new fence token,
 > leaves the replaced root in place read-only, and keeps new commands out until readiness is
-> established. Local Cargo test/build/check/clippy/smoke commands are intentionally not run;
-> GitHub Actions owns fixtures and affected-target checks.
+> established. The local-test restriction recorded for the 2026-09-28 snapshot session was
+> superseded by the user's current authorization for bounded local roadmap tests; see the current
+> receipt below. GitHub Actions remains the workspace acceptance gate.
 
 ## Scope and proof ceiling
 
@@ -100,6 +101,21 @@ deliberate counterpart: the replaced root stays readable, bounded to roots this 
 ## CI and limitations
 
 GitHub Actions runs the unified `.github/workflows/ci.yml` workspace gate. No separate workflow.
+
+### Current-head local receipt (2026-10-06)
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/restore_activation.rs and dep23_restore_activation integration fixtures
+worktree_status: DEP-23 remains roadmap row 692 🔄; forged Activated state no longer exposes a writable root unless readiness and record validation pass
+command_argv: `cargo fmt --all --check`; `git diff --check`; `cargo test -p kiana-core --test dep23_restore_activation --locked --offline -- --test-threads=1`
+cwd·environment: repository root Linux/bash; Cargo used `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0`; test 15.84s, max RSS 1196104 KiB (~1.14 GiB), 0 swaps; `/tmp/kiana-roadmap-20261006-dep23-green.{log,resources}`
+fixture·cassette: 20/20 activation fixtures; readiness, explicit activation, new lease/fence, old-root read-only retention, superseded root, stale epoch and forged activation record refusal
+exit_code: all commands 0
+status_change: none; selected readiness/writable-root behavior has local evidence; whole-card feature remains partial and proof ceiling remains source
+proof-level_change: selected DEP-23 behavior source → local_behavior; no durable/live/physical promotion
+limitations: no real storage adapter, persisted lease, cross-process fencing, OS read-only enforcement, effect-boundary revalidation, or restore/backup rehearsal; DEP-24 remains open
+reviewer: root integration agent; focused DEP-23 test review
+```
 
 This is a source contract over adapter-reported facts. It **does not** take an OS lock, copy or
 delete a file, mark a filesystem read-only, revoke a token inside a live instance, append an event,

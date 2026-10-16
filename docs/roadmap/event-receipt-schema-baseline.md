@@ -1,7 +1,8 @@
 # ER-01 event schema, kind registry, and migration baseline
 
 > 快照日期：2026-10-03。本文记录 ER-01 的 machine-readable event kind/version/migration source
-> boundary；RuntimeEvent 旧 envelope 继续兼容读取，运行时 fixtures 只在 GitHub CI 执行，本地不运行测试。
+> boundary；current-head local closure is recorded in §6 below. RuntimeEvent 旧 envelope 继续兼容读取，
+> historical CI-only receipts remain historical context.
 
 ## 1. 目标与证明上限
 
@@ -9,8 +10,8 @@
 |---|---|
 | roadmap card | [`ER-01`](event-receipt-recovery.md#step-er-01) |
 | source snapshot | initial baseline `b597dfe`（CP-06 atomic transition contract 后的干净基线）；后续 source slice 按本页各证据节分别绑定 |
-| feature_status | `partial`（registry/validator/unknown policy/migration source; result-field target passed on earlier snapshots; direct `capability.blocked` contract and producer guard are source-only pending fresh CI） |
-| proof_level | `source`；静态编译不能提升为 local_behavior/durable/live/physical |
+| feature_status | `implemented` for current registry/validator/producer/EventLog behavior; legacy coverage remains bounded |
+| proof_level | `local_behavior` for current-head focused/full local regression; no durable/live/physical promotion |
 | canonical path | RuntimeEvent envelope → EventKindSpec/version/payload interpretation → EventLog/projector/Receipt |
 | this step does | 固定 owner、aggregate、required IDs、terminal/secret policy、allowed fields、schema version 和 legacy migration；unknown opaque event 只读保留，required family unknown fail-closed |
 | this step does not | 不修改旧 RuntimeEvent serde 形状，不把 unknown event 当执行权，不凭 registry 存在宣称所有 legacy payload 已迁移或 durable reader 已完成 |
@@ -29,6 +30,21 @@
 | Current CI wiring | `.github/workflows/ci.yml`, `scripts/ci/test-shards.json` | current workflow matrix runs `er01_event_contract` in `kiana-domain-s2/4` and `er01_event_contract_guard` in `kiana-core-s1/6` |
 
 hash 仅固定本步 source snapshot 的解释层边界；不代表 legacy 全量迁移或事件事实已被重写。
+
+## Current-head local closure receipt (2026-10-05)
+
+```text
+source_snapshot: current dirty worktree after event-contract producer-shape corrections
+worktree_status: ER-01 roadmap row 036 promoted to ✅; historical CI sections preserved; no automatic commit/push/merge/rebase
+command_argv: `/usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/er01-eventlog.resources bash -lc 'CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-eventlog --tests --locked --offline -- --test-threads=1'`; focused domain/Core/producer command in `/tmp/kiana-roadmap-20261005-evidence/er01-focused.log`
+cwd·environment: repository root Linux/bash; serial Cargo/test threads; EventLog 11.70s user, 4.53s system, 428300 KiB max RSS, 0 swaps; focused producer 2.26s user, 0.98s system, 329360 KiB max RSS, 0 swaps
+fixture·cassette: domain 46/46; real producer selectors 4/4; EventLog 32 targets / 174 tests; shared EventStore validator and atomic transition coverage
+exit_code: 0 for local commands
+status_change: ER-01 promoted from 🔄 to ✅ in `docs/roadmap.md`
+proof-level_change: current registry/validator/producer/EventLog behavior `source` → `local_behavior`
+limitations: migration/upcast remains bounded to the current identity family; no claim that all historical 177+ literals/projector terminal paths are covered; no dedicated dual-shape `run.rejected` adapter replay fixture; no durable/live/physical proof; remote CI was not awaited
+reviewer: integration agent with read-only ER-01 audit; focused EventLog/producer reviewer
+```
 
 ## 2. Registry contract
 

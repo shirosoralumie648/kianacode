@@ -231,6 +231,26 @@ limitations: automatic FormatRepair/ToolRepair/ContextRepair execution, H06 stre
 reviewer: provider parser/error boundary and source guard reviewed; no local runtime reviewer
 ```
 
+## 4.10 `run.model_turn` nested ModelOutcome validation (2026-10-08)
+
+The event contract now keeps legacy `run.model_turn` payloads without `outcome` compatible, while
+strictly decoding and validating an optional nested `ModelOutcome` when present. Malformed schema,
+empty phase, impossible unknown side-effect state, and transport-retry phase mismatches all fail
+closed with `event_model_outcome_invalid` before an event can be projected.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/event_contracts.rs; kiana-domain/tests/h05_model_outcome.rs; kiana-core/tests/er01_event_contract_guard.rs
+worktree_status: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; no new execution loop, wire schema, manifest or lockfile
+command_argv: RED `cargo test -p kiana-domain --test h05_model_outcome model_turn_event_contract_rejects_invalid_nested_outcome --locked --offline -- --exact --test-threads=1`; GREEN `cargo test -p kiana-domain --test h05_model_outcome --locked --offline -- --test-threads=1`; compatibility `cargo test -p kiana-domain --test er01_event_contract --locked --offline -- --test-threads=1`; Core guard `cargo test -p kiana-core --test er01_event_contract_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental profile; RED max RSS 257252 KiB / 99% CPU; domain GREEN max RSS 3893684 KiB / 87% CPU; compatibility max RSS 288928 KiB / 35% CPU; Core guard max RSS 4020880 KiB / 90% CPU; all completed runs reported 0 swaps
+fixture·cassette: RED accepted malformed nested outcome; GREEN H05 domain 13/13 covers empty phase, unknown side-effect without request, retry disposition/phase mismatch, typed valid outcome and legacy outcome compatibility; event-contract regression 46/46; Core source guard 1/1 locks ModelOutcome decode/validate and stable error marker
+exit_code: RED 101 expected; domain/compatibility/Core/fmt/diff/roadmap 0
+status_change: selected nested event validation moves source → local_behavior; whole H05 remains partial/source
+proof-level_change: local event-contract denial and compatibility only; no durable/live/physical promotion
+limitations: no automatic repair loop, full shard/live provider, CLI/wire projection, durable event recovery, billing/external effect or physical proof; `outcome` remains optional for legacy payloads
+reviewer: root integration agent with H05 read-only audit; focused event-contract reviewer
+```
+
 ## 5. 限制与交接
 
 - 当前错误分类和 stop gate 是本地领域/adapter合同；H06 负责流式分片一致性、H07 预算贯通、H08 静默 I/O 取消。
@@ -239,3 +259,102 @@ reviewer: provider parser/error boundary and source guard reviewed; no local run
 - `side_effect_state=unknown` 只表示模型请求/传输边界不确定，不替代 capability attempt 的 effect/stop projection。
 - Provider-specific stop detail 和 response IDs 仍只作受限诊断，不能跨 route/model 复用；live provider、账单、外部业务 Outcome 和 physical effect 未证明。
 - CI 结果故意不等待；本地不运行测试，proof level 保持 `source`。
+
+## 4.9 Current-head focused local receipt (2026-10-05)
+
+The current dirty worktree was checked with serial, memory-bounded local selectors. Domain
+stop/outcome contracts passed 12/12, Runner fail-closed stop/recovery fixtures passed 4/4, and
+the complete `kiana-provider` library test target passed 77/77. These results raise the focused
+selectors to `local_behavior`; the H05 card remains `partial/source` because the automatic repair
+loop, full shard, stream/budget integration, live provider behavior, and structured CLI/wire error
+mapping are still absent. The provider run used the full library target, so it is stronger than a
+single filtered selector while still remaining a local contract test.
+
+```text
+source_snapshot: current dirty worktree after ER-02 fixture corrections; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider/src/{response.rs,request.rs}
+worktree_status: H05 remains roadmap row 047 `🔄`; no production execution loop, manifest, lockfile, automatic repair loop or CLI/wire DTO mapping was added
+command_argv: `CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-domain --test h05_model_outcome --locked --offline -- --test-threads=1`; same bounded environment with `cargo test -p kiana-runner --test h05_stop_guard --locked --offline -- --test-threads=1`; `/usr/bin/time -v -o /tmp/kiana-roadmap-20261005-evidence/h05-provider.resources bash -lc 'CARGO_BUILD_JOBS=1 RUST_TEST_THREADS=1 RUST_MIN_STACK=33554432 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_STRIP=symbols CARGO_INCREMENTAL=0 cargo test -p kiana-provider --lib --locked --offline -- --test-threads=1'`
+cwd·environment: repository root Linux/bash; serial Cargo and test threads; 32 MiB test-thread stack; stripped, non-incremental tests; domain/runner combined receipt max RSS 416360 KiB (~406.6 MiB), provider max RSS 472072 KiB (~461.0 MiB), swaps 0
+fixture·cassette: H05 domain 12/12; Runner stop/recovery 4/4; provider library 77/77, including incomplete status/stream, refusal/length, typed FormatRepair/ToolRepair/ContextRepair and response-evidence boundaries
+exit_code: all successful local selectors exited 0; provider elapsed 3.64s, user 2.27s, system 0.41s; prior combined log `/tmp/kiana-roadmap-20261005-evidence/h05-focused.log` contains the domain/runner passes
+status_change: focused H05 selectors recorded as `local_behavior`; roadmap row 047 and whole card remain `🔄` / `feature_status=partial` / `proof_level=source`
+proof-level_change: focused contract behavior `source` → `local_behavior`; no whole-card promotion
+limitations: no automatic/budgeted repair loop, no typed ModelError/ModelOutcome CLI/wire projection beyond bounded `run.model_turn` metadata, no full unified shard, H06/H07 integration, provider live/billing/external effect or physical proof
+reviewer: integration agent; focused domain/Runner/provider local test reviewer
+```
+
+## 4.11 HTTP/SSE MCP discover transport fence (2026-10-08)
+
+The trusted MCP registry now rejects HTTP and SSE transports immediately after server selection,
+including operator-only `mcp.discover`. This keeps the product boundary stdio-only and prevents
+discovery from entering the legacy HTTP client path without cancellation/deadline propagation.
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/harness_mcp.rs; kiana-runner/tests/h08_cancellation_guard.rs
+worktree_status: H08 row 147 remains 🔄 / feature_status=partial / proof_level=source; HTTP/SSE discover is denied before connect; no network client or second execution path added
+command_argv: daemon unit `cargo test -p kiana-daemon --lib harness_mcp::tests::http_and_sse_transports_are_rejected_before_connect --locked --offline -- --exact --test-threads=1`; Runner guard `cargo test -p kiana-runner --test h08_cancellation_guard --locked --offline -- --test-threads=1`; final `cargo fmt --all --check`; `git diff --check`; roadmap `python3 -B scripts/tests/test_roadmap_goal.py`
+cwd·environment: repository root Linux/bash; one Cargo job/test thread, `RUST_MIN_STACK=33554432`, stripped/non-incremental profile; daemon max RSS 90868 KiB / 28% CPU; Runner guard max RSS 83060 KiB / 25% CPU; all measured runs reported 0 swaps
+fixture·cassette: HTTP and SSE configs return `mcp_transport_unsupported` before connect; daemon unit 1/1 and Runner guard 1/1
+exit_code: daemon/Runner/fmt/diff/roadmap 0
+status_change: selected H08 HTTP/SSE discover escape moves source → local_behavior; whole card remains feature_status=partial, proof_level=source
+proof-level_change: transport denial source → local_behavior; no durable/live/physical promotion
+limitations: HTTP/SSE cancellation is not implemented because transports remain unsupported; stdio cancellation/live daemon shell, cross-process and physical proof remain open
+reviewer: root integration agent with H08 read-only cancellation audit; focused transport-boundary reviewer
+```
+
+## 4.12 Post-send unknown effect cannot claim retry (2026-10-08)
+
+`ModelOutcome::validate()` now rejects the contradictory tuple
+`recovery_disposition=transport_retry`, `phase=transport`, `retry_class=rejected`,
+`request_sent=true`, and `side_effect_state=unknown`. A response lost after a sent request has
+uncertain effect and therefore cannot be persisted as an automatically retryable outcome. The
+existing 429 round-trip fixture now supplies explicit `side_effect_state=none` to represent the
+separate known-no-effect case.
+
+The focused RED accepted the unknown post-send retry (exit 101, max RSS 4,034,672 KiB, 86% CPU,
+no swap). GREEN passed the complete domain `h05_model_outcome` target 14/14 (max RSS 4,043,564
+KiB, 85% CPU), Core event-contract guard 1/1 (4,078,880 KiB, 90% CPU), and Runner `h05_stop_guard`
+4/4 (4,046,516 KiB, 86% CPU); every run used one Cargo/test worker and recorded zero swaps.
+H05 remains `partial/source`; automatic repair, full provider/shard/live behavior, durable replay,
+and external/physical proof remain open.
+
+## 4.13 First empty turn is bounded feedback (2026-10-08)
+
+`ProgressTracker::observe` now treats a first observation with `empty_turn=true` as no progress,
+so the existing bounded ladder returns `FeedbackOnce` on the first empty turn and
+`RequestClarification` on the second. Non-empty first observations retain the original
+progressed behavior, and stop-hook/cycle limits are unchanged.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/progress_stall.rs; kiana-domain/tests/h28_progress.rs; kiana-core/tests/h28_progress_guard.rs
+worktree_status: H28 row 083 remains 🔄 / feature_status=partial / proof_level=source; first empty-turn progress default is fail-closed; no second runner loop or new authority
+command_argv: RED `cargo test -p kiana-domain --test h28_progress empty_turn_and_stop_hook_feedback_are_bounded --locked --offline -- --exact --nocapture --test-threads=1`; GREEN domain `cargo test -p kiana-domain --test h28_progress --locked --offline -- --test-threads=1 --nocapture`; Core guard `cargo test -p kiana-core --test h28_progress_guard --locked --offline -- --test-threads=1 --nocapture`
+cwd·environment: repository root Linux/bash; one Cargo worker/test thread, 32 MiB test stack, stripped/non-incremental test profile; RED 242224 KiB / 30% CPU; domain GREEN 3971932 KiB / 83% CPU; Core guard 4081956 KiB / 85% CPU; all runs reported 0 swaps
+fixture·cassette: RED first empty turn returned Continue; GREEN H28 domain 4/4 and Core guard 2/2 preserve FeedbackOnce → RequestClarification and bounded stop-hook behavior
+exit_code: RED 101 expected; GREEN domain/Core 0
+status_change: selected H28 first-empty-turn denial moves source → local_behavior; whole H28 remains partial/source
+proof-level_change: progress reducer boundary source → local_behavior; no durable/live/physical promotion
+limitations: automatic repair loop, provider/live behavior, durable replay and external/physical proof remain open
+reviewer: root integration agent with H28 progress audit; focused empty-turn reviewer
+```
+
+## 4.14 Current-head H05 stop/recovery/provider receipt (2026-10-13)
+
+The current source retains the failure-first H05 boundaries across the three local layers:
+typed model outcomes and legacy fail-closed conversion in Domain, no tool handoff or completion
+for length/incomplete/refusal/unknown outcomes in Runner, and provider response/stream parsing
+for typed FormatRepair/ToolRepair/ContextRepair and incomplete envelopes. No new error code or
+automatic repair loop was introduced.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/tests/h05_model_outcome.rs; kiana-runner/tests/h05_stop_guard.rs; kiana-provider/src/{response.rs,transport.rs}; docs/roadmap/harness-stop-retry-baseline.md
+worktree_status: H05 row 047 remains 🔄 / feature_status=partial / proof_level=source; selected domain/runner/provider behavior is local_behavior; no manifest/lockfile, automatic repair loop or CLI/wire error-code change
+command_argv: `cargo test -p kiana-domain --test h05_model_outcome --locked --offline -- --test-threads=1`; `cargo test -p kiana-runner --test h05_stop_guard --locked --offline -- --test-threads=1`; `cargo test -p kiana-provider --lib --locked --offline -- --test-threads=1`; all via the single-worker resource launcher; `cargo fmt --all --check`; `git diff --check`
+cwd·environment: repository root Linux/bash; one Cargo job and one Rust test thread; `RUST_MIN_STACK=33554432`; stripped/non-incremental locked/offline profile; no concurrent Cargo/rustc/rust-lld; all completed runs reported 0 swaps
+fixture·cassette: Domain H05 14/14; Runner H05 stop guard 4/4; provider library 78/78, including incomplete status/stream, refusal/length, typed FormatRepair/ToolRepair/ContextRepair, duplicate/tool argument and transport boundary cases
+exit_code: all three targets 0; fmt/diff 0; max RSS domain 4100544 KiB / 87% CPU, runner 4068044 KiB / 89% CPU, provider 4062672 KiB / 87% CPU
+status_change: selected H05 stop/recovery/provider boundaries are locally verified; roadmap row 047 stays 🔄 and the whole card remains partial/source
+proof-level_change: selected contract behavior source → local_behavior; no durable/live/physical promotion
+limitations: no typed model error projection through every CLI/wire surface, no automatic/budgeted repair loop, complete unified shard, H06/H07 integration, provider live/billing/external effect or physical proof is claimed
+reviewer: root integration agent with read-only H05 frontier audit; focused Domain/Runner/provider reviewer
+```

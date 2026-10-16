@@ -1,0 +1,3054 @@
+path	kind	phase2_status
+.claude/agents/browser/browser-agent.yaml	.yaml	本机忽略文件，暂不修改
+.claude/helpers/adr-compliance.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/auto-commit.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/auto-memory-hook.mjs	.mjs	本机忽略文件，暂不修改
+.claude/helpers/checkpoint-manager.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/daemon-manager.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/ddd-tracker.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/github-safe.js	.js	本机忽略文件，暂不修改
+.claude/helpers/github-setup.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/guidance-hook.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/guidance-hooks.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/health-monitor.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/hook-handler.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/intelligence.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/learning-hooks.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/learning-optimizer.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/learning-service.mjs	.mjs	本机忽略文件，暂不修改
+.claude/helpers/memory.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/memory.js	.js	本机忽略文件，暂不修改
+.claude/helpers/metrics-db.mjs	.mjs	本机忽略文件，暂不修改
+.claude/helpers/pattern-consolidator.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/perf-worker.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/quick-start.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/router.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/router.js	.js	本机忽略文件，暂不修改
+.claude/helpers/ruflo-hook.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/security-scanner.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/session.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/session.js	.js	本机忽略文件，暂不修改
+.claude/helpers/setup-mcp.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/standard-checkpoint-hooks.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/statusline-hook.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/statusline.cjs	.cjs	本机忽略文件，暂不修改
+.claude/helpers/statusline.js	.js	本机忽略文件，暂不修改
+.claude/helpers/swarm-comms.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/swarm-hooks.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/swarm-monitor.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/sync-v3-metrics.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/update-v3-progress.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/v3-quick-status.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/v3.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/validate-v3-config.sh	.sh	本机忽略文件，暂不修改
+.claude/helpers/worker-manager.sh	.sh	本机忽略文件，暂不修改
+.github/workflows/aut04-trigger.yml	.yml	待阅读与注释
+.github/workflows/aut07-workflow-queue-claim.yml	.yml	待阅读与注释
+.github/workflows/aut14-effect-reservation.yml	.yml	待阅读与注释
+.github/workflows/bq00-cost-capacity.yml	.yml	待阅读与注释
+.github/workflows/bq05-rate-card-store.yml	.yml	待阅读与注释
+.github/workflows/bq06-budget-intersection.yml	.yml	待阅读与注释
+.github/workflows/bq07-quota-window.yml	.yml	待阅读与注释
+.github/workflows/bq23-query.yml	.yml	待阅读与注释
+.github/workflows/cap02-input.yml	.yml	待阅读与注释
+.github/workflows/cap05-permit.yml	.yml	待阅读与注释
+.github/workflows/cap07-environment-backend.yml	.yml	待阅读与注释
+.github/workflows/cap11-ambient-authority.yml	.yml	待阅读与注释
+.github/workflows/cap15-patch-plan.yml	.yml	待阅读与注释
+.github/workflows/cap17-execution-set-cancel.yml	.yml	待阅读与注释
+.github/workflows/cap19-memory-scope-commit.yml	.yml	待阅读与注释
+.github/workflows/cap20-mcp-trust-discovery.yml	.yml	待阅读与注释
+.github/workflows/cap21-mcp-bounded-transport.yml	.yml	待阅读与注释
+.github/workflows/cap22-mcp-drift-isolation.yml	.yml	待阅读与注释
+.github/workflows/cap23-concurrency-scheduler.yml	.yml	待阅读与注释
+.github/workflows/cap24-invocation-recovery.yml	.yml	待阅读与注释
+.github/workflows/cap25-receipt-entrypoint.yml	.yml	待阅读与注释
+.github/workflows/cap31-macos-backend.yml	.yml	待阅读与注释
+.github/workflows/cap32-windows-backend.yml	.yml	待阅读与注释
+.github/workflows/ci.yml	.yml	待阅读与注释
+.github/workflows/ci03-ports.yml	.yml	待阅读与注释
+.github/workflows/ci06-config-resolver.yml	.yml	待阅读与注释
+.github/workflows/ci07-secret-store.yml	.yml	待阅读与注释
+.github/workflows/ci08-route-admission.yml	.yml	待阅读与注释
+.github/workflows/ci09-oauth-lifecycle.yml	.yml	待阅读与注释
+.github/workflows/ci12-product-gate.yml	.yml	待阅读与注释
+.github/workflows/cm02-memory-lifecycle.yml	.yml	待阅读与注释
+.github/workflows/cm06-source-dependencies.yml	.yml	待阅读与注释
+.github/workflows/cm36-memory-workbench.yml	.yml	待阅读与注释
+.github/workflows/cm37-memory-maintenance.yml	.yml	待阅读与注释
+.github/workflows/co06-artifact-evidence.yml	.yml	待阅读与注释
+.github/workflows/co06-history-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/co08-company-replay.yml	.yml	待阅读与注释
+.github/workflows/co10-project-charter.yml	.yml	待阅读与注释
+.github/workflows/co11-criteria-coverage.yml	.yml	待阅读与注释
+.github/workflows/co12-plan-graph.yml	.yml	待阅读与注释
+.github/workflows/co13-department-packets.yml	.yml	待阅读与注释
+.github/workflows/co14-symposium-governance.yml	.yml	待阅读与注释
+.github/workflows/co15-symposium-runtime.yml	.yml	待阅读与注释
+.github/workflows/co16-company-proposals.yml	.yml	待阅读与注释
+.github/workflows/co17-company-handoff.yml	.yml	待阅读与注释
+.github/workflows/co18-company-readiness.yml	.yml	待阅读与注释
+.github/workflows/co19-company-attempt.yml	.yml	待阅读与注释
+.github/workflows/co20-cell-admission.yml	.yml	待阅读与注释
+.github/workflows/co21-company-task-scope.yml	.yml	待阅读与注释
+.github/workflows/co22-company-process.yml	.yml	待阅读与注释
+.github/workflows/co23-company-wake.yml	.yml	待阅读与注释
+.github/workflows/co24-company-evidence.yml	.yml	待阅读与注释
+.github/workflows/co25-company-review.yml	.yml	待阅读与注释
+.github/workflows/co26-packet-acceptance.yml	.yml	待阅读与注释
+.github/workflows/co27-milestone-acceptance.yml	.yml	待阅读与注释
+.github/workflows/co28-project-acceptance.yml	.yml	待阅读与注释
+.github/workflows/co29-rework.yml	.yml	待阅读与注释
+.github/workflows/co30-change-contract.yml	.yml	待阅读与注释
+.github/workflows/co31-project-control.yml	.yml	待阅读与注释
+.github/workflows/co32-company-reconciliation.yml	.yml	待阅读与注释
+.github/workflows/co33-delivery-manifest.yml	.yml	待阅读与注释
+.github/workflows/co34-delivery-authorization.yml	.yml	待阅读与注释
+.github/workflows/co35-closing-receipt.yml	.yml	待阅读与注释
+.github/workflows/co36-outcome-measurement.yml	.yml	待阅读与注释
+.github/workflows/co37-company-knowledge.yml	.yml	待阅读与注释
+.github/workflows/co38-company-read-model.yml	.yml	待阅读与注释
+.github/workflows/co39-company-inbox.yml	.yml	待阅读与注释
+.github/workflows/co40-company-user-flow.yml	.yml	待阅读与注释
+.github/workflows/co41-company-surface-parity.yml	.yml	待阅读与注释
+.github/workflows/co42-company-recovery.yml	.yml	待阅读与注释
+.github/workflows/co43-company-parallel.yml	.yml	待阅读与注释
+.github/workflows/co44-company-integration.yml	.yml	待阅读与注释
+.github/workflows/co45-company-portfolio.yml	.yml	待阅读与注释
+.github/workflows/co46-company-template-registry.yml	.yml	待阅读与注释
+.github/workflows/co47-company-lifecycle.yml	.yml	待阅读与注释
+.github/workflows/co48-company-closeout.yml	.yml	待阅读与注释
+.github/workflows/cp12-resource-leases.yml	.yml	待阅读与注释
+.github/workflows/cp13-dispatch-permit.yml	.yml	待阅读与注释
+.github/workflows/cp15-cancellation.yml	.yml	待阅读与注释
+.github/workflows/cp22-protocol-surfaces.yml	.yml	待阅读与注释
+.github/workflows/cp23-company-transactions.yml	.yml	待阅读与注释
+.github/workflows/cp24-scheduler-workflow.yml	.yml	待阅读与注释
+.github/workflows/cp26-decision-trace.yml	.yml	待阅读与注释
+.github/workflows/cp27-nonblocking-limits.yml	.yml	待阅读与注释
+.github/workflows/cp28-migration-boundary.yml	.yml	待阅读与注释
+.github/workflows/cp29-control-plane-authority.yml	.yml	待阅读与注释
+.github/workflows/cp30-control-plane-product-flow.yml	.yml	待阅读与注释
+.github/workflows/dep00-deployment-baseline.yml	.yml	待阅读与注释
+.github/workflows/dep01-deployment-profile.yml	.yml	待阅读与注释
+.github/workflows/dep02-release-bundle.yml	.yml	待阅读与注释
+.github/workflows/dep03-compatibility.yml	.yml	待阅读与注释
+.github/workflows/dep04-ops-protocol.yml	.yml	待阅读与注释
+.github/workflows/dep05-operation-lifecycle.yml	.yml	待阅读与注释
+.github/workflows/dep06-operation-lease.yml	.yml	待阅读与注释
+.github/workflows/dep07-storage-preflight.yml	.yml	待阅读与注释
+.github/workflows/dep08-deployment-config.yml	.yml	待阅读与注释
+.github/workflows/dep09-supervisor.yml	.yml	待阅读与注释
+.github/workflows/dep10-startup.yml	.yml	待阅读与注释
+.github/workflows/dep11-health.yml	.yml	待阅读与注释
+.github/workflows/dep12-admission.yml	.yml	待阅读与注释
+.github/workflows/dep13-shutdown.yml	.yml	待阅读与注释
+.github/workflows/dep14-observability.yml	.yml	待阅读与注释
+.github/workflows/dep15-ops-diagnostics.yml	.yml	待阅读与注释
+.github/workflows/dep16-reconcile.yml	.yml	待阅读与注释
+.github/workflows/dep17-capacity.yml	.yml	待阅读与注释
+.github/workflows/dep39-supply-chain.yml	.yml	待阅读与注释
+.github/workflows/dep41-release-gate.yml	.yml	待阅读与注释
+.github/workflows/eq03-eval-objects.yml	.yml	待阅读与注释
+.github/workflows/eq07-quality-ports.yml	.yml	待阅读与注释
+.github/workflows/eq08-fixture-loader.yml	.yml	待阅读与注释
+.github/workflows/eq09-eval-runtime.yml	.yml	待阅读与注释
+.github/workflows/eq10-fake-provider.yml	.yml	待阅读与注释
+.github/workflows/eq11-deny-broker.yml	.yml	待阅读与注释
+.github/workflows/eq13-initial-state.yml	.yml	待阅读与注释
+.github/workflows/eq14-evidence-capture.yml	.yml	待阅读与注释
+.github/workflows/eq15-fault-plan.yml	.yml	待阅读与注释
+.github/workflows/eq16-boundary-evidence.yml	.yml	待阅读与注释
+.github/workflows/eq27-evaluator.yml	.yml	待阅读与注释
+.github/workflows/eq28-runtime-correctness.yml	.yml	待阅读与注释
+.github/workflows/eq29-capability-safety.yml	.yml	待阅读与注释
+.github/workflows/eq30-evidence-receipt.yml	.yml	待阅读与注释
+.github/workflows/eq31-recovery-replay.yml	.yml	待阅读与注释
+.github/workflows/eq32-context-memory.yml	.yml	待阅读与注释
+.github/workflows/eq33-workflow-swarm.yml	.yml	待阅读与注释
+.github/workflows/eq34-performance-cost.yml	.yml	待阅读与注释
+.github/workflows/eq35-semantic-judge.yml	.yml	待阅读与注释
+.github/workflows/eq36-aggregation.yml	.yml	待阅读与注释
+.github/workflows/eq37-flake.yml	.yml	待阅读与注释
+.github/workflows/eq38-experiment.yml	.yml	待阅读与注释
+.github/workflows/eq39-baseline.yml	.yml	待阅读与注释
+.github/workflows/eq40-candidate.yml	.yml	待阅读与注释
+.github/workflows/eq41-gate.yml	.yml	待阅读与注释
+.github/workflows/eq42-blocking-rules.yml	.yml	待阅读与注释
+.github/workflows/eq43-quality-mutation.yml	.yml	待阅读与注释
+.github/workflows/eq44-shadow.yml	.yml	待阅读与注释
+.github/workflows/eq47-cli.yml	.yml	待阅读与注释
+.github/workflows/eq50-nightly-deep.yml	.yml	待阅读与注释
+.github/workflows/eq50-pr-curated.yml	.yml	待阅读与注释
+.github/workflows/eq50-release-candidate.yml	.yml	待阅读与注释
+.github/workflows/eq51-evidence-archive.yml	.yml	待阅读与注释
+.github/workflows/er01-event-schema.yml	.yml	待阅读与注释
+.github/workflows/er02-identity.yml	.yml	待阅读与注释
+.github/workflows/er05-jsonl.yml	.yml	待阅读与注释
+.github/workflows/er06-async-lifecycle.yml	.yml	待阅读与注释
+.github/workflows/er11-receipt-dto.yml	.yml	待阅读与注释
+.github/workflows/er12-receipt-aggregation.yml	.yml	待阅读与注释
+.github/workflows/er13-result-delivery.yml	.yml	待阅读与注释
+.github/workflows/er18-workspace-checkpoint.yml	.yml	待阅读与注释
+.github/workflows/er19-process-handle.yml	.yml	待阅读与注释
+.github/workflows/er20-restart-projector.yml	.yml	待阅读与注释
+.github/workflows/er21-resume-claim.yml	.yml	待阅读与注释
+.github/workflows/er22-cancel-recovery.yml	.yml	待阅读与注释
+.github/workflows/er25-retry-policy.yml	.yml	待阅读与注释
+.github/workflows/er27-entrypoint-parity.yml	.yml	待阅读与注释
+.github/workflows/er31-fault-matrix.yml	.yml	待阅读与注释
+.github/workflows/er32-adapter-conformance.yml	.yml	待阅读与注释
+.github/workflows/er33-capacity-migration.yml	.yml	待阅读与注释
+.github/workflows/er34-durable-gate.yml	.yml	待阅读与注释
+.github/workflows/ext29-extension-golden.yml	.yml	待阅读与注释
+.github/workflows/ext30-extension-recovery.yml	.yml	待阅读与注释
+.github/workflows/ext31-extension-release.yml	.yml	待阅读与注释
+.github/workflows/h05-stop-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h06-stream-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h07-budget-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h08-cancellation-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h09-tool-catalog-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h10-invocation-identity-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h11-tool-observation-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h14-approval-resume-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h15-output-bounds-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h16-parallel-barriers-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h17-job-handle-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h19-steer-inject-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h20-context-plan-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h21-request-budget-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h22-compaction-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/h23-compaction-commit-diagnostic.yml	.yml	待阅读与注释
+.github/workflows/int11-https-connector.yml	.yml	待阅读与注释
+.github/workflows/int12-oauth-account.yml	.yml	待阅读与注释
+.github/workflows/int24-ingress.yml	.yml	待阅读与注释
+.github/workflows/int25-mapping.yml	.yml	待阅读与注释
+.github/workflows/int26-propagation.yml	.yml	待阅读与注释
+.github/workflows/int27-notifications.yml	.yml	待阅读与注释
+.github/workflows/int28-surfaces.yml	.yml	待阅读与注释
+.github/workflows/int29-recovery.yml	.yml	待阅读与注释
+.github/workflows/int30-conformance.yml	.yml	待阅读与注释
+.github/workflows/int31-pilot.yml	.yml	待阅读与注释
+.github/workflows/int32-write-pilot.yml	.yml	待阅读与注释
+.github/workflows/nm01-contracts.yml	.yml	待阅读与注释
+.github/workflows/nm02-lifecycle.yml	.yml	待阅读与注释
+.github/workflows/nm05-notification-resolver.yml	.yml	待阅读与注释
+.github/workflows/oa02-correlation.yml	.yml	待阅读与注释
+.github/workflows/oa03-redaction.yml	.yml	待阅读与注释
+.github/workflows/oa04-audit.yml	.yml	待阅读与注释
+.github/workflows/oa06-commit-observer.yml	.yml	待阅读与注释
+.github/workflows/oa08-model-instrumentation.yml	.yml	待阅读与注释
+.github/workflows/oa09-capability-instrumentation.yml	.yml	待阅读与注释
+.github/workflows/oa12-metric-governance.yml	.yml	待阅读与注释
+.github/workflows/oa14-trace-export.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-12-request-compilation.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-13-transport.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-14-accumulator.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-15-anthropic.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-16-openai-chat.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-17-openai-responses.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-18-ollama.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-19-gemini-interactions.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-21-structured-output.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-22-image-admission.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-23-provider-retry.yml	.yml	待阅读与注释
+.github/workflows/p4-j7-31-provider-live.yml	.yml	待阅读与注释
+.github/workflows/pd01-storage-root.yml	.yml	待阅读与注释
+.github/workflows/pd06-jsonl-recovery.yml	.yml	待阅读与注释
+.github/workflows/pd08-integrity-scan.yml	.yml	待阅读与注释
+.github/workflows/pd10-read-model.yml	.yml	待阅读与注释
+.github/workflows/pd14-artifact-store.yml	.yml	清点时工作区已有改动，跳过（??）
+.github/workflows/pd23-restore.yml	.yml	待阅读与注释
+.github/workflows/pd35-persistence-closeout.yml	.yml	待阅读与注释
+.github/workflows/release-smoke.yml	.yml	待阅读与注释
+.github/workflows/release.yml	.yml	待阅读与注释
+.github/workflows/sc00-baseline.yml	.yml	待阅读与注释
+.github/workflows/sc01-threat-register.yml	.yml	待阅读与注释
+.github/workflows/sc02-security-contract.yml	.yml	待阅读与注释
+.github/workflows/sc05-policy.yml	.yml	待阅读与注释
+.github/workflows/sc07-authority.yml	.yml	待阅读与注释
+.github/workflows/sc09-grant-scope.yml	.yml	待阅读与注释
+.github/workflows/sc10-approval.yml	.yml	待阅读与注释
+.github/workflows/sc12-permit.yml	.yml	待阅读与注释
+.github/workflows/sc15-cancel-unknown.yml	.yml	待阅读与注释
+.github/workflows/sc18-secret-ref.yml	.yml	待阅读与注释
+.github/workflows/sc19-secret-rotation.yml	.yml	待阅读与注释
+.github/workflows/sc20-redaction.yml	.yml	待阅读与注释
+.github/workflows/sc28-supply-chain.yml	.yml	待阅读与注释
+.github/workflows/sc29-release-provenance.yml	.yml	待阅读与注释
+.github/workflows/sc30-route-attestation.yml	.yml	待阅读与注释
+.github/workflows/sc31-audit-record.yml	.yml	待阅读与注释
+.github/workflows/sc41-security-gate.yml	.yml	待阅读与注释
+.github/workflows/sc42-security-rehearsal.yml	.yml	待阅读与注释
+.github/workflows/sc43-security-closeout.yml	.yml	待阅读与注释
+.github/workflows/sw02-work-graph.yml	.yml	待阅读与注释
+.github/workflows/sw13-merge-reducer.yml	.yml	待阅读与注释
+.github/workflows/sw14-merge-review.yml	.yml	待阅读与注释
+.github/workflows/sw15-retirement.yml	.yml	待阅读与注释
+.github/workflows/sw16-handoff.yml	.yml	待阅读与注释
+.github/workflows/sw17-projection.yml	.yml	待阅读与注释
+.github/workflows/sw18-release-gate.yml	.yml	待阅读与注释
+.github/workflows/ui29-acp-session.yml	.yml	待阅读与注释
+.github/workflows/ui30-ide-capability.yml	.yml	待阅读与注释
+.github/workflows/ui31-surface-parity.yml	.yml	待阅读与注释
+.github/workflows/ui32-deny-first.yml	.yml	待阅读与注释
+.github/workflows/ui33-recovery-contract.yml	.yml	待阅读与注释
+.github/workflows/ui34-resource-budget.yml	.yml	待阅读与注释
+.github/workflows/ui35-legacy-migration.yml	.yml	待阅读与注释
+.github/workflows/ui38-conformance.yml	.yml	待阅读与注释
+Makefile	[Makefile]	待阅读与注释
+contrib/desktop/lib/asset-manifest.js	.js	待阅读与注释
+contrib/desktop/lib/close-policy.js	.js	待阅读与注释
+contrib/desktop/lib/deb-layout.js	.js	待阅读与注释
+contrib/desktop/lib/desktop-persistence.js	.js	待阅读与注释
+contrib/desktop/lib/desktop-state.js	.js	待阅读与注释
+contrib/desktop/lib/find-kiana.js	.js	待阅读与注释
+contrib/desktop/lib/ipc-security.js	.js	待阅读与注释
+contrib/desktop/lib/notifications.js	.js	待阅读与注释
+contrib/desktop/lib/parse-url.js	.js	待阅读与注释
+contrib/desktop/lib/readiness.js	.js	待阅读与注释
+contrib/desktop/lib/worker.js	.js	待阅读与注释
+contrib/desktop/lib/workspace.js	.js	待阅读与注释
+contrib/desktop/main.js	.js	待阅读与注释
+contrib/desktop/preload.js	.js	待阅读与注释
+contrib/desktop/tests/deb.test.js	.js	待阅读与注释
+contrib/desktop/tests/desktop.test.js	.js	待阅读与注释
+contrib/desktop/tests/nm16_desktop_notification.test.js	.js	待阅读与注释
+contrib/desktop/tests/p4_m6_01_desktop.test.js	.js	待阅读与注释
+contrib/desktop/tests/ui24_ipc.test.js	.js	待阅读与注释
+contrib/desktop/tests/ui25_readiness.test.js	.js	待阅读与注释
+contrib/desktop/tests/ui26_workspace_tray.test.js	.js	待阅读与注释
+contrib/desktop/tests/ui27_persistence.test.js	.js	待阅读与注释
+contrib/desktop/tests/ui28_assets.test.js	.js	待阅读与注释
+contrib/desktop/tests/workspace.test.js	.js	待阅读与注释
+contrib/desktop/welcome.html	.html	待阅读与注释
+install.sh	.sh	待阅读与注释
+kiana-bootstrap/src/config.rs	.rs	已补充配置来源优先级、serde/Option字段含义、环境与managed overlay合并、空值/列表规则、读取与保存副作用及API key不等于授权的边界
+kiana-bootstrap/src/lib.rs	.rs	已补充启动配置/兼容会话状态在entrypoints、Runner与ControlPlane主链中的位置；区分API key/session辅助状态与服务端授权、Run/Request ID及EventLog事实
+kiana-bootstrap/src/state.rs	.rs	已补充进程内GlobalState共享边界、State字段分组、session切换、成本/耗时/token统计、skill缓存、compaction一次性标记与beta header锁存语义；明确它不是EventLog、Domain身份或ControlPlane授权事实
+kiana-bridge/examples/simple.rs	.rs	待阅读与注释
+kiana-bridge/src/api.rs	.rs	待阅读与注释
+kiana-bridge/src/lib.rs	.rs	待阅读与注释
+kiana-bridge/src/sdk_message_adapter.rs	.rs	待阅读与注释
+kiana-bridge/src/session.rs	.rs	待阅读与注释
+kiana-bridge/src/transport.rs	.rs	待阅读与注释
+kiana-bridge/src/types.rs	.rs	待阅读与注释
+kiana-bridge/src/work.rs	.rs	待阅读与注释
+kiana-bridge/tests/runtime_event_adapter.rs	.rs	待阅读与注释
+kiana-capability-broker/src/discovery.rs	.rs	已补充动态工具候选判定的数据流、授权面/证据/报告字段、Admitted-Denied-Unknown状态与摘要/签名边界；确认当前只有本模块和CAP-30测试调用，未接入生产执行链
+kiana-capability-broker/src/lib.rs	.rs	部分：已补充Broker在DaemonHost/ControlPlane/Broker/handler/receipt主链的位置图；其余函数与现有混合语言注释待逐段审阅
+kiana-capability-broker/tests/bq15_effect_usage_guard.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/cap01_registry.rs	.rs	已补充注册唯一性、alias拒绝、handler binding version和未注册operation不回退的中文场景说明
+kiana-capability-broker/tests/cap30_dynamic_discovery.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/cap30_dynamic_discovery_guard.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/ci07_credential_lease.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/int06_connector_credential.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/int16_connector_reservation_guard.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/int18_effect_permit_guard.rs	.rs	待阅读与注释
+kiana-capability-broker/tests/routing.rs	.rs	待阅读与注释
+kiana-capability-governance-supervisor/build.rs	.rs	待阅读与注释
+kiana-capability-governance-supervisor/src/lib.rs	.rs	待阅读与注释
+kiana-capability-governance-supervisor/src/main.rs	.rs	待阅读与注释
+kiana-capability-governance-supervisor/tests/supervisor_linux.rs	.rs	待阅读与注释
+kiana-chrome-mcp/src/lib.rs	.rs	边缘/冻结面注释完成：独立 MCP 请求映射、Chromium client、共享页面锁、工具结果和直接 CLI 路由
+kiana-chrome-mcp/src/main.rs	.rs	边缘/冻结面注释完成：独立 binary 到 run_stdio 的入口
+kiana-chrome-mcp/src/native_host.rs	.rs	边缘/冻结面注释完成：Native Messaging 长度帧、Unix socket 桥接、bounded channel 与退出清理
+kiana-chrome-mcp/src/native_install.rs	.rs	边缘/冻结面注释完成：安装选项、跨平台计划、文件写入副作用与 Windows registry 命令边界
+kiana-client/src/acp.rs	.rs	待阅读与注释
+kiana-client/src/cli_contract.rs	.rs	待阅读与注释
+kiana-client/src/cli_presenter.rs	.rs	待阅读与注释
+kiana-client/src/conformance.rs	.rs	待阅读与注释
+kiana-client/src/ide_capability.rs	.rs	待阅读与注释
+kiana-client/src/legacy_migration.rs	.rs	待阅读与注释
+kiana-client/src/lib.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/src/live_acp.rs	.rs	待阅读与注释
+kiana-client/src/protocol_parity.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/src/provider_diagnostics.rs	.rs	待阅读与注释
+kiana-client/src/surface_parity.rs	.rs	待阅读与注释
+kiana-client/src/typed.rs	.rs	待阅读与注释
+kiana-client/src/ui_budget.rs	.rs	待阅读与注释
+kiana-client/src/ui_recovery.rs	.rs	待阅读与注释
+kiana-client/src/ui_schema_generated.rs	.rs	待阅读与注释
+kiana-client/src/ui_store.rs	.rs	待阅读与注释
+kiana-client/src/web_accessibility.rs	.rs	待阅读与注释
+kiana-client/src/web_contract.rs	.rs	待阅读与注释
+kiana-client/src/web_detail.rs	.rs	待阅读与注释
+kiana-client/src/web_inbox.rs	.rs	待阅读与注释
+kiana-client/src/web_timeline.rs	.rs	待阅读与注释
+kiana-client/tests/client_methods.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/tests/p4_j7_28_provider_diagnostics.rs	.rs	待阅读与注释
+kiana-client/tests/p4_j7_30_surface_parity.rs	.rs	待阅读与注释
+kiana-client/tests/sc36_protocol_parity.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/tests/sc36_protocol_parity_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/tests/ui02_handshake.rs	.rs	待阅读与注释
+kiana-client/tests/ui07_typed_clients.rs	.rs	待阅读与注释
+kiana-client/tests/ui08_reducer_store.rs	.rs	待阅读与注释
+kiana-client/tests/ui09_schema_catalog.rs	.rs	待阅读与注释
+kiana-client/tests/ui10_cli_contract.rs	.rs	待阅读与注释
+kiana-client/tests/ui11_cli_presenter.rs	.rs	待阅读与注释
+kiana-client/tests/ui29_acp_adapter.rs	.rs	待阅读与注释
+kiana-client/tests/ui30_ide_capability.rs	.rs	待阅读与注释
+kiana-client/tests/ui31_surface_parity.rs	.rs	待阅读与注释
+kiana-client/tests/ui33_recovery.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/tests/ui34_resource_budget.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/tests/ui35_legacy_migration.rs	.rs	待阅读与注释
+kiana-client/tests/ui38_conformance.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-client/tests/ui39_live_acp_opt_in.rs	.rs	待阅读与注释
+kiana-commands/src/advisor.rs	.rs	待阅读与注释
+kiana-commands/src/audit.rs	.rs	待阅读与注释
+kiana-commands/src/auth.rs	.rs	待阅读与注释
+kiana-commands/src/auto_mode.rs	.rs	待阅读与注释
+kiana-commands/src/billing_card.rs	.rs	待阅读与注释
+kiana-commands/src/brief.rs	.rs	待阅读与注释
+kiana-commands/src/budget.rs	.rs	待阅读与注释
+kiana-commands/src/checkpoint.rs	.rs	待阅读与注释
+kiana-commands/src/checks.rs	.rs	待阅读与注释
+kiana-commands/src/clear.rs	.rs	待阅读与注释
+kiana-commands/src/commit.rs	.rs	待阅读与注释
+kiana-commands/src/compact.rs	.rs	待阅读与注释
+kiana-commands/src/completion.rs	.rs	待阅读与注释
+kiana-commands/src/config.rs	.rs	待阅读与注释
+kiana-commands/src/context.rs	.rs	待阅读与注释
+kiana-commands/src/cost.rs	.rs	待阅读与注释
+kiana-commands/src/diff.rs	.rs	待阅读与注释
+kiana-commands/src/doctor.rs	.rs	待阅读与注释
+kiana-commands/src/eda.rs	.rs	待阅读与注释
+kiana-commands/src/eda_netlist.rs	.rs	待阅读与注释
+kiana-commands/src/eval.rs	.rs	待阅读与注释
+kiana-commands/src/eval_fixtures.rs	.rs	待阅读与注释
+kiana-commands/src/evidence.rs	.rs	待阅读与注释
+kiana-commands/src/exit.rs	.rs	待阅读与注释
+kiana-commands/src/export.rs	.rs	待阅读与注释
+kiana-commands/src/feedback.rs	.rs	待阅读与注释
+kiana-commands/src/help.rs	.rs	待阅读与注释
+kiana-commands/src/hooks.rs	.rs	待阅读与注释
+kiana-commands/src/init.rs	.rs	待阅读与注释
+kiana-commands/src/lib.rs	.rs	待阅读与注释
+kiana-commands/src/license.rs	.rs	待阅读与注释
+kiana-commands/src/local_state.rs	.rs	待阅读与注释
+kiana-commands/src/login.rs	.rs	待阅读与注释
+kiana-commands/src/logout.rs	.rs	待阅读与注释
+kiana-commands/src/mcp.rs	.rs	待阅读与注释
+kiana-commands/src/memory.rs	.rs	待阅读与注释
+kiana-commands/src/model.rs	.rs	待阅读与注释
+kiana-commands/src/output_style.rs	.rs	待阅读与注释
+kiana-commands/src/permissions.rs	.rs	待阅读与注释
+kiana-commands/src/plugin.rs	.rs	待阅读与注释
+kiana-commands/src/plugin_commands.rs	.rs	待阅读与注释
+kiana-commands/src/project.rs	.rs	待阅读与注释
+kiana-commands/src/registry.rs	.rs	待阅读与注释
+kiana-commands/src/release.rs	.rs	待阅读与注释
+kiana-commands/src/reload_plugins.rs	.rs	待阅读与注释
+kiana-commands/src/report.rs	.rs	待阅读与注释
+kiana-commands/src/review.rs	.rs	待阅读与注释
+kiana-commands/src/session.rs	.rs	待阅读与注释
+kiana-commands/src/skills.rs	.rs	待阅读与注释
+kiana-commands/src/stats.rs	.rs	待阅读与注释
+kiana-commands/src/status.rs	.rs	待阅读与注释
+kiana-commands/src/swarm_process_identity.rs	.rs	待阅读与注释
+kiana-commands/src/tasks.rs	.rs	待阅读与注释
+kiana-commands/src/theme.rs	.rs	待阅读与注释
+kiana-commands/src/trust.rs	.rs	待阅读与注释
+kiana-commands/src/types.rs	.rs	待阅读与注释
+kiana-commands/src/usage.rs	.rs	待阅读与注释
+kiana-commands/src/validate.rs	.rs	待阅读与注释
+kiana-commands/src/version.rs	.rs	待阅读与注释
+kiana-commands/src/vim.rs	.rs	待阅读与注释
+kiana-commands/tests/audit_command.rs	.rs	待阅读与注释
+kiana-commands/tests/auto_mode.rs	.rs	待阅读与注释
+kiana-commands/tests/bq24_budget_card.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-commands/tests/bq24_budget_card_guard.rs	.rs	待阅读与注释
+kiana-commands/tests/eda_command.rs	.rs	待阅读与注释
+kiana-commands/tests/eq01_compatibility.rs	.rs	待阅读与注释
+kiana-commands/tests/eq05_legacy_adapter.rs	.rs	待阅读与注释
+kiana-commands/tests/eq08_fixture_loader.rs	.rs	待阅读与注释
+kiana-commands/tests/eq47_cli.rs	.rs	待阅读与注释
+kiana-commands/tests/eval_command.rs	.rs	待阅读与注释
+kiana-commands/tests/evidence_command.rs	.rs	待阅读与注释
+kiana-commands/tests/report_command.rs	.rs	待阅读与注释
+kiana-commands/tests/swarm_command.rs	.rs	待阅读与注释
+kiana-commands/tests/validate_command.rs	.rs	待阅读与注释
+kiana-commands/tests/workflow_integrity_audit.rs	.rs	待阅读与注释
+kiana-commands/tests/workflow_integrity_command.rs	.rs	待阅读与注释
+kiana-commands/tests/workflow_transition_command.rs	.rs	待阅读与注释
+kiana-computer-mcp/src/lib.rs	.rs	边缘/feature-gated 注释完成：default/native 两套工具目录、MCP 转换、桌面 OS 副作用与权限 stub 边界
+kiana-constants/src/api_limits.rs	.rs	待阅读与注释
+kiana-constants/src/betas.rs	.rs	待阅读与注释
+kiana-constants/src/common.rs	.rs	待阅读与注释
+kiana-constants/src/cyber_risk.rs	.rs	待阅读与注释
+kiana-constants/src/error_ids.rs	.rs	待阅读与注释
+kiana-constants/src/figures.rs	.rs	待阅读与注释
+kiana-constants/src/files.rs	.rs	待阅读与注释
+kiana-constants/src/lib.rs	.rs	待阅读与注释
+kiana-constants/src/messages.rs	.rs	待阅读与注释
+kiana-constants/src/oauth.rs	.rs	待阅读与注释
+kiana-constants/src/product.rs	.rs	待阅读与注释
+kiana-constants/src/spinner_verbs.rs	.rs	待阅读与注释
+kiana-constants/src/tool_limits.rs	.rs	待阅读与注释
+kiana-constants/src/turn_completion.rs	.rs	待阅读与注释
+kiana-constants/src/xml.rs	.rs	待阅读与注释
+kiana-core/src/approval_binding.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/approvals.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/artifacts.rs	.rs	待阅读与注释
+kiana-core/src/audit.rs	.rs	待阅读与注释
+kiana-core/src/audit_export.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/audit_projection.rs	.rs	待阅读与注释
+kiana-core/src/audit_projection_commit.rs	.rs	待阅读与注释
+kiana-core/src/authority.rs	.rs	中文注释复核：修正reducer支持事件与生产writer事实范围；标记fallback幂等键重放风险
+kiana-core/src/authority_read_model.rs	.rs	待阅读与注释
+kiana-core/src/automation.rs	.rs	待阅读与注释
+kiana-core/src/automation_boot_recovery.rs	.rs	本批已说明为纯校验 facade；不执行启动恢复
+kiana-core/src/automation_cancellation.rs	.rs	本批已说明为纯校验 facade；未接入实际取消 effect
+kiana-core/src/automation_compensation.rs	.rs	本批已说明为纯校验 facade；durable Compensate 路径独立
+kiana-core/src/automation_dispatch.rs	.rs	本批已说明为只读观察校验 facade；未接入生产 worker 分发
+kiana-core/src/automation_effect_reservation.rs	.rs	本批已说明为内存 ledger facade；未接入生产 effect 路径
+kiana-core/src/automation_fanout.rs	.rs	本批已说明为纯校验 facade；未接入生产调度路径
+kiana-core/src/automation_release_evidence.rs	.rs	本批已说明为 AUT-24 只读验证 facade；未接入发布路径
+kiana-core/src/automation_retry.rs	.rs	本批已说明为纯分类 facade；当前未找到生产调用者
+kiana-core/src/automation_signal.rs	.rs	本批已说明为纯转发 facade；当前未找到生产调用者
+kiana-core/src/automation_snapshot.rs	.rs	本批已说明为 AUT-22 纯转发 facade；未接入生产 snapshot 构建/查询
+kiana-core/src/automation_surface_uat.rs	.rs	本批已说明为 AUT-23 纯转发 facade；不执行五入口 UAT
+kiana-core/src/billing_allocation.rs	.rs	已补充BQ-19成本归属准入在usage/scope→ControlPlane→Domain校验→RuntimeEvent→EventStore/账单投影链路中的位置；解释server-owned scope、wire声明拒绝、跨项目SharingGrant、时间/authority epoch、stream metadata和只构造事件不写账本的边界
+kiana-core/src/billing_invoice.rs	.rs	待阅读与注释
+kiana-core/src/billing_projection.rs	.rs	待阅读与注释
+kiana-core/src/billing_recovery.rs	.rs	待阅读与注释
+kiana-core/src/billing_settlement_fold.rs	.rs	待阅读与注释
+kiana-core/src/bq26_fault_harness.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/capabilities.rs	.rs	待阅读与注释
+kiana-core/src/capability_attempt_projection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/capability_scheduler.rs	.rs	已补充中文准入队列、footprint冲突、取消/lease/quarantine数据流与边界说明；记录ticket饱和重复和未知结果隔离无清除接口
+kiana-core/src/capacity_fault_envelope.rs	.rs	已补充SC-40故障容量封套的数据流与检查顺序；解释CapacityBudget上限/摘要、Sample观察与恢复后reservation、Report绑定/limitations、时钟回拨、队列/输出/延迟/反压、provider配额和泄漏错误边界，明确只计算不注入/测量/启动
+kiana-core/src/cell_registry.rs	.rs	待阅读与注释
+kiana-core/src/change_contract.rs	.rs	已补充CO-30 Core适配器在旧baseline/ChangeRequest→ChangeImpact→BaselinePublication→Domain ledger→CAS/EventLog主链中的位置；说明只委托、不执行Company transition、停止Run或替代durable CAS
+kiana-core/src/ci12_product_gate.rs	.rs	已补充CI-12十场景证据矩阵门面在统一DaemonHost/ControlPlane主链中的位置；说明Core只委托Domain校验，不运行provider/capability、不自动批准，并保留source/fixture而非live证明边界
+kiana-core/src/clarification.rs	.rs	已补充H26 clarification answer→resolution→EventLog→同一Runner continuation链路；明确问题回答不是approval、没有grant/capability/tool args，Human Inbox只是投影，Core只校验不resume/发放权限
+kiana-core/src/closing_receipt.rs	.rs	已补充CO-35 Company ClosingReceipt从packet/attempt/run/review/acceptance/delivery/incident/evidence事实到Domain ledger的投影链路；明确Core不从聊天/runtime结果推断关闭、不提交Company transition/EventLog，保留四种close kind和proof边界
+kiana-core/src/collaboration.rs	.rs	待阅读与注释
+kiana-core/src/commands.rs	.rs	已复核唯一命令入口与context.query.v1分支；补充boxed async路由主体、专用规范化入口、未知命令/项目不信任拒绝事件与路由/授权分离说明；保留原有大段命令矩阵注释
+kiana-core/src/communication.rs	.rs	待阅读与注释
+kiana-core/src/company.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/company_business.rs	.rs	待阅读与注释
+kiana-core/src/company_evidence.rs	.rs	待阅读与注释
+kiana-core/src/company_governance.rs	.rs	待阅读与注释
+kiana-core/src/company_inbox.rs	.rs	待阅读与注释
+kiana-core/src/company_integration.rs	.rs	待阅读与注释
+kiana-core/src/company_knowledge.rs	.rs	待阅读与注释
+kiana-core/src/company_parallel.rs	.rs	待阅读与注释
+kiana-core/src/company_portfolio.rs	.rs	待阅读与注释
+kiana-core/src/company_process.rs	.rs	待阅读与注释
+kiana-core/src/company_read_model.rs	.rs	待阅读与注释
+kiana-core/src/company_reconciliation.rs	.rs	待阅读与注释
+kiana-core/src/company_recovery.rs	.rs	待阅读与注释
+kiana-core/src/company_review.rs	.rs	待阅读与注释
+kiana-core/src/company_scope.rs	.rs	待阅读与注释
+kiana-core/src/company_template_registry.rs	.rs	待阅读与注释
+kiana-core/src/connector_conformance.rs	.rs	待阅读与注释
+kiana-core/src/connector_mapping.rs	.rs	待阅读与注释
+kiana-core/src/connector_notifications.rs	.rs	待阅读与注释
+kiana-core/src/connector_pilot.rs	.rs	待阅读与注释
+kiana-core/src/connector_propagation.rs	.rs	待阅读与注释
+kiana-core/src/connector_quota.rs	.rs	待阅读与注释
+kiana-core/src/connector_recovery.rs	.rs	待阅读与注释
+kiana-core/src/connector_reservation.rs	.rs	待阅读与注释
+kiana-core/src/connector_surfaces.rs	.rs	待阅读与注释
+kiana-core/src/connector_write_pilot.rs	.rs	待阅读与注释
+kiana-core/src/connectors.rs	.rs	待阅读与注释
+kiana-core/src/context_query.rs	.rs	已补充context.query.v1从CommandIntent、参数拒绝事件、规范化CapabilityRequest到authorize_and_execute/Broker的链路；解释read/local-write风险、数值/路径边界与失败语义
+kiana-core/src/control_plane_authority.rs	.rs	已补充CP-29 authority/crash证据门面在ControlPlane→TransitionBatch→Journal/EventStore→Domain validate链路中的位置；明确只读委托、七个crash point、Unknown fencing、online/replay digest和source/fixture证明上限，不执行fault/Runner/Broker/provider
+kiana-core/src/control_plane_product_flow.rs	.rs	已补充CP-30产品流程证据门面在DaemonHost→ControlPlane→Harness/Broker→EventStore/Receipt主链中的位置；说明它只委托Domain bundle校验，不创建运行循环、不自动审批、不写EventLog，及source证据不等于live/durable/physical证明
+kiana-core/src/cost_correction.rs	.rs	待阅读与注释
+kiana-core/src/credential_recovery.rs	.rs	待阅读与注释
+kiana-core/src/data_class.rs	.rs	待阅读与注释
+kiana-core/src/data_governance.rs	.rs	待阅读与注释
+kiana-core/src/deletion.rs	.rs	待阅读与注释
+kiana-core/src/delivery_authorization.rs	.rs	待阅读与注释
+kiana-core/src/delivery_manifest.rs	.rs	待阅读与注释
+kiana-core/src/deployment_admission.rs	.rs	已补充 DEP-12 Core reducer/绑定复核委托、Ok 拒绝与 Err 校验失败区别及无副作用/无生产消费者边界
+kiana-core/src/deployment_capacity.rs	.rs	待阅读与注释
+kiana-core/src/deployment_compatibility.rs	.rs	待阅读与注释
+kiana-core/src/deployment_config.rs	.rs	待阅读与注释
+kiana-core/src/deployment_incident.rs	.rs	待阅读与注释
+kiana-core/src/deployment_lease.rs	.rs	已补充 DEP-06 Core 只读校验门面的调用关系、错误传播与无持久化/生产接线边界
+kiana-core/src/deployment_observability.rs	.rs	已补充 DEP-14 Core 对 LifecycleEvidenceBundle 的只读 Domain 委托、稳定错误传播及无采集/认证边界
+kiana-core/src/deployment_operation.rs	.rs	已补充 DEP-05 Core 只读门面的重放输入输出、错误传播、无副作用边界与快照一致性缺口
+kiana-core/src/deployment_reconcile.rs	.rs	已注释 DEP-16 Domain reducer 委托/报告复核、错误传播及无外部事实读取边界
+kiana-core/src/deployment_release.rs	.rs	待阅读与注释
+kiana-core/src/deployment_shutdown.rs	.rs	已补充 DEP-13 Domain report reducer/重算绑定委托、错误传播与无执行副作用边界
+kiana-core/src/deployment_startup.rs	.rs	已补充 DEP-10 Core 门面、调用关系、稳定错误传播与未接入生产启动入口的边界说明
+kiana-core/src/deployment_supervisor.rs	.rs	已补充 DEP-09 observation 校验 facade 的预期调用者、Domain 委托、错误传播、无副作用与未接入生产路径边界
+kiana-core/src/dispatch.rs	.rs	已复核 Core→EventStore→Broker 主链；本批补齐取消三态 helper 与 verifier 构造说明，保留共享逻辑改动
+kiana-core/src/dispatch_delivery_tests.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/effect_reconciliation.rs	.rs	待阅读与注释
+kiana-core/src/effect_usage_projection.rs	.rs	待阅读与注释
+kiana-core/src/entrypoint_parity.rs	.rs	已补充多入口command规范化与parity矩阵在EntryPoint→统一DaemonHost→ControlPlane链路中的位置；解释固定route、context/arguments/command digest、Denied/Approval/Allowed/Unknown、矩阵去重和deny时handler_calls为零的边界
+kiana-core/src/er31_fault_matrix.rs	.rs	待阅读与注释
+kiana-core/src/er32_adapter_conformance.rs	.rs	待阅读与注释
+kiana-core/src/er33_capacity_migration.rs	.rs	待阅读与注释
+kiana-core/src/er34_durable_gate.rs	.rs	待阅读与注释
+kiana-core/src/eval.rs	.rs	待阅读与注释
+kiana-core/src/events.rs	.rs	待阅读与注释
+kiana-core/src/evidence_manifest.rs	.rs	待阅读与注释
+kiana-core/src/fallback_admission.rs	.rs	已补充BQ-18 fallback重新准入在ControlPlane→Domain admission→既有Broker/ProviderGateway链路中的位置；解释新attempt/reservation/opaque permit、authority/data/budget/credential/route/price重检、失败传播与不触发provider/EventLog/第二重试循环的边界
+kiana-core/src/fault_injection.rs	.rs	待阅读与注释
+kiana-core/src/golden_trace_chain.rs	.rs	待阅读与注释
+kiana-core/src/health.rs	.rs	已补充健康投影文件职责、ControlPlane与DaemonHost调用链、probe门槛、组件/限制含义、错误传播和checkpoint能力位边界
+kiana-core/src/health_aggregation.rs	.rs	已补充Core薄门面职责、Domain委托、输入绑定校验和无副作用边界
+kiana-core/src/history.rs	.rs	待阅读与注释
+kiana-core/src/hook_reauthorization.rs	.rs	待阅读与注释
+kiana-core/src/incident_projection.rs	.rs	待阅读与注释
+kiana-core/src/invocation_projection.rs	.rs	待阅读与注释
+kiana-core/src/lib.rs	.rs	阶段一已有注释；本阶段深度复核待办
+kiana-core/src/lifecycle.rs	.rs	阶段二注释完成：全文件已逐函数审阅；覆盖Run创建/新turn/v1继续、输入注入与乐观并发、取消CAS与停止证明、RunnerEvent消费和sandbox授权
+kiana-core/src/memory_distillation.rs	.rs	待阅读与注释
+kiana-core/src/memory_proposals.rs	.rs	待阅读与注释
+kiana-core/src/metrics.rs	.rs	待阅读与注释
+kiana-core/src/milestone_acceptance.rs	.rs	待阅读与注释
+kiana-core/src/model_attempt_lifecycle.rs	.rs	待阅读与注释
+kiana-core/src/model_attempt_projection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/model_budget.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/notification_action.rs	.rs	待阅读与注释
+kiana-core/src/notification_delivery.rs	.rs	待阅读与注释
+kiana-core/src/notification_external.rs	.rs	待阅读与注释
+kiana-core/src/notification_faults.rs	.rs	待阅读与注释
+kiana-core/src/notification_materializer.rs	.rs	待阅读与注释
+kiana-core/src/notification_parity.rs	.rs	待阅读与注释
+kiana-core/src/notification_policy.rs	.rs	待阅读与注释
+kiana-core/src/notification_priority.rs	.rs	待阅读与注释
+kiana-core/src/notification_projector.rs	.rs	待阅读与注释
+kiana-core/src/notification_recovery.rs	.rs	待阅读与注释
+kiana-core/src/notification_resolver.rs	.rs	待阅读与注释
+kiana-core/src/notification_store.rs	.rs	待阅读与注释
+kiana-core/src/operator_evidence.rs	.rs	待阅读与注释
+kiana-core/src/ops_diagnostics.rs	.rs	已注释 DEP-15 Domain reducer 委托、错误传播、模式匹配及无采集/外部 I/O 边界；无已发现生产消费者
+kiana-core/src/outcome_measurement.rs	.rs	待阅读与注释
+kiana-core/src/packet_acceptance.rs	.rs	待阅读与注释
+kiana-core/src/parity.rs	.rs	待阅读与注释
+kiana-core/src/performance.rs	.rs	待阅读与注释
+kiana-core/src/persistence_read_model.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/platform.rs	.rs	待阅读与注释
+kiana-core/src/project_acceptance.rs	.rs	待阅读与注释
+kiana-core/src/project_control.rs	.rs	待阅读与注释
+kiana-core/src/projection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/projection_checkpoint.rs	.rs	已注释 ProjectionDriver/ReplayProjection 重放、checkpoint、去重、失败暂停/重建及调用者完整 cursor 片段责任
+kiana-core/src/promotion_gate.rs	.rs	待阅读与注释
+kiana-core/src/provider_diagnostics.rs	.rs	待阅读与注释
+kiana-core/src/quality_drift.rs	.rs	已说明 Core 公开薄适配器的数据来源/返回/错误边界、当前无生产调用方、事件 kind 常量命名与事件持久化/发布未接线
+kiana-core/src/quality_evidence_archive.rs	.rs	待阅读与注释
+kiana-core/src/quality_feedback.rs	.rs	待阅读与注释
+kiana-core/src/quality_gate.rs	.rs	待阅读与注释
+kiana-core/src/quality_report.rs	.rs	待阅读与注释
+kiana-core/src/receipts.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/recovery.rs	.rs	待阅读与注释
+kiana-core/src/recovery_rehearsal.rs	.rs	待阅读与注释
+kiana-core/src/redaction.rs	.rs	待阅读与注释
+kiana-core/src/replay_diagnostics.rs	.rs	待阅读与注释
+kiana-core/src/resource_leases.rs	.rs	待阅读与注释
+kiana-core/src/resource_projection.rs	.rs	待阅读与注释
+kiana-core/src/restore_activation.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/restore_verification.rs	.rs	待阅读与注释
+kiana-core/src/retention.rs	.rs	待阅读与注释
+kiana-core/src/retention_archive_bounds.rs	.rs	待阅读与注释
+kiana-core/src/retention_deletion.rs	.rs	待阅读与注释
+kiana-core/src/revocation_propagation.rs	.rs	待阅读与注释
+kiana-core/src/rework_contract.rs	.rs	待阅读与注释
+kiana-core/src/security_authority.rs	.rs	待阅读与注释
+kiana-core/src/security_context.rs	.rs	待阅读与注释
+kiana-core/src/security_fence.rs	.rs	待阅读与注释
+kiana-core/src/security_incident.rs	.rs	待阅读与注释
+kiana-core/src/sessions.rs	.rs	待阅读与注释
+kiana-core/src/span_projection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/storage_diagnostics.rs	.rs	待阅读与注释
+kiana-core/src/storage_preflight.rs	.rs	已补充 DEP-07 Core 只读门面的 Domain 委托、错误传播、无副作用与未接入生产链路边界
+kiana-core/src/swarm.rs	.rs	待阅读与注释
+kiana-core/src/swarm_admission.rs	.rs	待阅读与注释
+kiana-core/src/swarm_cancellation.rs	.rs	待阅读与注释
+kiana-core/src/swarm_child.rs	.rs	待阅读与注释
+kiana-core/src/swarm_child_result.rs	.rs	待阅读与注释
+kiana-core/src/swarm_handoff.rs	.rs	待阅读与注释
+kiana-core/src/swarm_merge_reducer.rs	.rs	待阅读与注释
+kiana-core/src/swarm_merge_review.rs	.rs	待阅读与注释
+kiana-core/src/swarm_progress.rs	.rs	待阅读与注释
+kiana-core/src/swarm_projection.rs	.rs	待阅读与注释
+kiana-core/src/swarm_queue.rs	.rs	待阅读与注释
+kiana-core/src/swarm_recovery.rs	.rs	待阅读与注释
+kiana-core/src/swarm_release_gate.rs	.rs	待阅读与注释
+kiana-core/src/swarm_retirement.rs	.rs	待阅读与注释
+kiana-core/src/swarm_routing.rs	.rs	待阅读与注释
+kiana-core/src/telemetry_separation.rs	.rs	待阅读与注释
+kiana-core/src/trace_export.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/turn_outcome.rs	.rs	已说明 Core 对 Domain outcome 的二次校验、JSON 注入错误与 lifecycle 调用位置
+kiana-core/src/ui_actions.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/src/versioning.rs	.rs	已补充版本 drift / trace capture / replay 三分支的 Core 调用链、项目与 actor 过滤、全量 EventStore 读取、错误和副作用边界；记录当前 runtime_version 来源、trace 根路径比较和未知命令默认落入 capture
+kiana-core/src/workflow_queue.rs	.rs	已说明 readiness 投影、Claim/Lease tuple gate、拒绝顺序及仅 fixture 调用/非原子边界
+kiana-core/src/workspace_checkpoints.rs	.rs	待阅读与注释
+kiana-core/tests/aut02_clock_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut03_definition_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut04_trigger_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut05_event_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut06_planner_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut07_workflow_queue_claim_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/aut07_workflow_queue_ready.rs	.rs	已说明合成 packet readiness、依赖阻塞、父子范围拒绝及不触达 QueueStore
+kiana-core/tests/aut08_workflow_queue_guard.rs	.rs	已说明 include_str! 静态源码守卫与不证明持久化/跨进程互斥的边界
+kiana-core/tests/aut10_interval_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut11_workflow_ingress_guard.rs	.rs	已说明 include_str! 静态 marker/负向检查边界及其不构成运行时接线证明
+kiana-core/tests/aut12_pending_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/aut13_advance_route_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/automation_boot_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_cancellation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_compensation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_dispatch_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_effect_reservation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_fanout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_release_evidence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_retry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_signal_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_snapshot_guard.rs	.rs	待阅读与注释
+kiana-core/tests/automation_surface_uat_guard.rs	.rs	待阅读与注释
+kiana-core/tests/billing_invoice_guard.rs	.rs	待阅读与注释
+kiana-core/tests/billing_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq00_cost_capacity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq01_billing_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq02_usage_vector_guard.rs	.rs	已说明 include_str! 字面字段守卫及其不运行 provider 归一化/不认证计量来源的证明边界
+kiana-core/tests/bq03_usage_accumulator_guard.rs	.rs	已说明源码 marker 与 no-I/O 负向检查只约束 reducer 源边界，不能证明持久化或生产接线
+kiana-core/tests/bq04_pricing_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq05_rate_card_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq06_budget_intersection_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq07_quota_window_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq08_quota_reservation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq09_admission_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq10_normalized_usage_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq11_attempt_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq12_settlement_fold_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq13_cost_receipt.rs	.rs	待阅读与注释
+kiana-core/tests/bq13_cost_receipt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq14_cost_correction.rs	.rs	待阅读与注释
+kiana-core/tests/bq14_cost_correction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq15_effect_usage.rs	.rs	待阅读与注释
+kiana-core/tests/bq15_effect_usage_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq16_provider_capacity_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq17_retry_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq18_fallback_admission_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq19_cost_allocation.rs	.rs	待阅读与注释
+kiana-core/tests/bq19_cost_allocation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq20_ledger_projector_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq25_telemetry_separation.rs	.rs	待阅读与注释
+kiana-core/tests/bq25_telemetry_separation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq26_fault_harness_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq26_fault_injection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/bq27_legacy_upcast_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq28_retention_archive_bounds.rs	.rs	待阅读与注释
+kiana-core/tests/bq28_retention_archive_bounds_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq29_golden_trace_chain.rs	.rs	待阅读与注释
+kiana-core/tests/bq29_golden_trace_chain_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq30_promotion_gate.rs	.rs	待阅读与注释
+kiana-core/tests/bq30_promotion_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/bq30_promotion_route.rs	.rs	待阅读与注释
+kiana-core/tests/cap01_authority_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap02_input_guard.rs	.rs	已说明五工具输入边界的跨层源码守卫范围与证明上限
+kiana-core/tests/cap03_execution_scope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap04_state.rs	.rs	待阅读与注释
+kiana-core/tests/cap04_state_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap05_permit.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/cap06_approval_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap07_environment_backend_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/cap08_path_resolver_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap09_linux_file_view_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap10_isolated_write_publish_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap11_ambient_authority_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap12_process_supervisor_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap13_bounded_output_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap14_shell_executor_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap15_patch_plan_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap16_patch_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap17_execution_set_cancel_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap18_hook_execution_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap19_memory_scope_commit_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap20_mcp_trust_discovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap21_mcp_bounded_transport_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap22_mcp_drift_isolation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap23_concurrency_scheduler_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap24_invocation_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap25_receipt_entrypoint_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap26_capability_closeout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap27_process_handle_pty_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap28_egress_credentials_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap29_http_mcp_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap30_tool_discovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap30_tool_extension_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap31_cap32_backend_selection_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap31_macos_backend_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap32_windows_backend_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap33_container_environment_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap33_container_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cap34_conformance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci02_identity_contract_guard.rs	.rs	已补充 Domain/ID registry/protocol 的 include_str! 检查范围与证明上限
+kiana-core/tests/ci03_ports_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci04_ingress_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci05_authority_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci06_config_resolver.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/ci07_secret_store.rs	.rs	待阅读与注释
+kiana-core/tests/ci08_route_admission.rs	.rs	待阅读与注释
+kiana-core/tests/ci09_oauth_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci10_provider_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci11_audit_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ci11_credential_recovery_projection.rs	.rs	待阅读与注释
+kiana-core/tests/ci12_product_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm03_scope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm05_memory_eventstore.rs	.rs	待阅读与注释
+kiana-core/tests/cm06_source_dependencies.rs	.rs	待阅读与注释
+kiana-core/tests/cm07_workspace_snapshot_guard.rs	.rs	已补充 include_str! 静态边界守卫的检查对象和证明上限
+kiana-core/tests/cm08_chunker_guard.rs	.rs	已补充 include_str! 静态标记检查内容和非运行时证明边界
+kiana-core/tests/cm09_text_normalization_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/cm10_index_generation_guard.rs	.rs	已补充静态源码守卫的检查范围与非运行时证明边界
+kiana-core/tests/cm11_index_invalidation_guard.rs	.rs	已补充 include_str! 守卫的数据来源与不覆盖 cache/rebuild 的边界
+kiana-core/tests/cm12_unified_retrieval_guard.rs	.rs	已说明 include_str! 静态源码 marker 的覆盖范围、兼容入口字样与不能证明运行时调用/ACL 授权的边界
+kiana-core/tests/cm13_repo_map_task_guard.rs	.rs	已说明 include_str 源码 marker/负向检查范围，不是运行时选择证明
+kiana-core/tests/cm14_retrieval_health_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm15_context_plan_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm16_wire_budget_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm17_prepared_request_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm18_tool_output_spill_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm19_compact_summary_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm20_context_checkpoint_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm21_resume_cache_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm22_memory_acl_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm23_memory_negative_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm24_memory_temporal_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm25_memory_extraction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm26_memory_distillation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm27_retrieval_receipt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm28_memory_invalidation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm29_projection_recovery_guard.rs	.rs	已注释 include_str! 跨模块 marker 守卫及其非运行时 EventLog/幂等恢复证明边界
+kiana-core/tests/cm30_golden_context_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm31_retrieval_evaluation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm32_inspector_correction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm33_code_graph_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm34_embedding_rotation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm35_external_resource_guard.rs	.rs	已说明多文件 include_str! marker 的 OR 检查及其不证明真实 connector 调用链
+kiana-core/tests/cm36_memory_workbench_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm37_memory_maintenance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm38_context_memory_live_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cm39_context_memory_closeout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co03_assignment.rs	.rs	待阅读与注释
+kiana-core/tests/co03_assignment_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/co04_role_catalog_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co05_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co06_artifact_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/co06_company_artifact_wiring_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co07_receipt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co08_replay_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co09_company_intake_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co10_project_charter_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co11_criteria_coverage_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co12_plan_graph_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co13_department_packets_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co14_symposium_governance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co15_symposium_runtime_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co16_company_proposals_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co17_company_handoff_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co18_company_readiness_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co19_company_attempt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co20_cell_admission_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co21_company_task_scope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co22_company_process_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co23_company_wake_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co24_company_evidence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co25_company_review_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co26_packet_acceptance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co27_milestone_acceptance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co28_project_acceptance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co29_rework_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co30_change_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co31_project_control_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co32_company_reconciliation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co33_delivery_manifest_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co34_delivery_authorization_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co35_closing_receipt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co36_outcome_measurement_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co37_company_knowledge_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co38_company_read_model_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co39_company_inbox_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co42_company_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co43_company_parallel_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co44_company_integration_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co45_company_portfolio_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co46_company_template_registry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co47_company_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/co48_company_closeout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/control_plane.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/cp01_identity_guard.rs	.rs	已补充 Daemon/Core/Protocol 身份绑定源码守卫的调用边界
+kiana-core/tests/cp02_execution_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp03_action_guard.rs	.rs	已说明动作目录准备/执行接缝的静态守卫证明范围
+kiana-core/tests/cp04_scope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp05_entry_paths_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp06_transition_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp07_journal_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/cp08_grant_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp09_approval_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp10_approval_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp11_budget_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp12_resource_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp13_dispatch_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/cp14_result_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp15_cancellation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp16_handler_stop_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp17_revoke_cleanup_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp18_run_snapshot_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp19_explicit_resume_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp20_unknown_reconcile_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp21_projection_query_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp23_company_transaction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp24_scheduler_transaction.rs	.rs	已说明 ready/Claim/Lease 内存交接样例、陈旧 snapshot/owner/fence/expiry 拒绝及无 Store 原子性
+kiana-core/tests/cp24_scheduler_transaction_guard.rs	.rs	清点时工作区已有改动，暂只读（ M）
+kiana-core/tests/cp25_unified_boundary_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp26_decision_trace_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp27_nonblocking_limits_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp28_migration_boundary_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp29_control_plane_authority_guard.rs	.rs	待阅读与注释
+kiana-core/tests/cp30_control_plane_product_flow_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep00_deployment_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep01_deployment_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep02_release_bundle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep03_compatibility_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/dep04_ops_protocol_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/dep05_operation_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep06_operation_lease_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep07_storage_preflight_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep08_deployment_config_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep09_supervisor_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep10_startup_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep11_health_aggregation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep12_admission_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep13_shutdown_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep14_observability_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep15_ops_diagnostics_guard.rs	.rs	已注释 include_str! 静态源码标记/禁止词守卫及其不能证明路由运行的边界
+kiana-core/tests/dep16_reconcile_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep17_capacity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep18_incident_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep19_backup_manifest_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep20_quiesce_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep21_backup_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep22_restore_quarantine_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep23_restore_activation.rs	.rs	待阅读与注释
+kiana-core/tests/dep23_restore_activation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep24_recovery_rehearsal_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep25_effect_reconcile_route.rs	.rs	待阅读与注释
+kiana-core/tests/dep25_effect_reconciliation.rs	.rs	待阅读与注释
+kiana-core/tests/dep25_effect_reconciliation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep26_retention_deletion.rs	.rs	待阅读与注释
+kiana-core/tests/dep26_retention_deletion_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep27_migration_registry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep28_migration_preflight_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep29_migration_primitives_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep30_migration_runner_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep31_migration_rebuild_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep32_migration_rollback_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep33_revision_compatibility_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep34_release_preflight_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep35_local_rollout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep36_container_adapter_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep37_orchestrated_rollout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep38_rollout_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep39_supply_chain_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep40_release_uat_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dep41_release_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/dependency_boundaries.rs	.rs	待阅读与注释
+kiana-core/tests/eq01_compatibility_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq02_quality_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq03_eval_objects_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq04_admission_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq05_legacy_adapter_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq06_quality_protocol_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq07_quality_ports_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq08_fixture_loader_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq09_eval_runtime_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq10_fake_provider_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/eq11_deny_broker_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq12_daemon_spine_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq13_initial_state_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq14_evidence_capture_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq15_fault_plan_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq16_boundary_evidence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eq43_quality_mutation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er01_event_contract_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er02_identity.rs	.rs	待阅读与注释
+kiana-core/tests/er02_identity_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er03_redaction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er04_command_receipt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er07_replay_guard.rs	.rs	已注释 checkpoint tail 与全量重建 fixture、错误拒绝及 include_str! 静态边界守卫
+kiana-core/tests/er08_projection_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er08_run_projection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er09_invocation_projection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er10_resource_projection.rs	.rs	待阅读与注释
+kiana-core/tests/er11_receipt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er12_receipt_aggregation.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er13_result_delivery.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er14_effect_observation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er15_adapter_result_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er16_terminal_uniqueness.rs	.rs	待阅读与注释
+kiana-core/tests/er17_run_snapshot_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er18_workspace_checkpoint_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er19_process_handle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er20_restart_projector_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er21_resume_claim_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er22_cancel_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er23_unknown_incident_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er24_reconciliation_evidence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er25_retry_policy_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/er26_cursor_snapshot_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er27_entrypoint_parity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er28_company_workflow_artifact_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er29_data_governance.rs	.rs	待阅读与注释
+kiana-core/tests/er29_data_governance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er30_operator_evidence.rs	.rs	待阅读与注释
+kiana-core/tests/er30_operator_evidence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er31_fault_matrix_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er32_adapter_conformance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er33_capacity_migration_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er34_durable_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er35_cross_entry_company_guard.rs	.rs	待阅读与注释
+kiana-core/tests/er36_physical_live_guard.rs	.rs	待阅读与注释
+kiana-core/tests/eval_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/ext06_progressive_disclosure_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext07_skill_activation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext08_dynamic_skill_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext09_prompt_provenance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext10_skill_invocation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext11_hook_schema_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext12_hook_discovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext13_hook_process_guard.rs	.rs	已说明其通过 include_str! 检查 Query hook 源码标记和禁止的环境继承模式；不运行子进程或证明 timeout、内存上限及后代清理
+kiana-core/tests/ext14_hook_outcome_guard.rs	.rs	已说明只检查 HookOutcome 源码 marker 的静态边界；不解析 JSON 或覆盖 fail-closed 分支
+kiana-core/tests/ext15_hook_reauthorization_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext16_hook_lifecycle_guard.rs	.rs	已说明 include_str! 对身份、提交前置和固定关闭能力标志的单文件检查；不验证序号或生产接线
+kiana-core/tests/ext17_hook_cancellation_guard.rs	.rs	已说明 include_str! marker 单文件文本检查范围；不调用 helper、不模拟取消、不证明生产接线
+kiana-core/tests/ext18_hook_receipt_guard.rs	.rs	已说明 receipt marker 和禁止执行文本的静态检查边界；不验证 digest、清理事实或恢复执行
+kiana-core/tests/ext19_plugin_manifest_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext20_extension_supply_chain_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext21_extension_binding_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext22_extension_lifecycle_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/ext23_extension_controls_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext24_secret_state_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext25_signed_skill_scope_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/ext27_visibility_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext28_extension_command_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext29_extension_golden_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext30_extension_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ext31_extension_release_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h02_lifecycle.rs	.rs	待阅读与注释
+kiana-core/tests/h13_invocation_ledger.rs	.rs	待阅读与注释
+kiana-core/tests/h13_invocation_ledger_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h14_approval_resume.rs	.rs	已说明审批拒绝/去重/恢复身份守卫的源码检查范围及不等于运行时执行的证明上限
+kiana-core/tests/h16_parallel_barriers.rs	.rs	已说明源码标记守卫覆盖范围，不证明真实并发、撤销或崩溃恢复运行
+kiana-core/tests/h18_inbox_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h19_steer_inject_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h23_compaction_commit_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h24_checkpoint_resume_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h25_replay_fault_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h26_clarification_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h27_turn_outcome_guard.rs	.rs	已标明 include_str 源码标记断言及其非运行时证明范围
+kiana-core/tests/h28_progress_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/h30_retrieval_guard.rs	.rs	已说明统一 ContextPlan 静态 marker 的覆盖方式和不证明生产接线的边界
+kiana-core/tests/h31_child_harness_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h33_resource_cleanup_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h34_legacy_compat_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h35_harness_eval_guard.rs	.rs	待阅读与注释
+kiana-core/tests/h36_harness_integration_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int01_integration_boundary_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int02_connector_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int03_connector_operation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int04_connector_registry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int05_connector_scope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int06_connector_credential_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int07_connector_ports_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int08_local_fixture_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int09_connector_health_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int10_stdio_mcp_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int11_https_connector_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/int12_oauth_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int13_secret_redaction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int14_connector_protocol_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int15_connector_policy_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/int16_connector_reservation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int17_connector_quota_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int18_effect_permit_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int20_receipt_observation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int21_connector_retry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int22_connector_reconciliation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int23_connector_cancellation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int25_connector_mapping_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int26_connector_propagation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int27_connector_notifications_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int28_connector_surfaces_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int29_connector_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int30_connector_conformance_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int31_connector_pilot_guard.rs	.rs	待阅读与注释
+kiana-core/tests/int32_connector_write_pilot_guard.rs	.rs	待阅读与注释
+kiana-core/tests/integrations_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/nm01_contracts_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm02_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm03_event_registry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm04_notification_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm04_notification_projector.rs	.rs	待阅读与注释
+kiana-core/tests/nm05_notification_resolver.rs	.rs	待阅读与注释
+kiana-core/tests/nm05_notification_resolver_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm06_notification_materializer.rs	.rs	待阅读与注释
+kiana-core/tests/nm06_notification_materializer_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm07_notification_dedup_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm08_delivery_worker_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm09_notification_store.rs	.rs	待阅读与注释
+kiana-core/tests/nm09_notification_store_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm10_notification_action.rs	.rs	待阅读与注释
+kiana-core/tests/nm10_notification_action_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm11_notification_priority.rs	.rs	待阅读与注释
+kiana-core/tests/nm11_notification_priority_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm12_notification_projector.rs	.rs	待阅读与注释
+kiana-core/tests/nm12_notification_projector_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm17_notification_policy.rs	.rs	待阅读与注释
+kiana-core/tests/nm17_notification_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm18_notification_recovery.rs	.rs	待阅读与注释
+kiana-core/tests/nm18_notification_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm19_external_notification.rs	.rs	待阅读与注释
+kiana-core/tests/nm19_external_notification_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm20_notification_faults.rs	.rs	待阅读与注释
+kiana-core/tests/nm20_notification_faults_guard.rs	.rs	待阅读与注释
+kiana-core/tests/nm21_notification_parity.rs	.rs	待阅读与注释
+kiana-core/tests/nm21_notification_parity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/notifications_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/oa03_redaction_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/oa04_audit_reducer.rs	.rs	待阅读与注释
+kiana-core/tests/oa07_span_lifecycle.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/oa08_model_instrumentation.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/oa09_capability_instrumentation.rs	.rs	待阅读与注释
+kiana-core/tests/oa10_operational_metrics.rs	.rs	待阅读与注释
+kiana-core/tests/oa11_health_probes.rs	.rs	待阅读与注释
+kiana-core/tests/oa12_metric_governance.rs	.rs	待阅读与注释
+kiana-core/tests/oa14_trace_export.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/oa15_audit_projection.rs	.rs	待阅读与注释
+kiana-core/tests/oa17_query_cursor.rs	.rs	待阅读与注释
+kiana-core/tests/oa18_audit_export.rs	.rs	待阅读与注释
+kiana-core/tests/oa19_incident_projection.rs	.rs	待阅读与注释
+kiana-core/tests/oa20_data_governance_projection.rs	.rs	待阅读与注释
+kiana-core/tests/oa21_replay_diagnostics.rs	.rs	待阅读与注释
+kiana-core/tests/oa22_fault_injection.rs	.rs	待阅读与注释
+kiana-core/tests/oa23_provider_independent_eval.rs	.rs	待阅读与注释
+kiana-core/tests/oa24_entrypoint_parity.rs	.rs	待阅读与注释
+kiana-core/tests/oa25_capacity_migration.rs	.rs	待阅读与注释
+kiana-core/tests/oa26_durable_gate.rs	.rs	待阅读与注释
+kiana-core/tests/oa27_company_governance.rs	.rs	待阅读与注释
+kiana-core/tests/observability_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/p0_a01b_schema_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/p0_a02_error_codes_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_b01_state_machine_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_f02_approval_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_f03_resume_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_g03_resume_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_g04_projection_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_j1_01_cancellation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_j1_02_cancellation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p0_k1_identity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_c01_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_c02_cell_lifecycle.rs	.rs	待阅读与注释
+kiana-core/tests/p1_c03_model_routing_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_d01_ready_predicate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_d02_dependency_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_d03_lease_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_e01_communication_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_e02_symposium.rs	.rs	待阅读与注释
+kiana-core/tests/p1_h01_tool_authority_guard.rs	.rs	已说明include_str静态源码守卫范围和Daemon/Runner标记的证明边界
+kiana-core/tests/p1_h03_path_containment_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_j2_01_context_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_j2_02_budget_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_j2_03_role_prompt_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_j2_04_role_pack_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_j3_03_memory_proposal_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_j8_01_observability.rs	.rs	待阅读与注释
+kiana-core/tests/p1_k5_01_cost_capacity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p1_l1_01_golden_trace.rs	.rs	待阅读与注释
+kiana-core/tests/p2_j5_01_workflow_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p2_k3_01_human_inbox.rs	.rs	待阅读与注释
+kiana-core/tests/p2_k4_01_checkpoint.rs	.rs	待阅读与注释
+kiana-core/tests/p2_k6_01_reliability.rs	.rs	待阅读与注释
+kiana-core/tests/p2_k7_01_data_governance.rs	.rs	待阅读与注释
+kiana-core/tests/p2_l2_01_feedback.rs	.rs	待阅读与注释
+kiana-core/tests/p2_m3_01_action_cards.rs	.rs	待阅读与注释
+kiana-core/tests/p2_m4_01_run_artifact_detail.rs	.rs	待阅读与注释
+kiana-core/tests/p3_i01_company_objects_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p3_i02_company_commands.rs	.rs	待阅读与注释
+kiana-core/tests/p3_i03_company_chain.rs	.rs	待阅读与注释
+kiana-core/tests/p3_i04_acceptance_review.rs	.rs	待阅读与注释
+kiana-core/tests/p3_i05_closeout_outcome.rs	.rs	待阅读与注释
+kiana-core/tests/p3_i06_company_golden.rs	.rs	待阅读与注释
+kiana-core/tests/p4_e03_department_memory.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j3_05_distillation.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j6_01_bounded_swarm.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_03_terminal_replay.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_06_model_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_07_extraction_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_08_config_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_09_credentials_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_10_catalog_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_11_role_route_admission_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_12_request_compilation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_13_transport_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_14_accumulator_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_15_anthropic_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_16_openai_chat_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_17_openai_responses_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_18_ollama_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_19_gemini_interactions_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_20_protected_replay_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_21_structured_output_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_22_image_admission_guard.rs	.rs	已补充跨 crate include_str! 准入、编码限额与不发网络的证明边界
+kiana-core/tests/p4_j7_23_provider_retry_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_24_usage_settlement_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_25_capacity_fallback_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/p4_j7_26_model_events_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_27_provider_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_28_provider_diagnostics_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_29_provider_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_30_provider_product_chain_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_j7_31_provider_live_guard.rs	.rs	待阅读与注释
+kiana-core/tests/p4_k2_01_trigger.rs	.rs	待阅读与注释
+kiana-core/tests/p4_k8_01_connector.rs	.rs	待阅读与注释
+kiana-core/tests/p4_l3_01_versioning.rs	.rs	已说明 include_str! 静态源码守卫的输入、断言范围与不覆盖的运行时 EventStore/Provider 行为
+kiana-core/tests/p4_l5_01_skill_allowed_tools.rs	.rs	待阅读与注释
+kiana-core/tests/p4_l6_01_supply_chain.rs	.rs	待阅读与注释
+kiana-core/tests/pd01_storage_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/pd02_schema_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd03_health_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd04_storage_ports_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd05_eventstore_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd06_jsonl_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/pd07_indexes_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd08_integrity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd09_projection_driver.rs	.rs	已注释内存 driver checkpoint/tail/rebuild 与失败暂停、显式 retry 覆盖范围
+kiana-core/tests/pd09_projector_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd10_read_model.rs	.rs	待阅读与注释
+kiana-core/tests/pd10_read_model_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd11_authority_projection.rs	.rs	待阅读与注释
+kiana-core/tests/pd11_authority_projection_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd13_recovery_material_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd15_workspace_artifact_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd16_receipt_evidence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd18_memory_projection_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd25_retention_watermark_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd26_revocation_propagation.rs	.rs	待阅读与注释
+kiana-core/tests/pd26_revocation_propagation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd28_storage_security_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd29_storage_diagnostics.rs	.rs	待阅读与注释
+kiana-core/tests/pd29_storage_diagnostics_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd30_32_34_storage_matrices_core_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd33_persistence_uat_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd34_persistence_capacity_guard.rs	.rs	待阅读与注释
+kiana-core/tests/pd35_persistence_closeout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/persistence_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/quality_drift_fixtures.rs	.rs	已补充 EQ-46 合成输入 helper 与失败优先、样本不足、双版本排序、载荷篡改/阈值/告警 fixture 的逐用例解释和证明上限
+kiana-core/tests/quality_drift_guard.rs	.rs	已说明 include_str! 的源码 marker/黑名单范围及其不覆盖的运行时调用关系
+kiana-core/tests/quality_evidence_archive_guard.rs	.rs	待阅读与注释
+kiana-core/tests/quality_feedback_fixtures.rs	.rs	待阅读与注释
+kiana-core/tests/quality_feedback_guard.rs	.rs	待阅读与注释
+kiana-core/tests/quality_promote_fixtures.rs	.rs	待阅读与注释
+kiana-core/tests/quality_report_guard.rs	.rs	待阅读与注释
+kiana-core/tests/restore_verification_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc01_threat_register.rs	.rs	待阅读与注释
+kiana-core/tests/sc02_security_contract_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc03_security_reason_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc04_security_context.rs	.rs	待阅读与注释
+kiana-core/tests/sc04_security_context_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc05_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc06_authn_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc07_authority_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/sc07_authority_snapshot.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/sc08_fence_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc09_grant_scope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc10_approval_binding.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/sc10_approval_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/sc11_entrypoint_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc11_entrypoint_parity.rs	.rs	待阅读与注释
+kiana-core/tests/sc12_permit_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc13_path_toctou_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc14_network_policy_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc15_cancel_unknown.rs	.rs	待阅读与注释
+kiana-core/tests/sc15_cancel_unknown_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc16_quota_backpressure.rs	.rs	待阅读与注释
+kiana-core/tests/sc16_quota_backpressure_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc17_connector_ingress_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc18_secret_ref_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc19_secret_rotation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc20_redaction_boundary_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc22_retention.rs	.rs	待阅读与注释
+kiana-core/tests/sc22_retention_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc23_deletion.rs	.rs	待阅读与注释
+kiana-core/tests/sc23_deletion_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc28_supply_chain_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc29_release_attestation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc30_route_attestation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc31_audit_record_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc32_audit_projection_commit.rs	.rs	待阅读与注释
+kiana-core/tests/sc32_audit_projection_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc33_incident_command_route.rs	.rs	待阅读与注释
+kiana-core/tests/sc33_security_incident.rs	.rs	待阅读与注释
+kiana-core/tests/sc33_security_incident_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc35_evidence_manifest.rs	.rs	待阅读与注释
+kiana-core/tests/sc35_evidence_manifest_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc37_deny_matrix.rs	.rs	待阅读与注释
+kiana-core/tests/sc37_sc39_security_fixture_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc38_property_replay.rs	.rs	待阅读与注释
+kiana-core/tests/sc39_red_team_corpus.rs	.rs	待阅读与注释
+kiana-core/tests/sc40_capacity_envelope_route.rs	.rs	待阅读与注释
+kiana-core/tests/sc40_capacity_fault_envelope.rs	.rs	待阅读与注释
+kiana-core/tests/sc40_capacity_fault_envelope_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc41_security_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc42_security_rehearsal_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sc43_security_closeout_guard.rs	.rs	待阅读与注释
+kiana-core/tests/security_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/support/bq26_adapter_seam.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/support/mod.rs	.rs	待阅读与注释
+kiana-core/tests/sw01_lineage_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw02_work_graph_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw03_reducer_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw04_child_grant.rs	.rs	待阅读与注释
+kiana-core/tests/sw04_child_grant_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw13_merge_reducer_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw14_merge_review_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw15_retirement_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw16_handoff_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw17_projection_guard.rs	.rs	待阅读与注释
+kiana-core/tests/sw18_release_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_admission_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_baseline.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_cancellation_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_child_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_child_result_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_progress_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_queue_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_recovery_guard.rs	.rs	待阅读与注释
+kiana-core/tests/swarm_routing_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui04_action_authority.rs	.rs	清点时工作区已有改动，跳过（??）
+kiana-core/tests/ui04_action_journal_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-core/tests/ui05_snapshot_projector_guard.rs	.rs	已说明 include_str! marker 覆盖的 Domain/Daemon/Protocol/baseline 文本范围及不能证明运行时接线或身份绑定的边界
+kiana-core/tests/ui06_feed_replay_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui07_typed_client_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui08_reducer_store_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui09_schema_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui21_human_inbox_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui39_live_acp_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui40_release_gate_guard.rs	.rs	待阅读与注释
+kiana-core/tests/ui41_handoff_guard.rs	.rs	待阅读与注释
+kiana-daemon/src/apply_patch.rs	.rs	待阅读与注释
+kiana-daemon/src/approval_store.rs	.rs	待阅读与注释
+kiana-daemon/src/authn.rs	.rs	待阅读与注释
+kiana-daemon/src/company_dispatch.rs	.rs	待阅读与注释
+kiana-daemon/src/connector_ingress.rs	.rs	待阅读与注释
+kiana-daemon/src/connectors.rs	.rs	待阅读与注释
+kiana-daemon/src/container_environment.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/src/context_query.rs	.rs	已按最新工作区代码补充受控上下文查询链、只读/落盘两类Broker operation、参数allowlist、spawn_blocking、项目内路径containment、撤销数据检查、provenance与错误传播说明；保留其他Codex已有逻辑改动
+kiana-daemon/src/data_governance.rs	.rs	待阅读与注释
+kiana-daemon/src/deployment_admission.rs	.rs	已补充 DEP-12 DaemonHost→Core→Domain 转发、PortError 映射、调用者必须消费两个许可位及未接入 gate 边界
+kiana-daemon/src/deployment_capacity.rs	.rs	待阅读与注释
+kiana-daemon/src/deployment_incident.rs	.rs	待阅读与注释
+kiana-daemon/src/deployment_observability.rs	.rs	已补充 DEP-14 DaemonHost→Core→Domain 校验转发、PortError 映射和不执行采集/脱敏/导出边界
+kiana-daemon/src/deployment_reconcile.rs	.rs	已注释 Host ops_reconcile→Core→Domain 转发、PortError 映射及业务状态仍作为成功报告返回
+kiana-daemon/src/deployment_shutdown.rs	.rs	已补充 DEP-13 DaemonHost→Core→Domain 静态 route、PortError 映射与不执行真实 shutdown 的边界
+kiana-daemon/src/eval_runtime.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/src/execution_control.rs	.rs	已补充中文注释：Broker路由、长进程生命周期、JobHandle/owner校验、PTY与stdin、输出归档/分页、本地包；保留共享逻辑变更
+kiana-daemon/src/execution_output.rs	.rs	已补充中文注释：shell stdout/stderr采集、reader收尾、脱敏/终端清理、预览与metadata；channel仅作扫描finding来源标签
+kiana-daemon/src/execution_workspace.rs	.rs	待阅读与注释
+kiana-daemon/src/extensions.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/src/harness_capabilities.rs	.rs	阶段二注释完成：handler注册、shell临时工作区与发布、patch路径治理、sandbox命令构造、取消/超时/停止确认、输出限制及10项测试均已审阅注释
+kiana-daemon/src/harness_mcp.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/src/harness_memory.rs	.rs	待阅读与注释
+kiana-daemon/src/harness_sandbox.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/src/harness_skills.rs	.rs	待阅读与注释
+kiana-daemon/src/health_aggregation.rs	.rs	已补充DaemonHost到Core的健康聚合路由、probe覆盖与摘要重算语义
+kiana-daemon/src/instance.rs	.rs	待阅读与注释
+kiana-daemon/src/journal_approvals.rs	.rs	待阅读与注释
+kiana-daemon/src/lib.rs	.rs	清点时工作区已有改动，queue service Host 包装只读核对，暂不编辑（ M）
+kiana-daemon/src/local_artifacts.rs	.rs	待阅读与注释
+kiana-daemon/src/local_packages.rs	.rs	待阅读与注释
+kiana-daemon/src/mcp_connector.rs	.rs	待阅读与注释
+kiana-daemon/src/mcp_http.rs	.rs	待阅读与注释
+kiana-daemon/src/mcp_stdio.rs	.rs	待阅读与注释
+kiana-daemon/src/memory_retrieval.rs	.rs	待阅读与注释
+kiana-daemon/src/migration_registry_verify.rs	.rs	待阅读与注释
+kiana-daemon/src/model_client.rs	.rs	部分完成：生产选型/wrapper、测试fixture装配、ProviderModelClient请求/预算/流式入口、事件聚合、错误映射、工具/消息/响应转换和测试辅助设施已注释；测试函数内部仍需进一步细化审阅
+kiana-daemon/src/notification_stream.rs	.rs	待阅读与注释
+kiana-daemon/src/oauth_accounts.rs	.rs	待阅读与注释
+kiana-daemon/src/ops_diagnostics.rs	.rs	已注释 DaemonHost→Core→Domain 诊断转发、PortError 映射及无 facts producer/外部副作用边界
+kiana-daemon/src/pre_tool_hooks.rs	.rs	待阅读与注释
+kiana-daemon/src/process_supervisor.rs	.rs	已补充中文注释：Unix rlimit、进程组TERM/KILL、leader回收、停止回执、guard及非Unix限制
+kiana-daemon/src/restore_verifier.rs	.rs	已解释 Domain manifest/fact 校验、绑定字段、错误传播及不执行恢复副作用的边界
+kiana-daemon/src/run_stream.rs	.rs	待阅读与注释
+kiana-daemon/src/shell_plan.rs	.rs	待阅读与注释
+kiana-daemon/src/startup_coordinator.rs	.rs	已补充 DEP-10 DaemonHost→Core 委托、PortError 转换与当前无生产入口调用的边界说明
+kiana-daemon/src/storage.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/src/supervisor_adapters.rs	.rs	已补充 DEP-09 backend 识别与实际可用性的区别、request/action 校验顺序、Unavailable 语义及无平台执行边界
+kiana-daemon/src/workflow_ingress.rs	.rs	已说明 server-owned source/HMAC 配置、验证顺序、共享锁去重与进程内状态边界
+kiana-daemon/src/workflow_service.rs	.rs	已说明 bounded Tokio actor、显式 tick、请求/回执通道、active lease/shutdown 及生命周期竞态
+kiana-daemon/src/workspace_checkpoints.rs	.rs	待阅读与注释
+kiana-daemon/tests/aut09_workflow_service.rs	.rs	已说明 MemoryStore service 操作、worker restart 的同进程范围及 Unknown 不重调度 fixture
+kiana-daemon/tests/aut09_workflow_service_guard.rs	.rs	清点时工作区已有改动，暂只读（ M）
+kiana-daemon/tests/aut11_workflow_ingress.rs	.rs	已说明合成密钥签名 fixture、验签/拒绝/重放场景及通用 Err 断言限制
+kiana-daemon/tests/bq16_provider_capacity_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/bq23_billing_query_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/cap33_container.rs	.rs	待阅读与注释
+kiana-daemon/tests/ci04_ingress.rs	.rs	待阅读与注释
+kiana-daemon/tests/ci06_config_resolver.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/tests/cm04_memory_mutation_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/cm05_memory_eventstore.rs	.rs	待阅读与注释
+kiana-daemon/tests/co06_company_artifact_history.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/tests/co06_local_artifact_store.rs	.rs	待阅读与注释
+kiana-daemon/tests/company_lifecycle.rs	.rs	待阅读与注释
+kiana-daemon/tests/control_plane.rs	.rs	待阅读与注释
+kiana-daemon/tests/daemon_host.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/tests/dep07_storage_adapter_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep09_supervisor_adapter_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep10_startup_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep11_health_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep12_admission_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep13_shutdown_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep14_observability_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep15_ops_diagnostics_route_guard.rs	.rs	已注释 include_str! 委托/禁止词源码守卫及其非端到端覆盖范围
+kiana-daemon/tests/dep16_reconcile_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep17_capacity_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep18_incident_route_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep27_migration_registry_verify_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep27_registry_signature.rs	.rs	待阅读与注释
+kiana-daemon/tests/dep36_container_adapter.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/tests/eq09_eval_runtime.rs	.rs	待阅读与注释
+kiana-daemon/tests/eq10_fake_provider.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/tests/eq11_deny_broker.rs	.rs	待阅读与注释
+kiana-daemon/tests/eq12_daemon_spine.rs	.rs	待阅读与注释
+kiana-daemon/tests/eq13_initial_state.rs	.rs	待阅读与注释
+kiana-daemon/tests/eq14_evidence_capture.rs	.rs	待阅读与注释
+kiana-daemon/tests/eq15_fault_plan.rs	.rs	待阅读与注释
+kiana-daemon/tests/eq16_boundary_evidence.rs	.rs	待阅读与注释
+kiana-daemon/tests/ext26_extension_adapters_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/h15_output_limits.rs	.rs	待阅读与注释
+kiana-daemon/tests/h17_job_handle.rs	.rs	已说明 H17 include_str! 源码守卫覆盖的 owner、重启与操作 Invocation 边界
+kiana-daemon/tests/h29_hook_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/harness_runtime.rs	.rs	待阅读与注释
+kiana-daemon/tests/int10_stdio_mcp_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/int12_oauth_store.rs	.rs	待阅读与注释
+kiana-daemon/tests/int13_secret_redaction_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/int16_connector_reservation_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/int17_connector_quota_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/int18_effect_permit_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/int19_connector_dispatch_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/int24_connector_ingress.rs	.rs	待阅读与注释
+kiana-daemon/tests/int24_connector_ingress_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/nm13_notification_stream.rs	.rs	待阅读与注释
+kiana-daemon/tests/nm13_notification_stream_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/p0_j1_03_process_group.rs	.rs	待阅读与注释
+kiana-daemon/tests/p0_j1_04_cancel_race.rs	.rs	待阅读与注释
+kiana-daemon/tests/p0_k1_identity.rs	.rs	待阅读与注释
+kiana-daemon/tests/p1_j3_02_memory.rs	.rs	待阅读与注释
+kiana-daemon/tests/p1_j3_04_hybrid_retrieval.rs	.rs	待阅读与注释
+kiana-daemon/tests/p1_j4_01_mcp.rs	.rs	待阅读与注释
+kiana-daemon/tests/p2_m2_01_ui_projection.rs	.rs	待阅读与注释
+kiana-daemon/tests/p3_i06_company_golden.rs	.rs	待阅读与注释
+kiana-daemon/tests/pd01_storage.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-daemon/tests/pd12_eventstore_approval_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/pd17_memory_mutation_journal_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/pd18_memory_projection_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/pd21_cache_policy_guard.rs	.rs	已说明 include_str! 跨 Query/Daemon marker 守卫的范围和运行时证明限制
+kiana-daemon/tests/pd22_snapshot_manifest_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/pd23_restore_verifier.rs	.rs	已说明合成 manifest/fact fixture、公开 verifier 路径与摘要篡改断言覆盖范围
+kiana-daemon/tests/pd23_restore_verifier_guard.rs	.rs	清点时工作区已有改动，跳过（ M）；稳定后复审静态守卫注释
+kiana-daemon/tests/pd24_migration_record_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/sc06_authn.rs	.rs	待阅读与注释
+kiana-daemon/tests/sc27_extension_lifecycle_guard.rs	.rs	待阅读与注释
+kiana-daemon/tests/ui03_instance.rs	.rs	待阅读与注释
+kiana-daemon/tests/ui07_typed_client_guard.rs	.rs	待阅读与注释
+kiana-domain/src/actions.rs	.rs	已在 docs/code-guide/capability-actions.md 详细导读；因自身源码参与运行时 catalog digest，暂不加行内注释
+kiana-domain/src/adapter_result.rs	.rs	待阅读与注释
+kiana-domain/src/approval_journal.rs	.rs	待阅读与注释
+kiana-domain/src/approval_preview.rs	.rs	待阅读与注释
+kiana-domain/src/artifact_contracts.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/assignment.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/audit.rs	.rs	待阅读与注释
+kiana-domain/src/authority.rs	.rs	已补充中文注释：授权DTO字段、校验/摘要、epoch与stream version、事件reducer及部分失败边界
+kiana-domain/src/automation.rs	.rs	本批已按调用链补充中文契约注释；另有共享代码差异需保留
+kiana-domain/src/automation_boot_recovery.rs	.rs	本批已补充 AUT-21 fact 校验边界；Ready 游标差异已记录
+kiana-domain/src/automation_cancellation.rs	.rs	本批已补充 AUT-17 事实校验边界；未接入生产取消路径
+kiana-domain/src/automation_compensation.rs	.rs	本批已补充 AUT-20 plan 校验注释；未接入生产补偿路径
+kiana-domain/src/automation_dispatch.rs	.rs	本批已补充 AUT-15 intent/observation 字段与绑定校验边界
+kiana-domain/src/automation_effect_reservation.rs	.rs	本批已补充 AUT-14 事实与内存 ledger 注释；未接入生产执行
+kiana-domain/src/automation_fanout.rs	.rs	本批已补充 AUT-19 静态计划校验边界；未接入生产调度
+kiana-domain/src/automation_release_evidence.rs	.rs	本批已补充 AUT-24 证据声明校验边界；不验证外部证据真实性
+kiana-domain/src/automation_retry.rs	.rs	本批已补充 AUT-16 分类边界注释；未接入生产重试路径
+kiana-domain/src/automation_signal.rs	.rs	本批已补充 AUT-18 校验边界注释；未接入生产执行链
+kiana-domain/src/automation_snapshot.rs	.rs	本批已补充 AUT-22 视图字段/绑定/摘要校验边界；未发现生产 builder
+kiana-domain/src/automation_surface_uat.rs	.rs	本批已补充五入口矩阵字段、校验流程及声明真实性边界
+kiana-domain/src/backend_selection.rs	.rs	待阅读与注释
+kiana-domain/src/backup_lifecycle.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/backup_manifest.rs	.rs	待阅读与注释
+kiana-domain/src/billing_admission.rs	.rs	待阅读与注释
+kiana-domain/src/billing_allocation.rs	.rs	待阅读与注释
+kiana-domain/src/billing_budgets.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/billing_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/billing_cost.rs	.rs	待阅读与注释
+kiana-domain/src/billing_invoice.rs	.rs	待阅读与注释
+kiana-domain/src/billing_ledger.rs	.rs	待阅读与注释
+kiana-domain/src/billing_pricing.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/billing_projection.rs	.rs	待阅读与注释
+kiana-domain/src/billing_query.rs	.rs	待阅读与注释
+kiana-domain/src/billing_quota.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/billing_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/billing_reservation.rs	.rs	待阅读与注释
+kiana-domain/src/billing_settlement_fold.rs	.rs	待阅读与注释
+kiana-domain/src/billing_usage.rs	.rs	已解释 UsageVector 三态用量、NormalizedUsage 来源/模型/路由/观测/置信度/摘要字段及 validator 边界；记录 Default schema、confidence 与字段完整度未互证等细节
+kiana-domain/src/billing_usage_accumulator.rs	.rs	已解释 attempt-local Snapshot/Delta/Final reducer、sequence 去重/回退、累计包含、可选维度和 checked overflow；记录 Final 重放顺序、sequence 缺口与无界 seen 状态
+kiana-domain/src/budget_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/cancellation.rs	.rs	已补充取消事实的状态机、停止证据、CAS版本、摘要与恢复/对账数据流说明；明确本文件只定义可持久化事实，不发送取消信号或执行停止
+kiana-domain/src/capabilities.rs	.rs	阶段二注释完成：请求/grant/scope envelope、审批与恢复快照、结果回执、进程/效果分类及模型观察数据流
+kiana-domain/src/capability_catalog.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/capability_conformance.rs	.rs	待阅读与注释
+kiana-domain/src/cell_admission.rs	.rs	待阅读与注释
+kiana-domain/src/change_contract.rs	.rs	已补充CO-30 ChangeImpact影响闭包、版本推进、BaselinePublication完整新引用/失效引用、canonical digest、ledger幂等与version conflict；明确不能只改scope字符串、不能把内存ledger当成EventLog authority
+kiana-domain/src/child_harness.rs	.rs	待阅读与注释
+kiana-domain/src/chunk_provenance.rs	.rs	已补充 ChunkRange/SourceChunk/ChunkSet 的字段语义、无损 byte 合同及来源真实性限制
+kiana-domain/src/ci12_product_gate.rs	.rs	已补充CI-12 deny-first/UAT十场景、Denied/Completed/Unknown/Unverified语义、handler/provider/effect零副作用、receipt/approval/live evidence、case/gate digest与唯一覆盖校验及proof边界
+kiana-domain/src/clarification.rs	.rs	已补充H26澄清合同从Runner问题→Human Inbox→Answer→Core/EventLog→原步骤continuation的数据流；解释interaction/run/turn/step与request digest绑定、option/role/time fence、Pending/Answered/Cancelled/Expired状态机、resolution/wait projection与非approval边界
+kiana-domain/src/clock.rs	.rs	待阅读与注释
+kiana-domain/src/closing_receipt.rs	.rs	已补充CO-35 ClosingReceipt从Company/EventLog事实→packet/attempt/run/review/acceptance/delivery/incident/evidence引用→四种close kind校验→幂等ledger/read model的数据流；解释Success/Failure/Cancelled/Waived条件、角色独立、停止/incident/残余义务、digest与非durable边界
+kiana-domain/src/code_graph.rs	.rs	待阅读与注释
+kiana-domain/src/communication.rs	.rs	待阅读与注释
+kiana-domain/src/compact_summary.rs	.rs	待阅读与注释
+kiana-domain/src/compaction_commit.rs	.rs	待阅读与注释
+kiana-domain/src/company.rs	.rs	待阅读与注释
+kiana-domain/src/company_attempt.rs	.rs	待阅读与注释
+kiana-domain/src/company_business.rs	.rs	待阅读与注释
+kiana-domain/src/company_closeout.rs	.rs	待阅读与注释
+kiana-domain/src/company_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/company_handoff.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/company_inbox.rs	.rs	待阅读与注释
+kiana-domain/src/company_integration.rs	.rs	待阅读与注释
+kiana-domain/src/company_knowledge.rs	.rs	待阅读与注释
+kiana-domain/src/company_live_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/company_parallel.rs	.rs	待阅读与注释
+kiana-domain/src/company_policy.rs	.rs	待阅读与注释
+kiana-domain/src/company_portfolio.rs	.rs	待阅读与注释
+kiana-domain/src/company_process.rs	.rs	待阅读与注释
+kiana-domain/src/company_proposals.rs	.rs	待阅读与注释
+kiana-domain/src/company_read_model.rs	.rs	待阅读与注释
+kiana-domain/src/company_readiness.rs	.rs	待阅读与注释
+kiana-domain/src/company_receipts.rs	.rs	待阅读与注释
+kiana-domain/src/company_reconciliation.rs	.rs	待阅读与注释
+kiana-domain/src/company_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/company_replay.rs	.rs	待阅读与注释
+kiana-domain/src/company_review.rs	.rs	待阅读与注释
+kiana-domain/src/company_scope.rs	.rs	待阅读与注释
+kiana-domain/src/company_task_scope.rs	.rs	待阅读与注释
+kiana-domain/src/company_template_registry.rs	.rs	待阅读与注释
+kiana-domain/src/company_wake.rs	.rs	待阅读与注释
+kiana-domain/src/connector_cancellation.rs	.rs	待阅读与注释
+kiana-domain/src/connector_conformance.rs	.rs	待阅读与注释
+kiana-domain/src/connector_credentials.rs	.rs	待阅读与注释
+kiana-domain/src/connector_dispatch.rs	.rs	待阅读与注释
+kiana-domain/src/connector_effect_permit.rs	.rs	待阅读与注释
+kiana-domain/src/connector_fixture.rs	.rs	待阅读与注释
+kiana-domain/src/connector_https.rs	.rs	待阅读与注释
+kiana-domain/src/connector_ingress.rs	.rs	待阅读与注释
+kiana-domain/src/connector_mapping.rs	.rs	待阅读与注释
+kiana-domain/src/connector_notifications.rs	.rs	待阅读与注释
+kiana-domain/src/connector_operation.rs	.rs	待阅读与注释
+kiana-domain/src/connector_pilot.rs	.rs	待阅读与注释
+kiana-domain/src/connector_policy.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/connector_propagation.rs	.rs	待阅读与注释
+kiana-domain/src/connector_protocol.rs	.rs	待阅读与注释
+kiana-domain/src/connector_quota.rs	.rs	待阅读与注释
+kiana-domain/src/connector_reconciliation.rs	.rs	待阅读与注释
+kiana-domain/src/connector_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/connector_registry.rs	.rs	待阅读与注释
+kiana-domain/src/connector_reservation.rs	.rs	待阅读与注释
+kiana-domain/src/connector_retry.rs	.rs	待阅读与注释
+kiana-domain/src/connector_scope.rs	.rs	待阅读与注释
+kiana-domain/src/connector_surfaces.rs	.rs	待阅读与注释
+kiana-domain/src/connector_write_pilot.rs	.rs	待阅读与注释
+kiana-domain/src/connectors.rs	.rs	待阅读与注释
+kiana-domain/src/container_environment.rs	.rs	待阅读与注释
+kiana-domain/src/container_inventory.rs	.rs	待阅读与注释
+kiana-domain/src/container_lifecycle_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/context_checkpoint.rs	.rs	待阅读与注释
+kiana-domain/src/context_invalidation.rs	.rs	待阅读与注释
+kiana-domain/src/context_memory_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/context_plan.rs	.rs	待阅读与注释
+kiana-domain/src/context_scope.rs	.rs	待阅读与注释
+kiana-domain/src/contracts.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/control_plane_authority.rs	.rs	已补充CP-29状态机、command fact、crash observation、七个crash point、authority/budget/permission单调性、replay幂等、Unknown fencing、online/replay fold及source证据边界；说明所有validate/构造/digest函数的调用者、失败和副作用
+kiana-domain/src/control_plane_product_flow.rs	.rs	已补充CP-30三类流程、四界面receipt、authority/event游标、canonical digest及source/durable/live/physical证明边界；解释只读/审批写入/取消恢复校验、错误传播和不能在Domain合同中新增第二执行循环
+kiana-domain/src/correlation.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/cost_correction.rs	.rs	待阅读与注释
+kiana-domain/src/credential_recovery_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/credentials.rs	.rs	待阅读与注释
+kiana-domain/src/criteria.rs	.rs	待阅读与注释
+kiana-domain/src/deletion.rs	.rs	待阅读与注释
+kiana-domain/src/delivery_authorization.rs	.rs	待阅读与注释
+kiana-domain/src/delivery_manifest.rs	.rs	待阅读与注释
+kiana-domain/src/department_packets.rs	.rs	待阅读与注释
+kiana-domain/src/deployment.rs	.rs	待阅读与注释
+kiana-domain/src/deployment_admission.rs	.rs	已补充 DEP-12 input/window/decision 字段语义、摘要限制、状态优先级与 new/existing work 许可边界
+kiana-domain/src/deployment_capacity.rs	.rs	待阅读与注释
+kiana-domain/src/deployment_compatibility.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/deployment_config.rs	.rs	待阅读与注释
+kiana-domain/src/deployment_incident.rs	.rs	待阅读与注释
+kiana-domain/src/deployment_observability.rs	.rs	已补充 DEP-14 metric/bundle 字段、scope 对齐、secret_free声明、有限trace marker、摘要和证据真实性边界
+kiana-domain/src/deployment_reconcile.rs	.rs	已注释 DEP-16 四目标 facts、input/report 字段、cursor/generation/fence 规则、状态优先级及纯 reducer 限制
+kiana-domain/src/deployment_release.rs	.rs	待阅读与注释
+kiana-domain/src/deployment_shutdown.rs	.rs	已补充 DEP-13 phase/input/report 字段、状态优先级、饱和计数、ack来源和事实验证边界
+kiana-domain/src/deployment_startup.rs	.rs	已补充 DEP-10 八阶段启动合同、事实/request/report 数据流、校验顺序与摘要/恢复证明边界
+kiana-domain/src/dispatch.rs	.rs	本批已按 Core→EventStore→Broker 消费链补充许可契约注释；保留共享 invocation/request 绑定逻辑
+kiana-domain/src/effect_observation.rs	.rs	待阅读与注释
+kiana-domain/src/effect_usage.rs	.rs	待阅读与注释
+kiana-domain/src/embedding_manifest.rs	.rs	待阅读与注释
+kiana-domain/src/er31_fault_matrix.rs	.rs	待阅读与注释
+kiana-domain/src/er32_adapter_conformance.rs	.rs	待阅读与注释
+kiana-domain/src/er33_capacity_migration.rs	.rs	待阅读与注释
+kiana-domain/src/er34_durable_gate.rs	.rs	待阅读与注释
+kiana-domain/src/errors.rs	.rs	已补充中文错误分类、策略字段、from_reason映射规则与Domain/Core/客户端流向说明；记录策略字段不自动执行重试/补偿/对账
+kiana-domain/src/eval.rs	.rs	待阅读与注释
+kiana-domain/src/event_contracts.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/execution_identity.rs	.rs	已补充中文注释：Core Turn/Invocation与Runner Step/ModelAttempt身份流、attempt与call_id语义、canonical摘要及自校验边界
+kiana-domain/src/execution_output.rs	.rs	已补充中文注释：采集/预览/归档预算DTO、输出引用字段绑定、摘要/兼容性校验；明确DTO验证不执行IO或授权
+kiana-domain/src/execution_scope.rs	.rs	已说明 Core→Domain→Broker 数据流、全部 scope 字段、serde/default、路径和 digest 边界、各验证拒绝条件及 request/parent 绑定范围；记录当前固定 epoch、局部比较和未调用 helper 限制
+kiana-domain/src/extension_adapters.rs	.rs	待阅读与注释
+kiana-domain/src/extension_catalog.rs	.rs	待阅读与注释
+kiana-domain/src/extension_commands.rs	.rs	待阅读与注释
+kiana-domain/src/extension_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/extension_golden.rs	.rs	待阅读与注释
+kiana-domain/src/extension_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/src/extension_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/extension_release.rs	.rs	待阅读与注释
+kiana-domain/src/extension_state.rs	.rs	待阅读与注释
+kiana-domain/src/extension_visibility.rs	.rs	待阅读与注释
+kiana-domain/src/extensions.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/external_resource.rs	.rs	待阅读与注释
+kiana-domain/src/fallback_admission.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/fault.rs	.rs	待阅读与注释
+kiana-domain/src/fencing.rs	.rs	待阅读与注释
+kiana-domain/src/golden_context.rs	.rs	待阅读与注释
+kiana-domain/src/governance.rs	.rs	待阅读与注释
+kiana-domain/src/governance_gate.rs	.rs	待阅读与注释
+kiana-domain/src/grant_authority.rs	.rs	待阅读与注释
+kiana-domain/src/handoff.rs	.rs	待阅读与注释
+kiana-domain/src/harness_eval.rs	.rs	待阅读与注释
+kiana-domain/src/harness_integration.rs	.rs	待阅读与注释
+kiana-domain/src/health_aggregation.rs	.rs	已补充DEP-11 typed facts输入、字段语义、状态优先级、报告绑定和证据真实性边界
+kiana-domain/src/hook_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/src/identity.rs	.rs	已补充 principal/project/session assignment 数据流、字段语义、调用者及非认证/授权边界
+kiana-domain/src/identity_contracts.rs	.rs	已补充 Principal/Membership/SecretRef/Config/Authority 等合同字段和校验边界
+kiana-domain/src/ids.rs	.rs	已修订中文身份说明：Serde透明包装、随机/派生ID、nil校验边界与主链身份区别；补充FNV常量和WorkFingerprint分隔符歧义
+kiana-domain/src/image_input.rs	.rs	已补充 Artifact/Grant/policy/route admission 字段、校验顺序与敏感 bytes 生命周期
+kiana-domain/src/inbox_contract.rs	.rs	待阅读与注释
+kiana-domain/src/index_generation.rs	.rs	已补充 generation 状态机、manifest、错误边界及 u64::MAX 饱和递增冲突说明
+kiana-domain/src/index_invalidation.rs	.rs	已补充 snapshot 差异、rename/tombstone/cache key 数据流及路径与摘要真实性限制
+kiana-domain/src/inspector.rs	.rs	待阅读与注释
+kiana-domain/src/invocation_resume.rs	.rs	已说明审批暂停绑定字段、Runner 队列摘要职责及恢复时重新校验边界
+kiana-domain/src/job_handle.rs	.rs	已说明进程启动身份、owner/authority/TTL 字段及句柄摘要不等于授权
+kiana-domain/src/journal.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/legacy_compat.rs	.rs	待阅读与注释
+kiana-domain/src/legacy_upcast.rs	.rs	待阅读与注释
+kiana-domain/src/lib.rs	.rs	已补充中文 crate 根说明：Domain数据流、职责边界、私有模块与crate根重导出关系
+kiana-domain/src/live_handoff.rs	.rs	待阅读与注释
+kiana-domain/src/local_rollout.rs	.rs	待阅读与注释
+kiana-domain/src/mcp_connector.rs	.rs	待阅读与注释
+kiana-domain/src/memory.rs	.rs	待阅读与注释
+kiana-domain/src/memory_acl.rs	.rs	待阅读与注释
+kiana-domain/src/memory_distillation.rs	.rs	待阅读与注释
+kiana-domain/src/memory_extraction.rs	.rs	待阅读与注释
+kiana-domain/src/memory_invalidation.rs	.rs	待阅读与注释
+kiana-domain/src/memory_journal.rs	.rs	待阅读与注释
+kiana-domain/src/memory_maintenance.rs	.rs	待阅读与注释
+kiana-domain/src/memory_mutation.rs	.rs	待阅读与注释
+kiana-domain/src/memory_negative_gate.rs	.rs	待阅读与注释
+kiana-domain/src/memory_projection.rs	.rs	待阅读与注释
+kiana-domain/src/memory_proposals.rs	.rs	待阅读与注释
+kiana-domain/src/memory_temporal.rs	.rs	待阅读与注释
+kiana-domain/src/memory_workbench.rs	.rs	待阅读与注释
+kiana-domain/src/migration_preflight.rs	.rs	待阅读与注释
+kiana-domain/src/migration_primitives.rs	.rs	待阅读与注释
+kiana-domain/src/migration_rebuild.rs	.rs	待阅读与注释
+kiana-domain/src/migration_record.rs	.rs	待阅读与注释
+kiana-domain/src/migration_registry.rs	.rs	待阅读与注释
+kiana-domain/src/migration_rollback.rs	.rs	待阅读与注释
+kiana-domain/src/migration_runner.rs	.rs	待阅读与注释
+kiana-domain/src/milestone_acceptance.rs	.rs	待阅读与注释
+kiana-domain/src/model.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/model_attempt_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/src/model_catalog.rs	.rs	待阅读与注释
+kiana-domain/src/model_event.rs	.rs	待阅读与注释
+kiana-domain/src/network_policy.rs	.rs	待阅读与注释
+kiana-domain/src/notification_actions.rs	.rs	待阅读与注释
+kiana-domain/src/notification_events.rs	.rs	待阅读与注释
+kiana-domain/src/notification_external.rs	.rs	待阅读与注释
+kiana-domain/src/notification_faults.rs	.rs	待阅读与注释
+kiana-domain/src/notification_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/src/notification_outbox.rs	.rs	待阅读与注释
+kiana-domain/src/notification_parity.rs	.rs	待阅读与注释
+kiana-domain/src/notification_policy.rs	.rs	待阅读与注释
+kiana-domain/src/notification_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/notifications.rs	.rs	待阅读与注释
+kiana-domain/src/oauth.rs	.rs	待阅读与注释
+kiana-domain/src/oauth_accounts.rs	.rs	待阅读与注释
+kiana-domain/src/observability.rs	.rs	待阅读与注释
+kiana-domain/src/operation_catalog.rs	.rs	暂缓行内注释：源码文本参与运行时 action catalog digest，需先遵守零行为变化约束
+kiana-domain/src/operation_lease.rs	.rs	已补充 DEP-06 lease/CAS 状态、获取/续租/到期/释放流程、revision/fence/epoch/digest 校验与持久化边界
+kiana-domain/src/operation_lifecycle.rs	.rs	已补充 DEP-05 状态机、deadline、transition/journal 数据流、错误条件和证据/digest 边界
+kiana-domain/src/ops_diagnostics.rs	.rs	已注释 DEP-15 输入/事实/报告字段、固定四轴顺序、状态优先级、摘要/绑定限制、文本检查与渲染数据流
+kiana-domain/src/orchestrated_rollout.rs	.rs	待阅读与注释
+kiana-domain/src/orchestrated_rollout_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/outcome_measurement.rs	.rs	待阅读与注释
+kiana-domain/src/packet_acceptance.rs	.rs	待阅读与注释
+kiana-domain/src/packet_graph.rs	.rs	待阅读与注释
+kiana-domain/src/parity.rs	.rs	待阅读与注释
+kiana-domain/src/paths.rs	.rs	待阅读与注释
+kiana-domain/src/performance.rs	.rs	待阅读与注释
+kiana-domain/src/persistence_capacity.rs	.rs	待阅读与注释
+kiana-domain/src/persistence_capacity_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/persistence_uat.rs	.rs	待阅读与注释
+kiana-domain/src/persistence_uat_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/plan.rs	.rs	待阅读与注释
+kiana-domain/src/platform.rs	.rs	待阅读与注释
+kiana-domain/src/platform_backend.rs	.rs	待阅读与注释
+kiana-domain/src/process_supervisor.rs	.rs	已补充中文注释：预算字段与默认值、StopReport状态关系、摘要边界及DTO校验宽度
+kiana-domain/src/progress_stall.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/project_acceptance.rs	.rs	待阅读与注释
+kiana-domain/src/project_control.rs	.rs	待阅读与注释
+kiana-domain/src/projection_contracts.rs	.rs	已注释 checkpoint 的可重建读模型角色、JSON 状态/游标/EventId、排序、兼容版本和无密钥摘要边界
+kiana-domain/src/projection_recovery.rs	.rs	已注释 ProjectionLagView 派生/读 gate、Unknown mutation 原 ID/request digest 绑定及无来源认证边界
+kiana-domain/src/prompts.rs	.rs	待阅读与注释
+kiana-domain/src/protected_replay.rs	.rs	待阅读与注释
+kiana-domain/src/provider_capacity.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/provider_config.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/provider_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/provider_diagnostics.rs	.rs	待阅读与注释
+kiana-domain/src/provider_live.rs	.rs	待阅读与注释
+kiana-domain/src/provider_product_chain.rs	.rs	待阅读与注释
+kiana-domain/src/provider_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/provider_usage_settlement.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/quality.rs	.rs	待阅读与注释
+kiana-domain/src/quality_drift.rs	.rs	已说明阈值、Metric/Alert/Event DTO、整数指标换算、validator 和 verdict 数据流；记录首个 breach 早退及 MAX_BUCKETS 未由 evaluator 强制等边界
+kiana-domain/src/quality_evidence_archive.rs	.rs	待阅读与注释
+kiana-domain/src/quality_feedback.rs	.rs	待阅读与注释
+kiana-domain/src/quality_report.rs	.rs	待阅读与注释
+kiana-domain/src/quiesce_gate.rs	.rs	待阅读与注释
+kiana-domain/src/receipt_aggregation.rs	.rs	待阅读与注释
+kiana-domain/src/receipt_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/recovery_objective.rs	.rs	待阅读与注释
+kiana-domain/src/recovery_resources.rs	.rs	待阅读与注释
+kiana-domain/src/redaction.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/release_attestation.rs	.rs	待阅读与注释
+kiana-domain/src/release_preflight.rs	.rs	待阅读与注释
+kiana-domain/src/release_uat.rs	.rs	待阅读与注释
+kiana-domain/src/release_uat_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/repo_map_task.rs	.rs	已解释启发式/声明证据、候选合同、排序与 token 预算、摘要和反序列化校验缺口
+kiana-domain/src/request_budget.rs	.rs	待阅读与注释
+kiana-domain/src/request_compilation.rs	.rs	待阅读与注释
+kiana-domain/src/resource_cleanup.rs	.rs	待阅读与注释
+kiana-domain/src/resource_leases.rs	.rs	待阅读与注释
+kiana-domain/src/restore_quarantine.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/restore_verification.rs	.rs	已说明恢复 fact 字段、三态校验矩阵、自摘要边界、稳定错误和无 I/O 副作用
+kiana-domain/src/retention.rs	.rs	待阅读与注释
+kiana-domain/src/retention_watermark.rs	.rs	待阅读与注释
+kiana-domain/src/retrieval_context.rs	.rs	待阅读与注释
+kiana-domain/src/retrieval_evaluation.rs	.rs	待阅读与注释
+kiana-domain/src/retrieval_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/retrieval_receipt.rs	.rs	待阅读与注释
+kiana-domain/src/retry_policy.rs	.rs	待阅读与注释
+kiana-domain/src/revision_compatibility.rs	.rs	待阅读与注释
+kiana-domain/src/rework_contract.rs	.rs	待阅读与注释
+kiana-domain/src/roles.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/rollout_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/src/rollout_lifecycle_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/route_attestation.rs	.rs	待阅读与注释
+kiana-domain/src/runtime_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/scope.rs	.rs	已说明 ScopeDimension/ScopeLimit 三态与默认值、排序/去重边界、多维交集和子集语义、Core/Policy/Broker 调用链及路径字符串限制；记录路径通配 helper 语义差异
+kiana-domain/src/security_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/security_fixture_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/security_reasons.rs	.rs	待阅读与注释
+kiana-domain/src/security_rehearsal.rs	.rs	待阅读与注释
+kiana-domain/src/session_contracts.rs	.rs	待阅读与注释
+kiana-domain/src/snapshot_manifest.rs	.rs	已说明 manifest 字段、Full/Incremental 规则、排序/封存/摘要和不读取实际备份文件的边界
+kiana-domain/src/source_dependencies.rs	.rs	待阅读与注释
+kiana-domain/src/states.rs	.rs	待阅读与注释
+kiana-domain/src/storage.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/storage_health.rs	.rs	待阅读与注释
+kiana-domain/src/storage_preflight.rs	.rs	已补充 DEP-07 请求/报告数据流、信任路径能力容量检查、稳定拒绝原因、元数据来源及身份校验缺口
+kiana-domain/src/storage_schema.rs	.rs	待阅读与注释
+kiana-domain/src/storage_security.rs	.rs	待阅读与注释
+kiana-domain/src/supervisor.rs	.rs	已补充 DEP-09 request/observation 字段、摘要/状态合同、Core/adapter 调用链及 DTO 不能证明真实 lease/OS 事实的边界
+kiana-domain/src/supply_chain.rs	.rs	待阅读与注释
+kiana-domain/src/supply_chain_release_evidence.rs	.rs	待阅读与注释
+kiana-domain/src/swarm.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_admission.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_cancellation.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_child.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_child_result.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_graph.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_handoff.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_identity.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_merge_reducer.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_merge_review.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_progress.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_projection.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_queue.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_recovery.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_reducer.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_release_gate.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_retirement.rs	.rs	待阅读与注释
+kiana-domain/src/swarm_routing.rs	.rs	待阅读与注释
+kiana-domain/src/symposium_governance.rs	.rs	待阅读与注释
+kiana-domain/src/symposium_runtime.rs	.rs	待阅读与注释
+kiana-domain/src/symposiums.rs	.rs	待阅读与注释
+kiana-domain/src/telemetry_separation.rs	.rs	待阅读与注释
+kiana-domain/src/tests.rs	.rs	待阅读与注释
+kiana-domain/src/text_normalization.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/tool_authority.rs	.rs	已补充工具目录职责/调用图、投影缓存、descriptor字段、摘要、校验流程与授权边界；记录通用快照校验限制
+kiana-domain/src/tool_catalog.rs	.rs	暂缓行内注释：源码文本参与运行时 action catalog digest，需先遵守零行为变化约束
+kiana-domain/src/tool_discovery.rs	.rs	已补充 CAP-30 候选归约、调用边界、拒绝顺序、预算计算与校验缺口说明；未发现生产调用者
+kiana-domain/src/tool_output_spill.rs	.rs	已补充中文注释：spill/page数据流、身份范围绑定、byte cursor、文本与二进制分页；记录nil Run可构造但不能分页的校验差异，当前未发现生产adapter调用
+kiana-domain/src/tool_scheduling.rs	.rs	已说明ModelToolCall到ToolBatchPlan的分组规则、Runner当前丢弃plan并串行消费，以及Core逐请求授权边界
+kiana-domain/src/trust_snapshots.rs	.rs	已解释项目/部门快照字段、Daemon/Core组合链、Serde、摘要验证与信任来源边界；记录多次读取非原子
+kiana-domain/src/turn_outcome.rs	.rs	已解释 OutputContract、TurnOutcome 优先级/数据流/错误和当前 Core 输入缺省限制
+kiana-domain/src/ui_action.rs	.rs	已说明 UI action command/record/state 的字段来源、digest 与 serde 合同、accept/apply/reject/unknown 幂等状态迁移、错误边界及纯内存 reducer 与 Core 持久化职责；记录授权快照和摘要认证边界
+kiana-domain/src/ui_snapshot.rs	.rs	已补充 UI snapshot query/cursor/page DTO、事件字段识别、owner/session/retention 过滤、去重稳定排序与分页数据流；记录未签名摘要、query owner 认证依赖和 cursor 绑定不足
+kiana-domain/src/unified_retrieval.rs	.rs	已说明 RetrievalProfile/Request/Item/Hit/Result 字段和摘要边界、ACL 输入假设、BM25/dense/RRF/MMR 分段排序、降级与稳定 tie-break；记录无来源认证、输入关联校验和长度上限缺口
+kiana-domain/src/usage.rs	.rs	已说明旧 RuntimeEvent UsageRecord/CostLedger 投影与新 NormalizedUsage 的区别，解释 checked token fold、未知金额和 Runtime/Project/Quota reservation 前置检查；记录上游零值折叠边界
+kiana-domain/src/versioning.rs	.rs	已补充 RouteDecision/DriftBucket/DriftReport 字段语义、审计元数据数据流、摘要/验证边界和计数溢出非原子更新说明
+kiana-domain/src/work_packets.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/src/workflow_event_ingress.rs	.rs	已说明 ingress/policy/occurrence 数据流、字段与资源边界、摘要/HMAC 区别及 Fire evidence 前置条件
+kiana-domain/src/workflow_queue_claim.rs	.rs	已说明 WorkPacket Claim 字段、scope/budget/path-lock 重绑定、观察值、拒绝条件及 item ID 绑定缺口
+kiana-domain/src/workflow_queue_lease.rs	.rs	已说明 lease 状态机、owner/fence/epoch、心跳/Unknown/fence/reclaim、TTL 与摘要链边界
+kiana-domain/src/workspace_snapshot.rs	.rs	已补充 trust/read disposition、身份比较、聚合快照校验与证据真实性边界
+kiana-domain/tests/aut02_clock_observation.rs	.rs	待阅读与注释
+kiana-domain/tests/aut05_event_envelope.rs	.rs	待阅读与注释
+kiana-domain/tests/aut07_workflow_queue_claim.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/aut08_workflow_queue_lease.rs	.rs	已说明纯 Domain lease transition、owner/fence/Unknown/reclaim/TTL fixture 与无 Store 持久化边界
+kiana-domain/tests/aut10_interval_cursor.rs	.rs	待阅读与注释
+kiana-domain/tests/aut11_workflow_event_ingress.rs	.rs	已说明合成 DTO/policy、占位签名、过滤拒绝与自摘要篡改测试边界
+kiana-domain/tests/aut12_trigger_state.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_boot_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_cancellation.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_compensation.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_dispatch.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_effect_reservation.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_fanout.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_release_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_retry.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_signal.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_snapshot.rs	.rs	待阅读与注释
+kiana-domain/tests/automation_surface_uat.rs	.rs	待阅读与注释
+kiana-domain/tests/billing_invoice.rs	.rs	待阅读与注释
+kiana-domain/tests/billing_query.rs	.rs	待阅读与注释
+kiana-domain/tests/billing_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/bq01_billing_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/bq02_usage_vector.rs	.rs	已说明伪摘要 fixture、absent/zero/present、来源/观测/置信度和 sequence/digest 拒绝用例及其单条记录范围
+kiana-domain/tests/bq03_usage_accumulator.rs	.rs	已说明合成 Snapshot/Delta/Final 输入、去重/冲突/回退/包含/溢出/终态 fixture，并指出不同 RunId 与终态重放未覆盖
+kiana-domain/tests/bq04_pricing.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/bq06_budget_intersection.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/bq07_quota_window.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/bq08_quota_reservation.rs	.rs	待阅读与注释
+kiana-domain/tests/bq09_admission_estimator.rs	.rs	待阅读与注释
+kiana-domain/tests/bq11_attempt_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/bq12_settlement_fold.rs	.rs	待阅读与注释
+kiana-domain/tests/bq13_cost_receipt.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/bq14_cost_correction.rs	.rs	待阅读与注释
+kiana-domain/tests/bq15_effect_usage.rs	.rs	待阅读与注释
+kiana-domain/tests/bq16_provider_capacity.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/bq17_retry_policy.rs	.rs	待阅读与注释
+kiana-domain/tests/bq18_fallback_admission.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/bq19_cost_allocation.rs	.rs	待阅读与注释
+kiana-domain/tests/bq20_ledger_projection.rs	.rs	待阅读与注释
+kiana-domain/tests/bq25_telemetry_separation.rs	.rs	待阅读与注释
+kiana-domain/tests/bq25_telemetry_separation_guard.rs	.rs	待阅读与注释
+kiana-domain/tests/bq27_legacy_upcast.rs	.rs	待阅读与注释
+kiana-domain/tests/cap01_registry.rs	.rs	已说明五个模型工具与38个operation的区别、schema/action映射和Domain合同测试边界
+kiana-domain/tests/cap02_input.rs	.rs	已说明规范化摘要、MCP alias、schema 边界、重复键和 authority 输入 fixture 的范围
+kiana-domain/tests/cap03_execution_scope.rs	.rs	待阅读与注释
+kiana-domain/tests/cap04_state.rs	.rs	待阅读与注释
+kiana-domain/tests/cap06_approval_preview.rs	.rs	待阅读与注释
+kiana-domain/tests/cap12_process_supervisor.rs	.rs	待阅读与注释
+kiana-domain/tests/cap13_output_budget.rs	.rs	待阅读与注释
+kiana-domain/tests/cap30_tool_discovery.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/cap30_tool_search.rs	.rs	待阅读与注释
+kiana-domain/tests/cap31_macos_backend.rs	.rs	待阅读与注释
+kiana-domain/tests/cap31_platform_backend.rs	.rs	待阅读与注释
+kiana-domain/tests/cap32_platform_backend.rs	.rs	待阅读与注释
+kiana-domain/tests/cap32_windows_backend.rs	.rs	待阅读与注释
+kiana-domain/tests/cap33_container_environment.rs	.rs	待阅读与注释
+kiana-domain/tests/cap33_container_inventory.rs	.rs	待阅读与注释
+kiana-domain/tests/cap34_conformance.rs	.rs	待阅读与注释
+kiana-domain/tests/ci02_identity_contracts.rs	.rs	已补充合成 identity/config/epoch 与有限 secret marker fixture 说明
+kiana-domain/tests/ci04_ingress.rs	.rs	待阅读与注释
+kiana-domain/tests/ci05_authority_ledger.rs	.rs	待阅读与注释
+kiana-domain/tests/ci06_config_values.rs	.rs	清点时工作区已有改动，跳过（??）
+kiana-domain/tests/ci07_credential_lease.rs	.rs	待阅读与注释
+kiana-domain/tests/ci08_route_admission.rs	.rs	待阅读与注释
+kiana-domain/tests/ci09_oauth_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/ci11_credential_recovery_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/ci12_product_gate.rs	.rs	待阅读与注释
+kiana-domain/tests/cm01_sources.rs	.rs	待阅读与注释
+kiana-domain/tests/cm02_memory.rs	.rs	待阅读与注释
+kiana-domain/tests/cm03_memory_scope.rs	.rs	待阅读与注释
+kiana-domain/tests/cm04_memory_mutation.rs	.rs	待阅读与注释
+kiana-domain/tests/cm05_memory_eventstore.rs	.rs	待阅读与注释
+kiana-domain/tests/cm06_source_dependencies.rs	.rs	待阅读与注释
+kiana-domain/tests/cm07_workspace_snapshot.rs	.rs	已补充手工构造 DTO 合同 fixture 的数据含义和覆盖范围
+kiana-domain/tests/cm08_chunk_provenance.rs	.rs	已补充合成 ChunkSet 连续/重叠合同 fixture 的数据语义和覆盖边界
+kiana-domain/tests/cm09_text_normalization.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/cm10_index_generation.rs	.rs	已补充合成摘要、状态转换和 reader 不暴露 Building 的 fixture 说明
+kiana-domain/tests/cm11_index_invalidation.rs	.rs	已补充合成 snapshot 差异、rename/delete/mtime/cache key fixture 说明
+kiana-domain/tests/cm12_unified_retrieval.rs	.rs	已解释合成摘要与候选 helper、denied 排除、确定性输出和 ACL 标志拒绝 fixture；注明 dense/RRF/MMR/resource limit 场景未覆盖
+kiana-domain/tests/cm13_repo_map_task.rs	.rs	已说明反转候选顺序、预算遗漏和 Heuristic 标签的合成内存断言
+kiana-domain/tests/cm14_retrieval_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/cm15_context_plan_selection.rs	.rs	待阅读与注释
+kiana-domain/tests/cm16_wire_budget.rs	.rs	待阅读与注释
+kiana-domain/tests/cm17_prepared_request.rs	.rs	待阅读与注释
+kiana-domain/tests/cm18_tool_output_spill.rs	.rs	待阅读与注释
+kiana-domain/tests/cm19_compact_summary.rs	.rs	待阅读与注释
+kiana-domain/tests/cm20_context_checkpoint.rs	.rs	待阅读与注释
+kiana-domain/tests/cm21_resume_cache_invalidation.rs	.rs	待阅读与注释
+kiana-domain/tests/cm22_memory_acl.rs	.rs	待阅读与注释
+kiana-domain/tests/cm23_memory_negative_gates.rs	.rs	待阅读与注释
+kiana-domain/tests/cm24_memory_temporal.rs	.rs	待阅读与注释
+kiana-domain/tests/cm25_memory_extraction.rs	.rs	待阅读与注释
+kiana-domain/tests/cm26_memory_distillation.rs	.rs	待阅读与注释
+kiana-domain/tests/cm27_retrieval_receipt.rs	.rs	待阅读与注释
+kiana-domain/tests/cm28_memory_invalidation.rs	.rs	待阅读与注释
+kiana-domain/tests/cm29_projection_recovery.rs	.rs	已注释合成 lag/unknown cursor 和原 mutation key/digest fixture 的覆盖边界
+kiana-domain/tests/cm30_golden_context.rs	.rs	待阅读与注释
+kiana-domain/tests/cm31_retrieval_evaluation.rs	.rs	待阅读与注释
+kiana-domain/tests/cm32_inspector_correction.rs	.rs	待阅读与注释
+kiana-domain/tests/cm33_code_graph.rs	.rs	待阅读与注释
+kiana-domain/tests/cm34_embedding_rotation.rs	.rs	待阅读与注释
+kiana-domain/tests/cm35_external_resource.rs	.rs	待阅读与注释
+kiana-domain/tests/cm36_memory_workbench.rs	.rs	待阅读与注释
+kiana-domain/tests/cm37_memory_maintenance.rs	.rs	待阅读与注释
+kiana-domain/tests/cm38_context_memory_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/co02_scope.rs	.rs	待阅读与注释
+kiana-domain/tests/co03_assignment.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/co04_role_catalog.rs	.rs	待阅读与注释
+kiana-domain/tests/co05_policy.rs	.rs	待阅读与注释
+kiana-domain/tests/co06_artifact.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/co07_receipt.rs	.rs	待阅读与注释
+kiana-domain/tests/co08_replay.rs	.rs	待阅读与注释
+kiana-domain/tests/co09_objective_initiative.rs	.rs	待阅读与注释
+kiana-domain/tests/co10_project_charter.rs	.rs	待阅读与注释
+kiana-domain/tests/co11_criteria_coverage.rs	.rs	待阅读与注释
+kiana-domain/tests/co12_plan_graph.rs	.rs	待阅读与注释
+kiana-domain/tests/co13_department_packets.rs	.rs	待阅读与注释
+kiana-domain/tests/co14_symposium_governance.rs	.rs	待阅读与注释
+kiana-domain/tests/co15_symposium_runtime.rs	.rs	待阅读与注释
+kiana-domain/tests/co16_company_proposals.rs	.rs	待阅读与注释
+kiana-domain/tests/co17_company_handoff.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/co18_company_readiness.rs	.rs	待阅读与注释
+kiana-domain/tests/co19_company_attempt.rs	.rs	待阅读与注释
+kiana-domain/tests/co20_cell_admission.rs	.rs	待阅读与注释
+kiana-domain/tests/co21_company_task_scope.rs	.rs	待阅读与注释
+kiana-domain/tests/co22_company_process.rs	.rs	待阅读与注释
+kiana-domain/tests/co23_company_wake.rs	.rs	待阅读与注释
+kiana-domain/tests/co24_company_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/co25_company_review.rs	.rs	待阅读与注释
+kiana-domain/tests/co26_packet_acceptance.rs	.rs	待阅读与注释
+kiana-domain/tests/co27_milestone_acceptance.rs	.rs	待阅读与注释
+kiana-domain/tests/co28_project_acceptance.rs	.rs	待阅读与注释
+kiana-domain/tests/co29_rework_contract.rs	.rs	待阅读与注释
+kiana-domain/tests/co30_change_contract.rs	.rs	待阅读与注释
+kiana-domain/tests/co31_project_control.rs	.rs	待阅读与注释
+kiana-domain/tests/co32_company_reconciliation.rs	.rs	待阅读与注释
+kiana-domain/tests/co33_delivery_manifest.rs	.rs	待阅读与注释
+kiana-domain/tests/co34_delivery_authorization.rs	.rs	待阅读与注释
+kiana-domain/tests/co35_closing_receipt.rs	.rs	待阅读与注释
+kiana-domain/tests/co36_outcome_measurement.rs	.rs	待阅读与注释
+kiana-domain/tests/co37_company_knowledge.rs	.rs	待阅读与注释
+kiana-domain/tests/co38_company_read_model.rs	.rs	待阅读与注释
+kiana-domain/tests/co39_company_inbox.rs	.rs	待阅读与注释
+kiana-domain/tests/co42_company_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/co43_company_parallel.rs	.rs	待阅读与注释
+kiana-domain/tests/co44_company_integration.rs	.rs	待阅读与注释
+kiana-domain/tests/co45_company_portfolio.rs	.rs	待阅读与注释
+kiana-domain/tests/co46_company_template_registry.rs	.rs	待阅读与注释
+kiana-domain/tests/co48_company_live_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_conformance.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_ingress.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_mapping.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_notifications.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_pilot.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_propagation.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_surfaces.rs	.rs	待阅读与注释
+kiana-domain/tests/connector_write_pilot.rs	.rs	待阅读与注释
+kiana-domain/tests/cp01_identity.rs	.rs	已补充 alias/canonical root 与 assignment tamper fixture 的来源限制
+kiana-domain/tests/cp02_execution_identity.rs	.rs	待阅读与注释
+kiana-domain/tests/cp03_action_contract.rs	.rs	已说明动作目录完整性、风险下限、kind 匹配和 PreparedAction 合同用例
+kiana-domain/tests/cp04_scope.rs	.rs	待阅读与注释
+kiana-domain/tests/cp07_journal_frame.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/cp08_grant_ledger.rs	.rs	待阅读与注释
+kiana-domain/tests/cp09_approval_material.rs	.rs	待阅读与注释
+kiana-domain/tests/cp10_approval_facts.rs	.rs	待阅读与注释
+kiana-domain/tests/cp11_budget_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/cp12_resource_lease.rs	.rs	待阅读与注释
+kiana-domain/tests/cp13_dispatch_permit.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/cp14_result_receipt.rs	.rs	待阅读与注释
+kiana-domain/tests/cp15_cancellation.rs	.rs	待阅读与注释
+kiana-domain/tests/cp23_company_policy.rs	.rs	待阅读与注释
+kiana-domain/tests/cp24_scheduler_transaction.rs	.rs	已说明 packet/parent rebind、scope/budget widening 和伪造 digest 拒绝 fixture
+kiana-domain/tests/cp29_control_plane_authority.rs	.rs	待阅读与注释
+kiana-domain/tests/cp30_control_plane_product_flow.rs	.rs	待阅读与注释
+kiana-domain/tests/dep01_deployment.rs	.rs	待阅读与注释
+kiana-domain/tests/dep02_release_bundle.rs	.rs	待阅读与注释
+kiana-domain/tests/dep03_compatibility.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/dep05_operation_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/dep06_operation_lease.rs	.rs	待阅读与注释
+kiana-domain/tests/dep07_storage_preflight.rs	.rs	待阅读与注释
+kiana-domain/tests/dep08_deployment_config.rs	.rs	待阅读与注释
+kiana-domain/tests/dep09_supervisor.rs	.rs	待阅读与注释
+kiana-domain/tests/dep10_startup.rs	.rs	待阅读与注释
+kiana-domain/tests/dep11_health_aggregation.rs	.rs	待阅读与注释
+kiana-domain/tests/dep12_admission.rs	.rs	待阅读与注释
+kiana-domain/tests/dep13_shutdown.rs	.rs	待阅读与注释
+kiana-domain/tests/dep14_observability.rs	.rs	待阅读与注释
+kiana-domain/tests/dep15_ops_diagnostics.rs	.rs	已注释合成 facts 与测试覆盖边界；记录 wrong_mode 测试名与实际断言不符，未改测试逻辑
+kiana-domain/tests/dep16_reconcile.rs	.rs	待阅读与注释
+kiana-domain/tests/dep17_capacity.rs	.rs	待阅读与注释
+kiana-domain/tests/dep18_incident.rs	.rs	待阅读与注释
+kiana-domain/tests/dep19_backup_manifest.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/dep20_quiesce_gate.rs	.rs	待阅读与注释
+kiana-domain/tests/dep21_backup_lifecycle.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/dep22_restore_quarantine.rs	.rs	待阅读与注释
+kiana-domain/tests/dep24_recovery_objective.rs	.rs	待阅读与注释
+kiana-domain/tests/dep27_migration_registry.rs	.rs	待阅读与注释
+kiana-domain/tests/dep28_migration_preflight.rs	.rs	待阅读与注释
+kiana-domain/tests/dep29_migration_primitives.rs	.rs	待阅读与注释
+kiana-domain/tests/dep30_migration_runner.rs	.rs	待阅读与注释
+kiana-domain/tests/dep31_migration_rebuild.rs	.rs	待阅读与注释
+kiana-domain/tests/dep32_migration_rollback.rs	.rs	待阅读与注释
+kiana-domain/tests/dep33_revision_compatibility.rs	.rs	待阅读与注释
+kiana-domain/tests/dep34_release_preflight.rs	.rs	待阅读与注释
+kiana-domain/tests/dep35_local_rollout.rs	.rs	待阅读与注释
+kiana-domain/tests/dep36_container_lifecycle_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/dep37_orchestrated_rollout.rs	.rs	待阅读与注释
+kiana-domain/tests/dep37_orchestrated_rollout_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/dep38_rollout_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/dep38_rollout_lifecycle_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/dep39_supply_chain.rs	.rs	待阅读与注释
+kiana-domain/tests/dep39_supply_chain_release_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/dep40_release_uat.rs	.rs	待阅读与注释
+kiana-domain/tests/dep40_release_uat_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/eq02_quality_contract.rs	.rs	待阅读与注释
+kiana-domain/tests/eq03_eval_objects.rs	.rs	待阅读与注释
+kiana-domain/tests/eq04_admission.rs	.rs	待阅读与注释
+kiana-domain/tests/er01_event_contract.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/er02_identity.rs	.rs	待阅读与注释
+kiana-domain/tests/er03_redaction.rs	.rs	待阅读与注释
+kiana-domain/tests/er07_projection_checkpoint.rs	.rs	已注释合成 checkpoint 的 schema/version/摘要/未知字段/重复 ID/空锚点测试语义
+kiana-domain/tests/er10_recovery_resources.rs	.rs	待阅读与注释
+kiana-domain/tests/er11_receipt_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/er12_receipt_aggregation.rs	.rs	待阅读与注释
+kiana-domain/tests/er14_effect_observation.rs	.rs	待阅读与注释
+kiana-domain/tests/er15_adapter_result.rs	.rs	待阅读与注释
+kiana-domain/tests/er28_runtime_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/er29_data_governance.rs	.rs	待阅读与注释
+kiana-domain/tests/er31_fault_matrix.rs	.rs	待阅读与注释
+kiana-domain/tests/er32_adapter_conformance.rs	.rs	待阅读与注释
+kiana-domain/tests/er33_capacity_migration.rs	.rs	待阅读与注释
+kiana-domain/tests/er34_durable_gate.rs	.rs	待阅读与注释
+kiana-domain/tests/ext01_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/ext04_catalog.rs	.rs	待阅读与注释
+kiana-domain/tests/ext09_prompt_provenance.rs	.rs	待阅读与注释
+kiana-domain/tests/ext21_extension_binding.rs	.rs	待阅读与注释
+kiana-domain/tests/ext22_extension_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/ext23_extension_controls.rs	.rs	待阅读与注释
+kiana-domain/tests/ext24_secret_state.rs	.rs	待阅读与注释
+kiana-domain/tests/ext25_signed_skill_scope.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/ext26_extension_adapters.rs	.rs	待阅读与注释
+kiana-domain/tests/ext27_visibility.rs	.rs	待阅读与注释
+kiana-domain/tests/ext28_extension_commands.rs	.rs	待阅读与注释
+kiana-domain/tests/ext29_extension_golden.rs	.rs	待阅读与注释
+kiana-domain/tests/ext30_extension_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/ext31_extension_release.rs	.rs	待阅读与注释
+kiana-domain/tests/h02_identity.rs	.rs	待阅读与注释
+kiana-domain/tests/h04_model_content.rs	.rs	待阅读与注释
+kiana-domain/tests/h05_model_outcome.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/h14_invocation_resume.rs	.rs	已说明合成绑定 fixture 的参数/owner 漂移断言与 Domain 测试范围
+kiana-domain/tests/h15_output_ref.rs	.rs	待阅读与注释
+kiana-domain/tests/h16_tool_scheduling.rs	.rs	已说明只断言只读组/独占barrier计划结构，不执行真实并发或memory写入
+kiana-domain/tests/h17_job_handle.rs	.rs	已说明 JobHandle JSON 往返与摘要篡改的合同测试范围
+kiana-domain/tests/h20_context_plan.rs	.rs	待阅读与注释
+kiana-domain/tests/h21_request_budget.rs	.rs	待阅读与注释
+kiana-domain/tests/h22_compact_summary.rs	.rs	待阅读与注释
+kiana-domain/tests/h23_compaction_commit.rs	.rs	待阅读与注释
+kiana-domain/tests/h26_clarification.rs	.rs	待阅读与注释
+kiana-domain/tests/h27_turn_outcome.rs	.rs	已说明纯内存 fixtures、各状态断言覆盖及未证明生产状态采集
+kiana-domain/tests/h28_progress.rs	.rs	待阅读与注释
+kiana-domain/tests/h29_hook_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/h30_retrieval_context.rs	.rs	待阅读与注释
+kiana-domain/tests/h31_child_harness.rs	.rs	待阅读与注释
+kiana-domain/tests/h33_resource_cleanup.rs	.rs	待阅读与注释
+kiana-domain/tests/h34_legacy_compat.rs	.rs	待阅读与注释
+kiana-domain/tests/h35_harness_eval.rs	.rs	待阅读与注释
+kiana-domain/tests/h36_harness_integration.rs	.rs	待阅读与注释
+kiana-domain/tests/int03_connector_operation.rs	.rs	待阅读与注释
+kiana-domain/tests/int04_connector_registry.rs	.rs	待阅读与注释
+kiana-domain/tests/int05_connector_scope.rs	.rs	待阅读与注释
+kiana-domain/tests/int06_connector_credential.rs	.rs	待阅读与注释
+kiana-domain/tests/int08_local_fixture.rs	.rs	待阅读与注释
+kiana-domain/tests/int09_connector_health.rs	.rs	待阅读与注释
+kiana-domain/tests/int10_stdio_mcp.rs	.rs	待阅读与注释
+kiana-domain/tests/int11_https_connector.rs	.rs	待阅读与注释
+kiana-domain/tests/int12_oauth_account.rs	.rs	待阅读与注释
+kiana-domain/tests/int13_secret_redaction.rs	.rs	待阅读与注释
+kiana-domain/tests/int14_connector_protocol.rs	.rs	待阅读与注释
+kiana-domain/tests/int15_connector_policy.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/int16_connector_reservation.rs	.rs	待阅读与注释
+kiana-domain/tests/int17_connector_quota.rs	.rs	待阅读与注释
+kiana-domain/tests/int18_effect_permit.rs	.rs	待阅读与注释
+kiana-domain/tests/int19_connector_dispatch.rs	.rs	待阅读与注释
+kiana-domain/tests/int20_receipt_observation.rs	.rs	待阅读与注释
+kiana-domain/tests/int21_connector_retry.rs	.rs	待阅读与注释
+kiana-domain/tests/int22_connector_reconciliation.rs	.rs	待阅读与注释
+kiana-domain/tests/int23_connector_cancellation.rs	.rs	待阅读与注释
+kiana-domain/tests/nm01_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/nm02_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/nm03_event_registry.rs	.rs	待阅读与注释
+kiana-domain/tests/nm10_notification_actions.rs	.rs	待阅读与注释
+kiana-domain/tests/nm12_notification_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/oa01_contracts.rs	.rs	待阅读与注释
+kiana-domain/tests/oa02_correlation.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/oa03_redaction.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/oa04_audit_taxonomy.rs	.rs	待阅读与注释
+kiana-domain/tests/oa20_data_governance.rs	.rs	待阅读与注释
+kiana-domain/tests/oa28_live_handoff.rs	.rs	待阅读与注释
+kiana-domain/tests/p0_a01b_schema.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/p0_a02_error_codes.rs	.rs	待阅读与注释
+kiana-domain/tests/p0_b01_state_machine.rs	.rs	待阅读与注释
+kiana-domain/tests/p0_j1_01_cancellation.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_c01_contract.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/p1_d02_dependency_graph.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_d03_lease.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_e01_communication.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_h03_path_containment.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_j2_01_context.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_j2_02_budget.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_j2_04_role_pack.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_j3_03_memory_proposal.rs	.rs	待阅读与注释
+kiana-domain/tests/p1_k5_01_cost_capacity.rs	.rs	待阅读与注释
+kiana-domain/tests/p2_k6_01_reliability.rs	.rs	待阅读与注释
+kiana-domain/tests/p2_k7_01_data_governance.rs	.rs	待阅读与注释
+kiana-domain/tests/p3_i01_company_objects.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_e03_department_memory.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j3_05_distillation.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j6_01_bounded_swarm.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_06_model_contract.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_12_request_compilation.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_20_protected_replay.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_22_image_admission.rs	.rs	已补充合成 bytes fixture 的拒绝/成功断言范围和非真实 MIME 解码边界
+kiana-domain/tests/p4_j7_24_usage_settlement.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/p4_j7_25_capacity_fallback.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/p4_j7_26_model_events.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_27_provider_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_28_provider_diagnostics.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_30_provider_product_chain.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_j7_31_live_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_k8_01_connector.rs	.rs	待阅读与注释
+kiana-domain/tests/p4_l3_01_versioning.rs	.rs	已说明模拟 JSON/EventId fixture 的覆盖范围、版本维度分桶与严格序列化断言，不将内存测试描述成 EventStore/Provider 验证
+kiana-domain/tests/p4_l5_01_skill_allowed_tools.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/p4_l6_01_supply_chain.rs	.rs	待阅读与注释
+kiana-domain/tests/pd01_storage.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/pd02_schema.rs	.rs	待阅读与注释
+kiana-domain/tests/pd03_health.rs	.rs	待阅读与注释
+kiana-domain/tests/pd17_memory_mutation_journal.rs	.rs	待阅读与注释
+kiana-domain/tests/pd18_memory_projection.rs	.rs	待阅读与注释
+kiana-domain/tests/pd22_snapshot_manifest.rs	.rs	已说明合成哈希 fixture、有效完整快照与根路径/增量前序拒绝覆盖范围
+kiana-domain/tests/pd24_migration_record.rs	.rs	待阅读与注释
+kiana-domain/tests/pd25_retention_watermark.rs	.rs	待阅读与注释
+kiana-domain/tests/pd28_storage_security.rs	.rs	待阅读与注释
+kiana-domain/tests/pd33_persistence_uat.rs	.rs	待阅读与注释
+kiana-domain/tests/pd33_persistence_uat_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/pd34_persistence_capacity.rs	.rs	待阅读与注释
+kiana-domain/tests/pd34_persistence_capacity_evidence.rs	.rs	待阅读与注释
+kiana-domain/tests/quality_drift.rs	.rs	已说明内存 report/threshold 合成方式、超限/样本不足/快照漂移/digest 与未知字段用例范围
+kiana-domain/tests/quality_evidence_archive.rs	.rs	待阅读与注释
+kiana-domain/tests/quality_feedback.rs	.rs	待阅读与注释
+kiana-domain/tests/quality_report.rs	.rs	待阅读与注释
+kiana-domain/tests/restore_verification.rs	.rs	清点时工作区已有改动，跳过（ M）；稳定后复审测试注释
+kiana-domain/tests/sc02_security_contract.rs	.rs	待阅读与注释
+kiana-domain/tests/sc03_security_reason.rs	.rs	待阅读与注释
+kiana-domain/tests/sc06_session.rs	.rs	待阅读与注释
+kiana-domain/tests/sc07_trust_snapshots.rs	.rs	已说明内存 fixture、JSON 篡改断言、跨部门角色拒绝与测试证明上限
+kiana-domain/tests/sc08_fence.rs	.rs	待阅读与注释
+kiana-domain/tests/sc14_network_policy.rs	.rs	待阅读与注释
+kiana-domain/tests/sc21_data_boundary_guard.rs	.rs	待阅读与注释
+kiana-domain/tests/sc22_retention.rs	.rs	待阅读与注释
+kiana-domain/tests/sc23_deletion.rs	.rs	待阅读与注释
+kiana-domain/tests/sc26_capability_catalog.rs	.rs	待阅读与注释
+kiana-domain/tests/sc26_capability_catalog_guard.rs	.rs	待阅读与注释
+kiana-domain/tests/sc27_extension_lifecycle.rs	.rs	待阅读与注释
+kiana-domain/tests/sc29_release_attestation.rs	.rs	待阅读与注释
+kiana-domain/tests/sc30_route_attestation.rs	.rs	待阅读与注释
+kiana-domain/tests/sc31_audit_record.rs	.rs	待阅读与注释
+kiana-domain/tests/sc37_sc39_security_fixtures.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-domain/tests/sc42_security_rehearsal.rs	.rs	待阅读与注释
+kiana-domain/tests/sw01_lineage.rs	.rs	待阅读与注释
+kiana-domain/tests/sw02_work_graph.rs	.rs	待阅读与注释
+kiana-domain/tests/sw03_reducer.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_admission.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_cancellation.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_child.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_child_result.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_handoff.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_merge_reducer.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_merge_review.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_progress.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_projection.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_queue.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_recovery.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_release_gate.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_retirement.rs	.rs	待阅读与注释
+kiana-domain/tests/swarm_routing.rs	.rs	待阅读与注释
+kiana-domain/tests/ui04_action_journal.rs	.rs	已说明合成 command helper、幂等重放/快照拒绝/Unknown/receipt 状态夹具的验证目标与局限；指出未独立覆盖 scope 冲突和过期 deadline
+kiana-domain/tests/ui05_snapshot_projector.rs	.rs	已说明合成事件/查询 helper、稳定分页与游标拒绝、lag/retention/foreign-session fixture 的输入和证明范围
+kiana-entrypoints/src/bg.rs	.rs	待阅读与注释
+kiana-entrypoints/src/bin/kiana.rs	.rs	已补充中文启动链说明：Tokio runtime、init→CLI→cleanup顺序、Result优先级与清理跳过边界
+kiana-entrypoints/src/budget_presenter.rs	.rs	待阅读与注释
+kiana-entrypoints/src/cli.rs	.rs	待阅读与注释
+kiana-entrypoints/src/command_dispatch.rs	.rs	待阅读与注释
+kiana-entrypoints/src/company_surface_parity.rs	.rs	待阅读与注释
+kiana-entrypoints/src/company_user_flow.rs	.rs	待阅读与注释
+kiana-entrypoints/src/extension_projection.rs	.rs	待阅读与注释
+kiana-entrypoints/src/harness_run.rs	.rs	阶段二注释完成：全文件函数与测试已审阅
+kiana-entrypoints/src/init.rs	.rs	已补充中文说明：init顺序、清理注册/退出信号、远程设置缓存与首次启动记录、scratchpad及test-only共享状态；记录当前校验/失败边界
+kiana-entrypoints/src/lib.rs	.rs	复核文件级入口/统一DaemonHost说明；补充test-only环境变量锁、RAII恢复、毒化恢复和并发测试语义
+kiana-entrypoints/src/mcp.rs	.rs	待阅读与注释
+kiana-entrypoints/src/notification_cli.rs	.rs	待阅读与注释
+kiana-entrypoints/src/product_command.rs	.rs	待阅读与注释
+kiana-entrypoints/src/provider_diagnostics.rs	.rs	待阅读与注释
+kiana-entrypoints/src/repl.rs	.rs	待阅读与注释
+kiana-entrypoints/src/runner.rs	.rs	待阅读与注释
+kiana-entrypoints/src/sandbox.rs	.rs	待阅读与注释
+kiana-entrypoints/src/sdk.rs	.rs	待阅读与注释
+kiana-entrypoints/src/stream_render.rs	.rs	阶段一已有注释；本阶段深度复核待办
+kiana-entrypoints/src/tty_input.rs	.rs	待阅读与注释
+kiana-entrypoints/src/tui.rs	.rs	待阅读与注释
+kiana-entrypoints/src/web.rs	.rs	待阅读与注释
+kiana-entrypoints/src/web_inbox.rs	.rs	待阅读与注释
+kiana-entrypoints/src/web_notifications.rs	.rs	待阅读与注释
+kiana-entrypoints/src/web_page.html	.html	待阅读与注释
+kiana-entrypoints/src/web_thread.rs	.rs	待阅读与注释
+kiana-entrypoints/src/web_ui.rs	.rs	待阅读与注释
+kiana-entrypoints/src/workbench.rs	.rs	待阅读与注释
+kiana-entrypoints/src/workbench_chat.rs	.rs	待阅读与注释
+kiana-entrypoints/src/workbench_controller.rs	.rs	待阅读与注释
+kiana-entrypoints/src/workbench_render.rs	.rs	待阅读与注释
+kiana-entrypoints/src/workbench_review.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/bq24_budget_presenter.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/bq24_budget_presenter_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ci10_provider_diagnostics.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_architecture.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_auth.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_completion.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_eval.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_export.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_help.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_mcp.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_print.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_resume.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_run.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_session.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_stream_json.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_web.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cli_workbench.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/co40_company_user_flow.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/co41_company_surface_parity.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/co41_company_surface_parity_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/cp22_protocol_surfaces.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/eq47_cli_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/h32_display_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/int09_connector_health_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/int13_secret_redaction_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/int14_connector_protocol_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/nm14_notification_cli.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/nm14_notification_cli_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/nm15_web_notification.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/nm15_web_notification_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/p0_f01_approval_surfaces.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/p0_m1_workbench.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/p2_m5_01_web_sync.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/p2_m7_01_accessibility.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui08_store_boundary_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui10_cli_boundary_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui11_cli_presenter_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui12_tty_input.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui12_tty_input_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui13_workbench_render.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui13_workbench_render_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui14_workbench_controller.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui14_workbench_controller_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui15_workbench_review.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui15_workbench_review_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui16_web_routes.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui16_web_routes_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui17_web_hydrate.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui17_web_hydrate_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui18_web_sse.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui18_web_sse_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui19_session_tabs.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui19_session_tabs_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui20_web_timeline.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui20_web_timeline_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui21_web_human_inbox.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui21_web_human_inbox_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui22_web_detail.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui22_web_detail_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui23_web_accessibility.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui23_web_accessibility_guard.rs	.rs	待阅读与注释
+kiana-entrypoints/tests/ui32_deny_first.rs	.rs	待阅读与注释
+kiana-eventlog/src/artifact_store.rs	.rs	待阅读与注释
+kiana-eventlog/src/audit_contract.rs	.rs	待阅读与注释
+kiana-eventlog/src/credential_rotation.rs	.rs	待阅读与注释
+kiana-eventlog/src/event_store_core.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-eventlog/src/governance_contract.rs	.rs	待阅读与注释
+kiana-eventlog/src/integrity.rs	.rs	待阅读与注释
+kiana-eventlog/src/journal_core.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-eventlog/src/jsonl.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-eventlog/src/ledger_source.rs	.rs	待阅读与注释
+kiana-eventlog/src/lib.rs	.rs	已补充EventStorePort到Jsonl/Memory adapter、事务/stream/投影读取关系、公开模块阅读顺序与默认事件日志路径边界；区分本地接受写入和durable/live事实证明
+kiana-eventlog/src/memory.rs	.rs	待阅读与注释
+kiana-eventlog/src/memory_store.rs	.rs	待阅读与注释
+kiana-eventlog/src/notification_dedup.rs	.rs	待阅读与注释
+kiana-eventlog/src/notification_outbox.rs	.rs	待阅读与注释
+kiana-eventlog/src/retention_store.rs	.rs	待阅读与注释
+kiana-eventlog/src/stream.rs	.rs	待阅读与注释
+kiana-eventlog/src/workflow_queue.rs	.rs	清点时工作区已有改动，已有注释待其稳定后重新审阅（ M）
+kiana-eventlog/src/writer_queue.rs	.rs	待阅读与注释
+kiana-eventlog/tests/aut08_workflow_queue_store.rs	.rs	待阅读与注释
+kiana-eventlog/tests/bq20_ledger_source.rs	.rs	待阅读与注释
+kiana-eventlog/tests/ci11_credential_rotation.rs	.rs	待阅读与注释
+kiana-eventlog/tests/co06_artifact_retry.rs	.rs	待阅读与注释
+kiana-eventlog/tests/cp06_atomic_transitions.rs	.rs	待阅读与注释
+kiana-eventlog/tests/er02_identity.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-eventlog/tests/er04_command_receipt.rs	.rs	待阅读与注释
+kiana-eventlog/tests/er05_jsonl_v2.rs	.rs	待阅读与注释
+kiana-eventlog/tests/er06_async_lifecycle.rs	.rs	待阅读与注释
+kiana-eventlog/tests/er29_data_propagation_store.rs	.rs	待阅读与注释
+kiana-eventlog/tests/nm07_notification_dedup.rs	.rs	待阅读与注释
+kiana-eventlog/tests/nm08_notification_outbox.rs	.rs	待阅读与注释
+kiana-eventlog/tests/oa06_commit_observer.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd05_adapter_conformance.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd06_jsonl_recovery.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-eventlog/tests/pd07_indexes_page.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd08_integrity_scan.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd14_artifact_guard.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd14_artifact_store.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd22_snapshot_manifest_guard.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd27_writer_queue.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd27_writer_queue_guard.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd28_storage_security.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd30_storage_fault_matrix.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd31_adapter_conformance.rs	.rs	待阅读与注释
+kiana-eventlog/tests/pd31_adapter_guard.rs	.rs	待阅读与注释
+kiana-eventlog/tests/sc22_retention_guard.rs	.rs	待阅读与注释
+kiana-eventlog/tests/sc22_retention_store.rs	.rs	待阅读与注释
+kiana-eventlog/tests/sc23_deletion_guard.rs	.rs	待阅读与注释
+kiana-eventlog/tests/sc23_deletion_store.rs	.rs	待阅读与注释
+kiana-eventlog/tests/sc31_audit_event.rs	.rs	待阅读与注释
+kiana-gates/src/lib.rs	.rs	已有较完整中文说明；已核对 DefaultGateEngine 接入 DaemonHost 与 Core 的调用关系，待最终准确性复审
+kiana-modifiers/src/lib.rs	.rs	辅助/兼容模块注释完成：四平台 cfg、macOS/X11/Win32 查询、FFI/位图、诊断状态与旧 doctor 调用
+kiana-policy/src/grant_scope.rs	.rs	已有较完整中文说明；已补正 intersect_all 的权限集合与派生身份顺序边界，待最终准确性复审
+kiana-policy/src/lib.rs	.rs	待阅读与注释
+kiana-policy/src/project_trust.rs	.rs	已复核既有中文说明，清理重复段并补正摘要、优先级、调用与 validate 边界；待全仓终审
+kiana-policy/src/provider.rs	.rs	待阅读与注释
+kiana-policy/src/security.rs	.rs	待阅读与注释
+kiana-policy/src/security_control_registry.rs	.rs	待阅读与注释
+kiana-policy/tests/ci10_provider_policy.rs	.rs	待阅读与注释
+kiana-policy/tests/int15_connector_policy.rs	.rs	待阅读与注释
+kiana-policy/tests/sc05_policy.rs	.rs	待阅读与注释
+kiana-policy/tests/sc09_grant_scope.rs	.rs	待阅读与注释
+kiana-policy/tests/sc25_project_trust.rs	.rs	待阅读与注释
+kiana-policy/tests/sc25_project_trust_guard.rs	.rs	待阅读与注释
+kiana-policy/tests/sc34_control_registry.rs	.rs	待阅读与注释
+kiana-policy/tests/sc34_control_registry_guard.rs	.rs	待阅读与注释
+kiana-policy/tests/sw04_grant_scope_materialization.rs	.rs	待阅读与注释
+kiana-ports/src/adapter_conformance.rs	.rs	待阅读与注释
+kiana-ports/src/connector.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-ports/src/connector_https.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-ports/src/lib.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-ports/src/model.rs	.rs	待阅读与注释
+kiana-ports/src/oauth_accounts.rs	.rs	待阅读与注释
+kiana-ports/src/observability_queue.rs	.rs	待阅读与注释
+kiana-ports/src/storage_capacity_budget.rs	.rs	待阅读与注释
+kiana-ports/src/storage_fault_matrix.rs	.rs	待阅读与注释
+kiana-ports/src/storage_platform_matrix.rs	.rs	待阅读与注释
+kiana-ports/tests/aut02_clock_port.rs	.rs	待阅读与注释
+kiana-ports/tests/bq05_rate_card_store.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-ports/tests/bq08_quota_reservation_store.rs	.rs	待阅读与注释
+kiana-ports/tests/ci03_ports.rs	.rs	待阅读与注释
+kiana-ports/tests/co06_artifact_port.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-ports/tests/contracts.rs	.rs	待阅读与注释
+kiana-ports/tests/eq07_quality_ports.rs	.rs	待阅读与注释
+kiana-ports/tests/int07_connector_ports.rs	.rs	仅 AUT-11 FakeWebhook 子路径已注释；其余 INT-07 connector fixture 待读
+kiana-ports/tests/int11_https_connector.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-ports/tests/oa02_correlation_port.rs	.rs	待阅读与注释
+kiana-ports/tests/oa05_observability_ports.rs	.rs	待阅读与注释
+kiana-ports/tests/oa13_observability_queue.rs	.rs	待阅读与注释
+kiana-ports/tests/pd03_error_mapping.rs	.rs	待阅读与注释
+kiana-ports/tests/pd04_storage_ports.rs	.rs	待阅读与注释
+kiana-ports/tests/pd30_32_34_storage_matrices_guard.rs	.rs	待阅读与注释
+kiana-ports/tests/pd32_storage_platform_matrix.rs	.rs	待阅读与注释
+kiana-ports/tests/pd34_storage_capacity_budget.rs	.rs	待阅读与注释
+kiana-protocol/src/lib.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-protocol/src/ops.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-protocol/src/ui_contracts.rs	.rs	待阅读与注释
+kiana-protocol/tests/bq23_billing_query.rs	.rs	待阅读与注释
+kiana-protocol/tests/cap04_mapping.rs	.rs	待阅读与注释
+kiana-protocol/tests/ci10_provider_probe.rs	.rs	待阅读与注释
+kiana-protocol/tests/dep04_ops.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-protocol/tests/eq06_quality_protocol.rs	.rs	待阅读与注释
+kiana-protocol/tests/ext01_protocol.rs	.rs	待阅读与注释
+kiana-protocol/tests/ext28_extension_command_wire.rs	.rs	待阅读与注释
+kiana-protocol/tests/h19_steer_inject.rs	.rs	待阅读与注释
+kiana-protocol/tests/h26_clarification.rs	.rs	待阅读与注释
+kiana-protocol/tests/h27_turn_outcome.rs	.rs	已说明 Serde wire 可见性 fixture 不经过 envelope，也不授予权限
+kiana-protocol/tests/h28_progress.rs	.rs	待阅读与注释
+kiana-protocol/tests/h31_child_harness.rs	.rs	待阅读与注释
+kiana-protocol/tests/h32_display_state.rs	.rs	待阅读与注释
+kiana-protocol/tests/h33_resource_cleanup.rs	.rs	待阅读与注释
+kiana-protocol/tests/h34_legacy_compat.rs	.rs	待阅读与注释
+kiana-protocol/tests/int14_connector_protocol.rs	.rs	待阅读与注释
+kiana-protocol/tests/int28_connector_surfaces.rs	.rs	待阅读与注释
+kiana-protocol/tests/oa16_audit_query.rs	.rs	待阅读与注释
+kiana-protocol/tests/oa18_audit_export.rs	.rs	待阅读与注释
+kiana-protocol/tests/oa24_parity_wire.rs	.rs	待阅读与注释
+kiana-protocol/tests/oa27_company_governance_wire.rs	.rs	待阅读与注释
+kiana-protocol/tests/p4_j7_02_sequence.rs	.rs	待阅读与注释
+kiana-protocol/tests/ui01_dto.rs	.rs	待阅读与注释
+kiana-protocol/tests/ui02_handshake.rs	.rs	待阅读与注释
+kiana-protocol/tests/ui06_feed_contract.rs	.rs	待阅读与注释
+kiana-protocol/tests/ui39_live_acp.rs	.rs	待阅读与注释
+kiana-protocol/tests/ui40_release_evidence.rs	.rs	待阅读与注释
+kiana-protocol/tests/wire_contracts.rs	.rs	待阅读与注释
+kiana-provider/src/capacity.rs	.rs	待阅读与注释
+kiana-provider/src/config.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-provider/src/connector_quota.rs	.rs	待阅读与注释
+kiana-provider/src/credentials.rs	.rs	待阅读与注释
+kiana-provider/src/fallback.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-provider/src/lib.rs	.rs	阶段一已有注释；本阶段深度复核待办
+kiana-provider/src/oauth.rs	.rs	待阅读与注释
+kiana-provider/src/request.rs	.rs	阶段一已有注释；本阶段深度复核待办
+kiana-provider/src/resolver.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-provider/src/response.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-provider/src/telemetry.rs	.rs	待阅读与注释
+kiana-provider/src/transport.rs	.rs	待阅读与注释
+kiana-provider/src/usage.rs	.rs	待阅读与注释
+kiana-provider/src/usage_adapters.rs	.rs	待阅读与注释
+kiana-provider/tests/bq10_normalized_usage.rs	.rs	待阅读与注释
+kiana-provider/tests/bq16_provider_capacity.rs	.rs	待阅读与注释
+kiana-provider/tests/bq17_retry_policy.rs	.rs	待阅读与注释
+kiana-provider/tests/bq18_fallback_admission.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-provider/tests/ci01_baseline.rs	.rs	待阅读与注释
+kiana-provider/tests/ci06_config_resolver.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-provider/tests/ci07_secret_store.rs	.rs	待阅读与注释
+kiana-provider/tests/ci08_route_admission.rs	.rs	待阅读与注释
+kiana-provider/tests/co04_role_model_routes.rs	.rs	待阅读与注释
+kiana-provider/tests/h04_model_content_guard.rs	.rs	待阅读与注释
+kiana-provider/tests/int17_connector_quota.rs	.rs	待阅读与注释
+kiana-provider/tests/oa08_provider_telemetry.rs	.rs	待阅读与注释
+kiana-provider/tests/p4_j7_08_config.rs	.rs	待阅读与注释
+kiana-provider/tests/p4_j7_09_credentials.rs	.rs	待阅读与注释
+kiana-provider/tests/p4_j7_10_catalog.rs	.rs	待阅读与注释
+kiana-provider/tests/provider_contract.rs	.rs	待阅读与注释
+kiana-provider/tests/provider_retry.rs	.rs	待阅读与注释
+kiana-provider/tests/provider_streaming.rs	.rs	待阅读与注释
+kiana-quality/src/aggregation.rs	.rs	待阅读与注释
+kiana-quality/src/assertions.rs	.rs	待阅读与注释
+kiana-quality/src/baseline.rs	.rs	待阅读与注释
+kiana-quality/src/candidate.rs	.rs	待阅读与注释
+kiana-quality/src/canonical.rs	.rs	待阅读与注释
+kiana-quality/src/capture.rs	.rs	待阅读与注释
+kiana-quality/src/catalog.rs	.rs	待阅读与注释
+kiana-quality/src/context.rs	.rs	待阅读与注释
+kiana-quality/src/diff.rs	.rs	待阅读与注释
+kiana-quality/src/digest.rs	.rs	待阅读与注释
+kiana-quality/src/evaluator.rs	.rs	待阅读与注释
+kiana-quality/src/evidence.rs	.rs	待阅读与注释
+kiana-quality/src/experiment.rs	.rs	待阅读与注释
+kiana-quality/src/fixtures.rs	.rs	待阅读与注释
+kiana-quality/src/flake.rs	.rs	待阅读与注释
+kiana-quality/src/gate.rs	.rs	待阅读与注释
+kiana-quality/src/judge.rs	.rs	待阅读与注释
+kiana-quality/src/lib.rs	.rs	待阅读与注释
+kiana-quality/src/metrics.rs	.rs	待阅读与注释
+kiana-quality/src/normalize.rs	.rs	待阅读与注释
+kiana-quality/src/recovery.rs	.rs	待阅读与注释
+kiana-quality/src/rules.rs	.rs	待阅读与注释
+kiana-quality/src/runtime.rs	.rs	待阅读与注释
+kiana-quality/src/safety.rs	.rs	待阅读与注释
+kiana-quality/src/scenario.rs	.rs	待阅读与注释
+kiana-quality/src/shadow.rs	.rs	待阅读与注释
+kiana-quality/src/volatile.rs	.rs	待阅读与注释
+kiana-quality/src/workflow.rs	.rs	待阅读与注释
+kiana-quality/tests/eq17_normalize.rs	.rs	待阅读与注释
+kiana-quality/tests/eq17_quality_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq18_canonical.rs	.rs	待阅读与注释
+kiana-quality/tests/eq18_quality_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq19_quality_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq19_volatile.rs	.rs	待阅读与注释
+kiana-quality/tests/eq20_digest.rs	.rs	待阅读与注释
+kiana-quality/tests/eq20_digest_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq21_trace_diff.rs	.rs	待阅读与注释
+kiana-quality/tests/eq21_trace_diff_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq22_assertions.rs	.rs	待阅读与注释
+kiana-quality/tests/eq22_assertions_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq23_capture.rs	.rs	待阅读与注释
+kiana-quality/tests/eq23_capture_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq24_scenario.rs	.rs	待阅读与注释
+kiana-quality/tests/eq24_scenario_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq25_catalog.rs	.rs	待阅读与注释
+kiana-quality/tests/eq25_catalog_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq26_fixtures.rs	.rs	待阅读与注释
+kiana-quality/tests/eq26_fixtures_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq27_evaluator.rs	.rs	待阅读与注释
+kiana-quality/tests/eq27_evaluator_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq28_runtime.rs	.rs	待阅读与注释
+kiana-quality/tests/eq28_runtime_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq29_safety.rs	.rs	待阅读与注释
+kiana-quality/tests/eq29_safety_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq30_evidence.rs	.rs	待阅读与注释
+kiana-quality/tests/eq30_evidence_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq31_recovery.rs	.rs	待阅读与注释
+kiana-quality/tests/eq31_recovery_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq32_context.rs	.rs	待阅读与注释
+kiana-quality/tests/eq32_context_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq33_workflow.rs	.rs	待阅读与注释
+kiana-quality/tests/eq33_workflow_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq34_metrics.rs	.rs	待阅读与注释
+kiana-quality/tests/eq34_metrics_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq35_judge.rs	.rs	待阅读与注释
+kiana-quality/tests/eq35_judge_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq36_aggregation.rs	.rs	待阅读与注释
+kiana-quality/tests/eq36_aggregation_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq37_flake.rs	.rs	待阅读与注释
+kiana-quality/tests/eq37_flake_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq38_experiment.rs	.rs	待阅读与注释
+kiana-quality/tests/eq38_experiment_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq39_baseline.rs	.rs	待阅读与注释
+kiana-quality/tests/eq39_baseline_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq40_candidate.rs	.rs	待阅读与注释
+kiana-quality/tests/eq40_candidate_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq41_gate.rs	.rs	待阅读与注释
+kiana-quality/tests/eq41_gate_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq42_rules.rs	.rs	待阅读与注释
+kiana-quality/tests/eq42_rules_guard.rs	.rs	待阅读与注释
+kiana-quality/tests/eq44_shadow.rs	.rs	待阅读与注释
+kiana-quality/tests/eq44_shadow_guard.rs	.rs	待阅读与注释
+kiana-query/src/allocation_projector.rs	.rs	已说明 allocation leaf 到 run/多维平行汇总的数据流、事件绑定与金额边界；记录 validator 不重算 totals
+kiana-query/src/audit_projector.rs	.rs	待阅读与注释
+kiana-query/src/billing_api.rs	.rs	已说明请求/快照/边界校验、summary/freshness/cursor 数据流、错误映射及 project snapshot 外部隔离责任
+kiana-query/src/billing_ledger_projector.rs	.rs	已说明 BQ-13/14/19 事件到只读快照的数据流、分页原子发布、版本/目标校验、隔离、各类金额与时间桶、重放 fence 和调用范围；记录 stream-version/revision 边界及未消费来源游标
+kiana-query/src/cache_policy.rs	.rs	已说明缓存状态映射、布尔边界、自摘要、治理计划输入与调用范围；记录差异报告被误表述为实际缓存复用
+kiana-query/src/chunker.rs	.rs	已补充 syntax-lite 分段、UTF-8 窗口、版本摘要、稳定 ID 和无生产调用边界
+kiana-query/src/config.rs	.rs	已说明环境变量到 QueryConfig/QueryGates 再到纯 reducer 的数据流、bool/default 语义、serde 派生边界及授权无关性；记录 from_env 无生产调用且 reducer 未读取 gates
+kiana-query/src/connector_health.rs	.rs	已说明 Daemon 事件流到最新健康投影、revision stale、游标、限制、错误和 source proof 上限
+kiana-query/src/connector_quota.rs	.rs	已说明 quota reservation/settlement 事件重放、覆盖顺序、输出边界及不授权/无生产调用范围
+kiana-query/src/context_inputs.rs	.rs	已说明 RepoMapFile 到 SourceRef/SourceSnapshot/RetrievalCandidate 的转换、固定 freshness/attribution 与 scope 摘要边界
+kiana-query/src/context_manifest.rs	.rs	已说明派生清单数据流、Serde/自摘要边界、构建/校验/原子写入/读回及错误传播；记录嵌套依赖图校验缺口
+kiana-query/src/cost_ledger_projector.rs	.rs	已说明账本 entry/correction 顺序重放、审批事实还原、Domain append_correction 校验和只读 view
+kiana-query/src/cost_projector.rs	.rs	已说明 Query wrapper 调用 Domain reducer、Run/source envelope 绑定、空来源与 Unknown 区分及只读错误边界
+kiana-query/src/data_boundary.rs	.rs	已说明 derive/validate/digest、memory/index/cache/export 映射、Serde/自摘要信任边界和消费者调用范围
+kiana-query/src/deps.rs	.rs	已说明 UUID 工厂从组合层注入到 new_uuid 的路径、Arc/trait object/Send+Sync 含义、panic/副作用边界与 Debug 摘要；记录 QueryDeps 目前只有定义和 crate 重导出、无消费者
+kiana-query/src/hook_cancellation.rs	.rs	已说明 hook identity 到递归 visited/幂等键/摘要及取消/重试建议的数据流，解释深度与 serde 边界；记录 tuple key 冒号碰撞、parent 未校验、role 对取消映射无影响和无生产消费者
+kiana-query/src/hook_lifecycle_dispatch.rs	.rs	已说明生命周期 kind/身份/payload 到事件摘要的构造路径、PostTool 提交声明、固定 capability=false 和无序号状态；记录无生产消费者
+kiana-query/src/hook_outcome.rs	.rs	已说明 JSON 到闭合 outcome 的识别/字段限制/失败路径及重新授权边界；记录缺失或非字符串 decision 默认 Allow、context 非字符串过滤及 roadmap fail-closed 张力
+kiana-query/src/hook_receipt.rs	.rs	已说明 receipt 到只读 replay view 的校验/fence 流程、executed=false 和 cleanup Unknown 决策；记录 replay_safe=true 拒绝及 digest 不验证
+kiana-query/src/index.rs	.rs	已有较完整中文说明；已核对 CLI/Daemon 查询入口，待最终准确性复审
+kiana-query/src/index_generation.rs	.rs	已补充 scanner 到 manifest/envelope、原子 JSON 发布、路径与跨进程协调边界
+kiana-query/src/index_invalidation.rs	.rs	已补充 freshness/read gate、governance metadata 与 Domain plan 的委托关系
+kiana-query/src/lib.rs	.rs	已补充查询适配层的模块分组、受控上下文/遗留Hook/投影数据流、实际生产调用范围与副作用边界；明确根重导出不等于已接入主链
+kiana-query/src/oauth_accounts.rs	.rs	阶段二已注释，待最终复审
+kiana-query/src/repo_map.rs	.rs	已补全 scanner 调用链、预算/读取边界、语言和符号启发式、忽略规则、错误传播及测试夹具说明
+kiana-query/src/repo_map_task.rs	.rs	已解释 memory_tokens 打分、RepoMap 转换、Heuristic 标注、digest fallback 与当前无生产调用者
+kiana-query/src/stop_hooks.rs	.rs	已补充兼容调用链、未接入入口、配置/trust 优先级、命令输入输出、mpsc/oneshot、shell 生命周期、解析默认值和测试边界；记录 timeout 与 stdout 缓冲等未修复限制
+kiana-query/src/token_budget.rs	.rs	已说明累计 token 到 Continue/Stop 决策再到 QueryEffect 的预期调用链、90%/500 token/3 次阈值、tracker/单调时钟/Serde 边界和饱和差值；记录 checker 当前仅被单测直接调用且不实施硬配额
+kiana-query/src/transitions.rs	.rs	已说明事件/phase 白名单、模型/工具/hook/预算状态流、effect 顺序、终态和 serde 数据形状，并标出配置 gate 未消费；记录工具结果超额、预算统计丢失和 Complete reason 不一致边界
+kiana-query/src/unified_retrieval.rs	.rs	已说明 UnifiedRetrievalPort 持有 profile、原样转发 Domain 排序并把错误映射到 PortError 的适配职责；不读取索引、不认证 ACL
+kiana-query/src/workspace_snapshot.rs	.rs	已补充 scanner 调用路径、trust 默认拒绝、遍历预算、文件身份 fence 和已知限制
+kiana-query/tests/bq13_cost_projector.rs	.rs	已说明合成 rate card/usage/event fixture 和 include_str! 只读源码守卫的证明边界
+kiana-query/tests/bq14_cost_ledger_projector.rs	.rs	已说明合成 entry/approval/correction 重放、Run 拒绝和重复事件 fixture 的范围
+kiana-query/tests/bq14_cost_ledger_projector_guard.rs	.rs	已说明 include_str! 静态只读/digest marker 守卫不执行重放
+kiana-query/tests/bq19_allocation_projector.rs	.rs	已说明合成 leaf 汇总、重复 usage/跨 run 拒绝和金额状态分离 fixture
+kiana-query/tests/bq19_allocation_projector_guard.rs	.rs	已说明单文件 include_str! 静态只读/维度 marker 守卫的证明范围
+kiana-query/tests/bq20_ledger_projector.rs	.rs	另一 Codex 正在修改；待其停止写入后按最新源码核读并补注释
+kiana-query/tests/bq20_ledger_projector_guard.rs	.rs	已说明 include_str! 关键 marker 与禁止依赖词的单文件静态检查边界；不执行重放或证明产品路由接线
+kiana-query/tests/bq23_billing_api.rs	.rs	已说明合成 snapshot/request/boundary 对允许读取、export 拒绝和 projection cursor 拒绝的覆盖范围
+kiana-query/tests/bq23_billing_api_guard.rs	.rs	已说明单文件 include_str! marker/禁止词守卫不执行 API
+kiana-query/tests/cm07_workspace_snapshot.rs	.rs	已补充真实临时目录读取 fixture 的场景与不覆盖生产 ProjectTrust 集成的边界
+kiana-query/tests/cm08_chunker.rs	.rs	已补充代码/文档/Unicode chunk fixture 的验证范围和 parser 证明限制
+kiana-query/tests/cm10_index_generation.rs	.rs	已补充临时 manifest 发布与回读 fixture、同进程测试共享目录风险
+kiana-query/tests/cm11_index_invalidation.rs	.rs	已补充 Domain plan 的 Query 转发覆盖与非生产 rebuild 边界
+kiana-query/tests/cm12_unified_retrieval.rs	.rs	待阅读与注释
+kiana-query/tests/cm13_repo_map_task.rs	.rs	已说明手工 RepoMap 单文件 fixture 不运行 scanner 的边界
+kiana-query/tests/context_memory_baseline.rs	.rs	待阅读与注释
+kiana-query/tests/er29_data_governance.rs	.rs	待阅读与注释
+kiana-query/tests/h30_retrieval_context.rs	.rs	已说明合成 RepoMapFile 到候选 DTO 的 fixture 范围，不运行 scanner 或 ContextPlan
+kiana-query/tests/int09_connector_health.rs	.rs	已说明合成事件覆盖最新事实、revision drift 与畸形/孤立事实拒绝，不证明 live health
+kiana-query/tests/int12_oauth_projection.rs	.rs	待阅读与注释
+kiana-query/tests/int17_connector_quota.rs	.rs	已说明该 Query fixture 仅是 include_str! 静态 marker 守卫，不执行重放
+kiana-query/tests/p1_l4_01_code_intelligence.rs	.rs	已说明 include_str 静态 marker 守卫范围，不运行 scanner/索引/HTTP 路由
+kiana-query/tests/pd19_context_index_generation.rs	.rs	已补充临时 workspace fingerprint/envelope 往返 fixture 与共享目录风险
+kiana-query/tests/pd19_context_index_generation_guard.rs	.rs	已补充 include_str! 源码标记检查范围及不能证明生产接入的边界
+kiana-query/tests/pd20_context_material_manifest.rs	.rs	已说明 PD-20 合成目录往返与格式拒绝 fixture 的证明边界；记录同进程并行测试共享 PID 临时目录风险
+kiana-query/tests/pd20_context_material_manifest_guard.rs	.rs	已说明 include_str! 静态 marker 守卫只证明源码文本，不证明生产接入或运行时行为
+kiana-query/tests/pd21_cache_policy.rs	.rs	已说明合成计数到状态映射的 fixture 范围及其不证明实际旧缓存复用
+kiana-query/tests/pd21_cache_policy_guard.rs	.rs	已说明 include_str! 静态 marker 与禁止词检查的证明上限
+kiana-query/tests/sc24_query_data_boundary.rs	.rs	已说明撤销/保留规则的合成 DTO fixture、digest 样例及其非生产证明边界
+kiana-query/tests/sc24_query_data_boundary_guard.rs	.rs	已说明 Query/Daemon 源码 marker 的静态检查范围，不证明同一调用链或生产撤销行为
+kiana-query/tests/sc32_audit_projector.rs	.rs	待阅读与注释
+kiana-remote/src/ccr_v2_worker.rs	.rs	待阅读与注释
+kiana-remote/src/code_session_api.rs	.rs	待阅读与注释
+kiana-remote/src/environment_providers.rs	.rs	待阅读与注释
+kiana-remote/src/git_bundle.rs	.rs	待阅读与注释
+kiana-remote/src/lib.rs	.rs	待阅读与注释
+kiana-remote/src/remote_permission_bridge.rs	.rs	待阅读与注释
+kiana-remote/src/remote_session_manager.rs	.rs	待阅读与注释
+kiana-remote/src/sdk_message_adapter.rs	.rs	待阅读与注释
+kiana-remote/src/sessions_websocket.rs	.rs	待阅读与注释
+kiana-remote/src/types.rs	.rs	待阅读与注释
+kiana-runner-protocol/src/lib.rs	.rs	待阅读与注释
+kiana-runner-protocol/tests/h02_wire.rs	.rs	待阅读与注释
+kiana-runner/src/budget.rs	.rs	待阅读与注释
+kiana-runner/src/compact.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/src/harness.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/src/inbox.rs	.rs	待阅读与注释
+kiana-runner/src/lib.rs	.rs	待阅读与注释
+kiana-runner/src/model.rs	.rs	待阅读与注释
+kiana-runner/src/progress.rs	.rs	待阅读与注释
+kiana-runner/src/protocol_runner.rs	.rs	待阅读与注释
+kiana-runner/src/retry.rs	.rs	待阅读与注释
+kiana-runner/src/state_driver.rs	.rs	待阅读与注释
+kiana-runner/src/stream_normalizer.rs	.rs	待阅读与注释
+kiana-runner/src/tools.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/tests/bq17_retry_policy_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/tests/h03_state_driver.rs	.rs	待阅读与注释
+kiana-runner/tests/h05_stop_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h06_stream_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h06_stream_normalizer.rs	.rs	待阅读与注释
+kiana-runner/tests/h07_budget.rs	.rs	待阅读与注释
+kiana-runner/tests/h07_budget_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h08_cancellation.rs	.rs	待阅读与注释
+kiana-runner/tests/h08_cancellation_guard.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/tests/h09_tool_catalog.rs	.rs	已说明内存映射fixture、摘要失败和不覆盖Broker/Approval端到端行为
+kiana-runner/tests/h09_tool_catalog_guard.rs	.rs	已说明跨crate include_str守卫及精确字符串断言的证明限制
+kiana-runner/tests/h10_invocation_identity.rs	.rs	待阅读与注释
+kiana-runner/tests/h10_invocation_identity_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h11_tool_observation.rs	.rs	待阅读与注释
+kiana-runner/tests/h11_tool_observation_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h12_serial_batch.rs	.rs	待阅读与注释
+kiana-runner/tests/h12_serial_batch_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h18_inbox.rs	.rs	待阅读与注释
+kiana-runner/tests/h19_steer_inject.rs	.rs	待阅读与注释
+kiana-runner/tests/h20_context_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h21_budget_prefix_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h22_compact_guard.rs	.rs	待阅读与注释
+kiana-runner/tests/h26_clarification.rs	.rs	待阅读与注释
+kiana-runner/tests/harness_contract.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/tests/malicious_model_output.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/tests/p0_j1_02_cancellation.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-runner/tests/p4_j7_23_retry.rs	.rs	清点时工作区已有改动，跳过（ M）
+kiana-screens/src/app.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/doctor.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/history.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/lib.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/repl.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/resume_conversation.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/search_history.rs	.rs	阶段二已注释，待最终复审
+kiana-screens/src/settings.rs	.rs	阶段二已注释，待最终复审
+kiana-services/src/analytics.rs	.rs	待阅读与注释
+kiana-services/src/api/client.rs	.rs	待阅读与注释
+kiana-services/src/api/errors.rs	.rs	待阅读与注释
+kiana-services/src/api/logging.rs	.rs	待阅读与注释
+kiana-services/src/api/messages.rs	.rs	待阅读与注释
+kiana-services/src/api/mod.rs	.rs	待阅读与注释
+kiana-services/src/api/provider.rs	.rs	待阅读与注释
+kiana-services/src/api/retry.rs	.rs	待阅读与注释
+kiana-services/src/api/streaming.rs	.rs	待阅读与注释
+kiana-services/src/auth.rs	.rs	待阅读与注释
+kiana-services/src/compact.rs	.rs	待阅读与注释
+kiana-services/src/errors.rs	.rs	待阅读与注释
+kiana-services/src/lib.rs	.rs	待阅读与注释
+kiana-services/src/lsp.rs	.rs	待阅读与注释
+kiana-services/src/mcp.rs	.rs	待阅读与注释
+kiana-services/src/network_policy.rs	.rs	待阅读与注释
+kiana-services/src/oauth.rs	.rs	待阅读与注释
+kiana-services/tests/provider_standard.rs	.rs	待阅读与注释
+kiana-skills/src/bundled.rs	.rs	待阅读与注释
+kiana-skills/src/catalog.rs	.rs	待阅读与注释
+kiana-skills/src/disclosure.rs	.rs	待阅读与注释
+kiana-skills/src/dynamic.rs	.rs	待阅读与注释
+kiana-skills/src/hook_discovery.rs	.rs	待阅读与注释
+kiana-skills/src/lib.rs	.rs	已补充 facade、正文加载/披露边界、trust/cache/catalog/conditional/store failure/匹配与缓存清理说明；独立审查提出 3 条并已修正，定点复核确认 3/3，无剩余发现；33/33 隔离测试通过，未提交
+kiana-skills/src/loader.rs	.rs	待阅读与注释
+kiana-skills/src/manifest.rs	.rs	待阅读与注释
+kiana-skills/src/mcp.rs	.rs	待阅读与注释
+kiana-skills/src/plugins.rs	.rs	待阅读与注释
+kiana-skills/src/snapshot.rs	.rs	待阅读与注释
+kiana-skills/src/source_resolver.rs	.rs	待阅读与注释
+kiana-skills/src/types.rs	.rs	待阅读与注释
+kiana-skills/tests/ext02_source_resolver.rs	.rs	待阅读与注释
+kiana-skills/tests/ext03_manifest.rs	.rs	待阅读与注释
+kiana-skills/tests/ext04_catalog.rs	.rs	待阅读与注释
+kiana-skills/tests/ext05_snapshot.rs	.rs	待阅读与注释
+kiana-skills/tests/ext06_progressive_disclosure.rs	.rs	待阅读与注释
+kiana-skills/tests/ext07_activation.rs	.rs	待阅读与注释
+kiana-skills/tests/ext08_dynamic_scope.rs	.rs	待阅读与注释
+kiana-skills/tests/ext11_hook_schema.rs	.rs	待阅读与注释
+kiana-skills/tests/ext12_hook_discovery.rs	.rs	待阅读与注释
+kiana-skills/tests/ext19_plugin_manifest_v2.rs	.rs	待阅读与注释
+kiana-tasks/src/dream_task.rs	.rs	待阅读与注释
+kiana-tasks/src/evidence.rs	.rs	待阅读与注释
+kiana-tasks/src/integrity.rs	.rs	待阅读与注释
+kiana-tasks/src/lib.rs	.rs	待阅读与注释
+kiana-tasks/src/pill_label.rs	.rs	待阅读与注释
+kiana-tasks/src/project_board.rs	.rs	待阅读与注释
+kiana-tasks/src/stop_task.rs	.rs	待阅读与注释
+kiana-tasks/src/swarm.rs	.rs	待阅读与注释
+kiana-tasks/src/task_id.rs	.rs	待阅读与注释
+kiana-tasks/src/types.rs	.rs	待阅读与注释
+kiana-tasks/src/workflow.rs	.rs	待阅读与注释
+kiana-tasks/tests/evidence_ledger.rs	.rs	待阅读与注释
+kiana-tasks/tests/p1_d01_ready_predicate.rs	.rs	待阅读与注释
+kiana-tasks/tests/project_board.rs	.rs	待阅读与注释
+kiana-tasks/tests/review_packet.rs	.rs	待阅读与注释
+kiana-tasks/tests/swarm_dispatch.rs	.rs	待阅读与注释
+kiana-tasks/tests/swarm_planner.rs	.rs	待阅读与注释
+kiana-tasks/tests/swarm_worker_lifecycle.rs	.rs	待阅读与注释
+kiana-tasks/tests/workflow_artifact_integrity.rs	.rs	待阅读与注释
+kiana-tasks/tests/workflow_integrity.rs	.rs	待阅读与注释
+kiana-tasks/tests/workflow_runtime.rs	.rs	待阅读与注释
+kiana-tools/src/agent.rs	.rs	待阅读与注释
+kiana-tools/src/agent_tool.rs	.rs	待阅读与注释
+kiana-tools/src/bash_sandbox.rs	.rs	待阅读与注释
+kiana-tools/src/bash_tool.rs	.rs	待阅读与注释
+kiana-tools/src/config_tool.rs	.rs	待阅读与注释
+kiana-tools/src/cron_create.rs	.rs	待阅读与注释
+kiana-tools/src/cron_delete.rs	.rs	待阅读与注释
+kiana-tools/src/cron_list.rs	.rs	待阅读与注释
+kiana-tools/src/discover_skills.rs	.rs	待阅读与注释
+kiana-tools/src/enter_plan_mode.rs	.rs	待阅读与注释
+kiana-tools/src/enter_worktree.rs	.rs	待阅读与注释
+kiana-tools/src/exec_policy.rs	.rs	待阅读与注释
+kiana-tools/src/exit_plan_mode.rs	.rs	待阅读与注释
+kiana-tools/src/exit_worktree.rs	.rs	待阅读与注释
+kiana-tools/src/file_delete.rs	.rs	待阅读与注释
+kiana-tools/src/file_edit.rs	.rs	待阅读与注释
+kiana-tools/src/file_read.rs	.rs	待阅读与注释
+kiana-tools/src/file_write.rs	.rs	待阅读与注释
+kiana-tools/src/glob.rs	.rs	待阅读与注释
+kiana-tools/src/glob_tool.rs	.rs	待阅读与注释
+kiana-tools/src/grep.rs	.rs	待阅读与注释
+kiana-tools/src/grep_tool.rs	.rs	待阅读与注释
+kiana-tools/src/lib.rs	.rs	待阅读与注释
+kiana-tools/src/lsp_tool.rs	.rs	待阅读与注释
+kiana-tools/src/mcp_tool.rs	.rs	待阅读与注释
+kiana-tools/src/monitor_tool.rs	.rs	待阅读与注释
+kiana-tools/src/notebook_edit.rs	.rs	待阅读与注释
+kiana-tools/src/notebook_execute.rs	.rs	待阅读与注释
+kiana-tools/src/permissions.rs	.rs	待阅读与注释
+kiana-tools/src/powershell_tool.rs	.rs	待阅读与注释
+kiana-tools/src/registry.rs	.rs	待阅读与注释
+kiana-tools/src/remote_trigger.rs	.rs	待阅读与注释
+kiana-tools/src/repl_tool.rs	.rs	待阅读与注释
+kiana-tools/src/send_message.rs	.rs	待阅读与注释
+kiana-tools/src/shell.rs	.rs	待阅读与注释
+kiana-tools/src/skill_tool.rs	.rs	待阅读与注释
+kiana-tools/src/synthetic_output.rs	.rs	待阅读与注释
+kiana-tools/src/task_create.rs	.rs	待阅读与注释
+kiana-tools/src/task_get.rs	.rs	待阅读与注释
+kiana-tools/src/task_list.rs	.rs	待阅读与注释
+kiana-tools/src/task_output.rs	.rs	待阅读与注释
+kiana-tools/src/task_stop.rs	.rs	待阅读与注释
+kiana-tools/src/task_update.rs	.rs	待阅读与注释
+kiana-tools/src/team_create.rs	.rs	待阅读与注释
+kiana-tools/src/team_delete.rs	.rs	待阅读与注释
+kiana-tools/src/team_lifecycle.rs	.rs	待阅读与注释
+kiana-tools/src/todo_write.rs	.rs	待阅读与注释
+kiana-tools/src/tool.rs	.rs	待阅读与注释
+kiana-tools/src/tool_execution.rs	.rs	待阅读与注释
+kiana-tools/src/tool_search.rs	.rs	待阅读与注释
+kiana-tools/src/user_interaction.rs	.rs	待阅读与注释
+kiana-tools/src/utils.rs	.rs	待阅读与注释
+kiana-tools/src/web_fetch.rs	.rs	待阅读与注释
+kiana-tools/src/web_search.rs	.rs	待阅读与注释
+kiana-tools/src/workflow_tool.rs	.rs	待阅读与注释
+kiana-types/src/connector_text.rs	.rs	待阅读与注释
+kiana-types/src/hooks.rs	.rs	待阅读与注释
+kiana-types/src/ids.rs	.rs	待阅读与注释
+kiana-types/src/lib.rs	.rs	待阅读与注释
+kiana-types/src/logs.rs	.rs	待阅读与注释
+kiana-types/src/message.rs	.rs	待阅读与注释
+kiana-types/src/permissions.rs	.rs	待阅读与注释
+kiana-types/src/plugin.rs	.rs	待阅读与注释
+kiana-types/src/runtime.rs	.rs	待阅读与注释
+kiana-types/src/simple_types.rs	.rs	待阅读与注释
+kiana-types/src/tools.rs	.rs	待阅读与注释
+kiana-types/src/trust.rs	.rs	待阅读与注释
+kiana-types/src/utils.rs	.rs	待阅读与注释
+kiana-types/tests/runtime_event_schema.rs	.rs	待阅读与注释
+kiana-url-handler/src/lib.rs	.rs	待阅读与注释
+kiana-url-handler/src/main.rs	.rs	待阅读与注释
+kiana-workflow/src/durable.rs	.rs	本批已补充 planner 注释并记录源码问题；业务逻辑未改
+kiana-workflow/src/lib.rs	.rs	已复核并修订 crate 职责注释；区分通用状态机与 durable planner
+kiana-workflow/tests/aut03_definition.rs	.rs	待阅读与注释
+kiana-workflow/tests/aut04_trigger_definition.rs	.rs	待阅读与注释
+kiana-workflow/tests/aut06_plan_intent.rs	.rs	待阅读与注释
+kiana-workflow/tests/aut10_interval_cursor.rs	.rs	待阅读与注释
+kiana-workflow/tests/aut12_pending_policy.rs	.rs	待阅读与注释
+kiana-workflow/tests/aut13_advance_guard.rs	.rs	待阅读与注释
+kiana-workflow/tests/aut13_advance_planner.rs	.rs	待阅读与注释
+kiana-workflow/tests/er28_workflow_observation.rs	.rs	待阅读与注释
+kiana-workflow/tests/p2_j5_01_replay.rs	.rs	待阅读与注释
+kiana-workflow/tests/p4_k2_01_trigger.rs	.rs	待阅读与注释
+kiana-workflow/tests/state_matrix.rs	.rs	待阅读与注释
+legacy/kiana-color-diff/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-components/examples/async_task_demo.rs	.rs	待阅读与注释
+legacy/kiana-components/examples/log_viewer_demo.rs	.rs	待阅读与注释
+legacy/kiana-components/examples/preview_demo.rs	.rs	待阅读与注释
+legacy/kiana-components/examples/scrollbar_demo.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/cancellation.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/context.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/error.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/handle.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/manager.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/mod.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/progress.rs	.rs	待阅读与注释
+legacy/kiana-components/src/async_task/types.rs	.rs	待阅读与注释
+legacy/kiana-components/src/dialog.rs	.rs	待阅读与注释
+legacy/kiana-components/src/layout.rs	.rs	待阅读与注释
+legacy/kiana-components/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-components/src/list.rs	.rs	待阅读与注释
+legacy/kiana-components/src/log_viewer/buffer.rs	.rs	待阅读与注释
+legacy/kiana-components/src/log_viewer/mod.rs	.rs	待阅读与注释
+legacy/kiana-components/src/log_viewer/parser.rs	.rs	待阅读与注释
+legacy/kiana-components/src/log_viewer/viewer.rs	.rs	待阅读与注释
+legacy/kiana-components/src/preview/binary.rs	.rs	待阅读与注释
+legacy/kiana-components/src/preview/detector.rs	.rs	待阅读与注释
+legacy/kiana-components/src/preview/markdown.rs	.rs	待阅读与注释
+legacy/kiana-components/src/preview/mod.rs	.rs	待阅读与注释
+legacy/kiana-components/src/preview/preview.rs	.rs	待阅读与注释
+legacy/kiana-components/src/preview/text.rs	.rs	待阅读与注释
+legacy/kiana-components/src/progress.rs	.rs	待阅读与注释
+legacy/kiana-components/src/scrollbar.rs	.rs	待阅读与注释
+legacy/kiana-components/src/spinner.rs	.rs	待阅读与注释
+legacy/kiana-components/src/text.rs	.rs	待阅读与注释
+legacy/kiana-components/src/theme.rs	.rs	待阅读与注释
+legacy/kiana-components/tests/async_task_integration.rs	.rs	待阅读与注释
+legacy/kiana-components/tests/log_viewer.rs	.rs	待阅读与注释
+legacy/kiana-components/tests/preview.rs	.rs	待阅读与注释
+legacy/kiana-components/tests/quick_jump.rs	.rs	待阅读与注释
+legacy/kiana-components/tests/scrollbar_integration.rs	.rs	待阅读与注释
+legacy/kiana-computer-input/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-coordinator/src/coordinator_mode.rs	.rs	待阅读与注释
+legacy/kiana-coordinator/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-coordinator/src/worker_agent.rs	.rs	待阅读与注释
+legacy/kiana-ink/examples/hello.rs	.rs	待阅读与注释
+legacy/kiana-ink/src/dom.rs	.rs	待阅读与注释
+legacy/kiana-ink/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-ink/src/output.rs	.rs	待阅读与注释
+legacy/kiana-ink/src/renderer.rs	.rs	待阅读与注释
+legacy/kiana-ink/src/screen.rs	.rs	待阅读与注释
+legacy/kiana-ink/src/styles.rs	.rs	待阅读与注释
+legacy/kiana-screen-capture/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-tui/benches/fuzzy_search.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/acp.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/background/executor.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/background/handle.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/background/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/background/task.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/cancellation/guard.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/cancellation/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/cancellation/timeout.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/cancellation/token.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/commands.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/completion.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/breadcrumbs.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/charts/bar.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/charts/common.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/charts/line.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/charts/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/charts/sparkline.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/command_palette.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/dialog.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/diff_view.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/filter.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/folding/detector.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/folding/manager.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/folding/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/folding/state_store.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/help.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/macro_editor.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/notifications.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/progress.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/spinner.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/status_bar.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/table.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/tree_view.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/components/vim_navigation.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/config.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/filter/ast.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/filter/engine.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/filter/field.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/filter/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/filter/parser.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/filter/preset.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/example_splits.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/example_tabs.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/integration_example.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/panels.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/split.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/tabs.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/layout/virtual_list.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/lib.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/live_update/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/live_update/poller.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/live_update/source.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/macro_system/error.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/macro_system/integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/macro_system/manager.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/macro_system/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/macro_system/storage.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/macro_system/tests.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/main.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/markdown.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/overlay/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/overlay/search.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/overlay/search_with_preview.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/performance/cache.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/performance/dirty_region.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/performance/error_boundary.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/performance/incremental.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/performance/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/performance/mouse.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/queue/dependency.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/queue/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/queue/task_queue.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/queue/types.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/field_scorer.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/fuzzy.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/highlight.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/multi_field.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/preview.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/regex.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/search/score_aggregator.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/sessions.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/actions.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/app_states.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/core.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/engine.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/guards.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/logger.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/tests.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/transitions.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/state_machine/validator.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/syntax/highlighter.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/syntax/mod.rs	.rs	待阅读与注释
+legacy/kiana-tui/src/syntax/themes.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/charts_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/folding_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/multi_field_search_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/panel_layout_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/progress_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/regex_search_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/search_overlay_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/search_with_preview_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/spinner_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/split_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/syntax_tests.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/tree_view_integration.rs	.rs	待阅读与注释
+legacy/kiana-tui/tests/vim_navigation_integration.rs	.rs	待阅读与注释
+run.sh	.sh	待阅读与注释
+scripts/capability-governance-smoke.sh	.sh	待阅读与注释
+scripts/capability-governance-supervisor-smoke.sh	.sh	待阅读与注释
+scripts/capability_governance.py	.py	待阅读与注释
+scripts/ci-01-baseline.py	.py	待阅读与注释
+scripts/ci/validate-doc-references.sh	.sh	待阅读与注释
+scripts/ci/validate-workflows.sh	.sh	待阅读与注释
+scripts/commercial-release-blockers-report.sh	.sh	待阅读与注释
+scripts/commercial-release-handoff-smoke.sh	.sh	待阅读与注释
+scripts/company-os-business-smoke.sh	.sh	待阅读与注释
+scripts/compliance-audit.sh	.sh	待阅读与注释
+scripts/distribution-review-report.sh	.sh	待阅读与注释
+scripts/entitlement-proof-report.sh	.sh	待阅读与注释
+scripts/eval-capture-golden.sh	.sh	待阅读与注释
+scripts/eval-compare.sh	.sh	待阅读与注释
+scripts/eval-curated.sh	.sh	待阅读与注释
+scripts/eval-deep.sh	.sh	待阅读与注释
+scripts/freeze-capability-governance.py	.py	待阅读与注释
+scripts/generate-capability-governance.py	.py	待阅读与注释
+scripts/generate-distribution-manifests.sh	.sh	待阅读与注释
+scripts/generate-license-summary.sh	.sh	待阅读与注释
+scripts/generate-sbom.sh	.sh	待阅读与注释
+scripts/harness-golden-smoke.sh	.sh	待阅读与注释
+scripts/install-compliance-tools.sh	.sh	待阅读与注释
+scripts/install-desktop.sh	.sh	待阅读与注释
+scripts/install-release-binary.sh	.sh	待阅读与注释
+scripts/local-rc-evidence-report.sh	.sh	待阅读与注释
+scripts/oa26-durable-observability-gate.sh	.sh	待阅读与注释
+scripts/oa28-live-handoff-preflight.sh	.sh	待阅读与注释
+scripts/package-desktop-deb.sh	.sh	待阅读与注释
+scripts/package-lifecycle-smoke.sh	.sh	待阅读与注释
+scripts/package-release.sh	.sh	待阅读与注释
+scripts/platform-security-proof-report.sh	.sh	待阅读与注释
+scripts/product-acceptance-report.sh	.sh	待阅读与注释
+scripts/product-shell-smoke.sh	.sh	待阅读与注释
+scripts/provider-live-smoke.sh	.sh	待阅读与注释
+scripts/record-build-inputs.py	.py	待阅读与注释
+scripts/release-ops-report.sh	.sh	待阅读与注释
+scripts/release-preflight.sh	.sh	待阅读与注释
+scripts/release-signature-verification-smoke.sh	.sh	待阅读与注释
+scripts/release-smoke.sh	.sh	待阅读与注释
+scripts/remote-live-smoke.sh	.sh	待阅读与注释
+scripts/roadmap-goal.py	.py	清点时工作区已有改动，跳过（ M）
+scripts/run-capability-governance-corpus.py	.py	待阅读与注释
+scripts/schema-contract-smoke.sh	.sh	待阅读与注释
+scripts/sign-release-artifacts.sh	.sh	待阅读与注释
+scripts/sign-sbom.sh	.sh	待阅读与注释
+scripts/source-control-proof-report.sh	.sh	待阅读与注释
+scripts/stage-commercial-release-proofs.sh	.sh	待阅读与注释
+scripts/supply-chain-scan.py	.py	待阅读与注释
+scripts/supply-chain-scan.sh	.sh	待阅读与注释
+scripts/tests/eq49-eval-scripts-static.sh	.sh	待阅读与注释
+scripts/tests/eq50-ci-lanes-static.sh	.sh	待阅读与注释
+scripts/tests/eq51-evidence-archive-static.sh	.sh	待阅读与注释
+scripts/tests/int33-connector-closeout-static.sh	.sh	待阅读与注释
+scripts/tests/test_capability_governance.py	.py	待阅读与注释
+scripts/tests/test_freeze_capability_governance.py	.py	待阅读与注释
+scripts/tests/test_generate_capability_governance.py	.py	待阅读与注释
+scripts/tests/test_roadmap_goal.py	.py	清点时工作区已有改动，跳过（??）
+scripts/v03-workbench-smoke.sh	.sh	待阅读与注释
+scripts/v10-p0-closeout-smoke.sh	.sh	待阅读与注释
+scripts/v10-personal-lifecycle-smoke.sh	.sh	待阅读与注释
+scripts/v10-workbench-smoke.sh	.sh	清点时工作区已有改动，跳过（ M）
+scripts/validate-capability-governance.py	.py	待阅读与注释
+scripts/validate-dep41-release-gate.sh	.sh	待阅读与注释
+scripts/validate-evidence-manifest.sh	.sh	待阅读与注释
+scripts/validate-json-schema.py	.py	待阅读与注释
+scripts/validate-pd35-persistence-closeout.sh	.sh	待阅读与注释
+scripts/validate-sc28-supply-chain.sh	.sh	待阅读与注释
+scripts/validate-sc41-security-gate.sh	.sh	待阅读与注释
+scripts/validate-sc42-recovery-rehearsal.sh	.sh	待阅读与注释
+scripts/validate-sc43-security-closeout.sh	.sh	待阅读与注释
+scripts/validate-ui09-schemas.py	.py	待阅读与注释
+scripts/verify-commercial-release-artifacts.sh	.sh	待阅读与注释
+scripts/verify-desktop-assets.js	.js	待阅读与注释
+scripts/verify-nm22-notification-closeout.sh	.sh	待阅读与注释
+scripts/verify-release-provenance.py	.py	待阅读与注释
+scripts/verify-route-attestation.py	.py	待阅读与注释
+scripts/verify-ui36-release-gate.sh	.sh	待阅读与注释
+scripts/verify-ui37-docs.sh	.sh	待阅读与注释
+scripts/verify-ui39-live-acp-opt-in.sh	.sh	待阅读与注释
+scripts/verify-ui40-release-evidence.sh	.sh	待阅读与注释
