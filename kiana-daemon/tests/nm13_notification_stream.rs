@@ -205,6 +205,8 @@ fn old_epoch_and_terminal_late_update_fail_closed() {
             "epoch-13",
             2
         )),
-        Err(NotificationStreamError::TerminalUpdate)
+        Ok(NotificationStreamDisposition::SnapshotRequired(
+            UiFeedGapReason::ReplayExpired,
+        ))
     );
 }

@@ -259,6 +259,7 @@ impl StorageHealth {
             || self.store_id.as_uuid().is_nil()
             || self.authority_epoch == 0
             || self.source_cursor == 0
+            || self.observed_at_unix_ms == 0
             || self.limitations.len() > 32
             || self
                 .limitations
@@ -346,6 +347,7 @@ impl StorageIntegrityIncident {
             || self.code.trim().is_empty()
             || self.code.len() > 256
             || self.code.contains('\0')
+            || self.detected_at_unix_ms == 0
             || !self.quarantine_required
             || self.source_cursor == Some(0)
             || self

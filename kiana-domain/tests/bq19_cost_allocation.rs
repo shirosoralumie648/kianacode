@@ -61,7 +61,9 @@ fn wire_owned_scope_and_cross_project_without_grant_are_denied() {
     );
 
     let target = scope();
-    let cross_project = estimated_allocation(target, ProjectId::new());
+    let mut cross_project = estimated_allocation(target, target.project_id);
+    cross_project.source_project_id = ProjectId::new();
+    cross_project.allocation_digest = cross_project.digest();
     assert_eq!(
         cross_project.validate(),
         Err("cost_allocation_cross_project_sharing_grant_required".to_owned())

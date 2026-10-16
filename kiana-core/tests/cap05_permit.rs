@@ -77,6 +77,20 @@ async fn prepared_verifier_in(
     AuthorizedCapabilityRequest,
     DispatchPermit,
 ) {
+    prepared_verifier_in_with_event_request_id(events, broker_scoped, None, change).await
+}
+
+async fn prepared_verifier_in_with_event_request_id(
+    events: Arc<dyn EventStorePort>,
+    broker_scoped: bool,
+    event_request_id: Option<RequestId>,
+    change: impl FnOnce(&mut serde_json::Value),
+) -> (
+    Arc<JournalPermitVerifier>,
+    Arc<dyn EventStorePort>,
+    AuthorizedCapabilityRequest,
+    DispatchPermit,
+) {
     let verifier = Arc::new(JournalPermitVerifier::new(events.clone()));
     let mut context = RequestContext::local("session-cap05", ".");
     context.project_trusted = true;
@@ -137,10 +151,20 @@ async fn prepared_verifier_in(
     change(&mut prepared_payload);
     events
         .append(
-            RuntimeEvent::new(prepared_command, 1, "execution.prepared", prepared_payload)
-                .unwrap()
-                .with_stream_metadata("execution_permit", execution_id.to_string(), 1)
-                .with_identity_links(Some(prepared_command), Some(request.request_id), None, None),
+            RuntimeEvent::new(
+                event_request_id.unwrap_or(prepared_command),
+                1,
+                "execution.prepared",
+                prepared_payload,
+            )
+            .unwrap()
+            .with_stream_metadata("execution_permit", execution_id.to_string(), 1)
+            .with_identity_links(
+                Some(prepared_command),
+                Some(request.request_id),
+                None,
+                None,
+            ),
         )
         .await
         .unwrap();
@@ -406,6 +430,61 @@ impl EventStorePort for FaultJournal {
     }
 }
 
+/// Compatibility adapter fixture: the stored authority stream has a version, but the legacy
+/// reader drops stream metadata before returning it to the permit verifier.
+struct LegacyAuthorityMetadataEventStore {
+    inner: MemoryEventLog,
+}
+
+impl LegacyAuthorityMetadataEventStore {
+    fn new() -> Self {
+        Self {
+            inner: MemoryEventLog::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl EventStorePort for LegacyAuthorityMetadataEventStore {
+    fn supports_atomic_transitions(&self) -> bool {
+        self.inner.supports_atomic_transitions()
+    }
+
+    fn capabilities(&self) -> kiana_domain::EventStoreCapabilities {
+        self.inner.capabilities()
+    }
+
+    async fn commit_transition(&self, batch: TransitionBatch) -> Result<CommitOutcome, PortError> {
+        self.inner.commit_transition(batch).await
+    }
+
+    async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        self.inner.append(event).await
+    }
+
+    async fn read_request(&self, id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_request(id).await
+    }
+
+    async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_all().await
+    }
+
+    async fn read_stream(&self, kind: &str, id: &str) -> Result<Vec<RuntimeEvent>, PortError> {
+        let mut events = self.inner.read_stream(kind, id).await?;
+        if kind == "authority" {
+            for event in &mut events {
+                event.stream_version = None;
+            }
+        }
+        Ok(events)
+    }
+
+    async fn read_command(&self, id: &RequestId) -> Result<Option<CommandReceipt>, PortError> {
+        self.inner.read_command(id).await
+    }
+}
+
 async fn assert_prepared_only(events: &dyn EventStorePort, permit: &DispatchPermit) {
     let records = events
         .read_stream("execution_permit", &permit.execution_id.to_string())
@@ -575,6 +654,20 @@ async fn broker_stale_authority_and_malformed_read_sets_have_zero_handlers() {
         assert_eq!(calls.load(Ordering::SeqCst), 0);
         assert_prepared_only(events.as_ref(), &permit).await;
     }
+}
+
+#[tokio::test]
+async fn broker_rejects_legacy_authority_read_without_stream_version() {
+    let events: Arc<dyn EventStorePort> = Arc::new(LegacyAuthorityMetadataEventStore::new());
+    let (verifier, events, authorized, permit) = prepared_verifier_in(events, true, |_| {}).await;
+    let (broker, calls) = broker_with_counter(verifier, events.clone());
+    let result = broker.execute(authorized).await;
+    assert!(
+        matches!(result, Err(PortError::Failed(ref reason)) if reason == "old_epoch_permit_rejected"),
+        "legacy authority metadata must fail closed: {result:?}"
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_prepared_only(events.as_ref(), &permit).await;
 }
 
 #[tokio::test]
@@ -810,6 +903,77 @@ async fn prepared_identity_header_drift_does_not_consume_execution_permit() {
 }
 
 #[tokio::test]
+async fn prepared_top_level_request_owner_drift_does_not_consume_execution_permit() {
+    let foreign_request_id = RequestId::new();
+    let (verifier, events, authorized, permit) = prepared_verifier_in_with_event_request_id(
+        Arc::new(MemoryEventLog::new()),
+        false,
+        Some(foreign_request_id),
+        |_| {},
+    )
+    .await;
+
+    let error = verifier
+        .verify_and_consume(&authorized)
+        .await
+        .expect_err("foreign prepared-event owner must be rejected before consume CAS");
+    assert_eq!(
+        error,
+        PortError::Failed("execution_permit_invalid".to_owned())
+    );
+    assert_prepared_only(events.as_ref(), &permit).await;
+    let records = events
+        .read_stream("execution_permit", &permit.execution_id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].request_id, foreign_request_id);
+}
+
+#[tokio::test]
+async fn broker_foreign_prepared_owner_never_consumes_or_reaches_handler() {
+    let foreign_owner = RequestId::new();
+    let journal = Arc::new(FaultJournal::new(CommitFault::None));
+    let (verifier, events, authorized, permit) = prepared_verifier_in_with_event_request_id(
+        journal.clone(),
+        true,
+        Some(foreign_owner),
+        |_| {},
+    )
+    .await;
+    let prepared = events
+        .read_stream("execution_permit", &permit.execution_id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(prepared.len(), 1);
+    assert_eq!(prepared[0].request_id, foreign_owner);
+    assert_ne!(
+        foreign_owner,
+        kiana_domain::derived_request_id("execution.prepare", &permit.request_id.to_string())
+    );
+    let (broker, calls) = broker_with_counter(verifier, events.clone());
+    let error = broker
+        .execute(authorized)
+        .await
+        .expect_err("foreign prepared owner must never enter the registered real handler");
+    assert_eq!(
+        error,
+        PortError::Failed("execution_permit_invalid".to_owned())
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(journal.commits.load(Ordering::SeqCst), 0);
+    assert_prepared_only(events.as_ref(), &permit).await;
+    assert_eq!(
+        events
+            .read_stream("execution_permit", &permit.execution_id.to_string())
+            .await
+            .unwrap(),
+        prepared,
+        "refusal cannot consume or alter the foreign-owned prepared fact"
+    );
+}
+
+#[tokio::test]
 async fn opaque_or_empty_authorization_never_reaches_dispatch() {
     let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
     let verifier = JournalPermitVerifier::new(events);
@@ -846,6 +1010,8 @@ fn cap05_dispatch_has_no_authorization_or_epoch_bypass() {
         "old_epoch_permit_rejected",
         "authority_versions",
         "execution.prepared",
+        "derived_request_id(\"execution.prepare\"",
+        "records[0].request_id",
         "invocation.dispatching",
         "invocation.executing",
         "permit_digest",

@@ -1,5 +1,9 @@
 //! ER-22 source guard for cancellation recovery and stop confirmation.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::production_source;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -145,15 +149,25 @@ fn stop_ack_and_effect_fences_block_late_results_and_success() {
         "terminal event boundary",
     );
     require(
-        supervisor,
+        shell,
         &[
             "ProcessSupervisor::stop",
-            "StopReport",
+            "stop_report",
             "stop_confirmed",
             "shell_result_unknown:cancel_stop_unconfirmed",
             "kill_on_drop",
         ],
         "shell stop evidence",
+    );
+    require(
+        supervisor,
+        &[
+            "pub(crate) async fn stop",
+            "StopReport",
+            "ProcessGroupState::Unknown",
+            "leader_reaped",
+        ],
+        "supervisor stop observation",
     );
     require(
         mcp,
@@ -188,7 +202,7 @@ fn stop_ack_and_effect_fences_block_late_results_and_success() {
             "late_result_resurrects_run",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "ER-22 cancellation bypass marker present: {forbidden}"
             );
         }

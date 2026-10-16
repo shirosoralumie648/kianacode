@@ -1,11 +1,10 @@
 use kiana_core::{
     classify_notification, plan_notification_policy, NotificationPolicyConfig,
-    NotificationPriority, NotificationUrgency, NOTIFICATION_POLICY_PLANNER_SCHEMA,
-    NOTIFICATION_PRIORITY_SCHEMA,
+    NotificationPriority, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
 };
 use kiana_domain::{
     HumanAction, HumanInboxItem, HumanInboxKind, NotificationChannel, NotificationPolicyRoute,
-    QuietHoursUtc,
+    QuietHoursUtc, NOTIFICATION_POLICY_SCHEMA,
 };
 use serde_json::{json, Value};
 
@@ -49,7 +48,7 @@ fn critical_and_unknown_bypass_digest_and_keep_escalation_evidence() {
     let priority = classify_notification(&source).unwrap();
     assert_eq!(priority.urgency, NotificationUrgency::Critical);
     let decision = plan_notification_policy(&source, &priority, true, &config(86_400_000)).unwrap();
-    assert_eq!(decision.schema, NOTIFICATION_POLICY_PLANNER_SCHEMA);
+    assert_eq!(decision.schema, NOTIFICATION_POLICY_SCHEMA);
     assert_eq!(decision.route, NotificationPolicyRoute::Immediate);
     assert!(!decision.quiet_suppressed);
     assert_eq!(decision.next_action, "query_original");

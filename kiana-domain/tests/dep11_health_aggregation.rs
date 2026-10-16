@@ -120,6 +120,17 @@ fn all_probe_modes_preserve_unknown_drain_and_maintenance_semantics() {
 }
 
 #[test]
+fn startup_unknown_is_preserved_as_unknown_and_never_ready() {
+    let mut startup = input(HealthProbeKind::Startup);
+    startup.startup_status = StartupCoordinatorStatus::Unknown;
+    startup.input_digest = startup.digest();
+
+    let report = HealthAggregationReport::evaluate(&startup).unwrap();
+    assert_eq!(report.status, SignalStatus::Unknown);
+    assert!(!report.admission_allowed);
+}
+
+#[test]
 fn health_aggregation_denies_empty_source_and_tampered_report() {
     let mut empty = input(HealthProbeKind::Readiness);
     empty.source_event_ids.clear();
@@ -135,11 +146,31 @@ fn health_aggregation_denies_empty_source_and_tampered_report() {
     report.report_digest = report.digest();
     assert_eq!(
         report.validate_against(&input).unwrap_err(),
-        "health_aggregation_report_binding_mismatch"
+        "health_aggregation_report_header_invalid"
     );
     let encoded = serde_json::to_string(&input).unwrap();
     assert_eq!(
         serde_json::from_str::<HealthAggregationInput>(&encoded).unwrap(),
         input
+    );
+}
+
+#[test]
+fn health_aggregation_rejects_self_consistent_report_bound_to_wrong_input() {
+    let original = input(HealthProbeKind::Readiness);
+    let mut degraded = original.clone();
+    degraded.provider_healthy = false;
+    degraded.input_digest = degraded.digest();
+
+    let mut forged = HealthAggregationReport::evaluate(&degraded).unwrap();
+    assert_eq!(forged.status, SignalStatus::Degraded);
+    assert!(!forged.admission_allowed);
+    forged.input_digest = original.input_digest.clone();
+    forged.report_digest = forged.digest();
+    forged.validate().unwrap();
+
+    assert_eq!(
+        forged.validate_against(&original).unwrap_err(),
+        "health_aggregation_report_binding_mismatch"
     );
 }

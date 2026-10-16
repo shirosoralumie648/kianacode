@@ -187,7 +187,11 @@ fn a_prompt_version_dimension_is_still_a_legal_label() {
 
 #[test]
 fn a_run_id_is_refused_as_a_metric_label_and_admitted_as_an_event_field() {
-    let field = SinkField::label("run_id", "01J8ZQ4T7F3K2M9N0P5R6S8V1W", 4_096);
+    let field = SinkField::label(
+        "run_id",
+        "01J8ZQ4T7F3K2M9N0P5R6S8V1W",
+        kiana_core::metric_label_budget() as u32,
+    );
 
     let metric = admit_field(
         &field,
@@ -376,12 +380,12 @@ fn a_metric_decision_with_no_catalog_is_refused_rather_than_assumed_safe() {
 
 #[test]
 fn the_live_runtime_guard_refuses_a_label_the_source_rules_would_admit() {
-    // `secret_ref` is not a payload key and not a high-cardinality identifier by the domain rules, so
+    // `authorization` is not a payload key and not a high-cardinality identifier by the domain rules, so
     // the source-level rules admit it. The guard's own forbidden-label list does not. This is the
     // two-lists gap the domain baseline records, closed from the only crate that can close it.
-    let field = SinkField::label("secret_ref", "vault://capability", 2);
+    let field = SinkField::label("authorization", "bounded", 2);
     let mut definition = MetricDefinition::gauge("kiana.bq25.leak_total", "1");
-    definition.allowed_labels = vec!["secret_ref".to_owned()];
+    definition.allowed_labels = vec!["authorization".to_owned()];
     let leaky_catalog = MetricCatalog::new(vec![definition]).expect("BQ-25 catalog");
 
     let cell = admit_field(
@@ -396,14 +400,14 @@ fn the_live_runtime_guard_refuses_a_label_the_source_rules_would_admit() {
         reason
             if reason
                 == SinkAdmissionRefusal::Runtime(
-                    kiana_core::TelemetryRuntimeRefusal::LabelForbidden("secret_ref".to_owned()),
+                    kiana_core::TelemetryRuntimeRefusal::LabelForbidden("authorization".to_owned()),
                 )
                 .as_str() => {}
         other => panic!("expected the runtime guard to refuse, got {other}"),
     }
     assert!(kiana_core::is_actionable_refusal(
         &SinkAdmissionRefusal::Runtime(kiana_core::TelemetryRuntimeRefusal::LabelForbidden(
-            "secret_ref".to_owned()
+            "authorization".to_owned()
         ),)
     ));
 }
@@ -473,10 +477,11 @@ fn an_export_ceiling_above_the_sink_floor_is_refused() {
 
 #[test]
 fn the_report_cannot_publish_its_own_outcome() {
-    let fields = vec![SinkField::label("status", "ok", 2)];
+    let request_id = request();
+    let fields = vec![SinkField::label("run_id", "fixture-run", 1)];
     let guarantees = all_established();
     let catalog = catalog();
-    let report = evaluate_sink_admission(request(), &fields, &guarantees, Some(&catalog))
+    let report = evaluate_sink_admission(request_id, &fields, &guarantees, Some(&catalog))
         .expect("BQ-25 report");
 
     // A hand-edited "admitted" cell for a field the server refuses.
@@ -490,7 +495,7 @@ fn the_report_cannot_publish_its_own_outcome() {
     cell.reason = String::new();
     assert_eq!(
         forged
-            .validate_against(request(), &fields, &guarantees, Some(&catalog))
+            .validate_against(request_id, &fields, &guarantees, Some(&catalog))
             .expect_err("a forged report was accepted"),
         "sink_admission_report_digest_mismatch"
     );
@@ -500,7 +505,7 @@ fn the_report_cannot_publish_its_own_outcome() {
     resealed.report_digest = resealed.digest();
     assert_eq!(
         resealed
-            .validate_against(request(), &fields, &guarantees, Some(&catalog))
+            .validate_against(request_id, &fields, &guarantees, Some(&catalog))
             .expect_err("a re-sealed forged report was accepted"),
         "sink_admission_report_not_derivable"
     );
@@ -755,8 +760,9 @@ fn a_digest_and_a_low_cardinality_label_correlate_across_all_five_sinks() {
     ];
     let guarantees = all_established();
     let catalog = catalog();
+    let request_id = request();
     let report: SinkAdmissionReport =
-        evaluate_sink_admission(request(), &fields, &guarantees, Some(&catalog))
+        evaluate_sink_admission(request_id, &fields, &guarantees, Some(&catalog))
             .expect("BQ-25 report");
 
     assert!(
@@ -785,7 +791,7 @@ fn a_digest_and_a_low_cardinality_label_correlate_across_all_five_sinks() {
     assert_eq!(event.value_digest, metric.value_digest);
     assert_eq!(event.derived_class, DataClass::Internal);
     report
-        .validate_against(request(), &fields, &guarantees, Some(&catalog))
+        .validate_against(request_id, &fields, &guarantees, Some(&catalog))
         .expect("a sealed report failed re-derivation");
 }
 
@@ -810,5 +816,42 @@ fn a_separation_over_reachable_sinks_reports_one_outcome_per_sink() {
     assert_eq!(
         kiana_core::observation_label_budget(),
         kiana_domain::MAX_METRIC_LABEL_VALUES
+    );
+}
+
+#[test]
+fn an_invalid_metric_catalog_is_a_refusal_without_assuming_a_runtime_guard() {
+    let mut invalid = catalog();
+    invalid.catalog_digest = format!("sha256:{}", "f".repeat(64));
+    let field = SinkField::label("status", "ok", 1);
+    let cell = admit_field(
+        &field,
+        TelemetryChannel::Metric,
+        Some(TelemetryChannelGuarantee::RedactedAtSink),
+        Some(&invalid),
+    )
+    .expect("invalid catalog yields a refused cell");
+    assert!(!cell.admitted);
+    assert_eq!(
+        cell.reason,
+        kiana_core::TelemetryRuntimeRefusal::PointInvalid.as_str()
+    );
+}
+
+#[test]
+fn a_label_with_no_registered_metric_is_refused_inside_the_complete_matrix() {
+    let fields = vec![SinkField::label("unregistered_dimension", "ok", 1)];
+    let report = evaluate_sink_admission(request(), &fields, &all_established(), Some(&catalog()))
+        .expect("an absent metric is a refused cell, not a missing matrix");
+    assert_eq!(report.admissions.len(), TelemetryChannel::ALL.len());
+    let metric = report
+        .admissions
+        .iter()
+        .find(|cell| cell.sink == TelemetryChannel::Metric)
+        .unwrap();
+    assert!(!metric.admitted);
+    assert_eq!(
+        metric.reason,
+        kiana_core::TelemetryRuntimeRefusal::PointInvalid.as_str()
     );
 }

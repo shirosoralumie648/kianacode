@@ -1,5 +1,9 @@
 //! ER-20 source guard for restart projection and default-paused recovery.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{item_source, production_source};
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -11,13 +15,19 @@ fn require(source: &str, markers: &[&str], label: &str) {
 
 #[test]
 fn restart_never_auto_resumes_pending_run() {
-    let recovery = include_str!("../src/recovery.rs");
+    let recovery_source = include_str!("../src/recovery.rs");
+    let resource_bridge = include_str!("../src/resource_projection.rs");
+    let recovery = format!(
+        "{}\n{}",
+        production_source(recovery_source),
+        item_source(resource_bridge, "pub async fn recovery_resources(")
+    );
     let projection = include_str!("../src/projection.rs");
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
     let runner = include_str!("../../kiana-runner/src/harness.rs");
 
     require(
-        recovery,
+        &recovery,
         &[
             "read_all_events",
             "rebuild_pending_invocation",
@@ -60,7 +70,7 @@ fn restart_never_auto_resumes_pending_run() {
         ],
         "Runner checkpoint boundary",
     );
-    for source in [recovery, projection, daemon] {
+    for source in [recovery.as_str(), projection, daemon] {
         assert!(!source.contains("auto_resume_terminal"));
         assert!(!source.contains("issue_permit("));
         assert!(!source.contains("CapabilityBroker::new"));
@@ -132,7 +142,13 @@ fn rebuild_does_not_issue_permit() {
     let resources = include_str!("../src/resource_projection.rs");
     let attempts = include_str!("../src/capability_attempt_projection.rs");
     let audit = include_str!("../src/audit_projection.rs");
-    let recovery = include_str!("../src/recovery.rs");
+    let recovery_source = include_str!("../src/recovery.rs");
+    let resource_bridge = include_str!("../src/resource_projection.rs");
+    let recovery = format!(
+        "{}\n{}",
+        production_source(recovery_source),
+        item_source(resource_bridge, "pub async fn recovery_resources(")
+    );
     let ports = include_str!("../../kiana-ports/src/lib.rs");
 
     require(
@@ -165,7 +181,7 @@ fn rebuild_does_not_issue_permit() {
         "audit projection",
     );
     require(
-        recovery,
+        &recovery,
         &[
             "recovery_resources",
             "read_all_events",
@@ -183,7 +199,7 @@ fn rebuild_does_not_issue_permit() {
         ],
         "projection port",
     );
-    for source in [resources, attempts, audit, recovery] {
+    for source in [resources, attempts, audit, recovery.as_str()] {
         for forbidden in [
             "issue_permit(",
             "consume_approval(",

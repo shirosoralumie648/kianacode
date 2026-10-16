@@ -48,6 +48,14 @@ pub fn resolve_storage_root(
     }
     reject_symlink_components(&configured, "storage_root_symlink")?;
     let root = canonicalize_nonexistent(&configured)?;
+    if root.parent().is_none() {
+        return Err(PortError::Failed(
+            "storage_root_filesystem_root_denied".to_owned(),
+        ));
+    }
+    if root.exists() && !root.is_dir() {
+        return Err(PortError::Failed("storage_root_not_directory".to_owned()));
+    }
     if root.starts_with(&project) {
         return Err(PortError::Failed("storage_root_inside_project".to_owned()));
     }
@@ -221,6 +229,9 @@ fn lock_conflict(
             if record.schema != kiana_domain::STORAGE_LOCK_SCHEMA
                 || record.lock_id.as_uuid().is_nil()
             {
+                return PortError::Failed("storage_lock_corrupt".to_owned());
+            }
+            if record.validate_integrity().is_err() {
                 return PortError::Failed("storage_lock_corrupt".to_owned());
             }
             if record.store_id != identity.store_id

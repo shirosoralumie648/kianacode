@@ -119,7 +119,6 @@ impl EffectiveBudget {
             || self.max_tool_calls == 0
             || self.max_tokens == 0
             || self.max_wall_time_ms == 0
-            || self.max_effects == 0
             || self.max_concurrency == 0
             || self.max_project_runs == 0
             || self.provider_id.trim().is_empty()
@@ -167,7 +166,7 @@ pub fn intersect_budgets(
     {
         return Err("quota_invalid".to_owned());
     }
-    if project.max_runs == 0 || project.max_tokens == 0 {
+    if project.project_id.as_uuid().is_nil() || project.max_runs == 0 || project.max_tokens == 0 {
         return Err("project_budget_invalid".to_owned());
     }
     provider.validate()?;
@@ -226,7 +225,8 @@ pub fn derive_child_lease(
         || requested.max_wall_clock_ms > parent.max_wall_clock_ms
         || requested.max_concurrency > parent.max_concurrency
         || requested.max_effects > parent.max_effects
-        || requested.max_reserved_budget > parent.reservation_limit_for_intersection()
+        || requested.reservation_limit_for_intersection()
+            > parent.reservation_limit_for_intersection()
     {
         return Err("budget_child_widening_rejected".to_owned());
     }
@@ -236,6 +236,19 @@ pub fn derive_child_lease(
         || requested.effects_used > parent.effects_used
     {
         return Err("budget_child_usage_widening_rejected".to_owned());
+    }
+    if requested.tool_calls_used < parent.tool_calls_used
+        || requested.model_calls_used < parent.model_calls_used
+        || requested.tokens_used < parent.tokens_used
+        || requested.effects_used < parent.effects_used
+    {
+        return Err("budget_child_usage_reset_rejected".to_owned());
+    }
+    if requested.reserved_budget > parent.reserved_budget {
+        return Err("budget_child_reservation_widening_rejected".to_owned());
+    }
+    if requested.reserved_budget < parent.reserved_budget {
+        return Err("budget_child_reservation_reset_rejected".to_owned());
     }
     Ok(requested.clone())
 }

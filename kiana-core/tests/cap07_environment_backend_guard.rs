@@ -105,6 +105,20 @@ fn missing_or_unenforced_backend_never_falls_back_to_host() {
         ],
         "fail-closed backend",
     );
+    let container = include_str!("../../kiana-daemon/src/container_environment.rs");
+    require(
+        container,
+        &[
+            "probe.enforced",
+            "dimension_supported",
+            "container_required_dimension_unavailable",
+            "backend_version",
+            "container_backend_version_invalid",
+            "required_dimensions",
+            "container_environment_identity_mismatch",
+        ],
+        "container required-dimension enforcement",
+    );
     // 【这条断言原来挂在 sandbox 组上，但发报的不是 sandbox】
     // fail-closed 的 `behavior_verified:false` 由
     // kiana-daemon/src/execution_control.rs 发出；harness_sandbox.rs

@@ -128,11 +128,21 @@ impl ControlPlane {
                     .await
             }
         };
+        if command == "quality.rollback" && approval.challenge.request_hash != expected_request_hash
+        {
+            return self
+                .reject_quality(&context, &command, "quality_approval_request_hash_mismatch")
+                .await;
+        }
+        if approval.challenge.request_hash != expected_request_hash {
+            return self
+                .reject_quality(&context, &command, "quality_secondary_approval_invalid")
+                .await;
+        }
         if approval.state != ApprovalState::Approved
             || approval.decision != Some(ApprovalDecision::Approve)
             || approval.decided_by.as_deref().is_none_or(str::is_empty)
             || approval.decided_by.as_deref() == context.actor_id.as_deref()
-            || approval.challenge.request_hash != expected_request_hash
             || approval.challenge.expires_at_unix_ms <= now_unix_ms()
         {
             return self
@@ -175,20 +185,38 @@ impl ControlPlane {
         command: &str,
         reason: &str,
     ) -> Result<CoreResponse, CoreError> {
-        self.append_event(
-            context.request_id,
-            1,
-            "request.accepted",
-            json!({"command":command}),
-        )
-        .await?;
-        self.append_event(
-            context.request_id,
-            2,
-            "command.rejected",
-            json!({"command":command,"reason":reason}),
-        )
-        .await?;
+        let accepted = self
+            .append_event(
+                context.request_id,
+                1,
+                "request.accepted",
+                json!({"command":command}),
+            )
+            .await;
+        if let Err(error) = accepted {
+            match error {
+                CoreError::Port(PortError::Conflict(reason))
+                    if reason == "event_idempotency_key_payload_mismatch"
+                        || reason == "event_idempotency_key_duplicate" => {}
+                error => return Err(error),
+            }
+        }
+        let rejected = self
+            .append_event(
+                context.request_id,
+                2,
+                "command.rejected",
+                json!({"command":command,"reason":reason}),
+            )
+            .await;
+        if let Err(error) = rejected {
+            match error {
+                CoreError::Port(PortError::Conflict(reason))
+                    if reason == "event_idempotency_key_payload_mismatch"
+                        || reason == "event_idempotency_key_duplicate" => {}
+                error => return Err(error),
+            }
+        }
         Ok(CoreResponse::blocked(context.request_id, reason))
     }
 }

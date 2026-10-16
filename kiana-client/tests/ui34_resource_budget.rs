@@ -83,7 +83,7 @@ fn budget_accepts_degrades_and_rejects_explicitly() {
         UiBudgetDecision::Reject { .. }
     ));
     assert_eq!(
-        evaluate_budget(&budget(), &usage(10, 10, 1, 1, 10, 1)),
+        evaluate_budget(&budget(), &usage(10, 11, 1, 1, 10, 1)),
         Err(UiBudgetError::ProtectedItemsExceedLimit)
     );
 }

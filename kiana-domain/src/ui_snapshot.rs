@@ -1,9 +1,21 @@
-//! Deterministic, owner-scoped UI snapshot projection and pagination.
+//! UI-05 的只读 UI 快照投影与分页合同。
 //!
-//! The projector consumes one EventStore read and emits a snapshot at that exact source cursor.
-//! It never reads a transcript, filesystem projection or stream cache.  A lagging or unknown
-//! read-model is an explicit error, and a page cursor cannot be reused with another epoch or
-//! source cursor.
+//! DaemonHost 从账本适配器取得一次有序事件切片后调用 [`project_ui_snapshot()`]。本文件按查询里的
+//! owner/session 过滤、检查源游标/投影游标/保留下界、把适合 UI 展示的事件折叠为条目，再稳定排序、
+//! 分页并生成快照摘要：
+//!
+//! ```text
+//! 调用方提供 UiSnapshotQuery
+//!     -> DaemonHost 单次读取 persisted_events
+//!     -> 本文件验证 cursor / generation / retention / owner-session 边界
+//!     -> RuntimeEvent 识别与去重 -> 稳定排序 -> page + next_page + digest
+//!     -> DaemonHost 把结构化错误映射为 PortError，或返回 UiSnapshotPage
+//! ```
+//!
+//! 投影只读取传入的数据，不读取 transcript、文件系统投影或 stream cache，也不写回新的事实。owner 过滤
+//! 是按 query.owner_id 字符串筛选事件，不等于身份认证；可信入口必须自行把 owner_id 绑定到已认证主体。
+//! 页面游标 digest 是无密钥内容摘要，不是签名。当前实现只把 epoch/source cursor/generation/offset
+//! 放入游标摘要，因此调用方不应把它当作已绑定用户、session、数据 epoch 或查询条件的凭证。
 
 use crate::{json_digest, RuntimeEvent};
 use serde::{Deserialize, Serialize};
@@ -13,9 +25,16 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const UI_SNAPSHOT_PROJECTOR_SCHEMA: &str = "kiana.ui-snapshot-projector.v1";
 pub const UI_SNAPSHOT_PAGE_SCHEMA: &str = "kiana.ui-snapshot-page.v1";
 pub const UI_SNAPSHOT_CURSOR_SCHEMA: &str = "kiana.ui-snapshot-cursor.v1";
+/// 单页允许返回的最大条目数，用来约束一次响应体的规模。
 pub const UI_SNAPSHOT_MAX_PAGE_SIZE: usize = 256;
+/// 一次完整投影最多保留的去重条目数；超过后拒绝整次查询，不返回截断且看似完整的首页。
 pub const UI_SNAPSHOT_MAX_ENTRIES: usize = 4_096;
 
+/// 检查必填文本非空、不含 NUL 且不超过给定 UTF-8 字节上限。
+///
+/// 【调用者】查询、游标、条目、页面和 limitation 的 validator。
+/// 【输入/输出】文本、用于错误码的字段名和字节数上限；失败返回 `<field>_invalid`。
+/// 【边界】只检查字符串形状，不验证 ID 是否存在或属于当前身份。
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
         return Err(format!("{field}_invalid"));
@@ -23,6 +42,11 @@ fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     Ok(())
 }
 
+/// 检查摘要文本外形为 `sha256:` 前缀加 64 位十六进制字符。
+///
+/// 【调用者】游标和页面 validator。
+/// 【失败】格式不合要求时返回 `<field>_invalid`。
+/// 【重要边界】不读取原始 payload、不重算摘要，也不验证摘要签发者；内容一致性由各 DTO 另行比较。
 fn digest(value: &str, field: &str) -> Result<(), String> {
     let Some(hex) = value.strip_prefix("sha256:") else {
         return Err(format!("{field}_invalid"));
@@ -36,14 +60,21 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UiSnapshotEntryKind {
+    /// 会话摘要。
     Session,
+    /// Run 摘要。
     Run,
+    /// UI action 的最新已识别状态。
     Action,
+    /// Artifact 引用摘要，不包含 Artifact 正文。
     Artifact,
+    /// Receipt 引用摘要。
     Receipt,
 }
 
 impl UiSnapshotEntryKind {
+    /// 为快照排序指定固定的类别优先级：Session → Run → Action → Artifact → Receipt。
+    /// 这是展示顺序，不是事件发生顺序或权限优先级。
     const fn rank(self) -> u8 {
         match self {
             Self::Session => 0,
@@ -58,15 +89,26 @@ impl UiSnapshotEntryKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UiSnapshotEntry {
+    /// projector 从事件内容识别出的展示类别。
     pub kind: UiSnapshotEntryKind,
+    /// 该类别内的实体 ID；来源字段随类别而异。
     pub id: String,
+    /// 事件里识别到的 owner 标签；页面校验要求与页面 owner 一致。
     pub owner_id: String,
+    /// 优先取 stream version，其次事件 sequence；用于描述该实体的修订位置。
     pub revision: u64,
+    /// 该条目在当前输入事件切片中的一基位置，不等同于 `RuntimeEvent.sequence`。
     pub source_cursor: u64,
+    /// 从事件载荷复制出的 JSON 数据；本 projector 不在这里重新脱敏或校验业务 schema。
     pub payload: Value,
 }
 
 impl UiSnapshotEntry {
+    /// 验证条目标识和非零位置字段。
+    ///
+    /// 【调用者】`UiSnapshotPage::validate()`。
+    /// 【失败】缺少 ID/owner、文本过长或 revision/source cursor 为 0 时返回稳定字段错误。
+    /// 【边界】不查询对应实体，也不验证 payload 与 kind/id 的关系；owner 是否经过认证由上游负责。
     fn validate(&self) -> Result<(), String> {
         required(&self.id, "ui_snapshot_entry_id", 512)?;
         required(&self.owner_id, "ui_snapshot_entry_owner", 256)?;
@@ -80,15 +122,28 @@ impl UiSnapshotEntry {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UiSnapshotPageCursor {
+    /// 游标合同 schema。
     pub schema: String,
+    /// authority/instance epoch 标签；epoch 改变时旧分页位置应失效。
     pub epoch: String,
+    /// 此页所基于的完整事件切片游标。
     pub source_cursor: u64,
+    /// 排序后去重列表中的下一个起始位置，而不是页码。
     pub offset: usize,
+    /// 当前 DTO 用它携带 projection generation。
     pub revision: u64,
+    /// 游标前五项字段的无密钥 SHA-256 自摘要。
     pub cursor_digest: String,
 }
 
 impl UiSnapshotPageCursor {
+    /// 创建并立即校验一个 next-page 游标。
+    ///
+    /// 【调用者】`project_ui_snapshot()` 在当前页之后仍有条目时调用。
+    /// 【输入】epoch、完整 source cursor、下页 offset 和 projection generation（字段名为 revision）。
+    /// 【输出】digest 已计算并通过 validator 的游标；不会访问账本或保存状态。
+    /// 【容易误改】摘要不含 owner、session、page_size、data_epoch 或 retention_floor，也没有密钥；
+    /// 不能将它当作不可伪造的身份凭证。
     pub fn new(
         epoch: impl Into<String>,
         source_cursor: u64,
@@ -108,11 +163,15 @@ impl UiSnapshotPageCursor {
         Ok(cursor)
     }
 
+    /// 校验后把 cursor 序列化为 JSON 字符串，供下一次 Query 的 `after` 字段使用。
+    /// 【失败】cursor 不合法或 JSON 序列化失败时返回稳定错误；输出大小由调用者 decode 时限制。
     pub fn encode(&self) -> Result<String, String> {
         self.validate()?;
         serde_json::to_string(self).map_err(|_| "ui_snapshot_cursor_encode_failed".to_owned())
     }
 
+    /// 将 Query 的 `after` 字符串解码并校验为分页 cursor。
+    /// 【失败】编码超过 2,048 字节、JSON 格式无效或内部合同不匹配时拒绝，不把坏 cursor 当作首页。
     pub fn decode(value: &str) -> Result<Self, String> {
         if value.len() > 2_048 {
             return Err("ui_snapshot_cursor_too_large".to_owned());
@@ -123,6 +182,12 @@ impl UiSnapshotPageCursor {
         Ok(cursor)
     }
 
+    /// 检查游标 schema、revision/offset 范围、epoch 以及自摘要。
+    ///
+    /// 【调用者】构造、编码、解码游标时；projector 还会把有效游标与当前 query 的部分字段比较。
+    /// 【失败】返回 cursor header、epoch、digest 或 digest mismatch 错误。
+    /// 【边界】offset 不超过 4,096；这里不要求 source_cursor 非零，也不认证自摘要，实际 offset 是否
+    /// 落在条目范围内要等 projector 根据完整结果列表再次检查。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_SNAPSHOT_CURSOR_SCHEMA
             || self.revision == 0
@@ -138,6 +203,7 @@ impl UiSnapshotPageCursor {
         Ok(())
     }
 
+    /// 只对 schema、epoch、source cursor、offset 和 revision 生成内容摘要。
     fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -152,24 +218,43 @@ impl UiSnapshotPageCursor {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UiSnapshotQuery {
+    /// 查询合同 schema。
     pub schema: String,
+    /// 要筛选的 owner 文本；必须由可信调用边界绑定到已认证主体。
     pub owner_id: String,
+    /// 可选 session 过滤条件；为空表示查询该 owner 的所有可识别 session 条目。
     #[serde(default)]
     pub session_id: Option<String>,
+    /// 当前权威/实例 epoch 标签，分页期间必须保持一致。
     pub epoch: String,
+    /// 调用方声明这次传入事件切片末端的位置，必须等于切片长度。
     pub source_cursor: u64,
+    /// read model 已处理到的位置；缺失代表未知，落后代表 projection lag。
     #[serde(default)]
     pub projection_cursor: Option<u64>,
+    /// projector 版本代数，旧 cursor 不能跨代继续用。
     pub projection_generation: u64,
+    /// 数据治理 epoch 标签，会进入结果页，但当前没有放入 page cursor。
     pub data_epoch: u64,
+    /// 已清理到的最早边界；其前仍 pending 的 action 会阻止 snapshot 返回。
     pub retention_floor: u64,
+    /// 当前页最多返回多少条，范围为 1 到 256。
     pub page_size: usize,
+    /// 可选的 JSON 编码 UiSnapshotPageCursor。
     #[serde(default)]
     pub after: Option<String>,
+    /// 调用方提供的 Unix 毫秒时间标签；当前 projector 只校验非零，不读取系统时钟对账。
     pub generated_at_unix_ms: u64,
 }
 
 impl UiSnapshotQuery {
+    /// 创建并校验 projector query。
+    ///
+    /// 【调用者】外层 Daemon/API adapter 应从认证上下文和同一 read snapshot 准备这些字段；仓内没有
+    /// 发现 `ui_snapshot_page()` 之外的生产构造路径。
+    /// 【输出】字段完整的 Query；失败返回 header、owner/session、projection cursor 或 after 错误。
+    /// 【设计原因】把查询条件固定在一个 DTO 中，让 projector 对游标、generation、数据 epoch 与保留边界
+    /// 做一致性检查，而不是在多个 UI 请求参数中散落判断。
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         owner_id: impl Into<String>,
@@ -202,6 +287,14 @@ impl UiSnapshotQuery {
         Ok(query)
     }
 
+    /// 检查 Query 的 schema、范围和必填标签。
+    ///
+    /// 【调用者】`new()` 与 `project_ui_snapshot()`。
+    /// 【关键拒绝】generation/data epoch/时间为 0，retention 越过 source，page size 不在 1..=256，
+    /// projection cursor 超前或 after 是空字符串都会失败；projection cursor 落后留给 projector 返回
+    /// 专门的 lag 错误，缺失也由 projector 区分为 unknown。
+    /// 【边界】允许 projection cursor 暂时落后；这里不认证 owner，也不校验非空 after 的长度/JSON，
+    /// 那一步由游标 decode 完成。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_SNAPSHOT_PROJECTOR_SCHEMA
             || self.projection_generation == 0
@@ -234,24 +327,45 @@ impl UiSnapshotQuery {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UiSnapshotPage {
+    /// page wire schema。
     pub schema: String,
+    /// 创建本页时采用的 epoch。
     pub epoch: String,
+    /// 本页代表的完整切片位置；当前合同要求它等于 source_cursor。
     pub snapshot_cursor: u64,
+    /// 当前 query 的 owner 标签，所有条目都必须一致。
     pub owner_id: String,
+    /// 生成此页时传入事件切片的末端位置。
     pub source_cursor: u64,
+    /// read model 的处理位置；返回页要求已追平 source cursor。
     pub projection_cursor: u64,
+    /// snapshot projector 的 generation。
     pub projection_generation: u64,
+    /// 数据治理 epoch 标签。
     pub data_epoch: u64,
+    /// source 之前的 retention 清理边界。
     pub retention_floor: u64,
+    /// 当前排序结果的一个切片，不超过 256 条。
     pub entries: Vec<UiSnapshotEntry>,
+    /// 下一页的 JSON cursor；最后一页为空。
     #[serde(default)]
     pub next_page: Option<String>,
+    /// 已知投影限制；当前 projector 返回空列表。
     #[serde(default)]
     pub limitations: Vec<String>,
+    /// 对本页所有业务字段计算的无密钥自摘要。
     pub snapshot_digest: String,
 }
 
 impl UiSnapshotPage {
+    /// 校验返回页的 cursor 对齐、owner 范围、条目、limitations、next cursor 和自摘要。
+    ///
+    /// 【调用者】`project_ui_snapshot()` 组装完页面前；接收端也可自行重验。
+    /// 【失败】header/cursor 不对齐、条目 owner 不同、文本或摘要不合法时返回结构化 String 错误。
+    /// 【设计原因】页面是一个固定 source cursor 下的只读投影；source 与 projection 不一致时不能把部分
+    /// 新旧状态拼成看似完整的 snapshot。
+    /// 【边界】校验不能回到原始事件重建条目，也不验证摘要签发者；`next_page` 只绑定 epoch/source/
+    /// projection generation，未绑定 query owner/session/data epoch/page size/retention floor。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != UI_SNAPSHOT_PAGE_SCHEMA
             || self.snapshot_cursor != self.source_cursor
@@ -291,6 +405,7 @@ impl UiSnapshotPage {
         Ok(())
     }
 
+    /// 对页面公开字段生成确定性摘要；`snapshot_digest` 本身不参与摘要输入。
     fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -312,14 +427,26 @@ impl UiSnapshotPage {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProjectedItem {
+    /// 从事件字段识别出的展示类别。
     kind: UiSnapshotEntryKind,
+    /// 该类别下用来折叠重复事件的 ID。
     id: String,
+    /// 从顶层或兼容的嵌套字段识别出的 owner 标签。
     owner_id: String,
+    /// stream revision/event sequence 标签。
     revision: u64,
+    /// 当前输入切片内的一基位置。
     source_cursor: u64,
+    /// 原事件的 JSON payload 副本。
     payload: Value,
 }
 
+/// 按兼容字段顺序从事件中提取 owner 标签。
+///
+/// 【调用者】session owner 冲突检测与条目识别。
+/// 【优先级】顶层 `owner_id` → 顶层 `actor_id` → `action.owner_id` → `record.owner_id`；
+/// 找到非字符串/缺失时继续尝试后续位置。
+/// 【失败/边界】全部没有可用字符串时返回 None，事件不会生成条目；这只是事件过滤标签，不是认证身份。
 fn event_owner(event: &RuntimeEvent) -> Option<&str> {
     event
         .data
@@ -342,6 +469,11 @@ fn event_owner(event: &RuntimeEvent) -> Option<&str> {
         })
 }
 
+/// 从事件中提取 session 标签，兼容旧的顶层和嵌套事件形状。
+///
+/// 【调用者】请求 session 的 owner 冲突检测和 session filter。
+/// 【优先级】顶层 `session_id` → 顶层 `session` → `action.session_id` → `record.session_id`。
+/// 找不到字符串时返回 None；带 session filter 的普通条目会因无法匹配而被跳过。
 fn event_session(event: &RuntimeEvent) -> Option<&str> {
     event
         .data
@@ -364,6 +496,16 @@ fn event_session(event: &RuntimeEvent) -> Option<&str> {
         })
 }
 
+/// 从一个事件识别可展示的 UI 实体，并保留原 payload 作为条目内容。
+///
+/// 【调用者】`project_ui_snapshot()` 扫描事件时。
+/// 【输入】RuntimeEvent 与在本切片中的一基 source position。
+/// 【输出】有 owner 且能按类别找到实体 ID 时返回 ProjectedItem；缺少必要 owner/ID 时跳过该事件。
+/// 【分类优先级】`ui.action.*` → artifact ID/ref → receipt ID/digest → run_id → session_id，第一项匹配即停止。
+/// 【修订值】优先用 stream_version，再用 event.sequence；当前 `sequence` 本身非 Option，因此最后的
+/// source_cursor fallback 实际不会触发。
+/// 【边界】不按事件种类白名单验证 payload，也不重新脱敏/校验 payload；只要 owner 与某个识别字段存在，
+/// 该事件即可被投影成对应 kind。上游事实边界需确保这些字段的含义可靠。
 fn event_item(event: &RuntimeEvent, source_cursor: u64) -> Option<ProjectedItem> {
     let owner_id = event_owner(event)?.to_owned();
     let (kind, id) = if event.kind.starts_with("ui.action.") {
@@ -409,6 +551,10 @@ fn event_item(event: &RuntimeEvent, source_cursor: u64) -> Option<ProjectedItem>
     })
 }
 
+/// 读取 UI action 当前状态标签，兼容顶层 `state` 与 `record.state`。
+///
+/// 【调用者】判断 retention floor 之前接受、之后已终态的 action 是否仍然 pending。
+/// 【失败】不是字符串或字段缺失时返回 None；这些值不会被误认作已完成状态。
 fn state_string(event: &RuntimeEvent) -> Option<&str> {
     event.data.get("state").and_then(Value::as_str).or_else(|| {
         event
@@ -419,12 +565,32 @@ fn state_string(event: &RuntimeEvent) -> Option<&str> {
     })
 }
 
-/// Build one atomic, owner-scoped snapshot from the supplied EventStore read.
+/// 从调用方提供的一次有序事件切片构造 owner/session 范围内的分页快照。
+///
+/// 【调用者】当前仓内生产桥接点是 `DaemonHost::ui_snapshot_page()`：它调用 `persisted_events()` 一次，
+/// 再把同一 Vec 和 query 传入本函数。全仓没有找到这个公开 facade 的下游产品调用点；Domain UI-05
+/// fixture 直接调用 projector。
+/// 【输入】事件 Vec 与 `UiSnapshotQuery`。调用方应确保 query 的 owner、epoch、source/projection cursor、
+/// generation、data epoch 和 retention floor 来自与这次读取相符的可信上下文；本函数只做合同比较。
+/// 【输出】对同一输入切片生成的 `UiSnapshotPage`，其中条目过滤后按 kind/id/revision/source position
+/// 排序并按 offset/page_size 截取。
+/// 【副作用】纯内存投影，不写事件、不修改游标权威状态、不读取外部快照；错误由 Daemon facade 映射成
+/// `PortError::Failed`。
+/// 【失败情况】query 不合法、source cursor 与切片长度不符、projection 未知/落后、after cursor 与
+/// query epoch/source/generation 不同、跨 owner session、保留边界仍有 pending action、条目过量或分页
+/// offset 越界时返回明确错误，不返回部分页。
+/// 【为什么要求 cursor 对齐】没有完整且一致的读取位置时，UI 可能把不同时间点的 session/run/action
+/// 混在一页里；这里选择拒绝，而不是把缺失投影解释成空列表。
+/// 【安全边界】owner_id 只用于过滤，不在 Domain 内做主体认证；cursor 摘要也不是签名。当前 cursor
+/// 只检查 epoch/source/generation，不绑定 owner/session，所以相同切片参数下复用到不同查询会改变 offset，
+/// 可能造成分页遗漏。调用方还必须确保 owner 与授权主体一致。
 pub fn project_ui_snapshot(
     events: &[RuntimeEvent],
     query: &UiSnapshotQuery,
 ) -> Result<UiSnapshotPage, String> {
     query.validate()?;
+    // 此合同把完整事件切片长度当作 source cursor。它不会逐条核对 RuntimeEvent.sequence 是否连续，
+    // 所以调用方必须传入完整、按事实顺序排列的快照，而不是任意子集或重新排序后的事件。
     if query.source_cursor != events.len() as u64 {
         return Err("ui_snapshot_source_cursor_mismatch".to_owned());
     }
@@ -434,6 +600,8 @@ pub fn project_ui_snapshot(
     if projection_cursor < query.source_cursor {
         return Err("ui_snapshot_projection_lag".to_owned());
     }
+    // Query::validate() 已提前拒绝 projection_cursor > source_cursor；保留此显式分支可让投影边界自身
+    // 仍能读出 cursor-ahead 语义，但对通过 validate 的 query 当前不可达。
     if projection_cursor > query.source_cursor {
         return Err("ui_snapshot_projection_cursor_ahead".to_owned());
     }
@@ -442,6 +610,8 @@ pub fn project_ui_snapshot(
         .as_deref()
         .map(UiSnapshotPageCursor::decode)
         .transpose()?;
+    // 游标绑定当前 epoch、完整 source cursor 和 generation；cursor digest 不是认证签名，也不绑定 owner
+    // 或 session。offset 只在下面重建当前 query 的过滤后排序列表时解释。
     let offset = if let Some(cursor) = &after {
         if cursor.epoch != query.epoch || cursor.source_cursor != query.source_cursor {
             return Err("ui_snapshot_cursor_source_mismatch".to_owned());
@@ -459,8 +629,12 @@ pub fn project_ui_snapshot(
     let mut pending_before_retention = BTreeSet::new();
     let mut actions = BTreeMap::<String, ProjectedItem>::new();
     let mut items = BTreeMap::<(u8, String), ProjectedItem>::new();
+    // 这里使用切片位置生成一基 cursor，而不是 event.sequence。事件遍历顺序同时决定同 ID 条目采用哪一版：
+    // BTreeMap::insert 会让后遇到的同 kind/id 项覆盖先前值，所以不能在调用前重排 source events。
     for (index, event) in events.iter().enumerate() {
         let source_cursor = index as u64 + 1;
+        // 若请求 session 在事件里属于另一个有明确 owner 的主体，则拒绝整页，而不是只过滤掉冲突事件；
+        // 这样调用方错误指定 session 时不会得到看似有效但来源混杂的结果。
         if let Some(session_id) = requested_session {
             if event_session(event) == Some(session_id)
                 && event_owner(event).is_some_and(|owner| owner != query.owner_id)
@@ -469,6 +643,8 @@ pub fn project_ui_snapshot(
             }
         }
         if event.kind.starts_with("ui.action.") {
+            // Action 事件先按 action ID 折叠为最新可识别状态，同时单独追踪 retention floor 之前
+            // 接受、但尚未观测到 applied/rejected/unknown 终态的条目。
             let Some(action_id) = event.aggregate_id.clone().or_else(|| {
                 event
                     .data
@@ -508,12 +684,14 @@ pub fn project_ui_snapshot(
         }
         items.insert((item.kind.rank(), item.id.clone()), item);
     }
+    // 拒绝优先级：先阻止跨 owner session，再阻止删除仍可能代表未完成操作的历史 action。
     if session_owner_mismatch {
         return Err("ui_snapshot_session_owner_mismatch".to_owned());
     }
     if !pending_before_retention.is_empty() {
         return Err("ui_snapshot_retention_protected_pending".to_owned());
     }
+    // Action 使用单独 map 完成状态折叠后再并入普通实体集合，使同一个 action 只保留一个当前展示条目。
     for action in actions.into_values() {
         items.insert((action.kind.rank(), action.id.clone()), action);
     }
@@ -521,6 +699,7 @@ pub fn project_ui_snapshot(
     if all.len() > UI_SNAPSHOT_MAX_ENTRIES {
         return Err("ui_snapshot_entry_limit".to_owned());
     }
+    // 固定类别、ID、实体 revision、切片位置的排序次序，确保同一输入和 query 得到同一页边界。
     all.sort_by(|left, right| {
         (
             left.kind.rank(),
@@ -539,6 +718,7 @@ pub fn project_ui_snapshot(
         return Err("ui_snapshot_cursor_offset_invalid".to_owned());
     }
     let end = (offset + query.page_size).min(all.len());
+    // 页游标 offset 指向此处排序后的完整 owner/session 结果列表，而不是原始事件位置。
     let entries = all[offset..end]
         .iter()
         .map(|item| UiSnapshotEntry {
@@ -550,6 +730,7 @@ pub fn project_ui_snapshot(
             payload: item.payload.clone(),
         })
         .collect::<Vec<_>>();
+    // 只有还有条目时才产生下一游标；游标从本页 end 继续，并绑定本次 epoch/source/generation。
     let next_page = if end < all.len() {
         Some(
             UiSnapshotPageCursor::new(
@@ -578,6 +759,7 @@ pub fn project_ui_snapshot(
         limitations: Vec::new(),
         snapshot_digest: String::new(),
     };
+    // 先填充所有页面字段，再计算摘要并走公开 validator，避免返回尚未自洽的结构体。
     page.snapshot_digest = page.digest();
     page.validate()?;
     Ok(page)

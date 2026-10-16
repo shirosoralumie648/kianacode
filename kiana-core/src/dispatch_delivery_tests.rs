@@ -1,4 +1,52 @@
-//! ER-13 behavioral fixtures use the real atomic journal and delivery helper; no handler runs.
+//! 派发与结果投递的行为测试套。
+//!
+//! ER-13 behavioral fixtures 使用真实的原子日志和投递助手；没有 Handler 运行。
+//!
+//! # 测试覆盖范围
+//!
+//! 本模块测试派发层（dispatch）在以下场景的行为：
+//!
+//! **准备阶段**（事件流的构造与提交）
+//! - `missing_or_append_only_execution_facts_never_claim_or_call_runner`：
+//!   验证在准备不完整（缺少 prepare、缺少 result_committed）时，投递拒绝
+//! - 各类参数篡改场景（run/turn/request/execution/invocation/attempt 等）
+//!
+//! **投递阶段**（结果的主张与验证）
+//! - `committed_source_receipt_is_claimed_before_exact_result_reaches_runner_once`：
+//!   验证结果只向 Runner 报告一次，且会主张（claim）投递权
+//! - `concurrent_claims_advance_runner_at_most_once`：
+//!   验证并发的多个投递请求中，至多一个成功，其他因 CAS 冲突而失败
+//! - `changed_result_duplicate_completion_and_old_turn_cannot_advance`：
+//!   验证结果被篡改、或发生了重复/老 turn 时，投递拒绝
+//!
+//! **取消与竞态条件**
+//! - `current_terminal_or_cancelling_run_never_claims_result`：
+//!   验证 Run 已终止或已取消时，投递拒绝
+//! - `cancellation_after_a_winning_delivery_does_not_reopen_its_claim`：
+//!   验证投递赢得后，即使 Run 后来被取消，也不重新开放主张
+//!
+//! **收据与身份验证**
+//! - `contradictory_committed_payloads_or_tampered_receipts_never_deliver`：
+//!   验证收据被篡改时投递拒绝
+//! - `delivery_uses_declared_typed_turn_and_rejects_missing_or_conflicting_identity`：
+//!   验证 Turn 身份的验证与类型化语义
+//!
+//! **故障模式**
+//! - `source_and_run_cas_races_or_unconfirmed_receipts_have_zero_delivery`：
+//!   验证在 CAS 竞态或日志响应异常时，投递为 0
+//! - `failed_callback_or_unknown_claim_ack_is_never_retried`：
+//!   验证一旦 Runner 回调失败或日志返回 Unknown，就不再重试
+//!
+//! # 测试工具
+//!
+//! - **Fixture**：预构造一个完整的执行场景（Run、Permit、Result、Events）
+//! - **FaultStore**：一个装饰器，在特定时刻注入故障（CAS 冲突、收据篡改等）
+//! - **CountingRunner**：Mock Runner，记录接收到的所有回调，支持失败模式注入
+//!
+//! # fail-closed 验证
+//!
+//! 本模块的核心原则是：派发在任何不确定的地方都应该拒绝。
+//! 每个测试都验证了「不应该投递」的情况下，确实没有投递。
 use super::*;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_domain::{
@@ -11,6 +59,8 @@ use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{ApprovalStorePort, RunnerPort};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Mock 审批存储，所有操作都返回不可用。
+/// 这个 fixture 用于测试不需要审批的派发流程。
 struct NoApprovals;
 
 #[async_trait::async_trait]
@@ -35,18 +85,32 @@ impl ApprovalStorePort for NoApprovals {
     }
 }
 
+/// Mock Runner，用于测试。
+///
+/// 这个 Mock 的职责是：
+/// - 记录每一次 Runner 被调用的事实（calls 向量）
+/// - 验证派发层是否正确地主张了投递权（claims 已经在 events 中）
+/// - 支持注入失败（fail = true 时，send() 会返回错误）
+///
+/// 通过控制 `fail` 标志，我们可以测试「Runner 回调失败」这个故障场景。
 struct CountingRunner {
+    /// 事件存储的引用，用于验证 result.deliver 命令是否已主张
     events: Arc<MemoryEventLog>,
+    /// 记录的 (run_id, result) 对。每当 Runner 被调用一次，这里就增加一条
     calls: Mutex<Vec<(RunId, CapabilityResult)>>,
+    /// 是否注入故障（true 时，send() 返回错误）
     fail: bool,
 }
 
 #[async_trait::async_trait]
 impl RunnerPort for CountingRunner {
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        // 派发层只会发送一种命令：CapabilityResult
         let RunnerCommand::CapabilityResult { run_id, result } = command else {
             panic!("delivery must only send its committed capability result")
         };
+
+        // 验证派发层是否已经在事件日志中主张了这个投递权
         let claim_id = derived_request_id("result.deliver", &result.request_id.to_string());
         assert!(self.events.read_command(&claim_id).await?.is_some());
         self.calls.lock().unwrap().push((run_id, result));
@@ -59,6 +123,8 @@ impl RunnerPort for CountingRunner {
 }
 
 fn plane(events: Arc<dyn EventStorePort>, runner: Arc<CountingRunner>) -> Arc<ControlPlane> {
+    // 工厂函数：构造一个 ControlPlane（dispatch 层的入口）
+    // 参数：事件存储和 Mock Runner
     Arc::new(ControlPlane::new(
         Arc::new(DefaultPolicyEngine),
         Arc::new(DefaultGateEngine),
@@ -69,6 +135,8 @@ fn plane(events: Arc<dyn EventStorePort>, runner: Arc<CountingRunner>) -> Arc<Co
     ))
 }
 
+/// 构造一个 run.prompt 事件（回合开始事件）
+/// 这是 Run 流中的标准事件，标记一个新的模型回合开始
 fn scoped_prompt(run_id: RunId, version: u64, semantics: TurnSemantics) -> RuntimeEvent {
     let turn_id = TurnId::new();
     let turn =
@@ -78,6 +146,20 @@ fn scoped_prompt(run_id: RunId, version: u64, semantics: TurnSemantics) -> Runti
     ).unwrap().with_stream_metadata("run", run_id.to_string(), version)
 }
 
+/// 测试 Fixture：一个完整的执行场景预构造。
+///
+/// 【包含的内容】
+/// - 一个 Run（包含 prompt 事件）
+/// - 一个有效的 DispatchPermit
+/// - 一个能力请求和执行结果
+/// - 关键的 ID（run_id、turn_id、permit.execution_id 等）
+///
+/// 【使用方式】
+/// 1. 调用 Fixture::new() 或 with_turn_semantics() 创建
+/// 2. 调用 prepare() 向事件日志提交执行.prepared 事件
+/// 3. 构造 source() 事件（执行.result_committed）并提交
+/// 4. 调用 core() 得到 ControlPlane，然后调用 deliver_capability_result()
+/// 5. 调用 no_delivery() 验证「没有投递」的场景
 struct Fixture {
     events: Arc<MemoryEventLog>,
     runner: Arc<CountingRunner>,
@@ -89,10 +171,24 @@ struct Fixture {
 }
 
 impl Fixture {
+    /// 创建一个默认语义的 Fixture（Start）
     async fn new() -> Self {
         Self::with_turn_semantics(TurnSemantics::Start).await
     }
 
+    /// 创建一个具有特定 Turn 语义的 Fixture
+    ///
+    /// 【Turn 语义】
+    /// - Start：新的单轮对话
+    /// - NewTurn：同一次运行中的新回合
+    /// - LegacyContinue：兼容模式下的继续
+    /// - Resume：从检查点恢复
+    ///
+    /// 这个方法预构造：
+    /// - 一个新的 Run（添加初始 prompt 事件到事件流）
+    /// - 一个新的 DispatchPermit（带有正确的 run_id、turn_id）
+    /// - 一个能力请求和正常结果
+    /// - 所有 ID 一致且有效
     async fn with_turn_semantics(semantics: TurnSemantics) -> Self {
         let events = Arc::new(MemoryEventLog::new());
         let runner = Arc::new(CountingRunner {
@@ -291,6 +387,20 @@ impl Fixture {
     }
 }
 
+/// 【测试】缺少执行事实时，投递拒绝且不调用 Runner
+///
+/// 【场景】
+/// 派发流程有三个关键事件：
+/// 1. run.prompt（回合开始）
+/// 2. execution.prepared（许可发行）
+/// 3. execution.result_committed（结果提交）
+///
+/// 这个测试验证：在缺少 (2) 或缺少 (3)、或只用 append 而不用 CAS 提交时，
+/// deliver_capability_result() 必须拒绝，不向 Runner 报告。
+///
+/// 【为什么这很重要】
+/// 如果派发层只看「事件日志中是否存在」而不检查「是否通过 CAS 提交」，
+/// 就会接受伪造的事件。这违反了 fail-closed 原则。
 #[tokio::test]
 async fn missing_or_append_only_execution_facts_never_claim_or_call_runner() {
     for (prepare, result) in [
@@ -319,6 +429,88 @@ async fn missing_or_append_only_execution_facts_never_claim_or_call_runner() {
     }
 }
 
+/// 【测试】prepared 之后的 Broker 前失败必须写入唯一 Unknown 终态
+///
+/// 数据撤销、checkpoint 准备和取消检查都发生在 `execution.prepared` 提交之后。
+/// 这个 fixture 直接调用共享收口 helper，验证它使用同一 execution permit stream 的 CAS
+/// 版本，并且重复恢复不会追加第二条 terminal fact。
+#[tokio::test]
+async fn prepared_pre_broker_failure_is_closed_once_as_result_unknown() {
+    for (reason, stop_requested) in [
+        (
+            "result_unknown:prepared_data_revocation_failed:fixture",
+            false,
+        ),
+        ("result_unknown:prepared_checkpoint_failed:fixture", false),
+        ("result_unknown:prepared_cancelled_before_broker", true),
+    ] {
+        let fixture = Fixture::new().await;
+        fixture.prepare(true).await;
+        let core = fixture.core();
+        core.commit_prepared_result_unknown(
+            &fixture.permit,
+            &fixture.request,
+            reason,
+            stop_requested,
+        )
+        .await
+        .expect("prepared terminal commit");
+
+        let stream = fixture
+            .events
+            .read_stream("execution_permit", &fixture.permit.execution_id.to_string())
+            .await
+            .expect("execution stream");
+        assert_eq!(
+            stream
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["execution.prepared", "execution.result_committed"]
+        );
+        assert_eq!(stream[1].stream_version, Some(2));
+        let receipt = CapabilityResultReceipt::from_json(&stream[1].data["result_receipt"])
+            .expect("typed result receipt");
+        assert!(!receipt.effect_known);
+        assert!(receipt.fenced);
+        assert_eq!(
+            stream[1].data["stop_requested"],
+            serde_json::json!(stop_requested)
+        );
+        if stop_requested {
+            assert_eq!(
+                stream[1].data["stop_state"],
+                serde_json::json!("unconfirmed")
+            );
+            assert_eq!(stream[1].data["stop_confirmed"], serde_json::json!(false));
+        }
+
+        core.commit_prepared_result_unknown(
+            &fixture.permit,
+            &fixture.request,
+            reason,
+            stop_requested,
+        )
+        .await
+        .expect("idempotent prepared terminal recovery");
+        assert_eq!(
+            fixture
+                .events
+                .read_stream("execution_permit", &fixture.permit.execution_id.to_string())
+                .await
+                .expect("execution stream after replay")
+                .len(),
+            2
+        );
+    }
+}
+
+/// 【测试】缺少 stream_version 的结果，投递拒绝
+///
+/// 【原因】
+/// execution_permit 流中的每个事件都应该有 stream_version（CAS 提交的证据）。
+/// 如果某个事件缺少这个标记，说明它是用 append() 伪造的，而不是通过
+/// CAS 原子化地记录的。派发必须拒绝这样的「半可信」数据。
 #[tokio::test]
 async fn missing_committed_source_stream_version_is_denied_without_delivery() {
     let fixture = Fixture::new().await;
@@ -334,6 +526,22 @@ async fn missing_committed_source_stream_version_is_denied_without_delivery() {
     fixture.no_delivery().await;
 }
 
+/// 【测试】结果或收据被篡改时，投递拒绝
+///
+/// 【参数化】
+/// 对以下多个篡改场景逐一验证：
+/// - "run", "turn", "request", "execution", "invocation"：身份字段被改
+/// - "attempt"：重试次数被改（会影响版本检查）
+/// - "result"：执行结果被改（会影响摘要）
+/// - "outcome"、"not_ready"、"effect"：执行状态标记被改
+/// - "receipt_digest"：收据摘要被改
+/// - "receipt_result"：收据对应的结果被改（不一致）
+/// - "uncommitted_receipt"：收据的 committed 标记被改
+/// - "invocation_identity"：调用身份被改
+///
+/// 【验证】
+/// 每个篡改都应该导致投递拒绝，且不调用 Runner。
+/// 这验证了派发层对每个字段都有检查。
 #[tokio::test]
 async fn contradictory_committed_payloads_or_tampered_receipts_never_deliver() {
     for drift in [
@@ -411,6 +619,49 @@ async fn contradictory_committed_payloads_or_tampered_receipts_never_deliver() {
     }
 }
 
+/// 【测试】execution.result_committed 的停止元数据被篡改时，投递必须进入 ResultUnknown。
+///
+/// 这组篡改独立于一般结果/收据篡改 fixture：收据本身保持有效，只修改顶层的停止生命周期
+/// 字段，确保 `committed_delivery_source` 不会把这些字段当作可独立信任的事实来源。
+#[tokio::test]
+async fn tampered_committed_stop_metadata_is_result_unknown_without_delivery() {
+    for (field, value) in [
+        ("stop_requested", json!(true)),
+        ("stop_state", json!("confirmed")),
+        ("stop_confirmed", json!(true)),
+    ] {
+        let fixture = Fixture::new().await;
+        fixture.prepare(true).await;
+        let mut source = fixture.source();
+        source.data[field] = value;
+        fixture.commit_source(source).await;
+
+        assert_eq!(
+            fixture
+                .core()
+                .deliver_capability_result(fixture.run_id, fixture.result.clone())
+                .await
+                .unwrap_err(),
+            dispatch_error("result_unknown:result_delivery_stop_mismatch"),
+            "accepted tampered {field}"
+        );
+        fixture.no_delivery().await;
+    }
+}
+
+/// 【测试】结果被改、重复完成、老 turn 时，投递拒绝
+///
+/// 【场景分类】
+/// - "result"：结果被改（output 字段被篡改）
+/// - "duplicate"：result_committed 事件被复制（同一个流中出现两个）
+/// - "old_turn"：Run 发生了 LegacyContinue（老风格继续），新 prompt 替换了旧的
+/// - "wrong_run"：结果来自完全不同的 Run
+///
+/// 【为什么这些都应该失败】
+/// - 结果被改：digest 不匹配，CAS 失败
+/// - 重复完成：流中已有一个 result_committed，第二个表示重放或冲突
+/// - 老 turn：Run 的拓扑已改变，原 permit 不再有效
+/// - 错误的 Run：结果完全来自另一个 Run，身份不符
 #[tokio::test]
 async fn changed_result_duplicate_completion_and_old_turn_cannot_advance() {
     for drift in ["result", "duplicate", "old_turn", "wrong_run"] {
@@ -458,6 +709,19 @@ async fn changed_result_duplicate_completion_and_old_turn_cannot_advance() {
     }
 }
 
+/// 【测试】Run 处于终止或取消状态时，投递拒绝
+///
+/// 【状态列表】
+/// - run.cancelling：取消中（还未确认）
+/// - run.cancelled：已取消
+/// - run.result_unknown：结果未知（内部错误）
+/// - run.failed：运行失败
+/// - run.completed：运行完成
+///
+/// 【核心规则】
+/// 任何这些状态都表示「这个 Run 已经不再活跃」。
+/// 派发不应该尝试在一个非活跃的 Run 中投递结果。
+/// 这确保了「一个已完成的 Run 不会再被修改」。
 #[tokio::test]
 async fn current_terminal_or_cancelling_run_never_claims_result() {
     for kind in [
@@ -496,6 +760,25 @@ async fn current_terminal_or_cancelling_run_never_claims_result() {
     }
 }
 
+/// 【测试】投递使用声称的类型化 Turn，拒绝身份缺失或冲突
+///
+/// 【第一部分】身份验证
+/// 对以下缺失或冲突的场景逐一验证拒绝：
+/// - "missing_id"：turn_id 字段缺失
+/// - "missing_identity"：turn 对象缺失
+/// - "run"、"turn"、"session"、"digest"：身份字段不匹配或被篡改
+///
+/// 【第二部分】Turn 语义
+/// 验证所有四种 Turn 语义（Start、NewTurn、LegacyContinue、Resume）
+/// 都能通过投递。关键在于 permit 中声称的 turn_id 必须是当前 prompt
+/// 事件中的 turn_id（而不是 request_id）。
+///
+/// 【为什么区分 Turn 语义】
+/// - Start：第一个回合
+/// - NewTurn：同 Run 内的新回合（可能来自不同 session）
+/// - LegacyContinue：兼容模式，Run 拓扑改变但继续
+/// - Resume：从检查点恢复
+/// 派发必须通过 turn_id 正确地识别当前回合，而不能混淆。
 #[tokio::test]
 async fn delivery_uses_declared_typed_turn_and_rejects_missing_or_conflicting_identity() {
     for drift in [
@@ -577,6 +860,14 @@ async fn delivery_uses_declared_typed_turn_and_rejects_missing_or_conflicting_id
     }
 }
 
+/// 【文档】故障模式的枚举。
+///
+/// 用于 FaultStore，在特定时刻注入故障，模拟各种失败场景：
+/// - Cancel、Terminal、NextTurn：Run 状态变化的竞态
+/// - SourceAdvance：执行 permit 流被推进（并发）
+/// - UnknownClaim、StoredUnknownClaim：日志返回 Unknown（无法确认）
+/// - ReceiptEvent/Digest/Version/Cursor：CAS 回执的字段被破坏
+/// - MissingSourceVersion：stream_version 被移除
 #[derive(Clone, Copy)]
 enum Fault {
     Cancel,
@@ -592,6 +883,20 @@ enum Fault {
     MissingSourceVersion,
 }
 
+/// FaultStore：装饰器，在特定时刻向事件流注入故障。
+///
+/// 这个 Store 包装了真实的 MemoryEventLog，并在 commit_transition() 时，
+/// 在第一次提交 result.delivery_claimed 时触发故障注入。
+///
+/// 【为什么需要这个】
+/// 派发层在提交 result.delivery_claimed 之后才会调用 Runner。
+/// 我们需要在提交之间注入竞态条件或其他故障，以验证派发层的鲁棒性。
+///
+/// 【使用方式】
+/// 1. 选择一个 Fault 类型
+/// 2. 创建 FaultStore(inner, fault, ...)
+/// 3. 在第一次提交 result.delivery_claimed 时，注入故障
+/// 4. 检查派发是否正确处理了这个故障
 struct FaultStore {
     inner: Arc<MemoryEventLog>,
     fault: Fault,
@@ -724,6 +1029,19 @@ fn fault_core(fixture: &Fixture, fault: Fault) -> Arc<ControlPlane> {
     )
 }
 
+/// 【测试】CAS 竞态或日志异常时，投递为零（无 Runner 调用）
+///
+/// 【故障列表】
+/// - Cancel、Terminal、NextTurn：Run 状态在派发期间变化
+/// - SourceAdvance：execution_permit 流被推进（新事件）
+/// - UnknownClaim：日志无法确认主张是否成功
+/// - ReceiptEvent/Digest/Version/Cursor：CAS 回执被破坏
+/// - MissingSourceVersion：stream_version 被移除
+///
+/// 【期望】
+/// 所有这些故障都应该导致派发拒绝，且不调用 Runner。
+/// 这验证了派发的「fail-closed」原则：
+/// 不能确认的事情，就不做。
 #[tokio::test]
 async fn source_and_run_cas_races_or_unconfirmed_receipts_have_zero_delivery() {
     for fault in [
@@ -749,6 +1067,24 @@ async fn source_and_run_cas_races_or_unconfirmed_receipts_have_zero_delivery() {
     }
 }
 
+/// 【测试】已提交的来源收据被主张，然后恰好一次传给 Runner
+///
+/// 【场景】
+/// 测试成功和失败两种结果：
+/// - 成功的执行：Runner 收到成功结果，effect_started = true
+/// - 失败的执行：Runner 收到失败结果，effect_started = false（zero_effect）
+///
+/// 【验证项】
+/// 1. 派发主张了投递权（result.delivery_claimed 事件）
+/// 2. 主张的收据摘要与来源事件的收据摘要一致
+/// 3. Runner 恰好被调用一次
+/// 4. 第二次尝试投递同一个结果时失败（已主张过）
+/// 5. 命令回执包含了所有权限版本
+///
+/// 【为什么这很重要】
+/// 这验证了投递的幂等性和原子性：
+/// - 幂等性：同一个结果投递多次，只有第一次成功
+/// - 原子性：主张和 Runner 调用是原子化的（主张成功意味着 Runner 会被调用）
 #[tokio::test]
 async fn committed_source_receipt_is_claimed_before_exact_result_reaches_runner_once() {
     for failed in [false, true] {
@@ -814,6 +1150,20 @@ async fn committed_source_receipt_is_claimed_before_exact_result_reaches_runner_
     }
 }
 
+/// 【测试】并发的多个投递请求中，至多一个成功
+///
+/// 【设置】
+/// 创建 8 个并发任务，都尝试投递同一个结果。
+///
+/// 【期望】
+/// - 恰好 1 个任务成功，其他 7 个因 CAS 冲突而失败
+/// - Runner 恰好被调用 1 次
+/// - result_delivery 流中恰好有 1 个主张事件
+///
+/// 【为什么这很重要】
+/// 这验证了派发的 CAS 机制在高并发下的正确性。
+/// 如果没有正确的 CAS，多个并发请求可能都认为自己成功了，
+/// 导致 Runner 被多次调用（重复执行）。
 #[tokio::test]
 async fn concurrent_claims_advance_runner_at_most_once() {
     let fixture = Fixture::new().await;
@@ -849,6 +1199,24 @@ async fn concurrent_claims_advance_runner_at_most_once() {
     );
 }
 
+/// 【测试】Runner 回调失败或日志返回 Unknown 时，不重试
+///
+/// 【两种故障】
+/// 1. callback_failure = true：Runner.send() 返回错误（模拟 Runner 不可用）
+/// 2. callback_failure = false：日志返回 Unknown（无法确认是否成功）
+///
+/// 【验证】
+/// 第一次投递返回错误（result_unknown:...）
+/// 第二次投递返回「已主张」错误（不重试）
+///
+/// 这验证了派发的「一次性」语义：
+/// - 如果一次调用失败且无法确认，后续调用不会重试
+/// - 这避免了无限重试或重复执行
+///
+/// 【设计哲学】
+/// 一旦派发把结果交给 Runner，就不再管 Runner 的生死。
+/// 如果 Runner 失败了，应该由上层（如 Harness）来处理重试。
+/// 派发的职责是「至多一次」而不是「至少一次」。
 #[tokio::test]
 async fn failed_callback_or_unknown_claim_ack_is_never_retried() {
     for callback_failure in [false, true] {
@@ -893,6 +1261,22 @@ async fn failed_callback_or_unknown_claim_ack_is_never_retried() {
     }
 }
 
+/// 【测试】赢得投递后，即使 Run 后来被取消，也不重新开放主张
+///
+/// 【时间线】
+/// 1. prepare() 和 commit_source() 成功
+/// 2. 第一次 deliver_capability_result() 成功（赢得）
+/// 3. 添加 run.cancelling 事件（Run 被取消）
+/// 4. 第二次 deliver_capability_result() 失败（已主张过）
+///
+/// 【验证】
+/// - Runner 恰好被调用 1 次（第一次）
+/// - result_delivery 流中恰好有 1 个主张事件
+/// - 第二次投递因「已主张」而失败，而不是因「Run 取消」
+///
+/// 【原则】
+/// 投递权一旦赢得，就不再因后续 Run 状态变化而失效。
+/// 这确保了「已完成的投递是永久性的」。
 #[tokio::test]
 async fn cancellation_after_a_winning_delivery_does_not_reopen_its_claim() {
     let fixture = Fixture::new().await;

@@ -1,3 +1,9 @@
+//! INT-07 connector Port 的合成适配器测试。
+//!
+//! 本文件以 Fake 实现检查 checked wrapper 的输入校验、结果合同和敏感字段投影，不连接真实服务，也不从
+//! EventStore/ControlPlane 取得授权事实。尤其 `FakeWebhook` 只演示 occurrence 如何被包装和脱敏；它没有
+//! HMAC key，不代表生产 Webhook 签名认证已经接入。
+
 use async_trait::async_trait;
 use kiana_domain::{
     effect_target_digest, json_digest, AccountBinding, ConnectorBindingSnapshot,
@@ -227,6 +233,7 @@ impl CredentialProbe for FakeProbe {
     }
 }
 
+/// 只用于验证 Port DTO 包装形状的假 Webhook adapter，不执行密码学签名验证。
 struct FakeWebhook;
 
 #[async_trait]
@@ -239,6 +246,8 @@ impl WebhookVerifier for FakeWebhook {
         &self,
         request: WebhookVerificationRequest,
     ) -> Result<VerifiedWebhook, PortError> {
+        // 此 fixture 直接调用 Domain 的调用者前置 API；签名文本甚至只是普通占位字符串。
+        // 因而这个测试只能证明 occurrence 可包装且结果不回显原签名，不能证明 HMAC 已通过。
         let occurrence =
             kiana_domain::WorkflowEventOccurrence::from_verified(&request.ingress, &request.policy)
                 .map_err(PortError::Failed)?;
@@ -318,6 +327,7 @@ async fn probe_and_observer_return_redacted_health_and_effect_projection() {
 
 #[tokio::test]
 async fn webhook_verifier_returns_occurrence_without_payload_or_secret() {
+    // 该输入在 Port 层通过结构校验即可进入 FakeWebhook；真正的 Daemon verifier 有独立的 HMAC 测试。
     let ingress = WorkflowEventIngress::new(
         "source-demo",
         "key-demo",

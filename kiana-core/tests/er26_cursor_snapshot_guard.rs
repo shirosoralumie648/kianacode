@@ -1,5 +1,9 @@
 //! ER-26 source guard for cursor queries, snapshots and slow consumers.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -34,11 +38,16 @@ fn cursor_epoch_gap_and_snapshot_boundaries_are_explicit() {
         &[
             "committed_cursor",
             "read_from",
-            "durable cursor",
+            "async fn read_from(",
             "source_cursor",
         ],
         "stream cursor",
     );
+    let read = compact_code(&item_source(eventlog_stream, "async fn read_from("));
+    assert!(read.contains("self.inner.read_from(cursor,limit).await"));
+    let commit = compact_code(&item_source(eventlog_stream, "async fn commit_transition("));
+    assert!(commit.contains("ifletCommitOutcome::Committed{receipt}=&outcome"));
+    assert!(commit.contains(".fetch_max(receipt.cursor,Ordering::SeqCst)"));
     require(
         ports,
         &[
@@ -186,7 +195,7 @@ fn entrypoints_reconnect_read_only_and_receipt_authoritative() {
             "append_event(",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "ER-26 read path widened authority: {forbidden}"
             );
         }

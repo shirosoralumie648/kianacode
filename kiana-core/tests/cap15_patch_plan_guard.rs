@@ -1,5 +1,8 @@
 //! CAP-15 source guard for one typed patch plan shared by preview and commit.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -60,15 +63,9 @@ fn patch_preview_and_commit_share_parser_overlay_preconditions_and_digest() {
 #[test]
 fn patch_plan_never_turns_preview_into_a_write_path() {
     let patch = include_str!("../../kiana-daemon/src/apply_patch.rs");
-    let preview_start = patch
-        .find("pub(crate) fn preview_codex_patch")
-        .expect("preview function");
-    let preview_end = patch[preview_start..]
-        .find("/// Publish a script")
-        .map(|offset| preview_start + offset)
-        .unwrap_or(patch.len());
-    let preview = &patch[preview_start..preview_end];
-    assert!(preview.contains("read_only"));
+    let preview = source_guard::item_source(patch, "fn preview_codex_patch(");
+    let projection = source_guard::item_source(patch, "fn patch_preview(");
+    assert!(projection.contains("read_only"));
     assert!(!preview.contains("ProjectPatchLock::acquire"));
     assert!(!preview.contains("commit_planned"));
 }

@@ -148,6 +148,27 @@ fn a_parent_whose_cursor_does_not_match_the_child_leaves_a_gap() {
 }
 
 #[test]
+fn a_child_continues_from_the_parent_source_cursor_not_its_covered_from_cursor() {
+    let root = BackupChainEntry::new(
+        "b1",
+        BackupLink::Full,
+        BackupState::Live,
+        None,
+        0,
+        100,
+        100,
+        2,
+        Some(key()),
+    )
+    .expect("root backup");
+    let child = incremental("b2", "b1", 100, 200);
+
+    BackupChain::new(vec![root, child]).expect(
+        "an incremental child must begin at its parent's source cursor, even when the root's covered-from cursor is zero",
+    );
+}
+
+#[test]
 fn a_parent_may_not_be_deleted_while_a_live_child_depends_on_it() {
     let entries = vec![
         expired("b1", None, 0, 100),

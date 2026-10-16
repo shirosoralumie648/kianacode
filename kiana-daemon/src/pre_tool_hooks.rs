@@ -446,6 +446,7 @@ fn hook_tool_name(operation: &str) -> String {
 fn permission_mode_label(profile: kiana_domain::PermissionProfile) -> &'static str {
     match profile {
         kiana_domain::PermissionProfile::Safe => "safe",
+        kiana_domain::PermissionProfile::Ask => "ask",
         kiana_domain::PermissionProfile::Balanced => "balanced",
         kiana_domain::PermissionProfile::Autonomous => "autonomous",
     }

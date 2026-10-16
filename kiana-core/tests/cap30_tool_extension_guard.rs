@@ -1,11 +1,22 @@
 //! CAP-30 source guard for the existing tool catalog and extension admission boundary.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
-        assert!(
-            source.contains(marker),
-            "CAP-30 {label} marker missing: {marker}"
-        );
+        let present = if *marker == "extension_package_sha256" {
+            let verify = source_guard::item_source(source, "fn verify(");
+            let code = source_guard::compact_code(&verify);
+            code.contains("verify_manifest_signature(manifest,&self.trusted_keys)?")
+                && code.contains("letmutdigest=Sha256::new()")
+                && code.contains("format!(\"{:x}\",digest.finalize())!=manifest.content_hash")
+                && code.contains("extension_content_hash_mismatch")
+                && code.contains("package_sha256:sha256(&bytes)")
+        } else {
+            source.contains(marker)
+        };
+        assert!(present, "CAP-30 {label} marker missing: {marker}");
     }
 }
 
@@ -14,13 +25,47 @@ fn tool_search_and_extensions_remain_server_owned() {
     let catalog = include_str!("../../kiana-domain/src/tool_catalog.rs");
     let authority = include_str!("../../kiana-domain/src/tool_authority.rs");
     let extensions = include_str!("../../kiana-domain/src/extensions.rs");
-    let daemon_extensions = include_str!("../../kiana-daemon/src/extensions.rs");
-    let execution = include_str!("../../kiana-daemon/src/execution_control.rs");
+    let daemon_extensions =
+        &source_guard::production_source(include_str!("../../kiana-daemon/src/extensions.rs"));
+    let execution = &[
+        source_guard::production_source(include_str!(
+            "../../kiana-daemon/src/execution_control.rs"
+        )),
+        source_guard::production_source(include_str!("../../kiana-domain/src/tool_catalog.rs")),
+    ]
+    .concat();
+    let executor = source_guard::item_source(
+        include_str!("../../kiana-daemon/src/execution_control.rs"),
+        "async fn handle_read_or_continue(",
+    );
+    assert!(executor.contains("kiana_domain::search_tool_catalog("));
+    assert!(executor.contains("&role.tools"));
+    assert!(executor.contains("require_healthy_catalog: true"));
+    assert!(!executor.contains("kiana_domain::search_tool_schemas("));
+    let limit = source_guard::item_source(
+        include_str!("../../kiana-daemon/src/execution_control.rs"),
+        "fn tool_search_limit(",
+    );
+    assert!(limit.contains("usize::try_from(value)"));
+    assert!(limit.contains("*value > 0 && *value <= maximum"));
     let skills = include_str!("../../kiana-daemon/src/harness_skills.rs");
     let roles = include_str!("../../kiana-domain/src/roles.rs");
     let ext_fixture = include_str!("../../kiana-domain/tests/ext04_catalog.rs");
     let authority_guard = include_str!("p1_h01_tool_authority_guard.rs");
-    let catalog_guard = include_str!("p4_j7_10_catalog_guard.rs");
+    let catalog_guard =
+        &source_guard::production_source(include_str!("../../kiana-domain/src/tool_authority.rs"));
+    let catalog_validate = source_guard::item_source(catalog_guard, "pub fn validate(");
+    for binding in [
+        "tool.operation != spec.operation",
+        "tool.capability != spec.capability.clone()",
+        "tool.minimum_risk != spec.risk_policy",
+        "tool.side_effecting != spec.side_effecting",
+    ] {
+        assert!(
+            catalog_validate.contains(binding),
+            "catalog authority check missing: {binding}"
+        );
+    }
     let baseline = include_str!("../../docs/roadmap/cap30-tool-extension-baseline.md");
 
     require(

@@ -88,6 +88,15 @@ fn crash_restart_fence_and_resume_contract_is_fail_closed() {
         .map(|finding| finding.code.as_str())
         .collect();
     assert!(codes.contains(&"replay.restart_missing"));
+
+    // Fence replacement and explicit resume are required once a restart actually occurred.
+    input["crash_restart"]["restart_observed"] = json!(true);
+    let findings = RecoveryReplayEvaluator.evaluate(&input).unwrap();
+    let codes: Vec<_> = findings
+        .iter()
+        .map(|finding| finding.code.as_str())
+        .collect();
+    assert!(codes.contains(&"replay.resume_missing"));
     assert!(codes.contains(&"replay.fence_invalid"));
     assert!(codes.contains(&"replay.fence_reused"));
 }

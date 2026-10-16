@@ -1,16 +1,24 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 #[test]
 fn cp20_unknown_reconciliation_is_evidence_gated_and_never_an_automatic_retry() {
     let errors = include_str!("../../kiana-domain/src/errors.rs");
     let platform_domain = include_str!("../../kiana-domain/src/platform.rs");
     let connectors = include_str!("../../kiana-domain/src/connectors.rs");
     let effect = include_str!("../../kiana-domain/src/effect_observation.rs");
+    let runner_budget = include_str!("../../kiana-runner/src/budget.rs");
+    let core_budget = include_str!("../src/model_budget.rs");
+    let settlement = compact_code(&item_source(runner_budget, "pub(crate) fn settle_attempt("));
+    let core_settlement = compact_code(&item_source(core_budget, "async fn settle("));
     let ports = include_str!("../../kiana-ports/src/model.rs");
     let platform = include_str!("../src/platform.rs");
     let dispatch = include_str!("../src/dispatch.rs");
     let capabilities = include_str!("../src/capabilities.rs");
     let connector_daemon = include_str!("../../kiana-daemon/src/connectors.rs");
     let reliability = include_str!("p2_k6_01_reliability.rs");
-    let connector_fixture = include_str!("../../kiana-domain/tests/p4_k8_01_connector.rs");
+    let connector_fixture = include_str!("p4_k8_01_connector.rs");
 
     for marker in [
         "ResultUnknown =>",
@@ -67,7 +75,14 @@ fn cp20_unknown_reconciliation_is_evidence_gated_and_never_an_automatic_retry() 
         "Unknown usage is never refunded",
     ] {
         assert!(
-            ports.contains(marker),
+            if marker == "Unknown usage is never refunded" {
+                settlement.contains("letcharged=reported_tokens.unwrap_or(reservation.tokens)")
+                    && settlement.contains("account.charged_tokens")
+                    && settlement.contains("ifreported_tokens.is_none()")
+                    && core_settlement.contains("letcharged=tokens.unwrap_or(upper)")
+            } else {
+                ports.contains(marker)
+            },
             "CP-20 retry/accounting marker missing: {marker}"
         );
     }
@@ -82,7 +97,11 @@ fn cp20_unknown_reconciliation_is_evidence_gated_and_never_an_automatic_retry() 
         "resource_release_requires_reconciliation",
     ] {
         assert!(
-            platform.contains(marker),
+            if marker == "automatic_retry_allowed:false" {
+                compact_code(platform).contains("\"automatic_retry_allowed\":false")
+            } else {
+                platform.contains(marker)
+            },
             "CP-20 platform marker missing: {marker}"
         );
     }
@@ -110,7 +129,7 @@ fn cp20_unknown_reconciliation_is_evidence_gated_and_never_an_automatic_retry() 
             "CP-20 capability marker missing: {marker}"
         );
     }
-    assert!(reliability.contains("automatic_retry_allowed:false"));
+    assert!(compact_code(reliability).contains("\"automatic_retry_allowed\":false"));
     assert!(reliability.contains("failure_reconciliation_evidence_required"));
     assert!(connector_fixture.contains("connector_cannot_bypass_the_control_plane"));
     for source in [platform, dispatch, capabilities, connector_daemon] {
@@ -121,7 +140,7 @@ fn cp20_unknown_reconciliation_is_evidence_gated_and_never_an_automatic_retry() 
             "unknown_effect_is_success",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "CP-20 bypass marker: {forbidden}"
             );
         }

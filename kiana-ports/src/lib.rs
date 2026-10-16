@@ -456,6 +456,10 @@ pub trait RateCardStore: Send + Sync {
         -> Result<Option<RateCard>, PortError>;
 }
 
+/// Maximum number of cards retained by the fixture adapter. Durable stores must enforce their
+/// own bounded scan/storage policy; this in-memory implementation must never grow without bound.
+pub const MAX_RATE_CARD_STORE_CARDS: usize = 256;
+
 /// Bounded in-memory rate-card adapter for fixtures and local composition. It rejects overlapping
 /// effective windows for one provider/model key so a lookup cannot silently choose a price.
 #[derive(Clone, Debug, Default)]
@@ -491,6 +495,11 @@ impl InMemoryRateCardStore {
                 "rate_card_effective_overlap".to_owned(),
             ));
         }
+        if cards.len() >= MAX_RATE_CARD_STORE_CARDS {
+            return Err(PortError::Unavailable(
+                "rate_card_capacity_exceeded".to_owned(),
+            ));
+        }
         cards.push(card);
         Ok(())
     }
@@ -514,20 +523,43 @@ impl RateCardStore for InMemoryRateCardStore {
             || model_id.trim().is_empty()
             || provider_id.len() > 256
             || model_id.len() > 256
+            || at_unix_ms == 0
         {
             return Err(PortError::Failed("rate_card_lookup_invalid".to_owned()));
         }
         let cards = self.cards.read().await;
+        // A model-specific card wins over a provider-wide fallback when both are effective.
+        // This keeps an intentional model override deterministic without requiring overlapping
+        // exact and wildcard windows to be rejected as one another's duplicate.
+        let exact = cards
+            .iter()
+            .find(|card| {
+                card.provider_id == provider_id
+                    && card.model_selector == model_id
+                    && card.is_effective_at(at_unix_ms)
+            })
+            .cloned();
+        if let Some(card) = exact {
+            return Ok(card);
+        }
+        let wildcard = cards
+            .iter()
+            .find(|card| {
+                card.provider_id == provider_id
+                    && card.model_selector == "*"
+                    && card.is_effective_at(at_unix_ms)
+            })
+            .cloned();
+        if let Some(card) = wildcard {
+            return Ok(card);
+        }
         let matching = cards
             .iter()
-            .filter(|card| card.provider_id == provider_id && card.model_selector == model_id)
+            .filter(|card| {
+                card.provider_id == provider_id
+                    && (card.model_selector == model_id || card.model_selector == "*")
+            })
             .collect::<Vec<_>>();
-        if let Some(card) = matching
-            .iter()
-            .find(|card| card.is_effective_at(at_unix_ms))
-        {
-            return Ok((*card).clone());
-        }
         if matching.is_empty() {
             Err(PortError::Unavailable("rate_card_unknown_model".to_owned()))
         } else {
@@ -539,6 +571,9 @@ impl RateCardStore for InMemoryRateCardStore {
         &self,
         rate_card_id: RateCardId,
     ) -> Result<Option<RateCard>, PortError> {
+        if rate_card_id.as_uuid().is_nil() {
+            return Err(PortError::Failed("rate_card_lookup_invalid".to_owned()));
+        }
         Ok(self
             .cards
             .read()
@@ -1852,47 +1887,67 @@ pub struct CommitObserverFailure {
 /// [`Self::commit_transition`]。单事件追加不能替代多聚合事务。trait 的存在不自动保证
 /// 落盘、`fsync`、跨进程锁或损坏恢复，这些由具体适配器声明并提供证据。
 pub trait EventStorePort: Send + Sync {
-    /// Capability negotiation is mandatory before a caller relies on atomic authority changes.
+    /// 查询适配器是否支持原子 authority 状态转换。
+    ///
+    /// ControlPlane 在提交关联授权状态前必须先检查；默认 `false` 让旧 adapter 明确拒绝
+    /// 这条安全路径，而不是假装多个独立 append 等同于原子事务。
     fn supports_atomic_transitions(&self) -> bool {
         false
     }
 
+    /// 返回适配器声明的事务能力、读取能力和容量上限。
+    ///
+    /// 默认所有布尔能力为 false、上限为 0。声明只用于选择调用路径，不能代替对具体实现的
+    /// 测试/运行证据，也不能单独提高 Kiana 功能的 proof level。
     fn capabilities(&self) -> kiana_domain::EventStoreCapabilities {
         kiana_domain::EventStoreCapabilities::default()
     }
 
-    /// Flush all accepted facts through the adapter's durable boundary. A successful response
-    /// is an adapter acknowledgement only; it never upgrades the proof level of an external
-    /// effect. Older adapters fail closed instead of pretending that an in-memory flush is
-    /// durable.
+    /// 将已接受的事实推进到该 adapter 声明的持久化边界，并返回健康快照。
+    ///
+    /// 成功只表示存储 adapter 确认完成了自己的 flush；它不证明外部工具副作用成功，也不会
+    /// 自动提高产品路径的 proof level。默认实现返回 unsupported，避免旧适配器把内存操作
+    /// 伪装成持久化确认。
     async fn flush(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
         Err(PortError::Unavailable(
             "event_store_flush_unsupported".to_owned(),
         ))
     }
 
-    /// Return a bounded health snapshot whose cursor is the last durable logical event.
+    /// 返回有界健康快照，其中的游标是 adapter 报告的最后一个已持久化逻辑事件位置。
+    ///
+    /// 快照可能不等同于刚执行过 flush 的回执；具体保证由 adapter 实现。默认实现返回
+    /// `event_store_health_unsupported`，调用方必须把“不支持”与空日志区分开。
     async fn health(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
         Err(PortError::Unavailable(
             "event_store_health_unsupported".to_owned(),
         ))
     }
 
-    /// Convenience cursor read for recovery and shutdown acknowledgements.
+    /// 为恢复和关闭确认提供的便捷游标读取。
+    ///
+    /// 默认实现从 `health()` 取游标，因此具体 adapter 若不支持健康快照，此方法也会传播同一
+    /// `PortError`；返回值是逻辑事件位置，不是文件字节偏移。
     async fn last_durable_cursor(&self) -> Result<kiana_domain::EventCursor, PortError> {
         Ok(self.health().await?.last_durable_cursor)
     }
 
-    /// Stop accepting new writes after flushing the durable boundary. A close acknowledgement
-    /// is distinct from a successful command commit and is never inferred from task drop.
+    /// 先冲刷 adapter 的持久化边界，再停止接受新写入并返回关闭快照。
+    ///
+    /// 关闭确认与某个命令提交成功是不同事实；对象被 drop、后台任务结束或运行退出都不能代替
+    /// 此回执。默认 adapter 明确返回 unsupported。
     async fn close(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
         Err(PortError::Unavailable(
             "event_store_close_unsupported".to_owned(),
         ))
     }
 
-    /// Atomically checks every read dependency and commits all events or none. Unknown outcomes
-    /// must be confirmed with read_command; they never permit execution.
+    /// 原子核对 batch 的每个读取依赖版本，并提交全部事件或一条也不提交。
+    ///
+    /// 这是 Core 记录授权、审批消费、预算、执行许可等关联权威变化的路径；单事件 append
+    /// 无法保证这些聚合一起更新。冲突返回 `CommitOutcome::Conflict`；结果未知时必须用
+    /// `read_command` 按原 command ID 核实，在确认前不能因此开始执行。默认实现返回
+    /// `event_store_atomic_transitions_unsupported`，不会拆成多个弱保证写入。
     async fn commit_transition(
         &self,
         _batch: kiana_domain::TransitionBatch,
@@ -1902,6 +1957,11 @@ pub trait EventStorePort: Send + Sync {
         ))
     }
 
+    /// 按原命令 ID 查询已提交回执，供重试恢复和 `Unknown` 结果核对。
+    ///
+    /// `Some(receipt)` 表示该命令已有可验证的提交事实；`None` 表示当前 adapter 查询范围内
+    /// 未找到回执；不支持或读取故障必须返回错误，不能伪装成 `None`。默认实现显式返回
+    /// unsupported。
     async fn read_command(
         &self,
         _command_id: &RequestId,
@@ -1911,8 +1971,11 @@ pub trait EventStorePort: Send + Sync {
         ))
     }
 
-    /// Reads after a logical cursor. A page never splits a committed transaction; a first frame
-    /// larger than limit is returned whole within the store's maximum batch bound.
+    /// 从逻辑事件游标之后读取一页事件。
+    ///
+    /// 页面必须保持提交顺序，不能把一笔已提交事务拆开；若页首整笔事务超过调用方的 limit，
+    /// 适配器可在自身最大 batch 上限内整体返回。无效游标/limit 会报错，不支持此读取时返回
+    /// `event_store_cursor_reads_unsupported`，不能回退成空页。
     async fn read_from(
         &self,
         _cursor: kiana_domain::EventCursor,
@@ -2017,9 +2080,13 @@ pub trait EventStorePort: Send + Sync {
             .collect())
     }
 
-    /// Read one aggregate stream after a bounded logical cursor.  This helper preserves the
-    /// store's committed order and fails closed on unsupported reads; an empty page is not a
-    /// successful claim or an authority decision.
+    /// 从某个聚合流的版本号之后读取有限数量的事件。
+    ///
+    /// 【输入】`aggregate_type` 与 `aggregate_id` 定位一个流；`after_version` 是排他的流版本下界，
+    /// 不是全局 EventCursor；`limit` 必须在 1 到 4096 之间。
+    /// 【默认流程】先调用 `read_stream` 取该流，再按 `stream_version` 排序，只返回版本大于
+    /// after_version 的前 limit 条。适配器可覆盖以提供更高效读取，但错误不能压成空结果。
+    /// 空列表只表示当前查询没有符合条件的事件，不是一次成功的权限声明或 authority 决策。
     async fn read_stream_after(
         &self,
         aggregate_type: &str,

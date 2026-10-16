@@ -11,7 +11,8 @@ fn eval_help_and_inline_fixture_route_through_the_real_binary() {
     assert!(help.status.success(), "{}", stderr(&help));
     let help_stdout = String::from_utf8(help.stdout).unwrap();
     assert!(
-        help_stdout.contains("Usage: kiana eval run"),
+        help_stdout.contains("Usage: kiana eval <run|capture|compare|explain|list>")
+            && help_stdout.contains("kiana eval run --suite <path>"),
         "{help_stdout}"
     );
 

@@ -147,15 +147,19 @@ fn incident_schema_and_ordered_phase_are_replayable() {
 #[test]
 fn incident_rejects_skip_close_unknown_and_expired_deadline() {
     let operation = OperationId::new();
-    let skipped = input(
+    let mut skipped = input(
         operation,
-        IncidentPhase::Contained,
+        IncidentPhase::Observed,
         1,
         Vec::new(),
         false,
         10,
         100,
     );
+    skipped.requested_phase = IncidentPhase::Contained;
+    skipped.runbook = runbook(IncidentPhase::Contained);
+    skipped.evidence = evidence(operation, IncidentPhase::Contained, 1, false, 10, 100);
+    skipped.input_digest = skipped.digest();
     assert_eq!(
         skipped.validate().unwrap_err(),
         "deployment_incident_phase_order_invalid"
@@ -197,9 +201,9 @@ fn incident_rejects_skip_close_unknown_and_expired_deadline() {
         40,
         100,
     );
-    let close = input(
+    let mut close = input(
         operation,
-        IncidentPhase::Closed,
+        IncidentPhase::Verified,
         5,
         vec![
             recovering.history[0].clone(),
@@ -211,6 +215,10 @@ fn incident_rejects_skip_close_unknown_and_expired_deadline() {
         50,
         100,
     );
+    close.requested_phase = IncidentPhase::Closed;
+    close.runbook = runbook(IncidentPhase::Closed);
+    close.evidence = evidence(operation, IncidentPhase::Closed, 5, false, 50, 100);
+    close.input_digest = close.digest();
     assert_eq!(
         close.validate().unwrap_err(),
         "deployment_incident_phase_order_invalid"

@@ -202,6 +202,29 @@ fn child_and_async_links_never_reuse_a_span_or_foreign_parent_as_owner() {
 }
 
 #[test]
+fn source_cursor_builder_revalidates_forged_links_and_preserves_foreign_parent() {
+    let request = request();
+    let foreign_parent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    let root =
+        CorrelationContext::root(&request, scope(&request), 1, 1, Some(foreign_parent)).unwrap();
+
+    let mut forged = root.clone();
+    forged.span_links = vec![SpanLink::new(root.current_span(), SpanLinkKind::Parent)];
+    assert_eq!(
+        forged.with_source_cursor(7).unwrap_err(),
+        "correlation_parent_link_invalid"
+    );
+
+    let advanced = root.with_source_cursor(7).unwrap();
+    assert_eq!(advanced.source_cursor, Some(7));
+    assert_eq!(advanced.span_links.len(), 1);
+    assert_eq!(
+        advanced.span_links[0].relationship,
+        SpanLinkKind::ForeignParent
+    );
+}
+
+#[test]
 fn validate_rejects_nil_ids_and_parent_or_self_span_links() {
     let request = request();
     let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();

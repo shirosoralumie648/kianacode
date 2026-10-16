@@ -16,13 +16,14 @@ fn memory_handlers_use_server_mutation_contract() {
         );
     }
     for marker in [
-        "MemoryMutationOperation::Add",
-        "MemoryMutationOperation::Update",
-        "MemoryMutationOperation::Delete",
-        "MemoryMutationOperation::Approve",
-        "MemoryMutationOperation::Publish",
-        "MemoryMutationOperation::Expire",
-        "MemoryMutationOperation::Revoke",
+        "pub enum MemoryMutationOperation",
+        "Self::Add",
+        "Self::Update",
+        "Self::Delete",
+        "Self::Approve",
+        "Self::Publish",
+        "Self::Expire",
+        "Self::Revoke",
         "pub fn preflight",
         "Replayed { original",
     ] {
@@ -32,10 +33,11 @@ fn memory_handlers_use_server_mutation_contract() {
         );
     }
     let apply = source
-        .find("ledger.apply(mutation)")
+        .find("ledger.apply(mutation.clone())")
         .expect("mutation CAS application");
-    let append = source
+    let append = source[apply..]
         .find("append_record_file(&mut file, &record)")
+        .map(|offset| apply + offset)
         .expect("record append");
     assert!(
         apply < append,

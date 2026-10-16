@@ -7,6 +7,15 @@ use serde_json::json;
 pub const PROVIDER_CONFIG_SNAPSHOT_SCHEMA: &str = "kiana.provider-config-snapshot.v1";
 pub const PROVIDER_PROFILE_SNAPSHOT_SCHEMA: &str = "kiana.provider-profile-snapshot.v1";
 
+/// Configuration labels must stay single-line and free of C-string terminators.
+/// Keep this pure helper in the domain crate so every configuration source applies the same
+/// lexical fence before provider routing or wire construction.
+pub fn contains_forbidden_provider_config_control(value: &str) -> bool {
+    value
+        .bytes()
+        .any(|byte| matches!(byte, b'\0' | b'\r' | b'\n'))
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderSelectionMode {

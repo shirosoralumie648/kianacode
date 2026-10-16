@@ -65,9 +65,10 @@
 use crate::PortError;
 use async_trait::async_trait;
 use kiana_domain::{
-    json_digest, provider_payload_hash_valid, valid_extension_identifier, ConnectorBindingSnapshot,
-    CredentialLease, EffectObservation, InvocationId, McpCapabilityHandshake, ProviderReceipt,
-    StopReport, WorkflowEventIngress, WorkflowEventOccurrence, WorkflowEventSourcePolicy,
+    connector_credential_audience, effect_target_digest, json_digest, provider_payload_hash_valid,
+    valid_extension_identifier, ConnectorBindingSnapshot, CredentialLease, EffectObservation,
+    InvocationId, McpCapabilityHandshake, ProviderReceipt, StopReport, WorkflowEventIngress,
+    WorkflowEventOccurrence, WorkflowEventSourcePolicy, CONNECTOR_CREDENTIAL_PURPOSE,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -560,8 +561,18 @@ impl ConnectorPreparedPermit {
                 "connector_prepared_permit_binding_mismatch".to_owned(),
             ));
         }
+        let audience = connector_credential_audience(
+            &binding.definition.connector_id,
+            &binding.definition.version,
+        );
         lease
-            .validate_at(self.issued_at_unix_ms)
+            .validate_for(
+                self.issued_at_unix_ms,
+                &binding.binding.account_id,
+                CONNECTOR_CREDENTIAL_PURPOSE,
+                &audience,
+                &effect_target_digest(binding),
+            )
             .map_err(|error| PortError::Conflict(format!("connector_credential_lease:{error}")))
     }
 }

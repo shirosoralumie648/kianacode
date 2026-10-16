@@ -1,4 +1,10 @@
+//! H27 Core 源码标记守卫：检查 Domain 合同、Core 包装和 lifecycle/receipt 代码仍保留指定结构。
+//!
+//! `include_str!` 只把源码作为普通字符串搜索；这些断言不调用 `TurnOutcome::decide()`、不触发事件、
+//! 不运行 lifecycle，也不证明源码标记所描述的状态在真实请求中到达。
+
 #[test]
+/// 确认 H27 相关源码中仍包含结构化输出、Core 标注和 terminal receipt 路径的约定标记。
 fn outcome_contract_and_terminal_gate_are_core_owned() {
     let domain = include_str!("../../kiana-domain/src/turn_outcome.rs");
     let core = include_str!("../src/turn_outcome.rs");
@@ -51,6 +57,7 @@ fn outcome_contract_and_terminal_gate_are_core_owned() {
 }
 
 #[test]
+/// 确认 lifecycle 与 clarification 源码保留等待路径标记，避免只靠模型文本返回 Completed。
 fn pending_question_or_approval_is_not_completed_by_text() {
     let lifecycle = include_str!("../src/lifecycle.rs");
     let clarification = include_str!("../src/clarification.rs");

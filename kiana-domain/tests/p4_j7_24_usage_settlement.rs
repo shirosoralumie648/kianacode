@@ -81,3 +81,94 @@ fn measured_receipt_is_explicit_and_attempt_replay_is_idempotent() {
         SettlementApplyOutcome::Duplicate
     );
 }
+
+#[test]
+fn unpriced_nonzero_usage_dimension_keeps_known_observation_unknown() {
+    let mut usage = usage(Some("provider-a"));
+    usage.vector.tool_calls = 1;
+    usage.usage_digest = usage.digest();
+    usage.validate().expect("usage with tool call");
+
+    let mut card = RateCard::new(
+        RateCardId::new(),
+        "provider-a",
+        "model-a",
+        "USD",
+        Some(2),
+        Some(3),
+        1,
+        None,
+        1,
+        "fixture-rate-card",
+    )
+    .expect("rate card");
+    card.request_price = Some(5);
+    card.rate_card_digest = card.digest();
+    card.validate().expect("valid rate card");
+
+    let settlement =
+        ProviderUsageSettlement::from_usage(&usage, Some(&card), 1, 100).expect("settlement");
+    assert!(matches!(settlement.cost, SettlementCost::Unknown { .. }));
+    assert_eq!(settlement.state, BillingState::Unknown);
+}
+
+#[test]
+fn unknown_cost_transitions_fail_without_mutating_the_settlement() {
+    let mut settlement =
+        ProviderUsageSettlement::from_usage(&usage(Some("provider-a")), None, 1, 100)
+            .expect("unknown settlement");
+    let before = settlement.clone();
+
+    assert_eq!(
+        settlement.transition(BillingState::Corrected).unwrap_err(),
+        "provider_usage_unknown_cannot_correct"
+    );
+    assert_eq!(settlement, before);
+
+    assert_eq!(
+        settlement.transition(BillingState::Settled).unwrap_err(),
+        "provider_usage_unknown_cannot_settle"
+    );
+    assert_eq!(settlement, before);
+}
+
+#[test]
+fn known_cost_cannot_be_downgraded_to_unknown() {
+    let mut settlement =
+        ProviderUsageSettlement::from_usage(&usage(Some("provider-a")), None, 1, 100)
+            .expect("unknown settlement");
+    settlement
+        .attach_measured(
+            Money::new("USD", 17).expect("money"),
+            ProviderReceiptRef::new("invoice-2").expect("receipt"),
+        )
+        .expect("measured settlement");
+    let before = settlement.clone();
+
+    assert_eq!(
+        settlement.transition(BillingState::Unknown).unwrap_err(),
+        "billing_state_transition_invalid"
+    );
+    assert_eq!(settlement, before);
+}
+
+#[test]
+fn invalid_measured_provider_receipt_is_rejected_after_deserialization() {
+    let settlement = ProviderUsageSettlement::from_usage(&usage(Some("provider-a")), None, 1, 100)
+        .expect("unknown settlement");
+    let mut value = serde_json::to_value(&settlement).expect("serialize settlement");
+    value["cost"] = serde_json::json!({
+        "Measured": {
+            "amount": {
+                "schema": "kiana.money.v1",
+                "currency": "USD",
+                "micros": 17
+            },
+            "provider_receipt": "provider-receipt:secret"
+        }
+    });
+    let mut injected: ProviderUsageSettlement =
+        serde_json::from_value(value).expect("deserialize injected settlement");
+    injected.settlement_digest = injected.digest();
+    assert_eq!(injected.validate().unwrap_err(), "provider_receipt_invalid");
+}

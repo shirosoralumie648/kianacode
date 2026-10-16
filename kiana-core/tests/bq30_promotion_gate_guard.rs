@@ -1,9 +1,12 @@
 //! BQ-30 source guard: the gate consumes the evidence contract rather than defining a second one,
 //! and it keeps offline durable and opt-in live as separate levels.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn bq30_pins_the_three_named_failures() {
-    let source = include_str!("../src/promotion_gate.rs");
+    let source = source_guard::production_source(include_str!("../src/promotion_gate.rs"));
 
     for marker in [
         "promotion_above_evidence_ceiling",
@@ -24,7 +27,7 @@ fn bq30_pins_the_three_named_failures() {
 
 #[test]
 fn bq30_keeps_offline_durable_and_opt_in_live_separate() {
-    let source = include_str!("../src/promotion_gate.rs");
+    let source = source_guard::production_source(include_str!("../src/promotion_gate.rs"));
 
     for marker in [
         "OfflineDurable",
@@ -51,7 +54,7 @@ fn bq30_keeps_offline_durable_and_opt_in_live_separate() {
 
 #[test]
 fn bq30_consumes_the_evidence_contract_instead_of_defining_one() {
-    let source = include_str!("../src/promotion_gate.rs");
+    let source = source_guard::production_source(include_str!("../src/promotion_gate.rs"));
 
     for marker in [
         "use crate::evidence_manifest::{EvidenceManifest, EvidenceProofLevel}",
@@ -79,7 +82,7 @@ fn bq30_consumes_the_evidence_contract_instead_of_defining_one() {
 
 #[test]
 fn bq30_decides_and_does_not_promote() {
-    let source = include_str!("../src/promotion_gate.rs");
+    let source = source_guard::production_source(include_str!("../src/promotion_gate.rs"));
 
     for forbidden in [
         "std::fs",

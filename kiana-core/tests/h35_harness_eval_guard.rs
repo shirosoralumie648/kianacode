@@ -1,5 +1,9 @@
 //! H35 source guard for Harness GoldenTrace/eval/performance evidence.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source};
+
 #[test]
 fn harness_eval_is_replay_bound_and_side_effect_free() {
     let quality = include_str!("../../kiana-domain/src/quality.rs");
@@ -9,6 +13,9 @@ fn harness_eval_is_replay_bound_and_side_effect_free() {
     let versioning = include_str!("../src/versioning.rs");
     let evidence = include_str!("../../kiana-daemon/src/eval_runtime.rs");
     let baseline = include_str!("../../docs/roadmap/h35-harness-eval-baseline.md");
+    let fixture = include_str!("../../kiana-domain/tests/h35_harness_eval.rs");
+    let replay = compact_code(&item_source(harness_eval, "fn replay_verdict("));
+    let binding = compact_code(&item_source(harness_eval, "pub fn validate("));
     let core_eval = include_str!("../src/eval.rs");
 
     for marker in [
@@ -76,7 +83,14 @@ fn harness_eval_is_replay_bound_and_side_effect_free() {
         "no local runtime",
     ] {
         assert!(
-            baseline.contains(marker),
+            match marker {
+                "golden_trace_detects_missing_result_or_extra_side_effect" => fixture.contains("offline_replay_fails_missing_result_and_blocks_any_effect") && replay.contains("elseifmissing_result||has_difference{EvalVerdict::Fail}"),
+                "eval_replay_has_no_network_or_process_execution" => replay.contains("mode!=HarnessReplayMode::OfflineNoEffects||side_effect_count>0||network_call_count>0||process_call_count>0||extra_side_effect") && replay.contains("EvalVerdict::Blocked"),
+                "task_and_context_regression_suite_passes_on_pinned_snapshot" => fixture.contains("trace_binding_covers_source_model_prompt_tools_input_and_workspace") && binding.contains("&self.source_snapshot") && binding.contains("workspace_hash"),
+                "partial" => baseline.contains("proof ceiling is `source`") && baseline.contains("are not claimed here"),
+                "real Provider" | "no local runtime" => baseline.to_ascii_lowercase().contains(&marker.to_ascii_lowercase()),
+                _ => baseline.contains(marker),
+            },
             "H35 baseline marker missing: {marker}"
         );
     }

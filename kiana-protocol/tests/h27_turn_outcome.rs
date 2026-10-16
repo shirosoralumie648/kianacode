@@ -1,3 +1,8 @@
+//! H27 协议面 fixture：确认结构化输出合同与 TurnOutcome 类型可由 `kiana-protocol` 导出并编码成 JSON。
+//!
+//! 本测试直接调用 DTO 构造器和 Serde，不经过 versioned request envelope、Client/Daemon 或真实生命周期；
+//! 它还确认 outcome wire 值没有 approval/capability grant 字段，但不证明其他层会拒绝所有越权请求。
+
 use kiana_protocol::{
     OutputContract, OutputValueType, TurnOutcome, TurnOutcomeInput, TurnOutcomeKind,
     OUTPUT_CONTRACT_SCHEMA, TURN_OUTCOME_SCHEMA,
@@ -6,6 +11,7 @@ use serde_json::json;
 use std::collections::BTreeMap;
 
 #[test]
+/// 检查输出合同摘要可随 outcome 编码，并确认 wire 结果不是授权对象。
 fn structured_outcome_contracts_are_wire_visible_but_not_authority() {
     let contract = OutputContract::new(
         "answer",

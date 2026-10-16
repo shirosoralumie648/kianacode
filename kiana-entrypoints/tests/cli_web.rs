@@ -62,6 +62,54 @@ fn kiana_base(cwd: &Path, home: &Path) -> Command {
     command
 }
 
+async fn mutation_headers(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+    request: reqwest::RequestBuilder,
+) -> reqwest::RequestBuilder {
+    // Use the current server display cursor exactly as the shipped page does.
+    // The body session selects the target; the token and tab still prove ownership.
+    let state: Value = client
+        .get(format!("{url}/api/state"))
+        .header("x-kiana-web-token", token)
+        .header("x-kiana-ui-tab", TAB)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let body = request
+        .try_clone()
+        .expect("fixture request can be cloned")
+        .build()
+        .unwrap();
+    let body: Option<Value> = body
+        .body()
+        .and_then(|body| body.as_bytes())
+        .and_then(|bytes| serde_json::from_slice(bytes).ok());
+    let target = body
+        .as_ref()
+        .and_then(|body| body["session_id"].as_str())
+        .or_else(|| state["session_id"].as_str())
+        .expect("server session target");
+    let action = kiana_protocol::UiAction {
+        target_id: target.to_owned(),
+        expected_epoch: state["cursor"]["epoch"]
+            .as_str()
+            .expect("server epoch")
+            .to_owned(),
+        expected_cursor: state["cursor"]["sequence"].as_u64().expect("server cursor"),
+        idempotency_key: uuid::Uuid::new_v4().to_string(),
+    };
+    request
+        .header("x-kiana-ui-epoch", action.expected_epoch)
+        .header("x-kiana-ui-cursor", action.expected_cursor.to_string())
+        .header("x-kiana-action-id", action.idempotency_key)
+        .header("x-kiana-action-target", action.target_id)
+}
+
 #[test]
 fn web_help_does_not_need_a_model() {
     let cwd = unique_dir("cwd");
@@ -181,11 +229,17 @@ async fn web_cassette_writes_through_daemon_host() {
         claimed.status()
     );
 
-    let trusted: Value = auth(
-        client
-            .post(format!("{url}/api/trust"))
-            .json(&serde_json::json!({})),
+    let trusted: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/trust"))
+                .json(&serde_json::json!({})),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -195,12 +249,18 @@ async fn web_cassette_writes_through_daemon_host() {
     assert_eq!(trusted["trusted"], true, "{trusted}");
 
     let oversized_body = format!(r#"{{"prompt":"{}"}}"#, "x".repeat(128 * 1024));
-    let oversized_body_response = auth(
-        client
-            .post(format!("{url}/api/run"))
-            .header("content-type", "application/json")
-            .body(oversized_body),
+    let oversized_body_response = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/run"))
+                .header("content-type", "application/json")
+                .body(oversized_body),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap();
@@ -209,11 +269,17 @@ async fn web_cassette_writes_through_daemon_host() {
         reqwest::StatusCode::PAYLOAD_TOO_LARGE
     );
 
-    let oversized = auth(
-        client
-            .post(format!("{url}/api/run"))
-            .json(&serde_json::json!({ "prompt": "x".repeat(64 * 1024 + 1) })),
+    let oversized = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/run"))
+                .json(&serde_json::json!({ "prompt": "x".repeat(64 * 1024 + 1) })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap();
@@ -221,13 +287,19 @@ async fn web_cassette_writes_through_daemon_host() {
     let oversized: Value = oversized.json().await.unwrap();
     assert_eq!(oversized["error"], "prompt_too_large");
 
-    let run: Value = auth(
-        client
-            .post(format!("{url}/api/run"))
-            .json(&serde_json::json!({
-                "prompt": "create GOLDEN_PATH.txt containing hello"
-            })),
+    let run: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/run"))
+                .json(&serde_json::json!({
+                    "prompt": "create GOLDEN_PATH.txt containing hello"
+                })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -344,11 +416,17 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
     });
     sse_ready_rx.await.expect("SSE headers");
 
-    let trusted: Value = auth(
-        client
-            .post(format!("{url}/api/trust"))
-            .json(&serde_json::json!({ "session_id": session_id })),
+    let trusted: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/trust"))
+                .json(&serde_json::json!({ "session_id": session_id })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -357,14 +435,20 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
     .unwrap();
     assert_eq!(trusted["trusted"], true, "{trusted}");
 
-    let run: Value = auth(
-        client
-            .post(format!("{url}/api/run"))
-            .json(&serde_json::json!({
-                "prompt": "create GOLDEN_PATH.txt containing hello",
-                "session_id": session_id,
-            })),
+    let run: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/run"))
+                .json(&serde_json::json!({
+                    "prompt": "create GOLDEN_PATH.txt containing hello",
+                    "session_id": session_id,
+                })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -470,11 +554,17 @@ async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
         urlencoding_encode(&session_id),
         urlencoding_encode(&token)
     );
-    let trusted: Value = auth(
-        client
-            .post(format!("{url}/api/trust"))
-            .json(&serde_json::json!({ "session_id": session_id })),
+    let trusted: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/trust"))
+                .json(&serde_json::json!({ "session_id": session_id })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -494,20 +584,26 @@ async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
         let token = token.clone();
         let session_id = session_id.clone();
         async move {
-            client
-                .post(format!("{url}/api/run"))
-                .header("x-kiana-web-token", token)
-                .header("x-kiana-ui-tab", TAB)
-                .json(&serde_json::json!({
-                    "prompt": "stream then sleep",
-                    "session_id": session_id,
-                }))
-                .send()
-                .await
-                .unwrap()
-                .json::<Value>()
-                .await
-                .unwrap()
+            mutation_headers(
+                &client,
+                &url,
+                &token,
+                client
+                    .post(format!("{url}/api/run"))
+                    .header("x-kiana-web-token", &token)
+                    .header("x-kiana-ui-tab", TAB)
+                    .json(&serde_json::json!({
+                        "prompt": "stream then sleep",
+                        "session_id": session_id,
+                    })),
+            )
+            .await
+            .send()
+            .await
+            .unwrap()
+            .json::<Value>()
+            .await
+            .unwrap()
         }
     });
 
@@ -810,17 +906,23 @@ async fn web_rejects_wrong_origin_and_host_without_mutating_trust() {
         .unwrap();
     assert_eq!(state["trusted"], false, "{state}");
 
-    let trusted: Value = client
-        .post(format!("{url}/api/trust"))
-        .header("x-kiana-web-token", token)
-        .header("x-kiana-ui-tab", TAB)
-        .header("origin", &url)
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+    let trusted: Value = mutation_headers(
+        &client,
+        &url,
+        token,
+        client
+            .post(format!("{url}/api/trust"))
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", TAB)
+            .header("origin", &url),
+    )
+    .await
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
     assert_eq!(trusted["trusted"], true, "{trusted}");
     let _ = child.kill().await;
 }
@@ -941,6 +1043,7 @@ async fn web_rejects_foreign_bearers_and_sessions_without_mutation() {
     let foreign_session = client
         .post(format!("{url_b}/api/run"))
         .header("x-kiana-web-token", &token_b)
+        .header("x-kiana-ui-tab", TAB)
         .json(&serde_json::json!({
             "prompt": "write SHOULD_NOT_EXIST.txt",
             "session_id": session_a,
@@ -1056,24 +1159,36 @@ async fn web_projects_each_run_to_its_requested_session() {
         .as_str()
         .expect("initial session id")
         .to_owned();
-    let second: Value = auth(client.post(format!("{url}/api/session")))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+    let second: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(client.post(format!("{url}/api/session"))),
+    )
+    .await
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
     let session_b = second["session_id"]
         .as_str()
         .expect("second session id")
         .to_owned();
     assert_ne!(session_a, session_b);
 
-    let trusted: Value = auth(
-        client
-            .post(format!("{url}/api/trust"))
-            .json(&serde_json::json!({ "session_id": session_a })),
+    let trusted: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/trust"))
+                .json(&serde_json::json!({ "session_id": session_a })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -1082,14 +1197,20 @@ async fn web_projects_each_run_to_its_requested_session() {
     .unwrap();
     assert_eq!(trusted["session_id"], session_a, "{trusted}");
 
-    let sandbox: Value = auth(
-        client
-            .post(format!("{url}/api/sandbox"))
-            .json(&serde_json::json!({
-                "sandbox": "workspace-write",
-                "session_id": session_a,
-            })),
+    let sandbox: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/sandbox"))
+                .json(&serde_json::json!({
+                    "sandbox": "workspace-write",
+                    "session_id": session_a,
+                })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -1098,14 +1219,20 @@ async fn web_projects_each_run_to_its_requested_session() {
     .unwrap();
     assert_eq!(sandbox["session_id"], session_a, "{sandbox}");
 
-    let run_a: Value = auth(
-        client
-            .post(format!("{url}/api/run"))
-            .json(&serde_json::json!({
-                "prompt": "first task",
-                "session_id": session_a,
-            })),
+    let run_a: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/run"))
+                .json(&serde_json::json!({
+                    "prompt": "first task",
+                    "session_id": session_a,
+                })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()
@@ -1126,14 +1253,20 @@ async fn web_projects_each_run_to_its_requested_session() {
     assert_eq!(state_b["session_id"], session_b, "{state_b}");
     assert_eq!(state_b["thread"]["turns"].as_array().unwrap().len(), 0);
 
-    let run_b: Value = auth(
-        client
-            .post(format!("{url}/api/run"))
-            .json(&serde_json::json!({
-                "prompt": "second task",
-                "session_id": session_b,
-            })),
+    let run_b: Value = mutation_headers(
+        &client,
+        &url,
+        &token,
+        auth(
+            client
+                .post(format!("{url}/api/run"))
+                .json(&serde_json::json!({
+                    "prompt": "second task",
+                    "session_id": session_b,
+                })),
+        ),
     )
+    .await
     .send()
     .await
     .unwrap()

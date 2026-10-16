@@ -212,7 +212,10 @@ impl ControlPlane {
         if let Err(reason) = input.validate() {
             return Ok(CoreResponse::blocked(context.request_id, reason));
         }
-        if context.permission_profile == PermissionProfile::Safe {
+        if matches!(
+            context.permission_profile,
+            PermissionProfile::Safe | PermissionProfile::Ask
+        ) {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "audit_export_requires_explicit_permission",
@@ -312,11 +315,12 @@ impl ControlPlane {
 
 #[cfg(test)]
 mod tests {
-    use super::{redacted_record, AuditExportError};
-    use kiana_domain::{AuditActionKind, AuditDecision, AuditRecord, DataClass, EventId};
+    use super::{redacted_record, render_content, AuditExportError};
+    use kiana_domain::{
+        AuditActionKind, AuditDecision, AuditExportFormat, AuditRecord, DataClass, EventId,
+    };
 
-    #[test]
-    fn oa03_audit_export_rejects_secret_sentinel_without_returning_content() {
+    fn secret_record() -> AuditRecord {
         let mut record = AuditRecord::new(
             "audit:oa03-export",
             AuditActionKind::Authorization,
@@ -334,11 +338,29 @@ mod tests {
         .expect("valid audit record");
         record.reason = "proxy-authorization: [REDACTED]OA03_EXPORT_SECRET_SENTINEL".to_owned();
         record.record_digest = record.digest();
+        record
+    }
 
+    #[test]
+    fn oa03_audit_export_rejects_secret_sentinel_without_returning_content() {
+        let record = secret_record();
         let error = redacted_record(&record).unwrap_err();
         assert_eq!(
             error,
             AuditExportError::RedactionFailed("redaction_secret_sentinel_detected".to_owned())
         );
+    }
+
+    #[test]
+    fn oa03_audit_export_rejects_secret_sentinel_before_every_format_renderer() {
+        let record = secret_record();
+        for format in [
+            AuditExportFormat::Jsonl,
+            AuditExportFormat::Json,
+            AuditExportFormat::Csv,
+        ] {
+            let error = render_content(std::slice::from_ref(&record), format).unwrap_err();
+            assert_eq!(error, AuditExportError::RecordsInvalid, "format {format:?}");
+        }
     }
 }

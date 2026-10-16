@@ -37,27 +37,34 @@ fn unknown_run() -> (RunId, RequestId, Vec<RuntimeEvent>) {
             run_id,
             request_id,
             3,
+            "capability.decision",
+            json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1,"action_digest":digest,"gate":{"decision":"allowed"}}),
+        ),
+        event(
+            run_id,
+            request_id,
+            4,
             "invocation.dispatching",
             json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1}),
         ),
         event(
             run_id,
             request_id,
-            4,
+            5,
             "invocation.executing",
             json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1,"effect_started":true}),
         ),
         event(
             run_id,
             request_id,
-            5,
+            6,
             "execution.result_committed",
             json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1,"effect_known":false,"error":"result_unknown:provider_timeout","result":{"success":false,"output":{"raw":"raw-secret"}}}),
         ),
         event(
             run_id,
             request_id,
-            6,
+            7,
             "audit.forged",
             json!({"run_id":run_id,"authority_epoch":1,"data_epoch":1,"actor_ref":"model"}),
         ),
@@ -95,7 +102,7 @@ fn replay_diagnostics_are_deterministic_safe_and_unknown_effect_is_locatable() {
         expected_status: TraceStatus::Ok,
         expected_error_code: None,
     };
-    let expected = diagnose_replay(&events[..5], Some(run_id), &[expectation]).unwrap();
+    let expected = diagnose_replay(&events[..7], Some(run_id), &[expectation]).unwrap();
     assert!(expected.diagnostics.iter().any(|diagnostic| {
         diagnostic.divergence == kiana_domain::ReplayDivergenceKind::StatusMismatch
     }));

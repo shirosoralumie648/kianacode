@@ -83,6 +83,9 @@ impl ReworkProvenance {
                 return Err("rework_digest_invalid");
             }
         }
+        if self.predecessor_state == ReworkAttemptState::Unknown {
+            return Err("rework_attempt_not_reclaimable");
+        }
         if self.predecessor_state.terminal() {
             return Err("rework_terminal_attempt_cannot_revive");
         }

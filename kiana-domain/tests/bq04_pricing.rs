@@ -83,3 +83,24 @@ fn rate_card_rejects_version_time_and_digest_drift() {
     tampered.input_price_per_unit = Some(u64::MAX);
     assert_eq!(tampered.validate().unwrap_err(), "rate_card_invalid");
 }
+
+#[test]
+fn estimate_rejects_unproven_cache_and_reasoning_overlap() {
+    let mut card = card();
+    card.cache_read_price_per_unit = Some(1);
+    card.reasoning_price_per_unit = Some(1);
+    card.rate_card_digest = card.digest();
+    card.validate().unwrap();
+
+    let mut usage = UsageVector::zero();
+    usage.input_tokens = Some(10);
+    usage.cache_read_tokens = Some(4);
+    usage.output_tokens = Some(8);
+    usage.reasoning_output_tokens = Some(2);
+    let estimate = card.estimate(&usage, 0).unwrap();
+    assert_eq!(estimate.amount, None);
+    assert_eq!(
+        estimate.unknown_reason,
+        Some(BillingUnknownReason::Unsupported)
+    );
+}

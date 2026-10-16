@@ -109,21 +109,41 @@ fn known_usage_consumes_then_releases_only_unused_reservation() {
     let fixture = fixture();
     let (reserved, record) = lifecycle_pair(&fixture, UsageConfidence::Known);
     let mut ledger = SettlementFoldLedger::default();
-    ledger.apply(reserved).unwrap();
+    ledger.apply(reserved.clone()).unwrap();
     let event = ledger
         .settle_from_lifecycle(&fixture.reservation, &record, source())
         .unwrap();
     assert_eq!(event.kind, SettlementFoldEventKind::Consumed);
     assert_eq!(
-        ledger.apply(event).unwrap(),
+        ledger.get(fixture.attempt_id).unwrap().state,
+        SettlementFoldState::Consumed
+    );
+
+    // The command already applies its event. A fresh projection first consumes it once,
+    // then treats the exact same event as an idempotent replay without charging again.
+    let mut replay = SettlementFoldLedger::default();
+    replay.apply(reserved).unwrap();
+    assert_eq!(
+        replay.apply(event.clone()).unwrap(),
         SettlementFoldApplyOutcome::Applied
     );
+    let consumed = replay.get(fixture.attempt_id).unwrap().clone();
+    assert_eq!(
+        replay.apply(event).unwrap(),
+        SettlementFoldApplyOutcome::Duplicate
+    );
+    assert_eq!(replay.get(fixture.attempt_id), Some(&consumed));
     let release = ledger.release_unused(fixture.attempt_id, source()).unwrap();
     assert_eq!(release.kind, SettlementFoldEventKind::Released);
+    assert_eq!(
+        replay.apply(release.clone()).unwrap(),
+        SettlementFoldApplyOutcome::Applied
+    );
     let released = ledger.get(fixture.attempt_id).unwrap();
     assert_eq!(released.state, SettlementFoldState::Released);
     assert_eq!(released.consumed.unwrap().tokens, Some(12));
     assert_eq!(released.released.tokens, 88);
+    assert_eq!(replay.get(fixture.attempt_id), Some(released));
     assert!(ledger.release_unused(fixture.attempt_id, source()).is_err());
 }
 

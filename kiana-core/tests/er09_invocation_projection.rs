@@ -407,6 +407,69 @@ fn invocation_projection_normalizes_and_validates_terminal_result_receipts() {
 }
 
 #[test]
+fn invocation_projection_distinguishes_terminal_conflict_from_reopening() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let mut completed = executing_events(run_id, request_id);
+    let terminal = event(
+        run_id,
+        request_id,
+        5,
+        "capability.completed",
+        json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1,"result":{"success":true}}),
+    );
+    completed.push(terminal.clone());
+    assert_eq!(
+        project_invocations(run_id, &completed).unwrap()[0].state,
+        CapabilityExecutionState::Succeeded
+    );
+
+    let mut duplicate_identity = completed.clone();
+    duplicate_identity.push(terminal.clone());
+    assert_eq!(
+        project_invocations(run_id, &duplicate_identity).unwrap_err(),
+        "invocation_duplicate_event_id"
+    );
+    let mut replay = completed.clone();
+    replay.push(event(
+        run_id,
+        request_id,
+        6,
+        "capability.completed",
+        terminal.data,
+    ));
+    assert_eq!(
+        project_invocations(run_id, &replay).unwrap()[0].state,
+        CapabilityExecutionState::Succeeded
+    );
+
+    let mut conflicting = completed.clone();
+    conflicting.push(event(
+        run_id,
+        request_id,
+        6,
+        "capability.failed",
+        json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1,"result":{"success":false,"error":"contradiction"}}),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &conflicting).unwrap_err(),
+        "invocation_terminal_conflict"
+    );
+
+    completed.push(event(
+        run_id,
+        request_id,
+        6,
+        "invocation.executing",
+        json!({"run_id":run_id,"capability_request_id":request_id,"attempt":1,"action_digest":digest('a')}),
+    ));
+    assert_eq!(
+        project_invocations(run_id, &completed).unwrap_err(),
+        "invocation_state_transition_invalid"
+    );
+}
+
+#[test]
 fn invocation_projection_rejects_uncommitted_terminal_receipts() {
     let run_id = RunId::new();
     let request_id = RequestId::new();
@@ -522,12 +585,79 @@ fn capability_attempt_projection_preserves_unknown_stop_and_retry_attempts() {
 }
 
 #[test]
+fn capability_attempt_projection_rejects_event_id_content_drift_but_allows_exact_replay() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let first = requested(run_id, request_id, 1, 1);
+
+    let mut conflicting = first.clone();
+    conflicting.data["operation"] = json!("delete");
+    let error = project_capability_attempts(run_id, &[first.clone(), conflicting]).unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "capability_attempt_event_identity_conflict"
+    );
+
+    let replayed = project_capability_attempts(run_id, &[first.clone(), first]).unwrap();
+    assert_eq!(replayed.len(), 1);
+    assert_eq!(replayed[0].request_id, request_id);
+}
+
+#[test]
+fn invocation_projection_rejects_corrupted_receipt_digest() {
+    let run_id = RunId::new();
+    let request_id = RequestId::new();
+    let result = CapabilityResult::success(request_id, json!({"answer":"one"}));
+    let receipt = CapabilityResultReceipt::from_result(&result, None, None, 1, true).unwrap();
+    for corrupted_digest in ["invalid".to_owned(), digest('f')] {
+        let mut payload = serde_json::to_value(&receipt).unwrap();
+        payload["receipt_digest"] = json!(corrupted_digest);
+        let mut events = executing_events(run_id, request_id);
+        events.push(event(
+            run_id,
+            request_id,
+            5,
+            "capability.completed",
+            json!({
+                "run_id":run_id,
+                "capability_request_id":request_id,
+                "attempt":1,
+                "effect_started":true,
+                "effect_known":true,
+                "zero_effect":false,
+                "fenced":false,
+                "answer":"one",
+                "result_receipt":payload,
+            }),
+        ));
+        assert_eq!(
+            project_invocations(run_id, &events).unwrap_err(),
+            "invocation_result_receipt_invalid"
+        );
+    }
+}
+
+#[test]
 fn er09_projection_exposes_only_typed_attempt_identity() {
     let invocation = include_str!("../src/invocation_projection.rs");
     let attempts = include_str!("../src/capability_attempt_projection.rs");
+    let receipt_owner = include_str!("../../kiana-domain/src/capabilities.rs");
+    for marker in [
+        "pub fn from_json(value: &Value)",
+        "receipt.validate()?",
+        "validate_digest(&self.receipt_digest",
+        "self.receipt_digest != self.digest()",
+        "capability_result_receipt_digest_mismatch",
+    ] {
+        assert!(
+            receipt_owner.contains(marker),
+            "ER-09 receipt owner missing: {marker}"
+        );
+    }
     for marker in [
         "invocation_terminal_conflict",
         "invocation_action_digest_conflict",
+        "capability_attempt_event_identity_conflict",
         "CapabilityExecutionState::Unknown",
         "execution.result_committed",
         "terminal_signature",
@@ -540,7 +670,6 @@ fn er09_projection_exposes_only_typed_attempt_identity() {
         "invocation_result_receipt_effect_known_conflict",
         "invocation_result_receipt_outcome_state_conflict",
         "result_digest",
-        "receipt_digest",
         "digest_for",
         "effect_known",
         "stop_confirmed",
@@ -552,6 +681,7 @@ fn er09_projection_exposes_only_typed_attempt_identity() {
             "ER-09 marker missing: {marker}"
         );
     }
+    assert!(attempts.contains("HashMap<EventId, &RuntimeEvent>"));
     assert!(attempts.contains("ForeignAttemptResult"));
     assert!(attempts.contains("multiple") || attempts.contains("terminal_digest"));
     for forbidden in [

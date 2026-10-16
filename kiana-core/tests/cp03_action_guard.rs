@@ -1,3 +1,8 @@
+//! CP-03 跨层动作描述与执行边界的静态源码守卫。
+//!
+//! 本测试通过 `include_str!` 检查 Domain/Core/Broker/Daemon 文件包含约定标记，不执行动作准备、
+//! 权限裁决或 handler；它防止关键接缝从源码中消失，但不是运行时路径证明。
+/// 检查 Catalog metadata 会贯穿准备、Broker binding 和实际 handler 注册边界。
 #[test]
 fn action_catalog_preparation_and_execution_share_server_metadata() {
     let actions = include_str!("../../kiana-domain/src/actions.rs");

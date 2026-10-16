@@ -12,6 +12,16 @@ fn schema_registry_separates_layers_and_fails_closed_on_unknown_major() {
     assert!(protocol.allow_unknown_fields);
     assert!(!company.allow_unknown_fields);
     assert!(check_schema_compatibility("kiana.protocol.v1", &SchemaVersion::new(1, 7)).is_ok());
+    assert!(check_schema_compatibility(
+        "kiana.deployment-startup-fact.v1",
+        &SchemaVersion::new(1, 1)
+    )
+    .is_err());
+    assert!(check_schema_compatibility(
+        "kiana.deployment-startup-fact.v1",
+        &SchemaVersion::new(1, 0)
+    )
+    .is_ok());
     assert!(check_schema_compatibility("kiana.protocol.v1", &SchemaVersion::new(2, 0)).is_err());
     assert!(check_schema_compatibility("kiana.unknown.v1", &SchemaVersion::new(1, 0)).is_err());
 }

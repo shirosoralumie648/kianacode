@@ -148,8 +148,8 @@ async fn idempotency_payload_drift_is_blocked_without_duplicate_business_fact() 
     let first = send(
         &host,
         &root,
-        "sponsor-session",
-        RoleSpec::sponsor(),
+        "builder-artifact-session",
+        RoleSpec::builder(),
         0,
         "register-charter",
         CompanyCommand::RegisterArtifact {
@@ -163,8 +163,8 @@ async fn idempotency_payload_drift_is_blocked_without_duplicate_business_fact() 
     let drift = send(
         &host,
         &root,
-        "sponsor-session",
-        RoleSpec::sponsor(),
+        "builder-artifact-session",
+        RoleSpec::builder(),
         0,
         "register-charter",
         CompanyCommand::RegisterArtifact {

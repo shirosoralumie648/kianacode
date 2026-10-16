@@ -119,6 +119,18 @@ pub fn project_persistence_read_model(
                     kinds.join(",")
                 )
             }
+            RunProjectionError::EventRunIdConflict => {
+                "persistence_read_model_run:run_event_run_id_conflict".to_owned()
+            }
+            RunProjectionError::EventRunIdInvalid => {
+                "persistence_read_model_run:run_event_run_id_invalid".to_owned()
+            }
+            RunProjectionError::EventIdentityConflict { event_id } => {
+                format!("persistence_read_model_run:run_event_identity_conflict:{event_id}")
+            }
+            RunProjectionError::IdentityLinksInvalid { reason } => {
+                format!("persistence_read_model_run:run_identity_links_invalid:{reason}")
+            }
         })?
         .into();
     let invocations = project_invocations(run_id, &run_events)

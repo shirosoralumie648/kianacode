@@ -39,9 +39,7 @@ impl SettlementCost {
                 provider_receipt,
             } => {
                 amount.validate()?;
-                if provider_receipt.as_str().trim().is_empty() {
-                    return Err("provider_receipt_missing".to_owned());
-                }
+                validate_provider_receipt(provider_receipt)?;
                 Ok(())
             }
         }
@@ -120,6 +118,7 @@ impl ProviderUsageSettlement {
                     .unwrap_or(BillingUnknownReason::ProviderUnreported),
             },
         };
+        let cost_is_known = !cost.is_unknown();
         let mut result = Self {
             schema: PROVIDER_USAGE_SETTLEMENT_SCHEMA.to_owned(),
             version: PROVIDER_USAGE_SETTLEMENT_VERSION,
@@ -134,7 +133,7 @@ impl ProviderUsageSettlement {
             retry_ordinal: usage.retry_ordinal,
             usage: usage.clone(),
             cost,
-            state: if usage.confidence == UsageConfidence::Known {
+            state: if cost_is_known {
                 BillingState::Observed
             } else {
                 BillingState::Unknown
@@ -227,7 +226,7 @@ impl ProviderUsageSettlement {
             return Err("provider_usage_cost_already_known".to_owned());
         }
         amount.validate()?;
-        provider_receipt.as_str();
+        validate_provider_receipt(&provider_receipt)?;
         self.cost = SettlementCost::Measured {
             amount,
             provider_receipt,
@@ -243,9 +242,18 @@ impl ProviderUsageSettlement {
         if next == BillingState::Settled && self.cost.is_unknown() {
             return Err("provider_usage_unknown_cannot_settle".to_owned());
         }
-        self.state = next;
-        self.settlement_digest = self.digest();
-        self.validate()
+        if next == BillingState::Corrected && self.cost.is_unknown() {
+            return Err("provider_usage_unknown_cannot_correct".to_owned());
+        }
+        if next == BillingState::Unknown && !self.cost.is_unknown() {
+            return Err("provider_usage_known_cost_cannot_be_unknown".to_owned());
+        }
+        let mut candidate = self.clone();
+        candidate.state = next;
+        candidate.settlement_digest = candidate.digest();
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     pub fn digest(&self) -> String {
@@ -310,4 +318,13 @@ fn valid_digest(value: &str) -> bool {
     value.len() == 71
         && value.starts_with("sha256:")
         && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn validate_provider_receipt(provider_receipt: &ProviderReceiptRef) -> Result<(), String> {
+    if provider_receipt.as_str().trim().is_empty() {
+        return Err("provider_receipt_missing".to_owned());
+    }
+    ProviderReceiptRef::new(provider_receipt.as_str().to_owned())
+        .map(|_| ())
+        .map_err(|_| "provider_receipt_invalid".to_owned())
 }

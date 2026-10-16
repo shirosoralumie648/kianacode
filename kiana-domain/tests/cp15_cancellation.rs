@@ -8,8 +8,8 @@ fn ids() -> (RunId, RequestId, RequestId, RequestId) {
     (
         RunId::new(),
         RequestId::new(),
-        RequestId::new(),
-        RequestId::new(),
+        RequestId::parse_str("00000000-0000-4000-8000-000000000001").unwrap(),
+        RequestId::parse_str("00000000-0000-4000-8000-000000000002").unwrap(),
     )
 }
 

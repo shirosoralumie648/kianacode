@@ -50,6 +50,12 @@ fn signed_skill_scope_binds_registry_role_policy_and_expiry() {
     let scope = ExtensionExecutionScope::new(&manifest(), raw_hash('a'), 7, "builder", 100, 200)
         .expect("scope");
     scope.validate().expect("valid scope");
+    assert_eq!(
+        scope
+            .validate_at(99, 7, "builder")
+            .expect_err("future-issued scope must fail closed"),
+        "extension_scope_not_yet_valid"
+    );
     scope
         .validate_at(199, 7, "builder")
         .expect("current role and registry generation");
@@ -71,6 +77,17 @@ fn signed_skill_scope_binds_registry_role_policy_and_expiry() {
             .expect_err("role drift must fail closed"),
         "extension_scope_role_mismatch"
     );
+
+    let contract = scope.contract(ExtensionEffect::ReadOnly);
+    assert_eq!(
+        contract
+            .validate_at(99, 7, "builder")
+            .expect_err("future-issued contract must fail closed"),
+        "extension_scope_not_yet_valid"
+    );
+    contract
+        .validate_at(100, 7, "builder")
+        .expect("contract becomes valid at its issue instant");
 }
 
 #[test]
@@ -96,5 +113,36 @@ fn signed_skill_scope_rejects_manifest_policy_drift_and_unknown_fields() {
     assert!(
         serde_json::from_value::<ExtensionExecutionScope>(encoded).is_err(),
         "scope contract must reject unknown fields"
+    );
+}
+
+#[test]
+fn signed_skill_contract_rejects_scope_digest_drift() {
+    let scope = ExtensionExecutionScope::new(&manifest(), raw_hash('a'), 7, "builder", 100, 200)
+        .expect("scope");
+    let mut contract = scope.contract(ExtensionEffect::ReadOnly);
+    contract.scope_digest = format!("sha256:{}", "d".repeat(64));
+
+    assert_eq!(
+        contract
+            .validate_at(100, 7, "builder")
+            .expect_err("forged contract digest must fail closed"),
+        "extension_scope_digest_mismatch"
+    );
+    assert_eq!(
+        contract
+            .matches_manifest(&manifest())
+            .expect_err("manifest matching must recheck the signed digest"),
+        "extension_scope_digest_mismatch"
+    );
+
+    let mut malformed_policy = scope.contract(ExtensionEffect::ReadOnly);
+    malformed_policy.capability_diff_digest = "malformed".to_owned();
+    malformed_policy.scope_digest = malformed_policy.canonical_scope_digest();
+    assert_eq!(
+        malformed_policy
+            .validate_at(100, 7, "builder")
+            .expect_err("policy digest shape must fail closed"),
+        "extension_execution_contract_invalid"
     );
 }

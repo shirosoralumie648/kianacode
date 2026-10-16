@@ -505,7 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn context_repo_map_uses_client_daemon_core_and_query_handler() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let (_env, home) = isolated_command_env();
         let root = fixture_root("repo-map");
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(root.join("src/lib.rs"), "pub struct RoutedContext;\n").unwrap();
@@ -527,11 +527,12 @@ mod tests {
         assert_eq!(map["files"][0]["path"], "src/lib.rs");
         let _ = kiana_types::remove_project_trust(&root);
         let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
     }
 
     #[tokio::test]
     async fn context_repo_map_does_not_promote_unknown_project_trust() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let (_env, home) = isolated_command_env();
         let root = fixture_root("untrusted");
         fs::create_dir_all(&root).unwrap();
         let error = execute_command(
@@ -548,14 +549,15 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            "control_plane_command_denied:project_untrusted"
+            "control_plane_command_blocked:project_untrusted"
         );
         let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
     }
 
     #[tokio::test]
     async fn context_read_queries_use_the_same_dispatcher() {
-        let _guard = crate::test_support::env_lock().lock().unwrap();
+        let (_env, home) = isolated_command_env();
         let root = fixture_root("read-queries");
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(
@@ -597,6 +599,24 @@ mod tests {
 
         let _ = kiana_types::remove_project_trust(&root);
         let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    fn isolated_command_env() -> (crate::test_support::ScopedEnv<'static>, std::path::PathBuf) {
+        let env = crate::test_support::scoped_env(&["KIANA_HOME", "HOME", "KIANA_CONFIG_FILE"]);
+        let home = fixture_root("home");
+        fs::create_dir_all(&home).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_CONFIG_FILE", home.join("config.toml"));
+        // Reuse the production composition root with its existing in-memory EventLog factory.
+        // The unit fixture proves routing and authorization; disk durability is tested elsewhere.
+        if LOCAL_DAEMON.get().is_none() {
+            LOCAL_DAEMON
+                .set(Arc::new(DaemonHost::with_env_harness().unwrap()))
+                .unwrap_or_else(|_| panic!("isolated command daemon initialization raced"));
+        }
+        (env, home)
     }
 
     fn fixture_root(label: &str) -> std::path::PathBuf {

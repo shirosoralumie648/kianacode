@@ -6,6 +6,7 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
     let shell = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
     let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
     let mcp = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
+    let mcp_harness = include_str!("../../kiana-daemon/src/harness_mcp.rs");
     let dispatch = include_str!("../../kiana-core/src/dispatch.rs");
     for marker in [
         "complete_admitted_cancellable",
@@ -22,6 +23,8 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
         "mcp_stop_unconfirmed",
         "result_unknown:cancel_stop_unconfirmed",
         "stop_confirmed",
+        "ensure_supported_transport",
+        "mcp_transport_unsupported",
     ] {
         assert!(
             ports.contains(marker)
@@ -30,6 +33,7 @@ fn h08_cancellation_fence_covers_model_and_effect_boundaries() {
                 || shell.contains(marker)
                 || supervisor.contains(marker)
                 || mcp.contains(marker)
+                || mcp_harness.contains(marker)
                 || dispatch.contains(marker),
             "H08 marker missing: {marker}"
         );

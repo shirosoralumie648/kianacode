@@ -14,27 +14,27 @@ pub use kiana_domain::{
 };
 use kiana_domain::{canonical_scopes, CoreResponse};
 pub use kiana_domain::{
-    check_event_schema_version, event_kind_spec, event_migration, normalize_role_path,
-    project_redacted_error, redact_text, resolve_event_payload, scan_secret_channels,
-    scan_secret_sentinels, scan_secret_value, unknown_event_policy, upcast_event_payload,
-    validate_event_payload, validate_runtime_event, ActionRef, ActionRefId, AdapterCommitState,
-    AdapterResult, AdapterResultKind, AgentTemplate, AggregationVerification, ApprovalChallenge,
-    ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact, ApprovalExecutionMaterial,
-    ApprovalId, ApprovalMaterialState, ApprovalPlanPreview, ArtifactId, ArtifactProvenance,
-    ArtifactRef, ArtifactVersion, AssignmentDirectory, AssignmentId, AttemptId, AttemptStatus,
-    AuditActionKind, AuditDecision, AuditExportFormat, AuditId, AuditQueryCursor, AuditRecord,
-    AuthenticatedPrincipalRef, AuthenticationAssurance, AuthorityFence, AuthorityLedger,
-    AuthoritySnapshot, BudgetLease, BudgetLeaseId, BudgetReservationFact, BudgetScope,
-    BudgetSettlementFact, CapabilityErrorCode, CapabilityErrorPolicy, CapabilityExecutionState,
-    CapabilityGrant, CapabilityGrantId, CapabilityProcessState, CapabilityResultDimensions,
-    CapabilityResultReceipt, CatalogCandidate, CatalogEntry, CatalogEntryKind, CellId,
-    CellLifecycle, CellSpec, ChildCellId, ChildHarnessBounds, ChildHarnessBudget,
-    ChildHarnessCancellation, ChildHarnessIntent, ChildHarnessOutcome, ChildHarnessOutcomeKind,
-    ChunkKind, ChunkRange, ChunkSet, ClarificationAnswer, ClarificationCancelPolicy,
-    ClarificationOption, ClarificationRequest, ClarificationResolution, ClarificationSource,
-    ClarificationStatus, ClarificationWaitView, CleanupCause, CleanupResource, CleanupResourceKind,
-    CleanupResourceStatus, ClosingReceipt, CodeGraphEdge, CodeGraphNodeKind, CodeGraphRebuildPlan,
-    CodeGraphRelation, CodeGraphTemporalState, CommunicationLifecycleEvent,
+    check_event_schema_version, check_schema_compatibility, event_kind_spec, event_migration,
+    normalize_role_path, project_redacted_error, redact_text, resolve_event_payload,
+    scan_secret_channels, scan_secret_sentinels, scan_secret_value, unknown_event_policy,
+    upcast_event_payload, validate_event_payload, validate_runtime_event, ActionRef, ActionRefId,
+    AdapterCommitState, AdapterResult, AdapterResultKind, AgentTemplate, AggregationVerification,
+    ApprovalChallenge, ApprovalConsumptionFact, ApprovalDecision, ApprovalDecisionFact,
+    ApprovalExecutionMaterial, ApprovalId, ApprovalMaterialState, ApprovalPlanPreview, ArtifactId,
+    ArtifactProvenance, ArtifactRef, ArtifactVersion, AssignmentDirectory, AssignmentId, AttemptId,
+    AttemptStatus, AuditActionKind, AuditDecision, AuditExportFormat, AuditId, AuditQueryCursor,
+    AuditRecord, AuthenticatedPrincipalRef, AuthenticationAssurance, AuthorityFence,
+    AuthorityLedger, AuthoritySnapshot, BudgetLease, BudgetLeaseId, BudgetReservationFact,
+    BudgetScope, BudgetSettlementFact, CapabilityErrorCode, CapabilityErrorPolicy,
+    CapabilityExecutionState, CapabilityGrant, CapabilityGrantId, CapabilityProcessState,
+    CapabilityResultDimensions, CapabilityResultReceipt, CatalogCandidate, CatalogEntry,
+    CatalogEntryKind, CellId, CellLifecycle, CellSpec, ChildCellId, ChildHarnessBounds,
+    ChildHarnessBudget, ChildHarnessCancellation, ChildHarnessIntent, ChildHarnessOutcome,
+    ChildHarnessOutcomeKind, ChunkKind, ChunkRange, ChunkSet, ClarificationAnswer,
+    ClarificationCancelPolicy, ClarificationOption, ClarificationRequest, ClarificationResolution,
+    ClarificationSource, ClarificationStatus, ClarificationWaitView, CleanupCause, CleanupResource,
+    CleanupResourceKind, CleanupResourceStatus, ClosingReceipt, CodeGraphEdge, CodeGraphNodeKind,
+    CodeGraphRebuildPlan, CodeGraphRelation, CodeGraphTemporalState, CommunicationLifecycleEvent,
     CommunicationLifecycleStatus, CommunicationMessage, CommunicationMessageKind,
     CompactEvidenceKind, CompactEvidenceStatus, CompactSummary, CompactSummaryEvidence,
     CompanyCommandReceipt, CompanyReceiptStatus, CompanyScope, CompanyScopeRegistry, ComponentId,
@@ -484,6 +484,10 @@ pub struct RequestMetadata {
     /// Optional server-recognized entrypoint label; it is correlation metadata, never authority.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entrypoint: Option<EntryPointKind>,
+    /// Optional W3C parent supplied by an external transport. The daemon validates it and keeps
+    /// it as a foreign span link; it never becomes the server-owned trace root or authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
 }
 
 impl RequestMetadata {
@@ -507,6 +511,7 @@ impl RequestMetadata {
             credential_ref: None,
             identity_mode: None,
             entrypoint: None,
+            traceparent: None,
         }
     }
 
@@ -597,8 +602,8 @@ impl RequestEnvelope {
         Self::command(metadata, SWARM_SNAPSHOT, serde_json::json!({}))
     }
 
-    ///      通用命令构造器：`RequestBody::Command` 的唯一产地。
-    ///      【作用】 `arguments` 是 `serde_json::Value`，所以这个函数不做任何形状检查。typed helper（`ops_command` / `quality_command` / `connector_command` / `extension_command` / `cost_correction_command`）先各自 `validate()` 再落到这里。
+    /// 通用命令构造器：`RequestBody::Command` 的唯一产地。
+    /// 【作用】 `arguments` 是 `serde_json::Value`，所以这个函数不做任何形状检查。typed helper（`ops_command` / `quality_command` / `connector_command` / `extension_command` / `cost_correction_command`）先各自 `validate()` 再落到这里。
     /// 【⚠ 直接用裸字符串命令名调用它可以编出任何命令，包括 daemon 只读白名单里没有的那些。daemon 侧的 `request_may_execute` 对未知命令名默认返回"可执行"，所以安全性完全落在 Core 的命令路由上。】
     ///
     pub fn command(metadata: RequestMetadata, name: impl Into<String>, arguments: Value) -> Self {
@@ -1143,8 +1148,8 @@ pub struct CostCorrectionCommandResponse {
 }
 
 impl CostCorrectionCommandResponse {
-    ///      【核心流程】 1) 三个 ID/游标的非空与非零检查，其中 `source_cursor == 0` 视为非法；2) 两个 digest 都要有 `sha256:` 前缀、去掉前缀后正好 64 个 ASCII 十六进制字符。
-    ///      [为什么自己解析 digest 而不调 `json_digest` 比较] 这里是验证**形状**（前缀+长度+字符集），不是验证内容——内容一致性由生成方保证。
+    /// 【核心流程】 1) 三个 ID/游标的非空与非零检查，其中 `source_cursor == 0` 视为非法；2) 两个 digest 都要有 `sha256:` 前缀、去掉前缀后正好 64 个 ASCII 十六进制字符。
+    /// [为什么自己解析 digest 而不调 `json_digest` 比较] 这里是验证**形状**（前缀+长度+字符集），不是验证内容——内容一致性由生成方保证。
     /// 【⚠ 64 是 SHA-256 输出字节数的十六进制表示；换成别的哈希算法时这两处长度判断必须一起改，否则合法 digest 会被判非法。】
     ///
     pub fn validate(&self) -> Result<(), String> {
@@ -2248,6 +2253,8 @@ mod tests {
         let mut metadata = RequestMetadata::local("session-1", "/repo");
         metadata.project_trusted = true;
         metadata.permission_profile = PermissionProfile::Balanced;
+        metadata.traceparent =
+            Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".to_owned());
         let request = RequestEnvelope::command(
             metadata,
             "system.architecture",

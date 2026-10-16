@@ -12,7 +12,7 @@ use kiana_domain::{
 };
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::{ControlPlane, CoreError};
 
@@ -22,6 +22,8 @@ pub enum ModelAttemptProjectionError {
     EventRunIdInvalid,
     #[error("model_attempt_event_run_id_conflict")]
     EventRunIdConflict,
+    #[error("model_attempt_event_identity_conflict:{event_id}")]
+    EventIdentityConflict { event_id: String },
     #[error("model_attempt_event_field_invalid:{0}")]
     EventFieldInvalid(&'static str),
     #[error("model_attempt_cursor_overflow")]
@@ -461,12 +463,17 @@ pub fn project_model_attempts(
 ) -> Result<Vec<ModelAttemptRecord>, ModelAttemptProjectionError> {
     let trace_id = stable_trace_id(run_id)?;
     let mut records = Vec::new();
-    let mut seen_event_ids = HashSet::<EventId>::new();
+    let mut seen_event_ids = HashMap::<EventId, &RuntimeEvent>::new();
     let mut seen_attempts = HashSet::<(RequestId, u32)>::new();
     let mut current_turn = None;
 
     for (index, event) in events.iter().enumerate() {
-        if !seen_event_ids.insert(event.event_id) {
+        if let Some(previous) = seen_event_ids.insert(event.event_id, event) {
+            if previous != event {
+                return Err(ModelAttemptProjectionError::EventIdentityConflict {
+                    event_id: event.event_id.to_string(),
+                });
+            }
             continue;
         }
         if event_run_id(event)? != Some(run_id) {

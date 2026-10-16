@@ -1,3 +1,17 @@
+//! Loads bounded `SKILL.md` documents into in-memory [`Command`] values.
+//!
+//! This layer does not decide whether a project root is trusted. The usual discovery path first
+//! asks [`SourceResolver`] for roots allowed by `ProjectTrust`, then passes those roots here. The
+//! `SettingSource` argument labels provenance in the returned command; it is not an authorization.
+//!
+//! Directory loading enumerates only direct child directories. Individual missing, unreadable or
+//! malformed skill files can be skipped, while root validation, directory iteration and selected
+//! resolver errors are returned. The single-root helper has a different contract: missing or
+//! invalid `SKILL.md` is `Ok(None)`, but other read/parse failures remain errors.
+//!
+//! Parsing stores the skill body in `Command.content`; it does not execute the text or read
+//! resources referenced by that text. Later disclosure and activation are separate operations.
+
 use crate::source_resolver::{validate_root, SourceResolveError, SourceResolver};
 use crate::types::{Command, Frontmatter, LoadedFrom, SettingSource};
 use gray_matter::{engine::YAML, Matter};
@@ -8,18 +22,33 @@ use thiserror::Error;
 use tokio::fs;
 use tracing::{debug, warn};
 
+/// Errors which the selected loader entry point does not skip locally.
 #[derive(Error, Debug)]
 pub enum SkillLoadError {
+    /// Directory enumeration/entry metadata or single-root file I/O failed.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// Frontmatter YAML or a bounded metadata field did not satisfy its schema.
     #[error("Frontmatter parse error: {0}")]
     Frontmatter(String),
+    /// The document exceeded its byte limit or the directory had no usable UTF-8 basename.
     #[error("Invalid skill format")]
     InvalidFormat,
+    /// Root or resource validation rejected the source path.
     #[error("Source resolution error: {0}")]
     Source(String),
 }
 
+/// Load skills from the direct child directories of `base_path`.
+///
+/// `source` is copied into each resulting `Command`; this function does not make a ProjectTrust
+/// decision. The usual crate facade obtains allowed roots through `get_skill_dirs_with_trust` first.
+/// A missing root returns an empty vector. A root symlink or any symlink among its direct entries
+/// returns `Source`; non-directory entries are skipped and nested directories are not traversed.
+///
+/// Within a skill directory, missing/invalid `SKILL.md` entries are skipped. Non-NotFound read
+/// errors and per-skill parse errors are logged and skipped so other entries can still load.
+/// Directory iteration I/O and non-`ResourceInvalid` resolver errors propagate as `Err`.
 pub async fn load_skills_from_dir(
     base_path: impl AsRef<Path>,
     source: SettingSource,
@@ -80,6 +109,11 @@ pub async fn load_skills_from_dir(
     Ok(skills)
 }
 
+/// Load one skill from a caller-selected directory.
+///
+/// `source` labels the resulting command but does not verify the caller's trust decision. Invalid
+/// roots and non-NotFound I/O/parse failures are errors. A missing root resource or a
+/// `ResourceInvalid` `SKILL.md` resolves to `Ok(None)`, allowing plugin discovery to skip that entry.
 pub(crate) async fn load_skill_from_root(
     skill_dir: impl AsRef<Path>,
     source: SettingSource,
@@ -99,6 +133,14 @@ pub(crate) async fn load_skill_from_root(
     parse_skill(&content, &skill_dir, source).map(Some)
 }
 
+/// Parse one already-read skill document into a `Command`; this function performs no file I/O or trust check.
+///
+/// The directory basename supplies `Command.name`; a validated `frontmatter.name` is retained only
+/// as `display_name`. Missing frontmatter uses `Frontmatter::default()`, so the invocation flags
+/// default to `disable_model_invocation = false` and `user_invocable = true`. When gray_matter detects
+/// frontmatter, the original YAML block is deserialized into the strict `Frontmatter` struct, then
+/// the parsed Markdown body is stored in `Command.content`. Description falls back to the first
+/// non-empty body line and then to `Skill: {name}`.
 pub(crate) fn parse_skill(
     content: &str,
     skill_dir: &Path,
@@ -117,7 +159,7 @@ pub(crate) fn parse_skill(
     let parsed = matter.parse(content);
 
     let frontmatter: Frontmatter = if parsed.data.is_some() {
-        // Extract the original YAML frontmatter text and parse directly
+        // Reparse the original YAML block as Frontmatter so Serde's deny_unknown_fields schema is enforced.
         if let Some(yaml_start) = content.find("---\n") {
             if let Some(yaml_end) = content[yaml_start + 4..].find("\n---") {
                 let yaml_content = &content[yaml_start + 4..yaml_start + 4 + yaml_end];
@@ -168,8 +210,10 @@ pub(crate) fn parse_skill(
     })
 }
 
-/// Public, side-effect-free parser entry used by protocol/CI fixtures. File discovery remains
-/// behind the resolver; callers provide an already validated directory for provenance only.
+/// Public, side-effect-free text parser used by protocol/CI fixtures.
+///
+/// It does not inspect or validate whether `skill_dir` exists; its basename is used to create
+/// `Command.name`, and the supplied path is copied to `Command.skill_root` for later consumers.
 pub fn parse_skill_document(
     content: &str,
     skill_dir: impl AsRef<Path>,
@@ -178,8 +222,10 @@ pub fn parse_skill_document(
     parse_skill(content, skill_dir.as_ref(), source)
 }
 
-/// Normalize both directory and frontmatter names into the stable Agent Skills identifier form.
-/// Display labels remain untouched in `Command::display_name`.
+/// Normalize one directory or display-label string to the stable Agent Skills slug format.
+///
+/// `parse_skill` uses the normalized directory basename as `Command.name`; frontmatter labels are
+/// checked with this helper but remain unchanged in `Command.display_name`.
 pub fn normalize_skill_name(raw: &str) -> Result<String, SkillLoadError> {
     let mut normalized = String::new();
     let mut separator = false;
@@ -202,6 +248,8 @@ pub fn normalize_skill_name(raw: &str) -> Result<String, SkillLoadError> {
     Ok(normalized)
 }
 
+/// Enforce byte, field-count and path constraints after deserialization; this validates metadata
+/// shape only and does not decide whether the skill source is trusted or authorized.
 fn validate_frontmatter(
     frontmatter: &Frontmatter,
     body_bytes: usize,
@@ -294,6 +342,8 @@ fn validate_frontmatter(
     Ok(())
 }
 
+/// Bound nested YAML metadata independently of serde's general parser limits: sequences/maps are
+/// limited to 32 entries, strings to 1024 bytes, and recursive containers to depth 8.
 fn validate_yaml_value(value: &serde_yaml::Value, depth: usize) -> Result<(), SkillLoadError> {
     if depth > 8 {
         return Err(SkillLoadError::Frontmatter(
@@ -328,6 +378,7 @@ fn validate_yaml_value(value: &serde_yaml::Value, depth: usize) -> Result<(), Sk
     }
 }
 
+/// Use the first non-empty parsed Markdown line as the fallback description; preserve it trimmed.
 fn extract_description_from_markdown(content: &str) -> Option<String> {
     content
         .lines()
@@ -336,6 +387,11 @@ fn extract_description_from_markdown(content: &str) -> Option<String> {
         .map(|l| l.trim().to_string())
 }
 
+/// Discover skill roots using the project trust record stored for `cwd`.
+///
+/// Missing or unreadable trust data becomes `ProjectTrust::Unknown` before resolution; this helper
+/// therefore does not treat an absent record as trusted. Resolver errors are collapsed to an empty
+/// directory list by `get_skill_dirs_with_trust` below.
 pub async fn get_skill_dirs(cwd: impl AsRef<Path>) -> Vec<PathBuf> {
     let cwd = cwd.as_ref();
     let project_trust = kiana_types::read_project_trust(cwd)
@@ -345,6 +401,10 @@ pub async fn get_skill_dirs(cwd: impl AsRef<Path>) -> Vec<PathBuf> {
     get_skill_dirs_with_trust(cwd, project_trust).await
 }
 
+/// Return only roots accepted by `SourceResolver` for the supplied trust snapshot.
+///
+/// The API returns `Vec<PathBuf>` rather than a `Result`; any resolver error is converted to an
+/// empty list here, so callers cannot distinguish a denied/invalid source tree from no skill roots.
 pub async fn get_skill_dirs_with_trust(
     cwd: impl AsRef<Path>,
     project_trust: ProjectTrust,

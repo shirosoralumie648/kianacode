@@ -167,9 +167,9 @@ fn absolute_path_traversal_and_secret_references_are_rejected() {
         BackupIntegrity::ContentHashVerified,
     )
     .expect_err("secret must be rejected");
-    assert!(
-        secret.ends_with("_not_redacted") || secret.ends_with("_secret_detected"),
-        "unexpected error for a secret-bearing reference: {secret}"
+    assert_eq!(
+        secret, "backup_chunk_reference_secret_detected",
+        "secret-bearing references must be caught by the sentinel scanner"
     );
 }
 

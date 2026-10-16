@@ -1,9 +1,15 @@
+//! ER-07 Domain projection checkpoint 合同测试。
+//!
+//! 这些测试只构造内存 JSON state、合成事件 ID 和 checkpoint，不连接 EventStore 或 ProjectionStore。
+//! 它们检查 DTO 的 schema/版本、Serde 未知字段策略、摘要绑定、事件身份列表边界，以及空 cursor 锚点可用性。
+
 use kiana_domain::{
     EventId, ProjectionCheckpoint, RequestId, RunId, RuntimeEvent, SchemaVersion,
     PROJECTION_CHECKPOINT_SCHEMA, PROJECTION_CHECKPOINT_VERSION,
 };
 use serde_json::json;
 
+/// 生成带 delta 载荷的合成事件，供调用者测试 fold/replay 使用。
 fn event(request_id: RequestId, sequence: u64, delta: i64) -> RuntimeEvent {
     RuntimeEvent::new(
         request_id,
@@ -14,6 +20,7 @@ fn event(request_id: RequestId, sequence: u64, delta: i64) -> RuntimeEvent {
     .unwrap()
 }
 
+/// 检查 checkpoint 的固定 schema、JSON 往返、未知字段拒绝、state 摘要保护和不兼容版本拒绝。
 #[test]
 fn projection_checkpoint_is_strict_and_digest_bound() {
     let event_id = EventId::new();
@@ -49,6 +56,7 @@ fn projection_checkpoint_is_strict_and_digest_bound() {
     );
 }
 
+/// 确认反序列化/直接字段修改得到的重复 EventId 列表不能靠重算摘要绕过结构校验。
 #[test]
 fn projection_checkpoint_rejects_invalid_source_identity() {
     let run_id = RunId::new();
@@ -63,6 +71,7 @@ fn projection_checkpoint_rejects_invalid_source_identity() {
     );
 }
 
+/// 固定一个合法边界：空 state 可以从 EventLog 游标 0 开始，表示全量重建前的空锚点。
 #[test]
 fn projection_checkpoint_allows_empty_rebuild_anchor() {
     let checkpoint = ProjectionCheckpoint::new("empty", 0, Vec::new(), json!({})).unwrap();

@@ -44,3 +44,34 @@ async fn artifact_read_port_requires_persisted_hash_matching_blob() {
         Err(PortError::Conflict(reason)) if reason == "artifact_scope_mismatch"
     ));
 }
+
+#[tokio::test]
+async fn artifact_read_port_rejects_nil_identity_before_lookup() {
+    let scope = kiana_domain::json_digest(&serde_json::json!({"project": ProjectId::new()}));
+    let version = ArtifactVersion::new(
+        kiana_domain::ArtifactId::new(),
+        1,
+        "kiana.test-artifact.v1",
+        b"immutable",
+        scope,
+        ArtifactProvenance {
+            producer_kind: "fixture".to_owned(),
+            producer_id: "co06".to_owned(),
+            source_event_id: None,
+            source_run_id: None,
+            recorded_by: "fixture".to_owned(),
+        },
+        100,
+    )
+    .unwrap();
+    let mut reference = version.as_ref();
+    reference.artifact_id =
+        kiana_domain::ArtifactId::parse_str("00000000-0000-0000-0000-000000000000")
+            .expect("nil UUID parses as a typed id");
+    let store = InMemoryArtifactContentStore::new();
+    assert!(matches!(
+        store.read_artifact(&reference).await,
+        Err(PortError::Failed(reason))
+            if reason == "artifact_reference_invalid:artifact_ref_identity_invalid"
+    ));
+}

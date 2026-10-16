@@ -1,5 +1,9 @@
 //! ER-18 source guard for workspace checkpoint transactions and restore evidence.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source};
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -111,18 +115,9 @@ fn er_workspace_revision_changed_during_restore_is_denied() {
         ],
         "patch transaction",
     );
-    // 三个 restore 证据串都由 core/workspace_checkpoints.rs 判定，
-    // daemon 适配器只有 134 行、只抽 expected_revision 再转发，
-    // 所以两边都断。
-    require(
-        daemon,
-        &[
-            "checkpoint_revision_conflict",
-            "checkpoint_data_epoch_changed",
-            "workspace.restored",
-        ],
-        "restore evidence",
-    );
+    let adapter = compact_code(&item_source(daemon, "async fn execute("));
+    assert!(adapter.contains("expected_revision"));
+    assert!(adapter.contains("restore_checkpoint(&checkpoint,&revision)"));
     for marker in [
         "checkpoint_revision_conflict",
         "checkpoint_data_epoch_changed",

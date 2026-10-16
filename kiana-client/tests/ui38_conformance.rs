@@ -93,7 +93,18 @@ fn conformance_rejects_hidden_unknown_sensitive_and_schema_drift() {
             drift,
             trace(ParitySurface::Desktop),
         ]),
-        Err(ConformanceError::Mismatch("capability_schema"))
+        Err(ConformanceError::SchemaInvalid("capability_schema"))
+    );
+    let mut digest_drift = trace(ParitySurface::Web);
+    digest_drift.artifact_digest = Some(format!("sha256:{}", "c".repeat(64)));
+    assert_eq!(
+        compare_conformance(&[
+            trace(ParitySurface::Cli),
+            trace(ParitySurface::Workbench),
+            digest_drift,
+            trace(ParitySurface::Desktop),
+        ]),
+        Err(ConformanceError::Mismatch("artifact_digest"))
     );
     let mut malformed_artifact = trace(ParitySurface::Desktop);
     malformed_artifact.artifact_digest = Some("sha256:not-a-digest".to_owned());

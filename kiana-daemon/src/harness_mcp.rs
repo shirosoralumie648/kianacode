@@ -80,6 +80,19 @@ impl McpInvocationClient {
         }
     }
 
+    fn result_boundary(
+        &self,
+        transport: &TransportType,
+    ) -> Result<serde_json::Map<String, Value>, PortError> {
+        match (self, transport) {
+            (Self::Stdio(_), TransportType::Stdio)
+            | (Self::Http(_), TransportType::Http | TransportType::Sse) => {
+                mcp_result_boundary(transport)
+            }
+            _ => Err(mcp_failed("mcp_client_transport_mismatch")),
+        }
+    }
+
     fn server_info(&self) -> Value {
         match self {
             Self::Stdio(client) => client.server_info.clone(),
@@ -189,6 +202,7 @@ impl McpRegistry {
             return Err(mcp_failed("mcp_project_untrusted"));
         }
         let config = select_server(&self.servers, request.arguments.get("server"))?;
+        ensure_supported_transport(&config)?;
         let root = PathBuf::from(&context.project_root);
         let pin_config = config.clone();
         let pin_root = root.clone();
@@ -475,6 +489,7 @@ impl McpHandler {
         }
         let mut client =
             McpInvocationClient::connect(&config, &execution_scope, cancellation.clone()).await?;
+        let boundary = client.result_boundary(&config.transport)?;
         let performed = async {
             let tools = client.list_tools().await?;
             for tool in &tools {
@@ -592,13 +607,17 @@ impl McpHandler {
             .map_err(|error| mcp_failed(format!("adapter_result_invalid:{error}")));
         }
         let failed = result["isError"] == true;
-        let mut output = json!({"schema":MCP_RESULT_SCHEMA,"server":config.name,"tool":arguments["tool"],"transport":"stdio",
+        let mut output = json!({"schema":MCP_RESULT_SCHEMA,"server":config.name,"tool":arguments["tool"],
             "server_info":protocol,"server_config_hash":snapshot["config_hash"],"catalog_digest":snapshot["catalog_digest"],
             "health":health_snapshot(&protocol, &tools),
             "input_schema_hash":kiana_domain::json_digest(&snapshot["tool"]["inputSchema"]),
             "output_schema_hash":snapshot["tool"].get("outputSchema").map(kiana_domain::json_digest),
-            "containment":"bwrap","process_scope":"per_invocation","untrusted_data":true,"resource_links_fetched":false,
+            "untrusted_data":true,"resource_links_fetched":false,
             "diagnostics":diagnostics,"workspace":publication,"result":result});
+        output
+            .as_object_mut()
+            .ok_or_else(|| mcp_failed("mcp_result_metadata_invalid"))?
+            .extend(boundary);
         if failed {
             output["error"] = json!("execution_failed:mcp_tool_is_error");
         }
@@ -615,6 +634,28 @@ impl McpHandler {
         )
         .map_err(|error| mcp_failed(format!("adapter_result_invalid:{error}")))
     }
+}
+
+fn mcp_result_boundary(
+    transport: &TransportType,
+) -> Result<serde_json::Map<String, Value>, PortError> {
+    let boundary = match transport {
+        TransportType::Stdio => {
+            json!({"transport":"stdio","containment":"bwrap","process_scope":"per_invocation"})
+        }
+        TransportType::Http | TransportType::Sse => json!({
+            "transport": if *transport == TransportType::Sse { "sse" } else { "streamable_http" },
+            "containment": "remote_unconfined",
+            "process_scope": "remote_session",
+            "remote_effect_locally_confined": false,
+            "remote_stop_confirmed": false
+        }),
+        _ => return Err(mcp_failed("mcp_transport_unsupported")),
+    };
+    boundary
+        .as_object()
+        .cloned()
+        .ok_or_else(|| mcp_failed("mcp_result_metadata_invalid"))
 }
 
 fn validate_advertised_tool(tool: &Value) -> Result<(), PortError> {
@@ -818,6 +859,14 @@ fn config_pin(config: &McpServerConfig, root: &Path) -> Result<Value, PortError>
         return Err(mcp_failed("mcp_argument_file_limit"));
     }
     Ok(json!({"executable":executable,"argument_files":files}))
+}
+
+fn ensure_supported_transport(config: &McpServerConfig) -> Result<(), PortError> {
+    if config.transport == TransportType::Stdio {
+        Ok(())
+    } else {
+        Err(mcp_failed("mcp_transport_unsupported"))
+    }
 }
 fn file_pin(path: &Path) -> Result<Value, PortError> {
     use std::io::Read;
@@ -1395,6 +1444,45 @@ mod tests {
     }
 
     #[test]
+    fn cap29_http_receipt_never_claims_stdio_local_containment() {
+        for (transport, expected_transport) in [
+            (TransportType::Http, "streamable_http"),
+            (TransportType::Sse, "sse"),
+        ] {
+            let boundary = mcp_result_boundary(&transport).expect("supported metadata");
+            assert_eq!(boundary["transport"], expected_transport);
+            assert_ne!(boundary["transport"], "stdio");
+            assert_eq!(boundary["containment"], "remote_unconfined");
+            assert_ne!(boundary["containment"], "bwrap");
+            assert_eq!(boundary["process_scope"], "remote_session");
+            assert_eq!(boundary["remote_effect_locally_confined"], false);
+            assert_eq!(boundary["remote_stop_confirmed"], false);
+            assert_eq!(boundary.len(), 5, "only explicit non-authorizing metadata");
+        }
+    }
+
+    #[test]
+    fn cap29_stdio_receipt_keeps_confined_process_boundary() {
+        let boundary = mcp_result_boundary(&TransportType::Stdio).expect("stdio metadata");
+        assert_eq!(
+            json!(boundary),
+            json!({
+                "transport": "stdio",
+                "containment": "bwrap",
+                "process_scope": "per_invocation"
+            })
+        );
+    }
+
+    #[test]
+    fn cap29_unsupported_transport_cannot_get_success_receipt_boundary() {
+        assert!(matches!(
+            mcp_result_boundary(&TransportType::Ws),
+            Err(PortError::Failed(code)) if code == "mcp_transport_unsupported"
+        ));
+    }
+
+    #[test]
     fn oversized_mcp_inputs_fail_closed() {
         let long_tool = json!({ "tool": "x".repeat(MCP_MAX_TOOL_NAME_BYTES + 1) });
         assert!(matches!(
@@ -1444,6 +1532,25 @@ mod tests {
         }];
         let error = select_server(&servers, Some(&json!("other"))).unwrap_err();
         assert!(matches!(error, PortError::Failed(message) if message == "mcp_server_unknown"));
+    }
+
+    #[test]
+    fn http_and_sse_transports_are_rejected_before_connect() {
+        for transport in [TransportType::Http, TransportType::Sse] {
+            let config = McpServerConfig {
+                name: "remote".to_owned(),
+                transport,
+                url: Some("https://example.invalid/mcp".to_owned()),
+                command: None,
+                args: None,
+                env: None,
+                headers: None,
+            };
+            assert!(matches!(
+                ensure_supported_transport(&config),
+                Err(PortError::Failed(message)) if message == "mcp_transport_unsupported"
+            ));
+        }
     }
 
     #[test]

@@ -1,3 +1,11 @@
+//! CM-29 跨模块恢复边界的静态源码守卫。
+//!
+//! `include_str!` 把 Domain、receipt、checkpoint、memory journal 和 EventLog 源码嵌入为字符串，检查术语/入口仍存在，
+//! 并确认指定 receipt 源文件没有出现 CapabilityBroker 标记。它不运行这些组件，也不能穷尽所有间接依赖。
+
+/// 检查投影滞后与 result-unknown 恢复所需合同在相关源码中保持可见。
+///
+/// 此 guard 是维护提示，不是运行时安全证明；实际授权、幂等查询、EventLog 读取和恢复调用链仍需单独核对。
 #[test]
 fn projection_lag_and_unknown_mutation_share_one_recovery_boundary() {
     let domain = include_str!("../../kiana-domain/src/projection_recovery.rs");

@@ -2530,6 +2530,7 @@ mod tests {
         assert!(list_sessions_at(&root).unwrap().is_empty());
 
         let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(isolated_execution_workspace().parent().unwrap());
     }
 
     #[tokio::test]
@@ -2538,10 +2539,16 @@ mod tests {
         let root = test_root("execute-failure-existing");
         let session = create_session_at(
             root.clone(),
-            HashMap::from([(
-                "session_id".to_string(),
-                Value::String("existing-session".to_string()),
-            )]),
+            HashMap::from([
+                (
+                    "session_id".to_string(),
+                    Value::String("existing-session".to_string()),
+                ),
+                (
+                    "cwd".to_string(),
+                    Value::String(isolated_execution_workspace().display().to_string()),
+                ),
+            ]),
         )
         .unwrap();
         append_user_prompt(
@@ -2573,6 +2580,7 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(isolated_execution_workspace().parent().unwrap());
     }
 
     #[tokio::test]
@@ -2599,6 +2607,7 @@ mod tests {
         assert!(list_sessions_at(&root).unwrap().is_empty());
 
         let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(isolated_execution_workspace().parent().unwrap());
     }
 
     #[tokio::test]
@@ -2609,7 +2618,13 @@ mod tests {
         let result = prompt_with_persistence_at(
             root.clone(),
             "hello model".to_string(),
-            HashMap::from([("execute".to_string(), Value::Bool(true))]),
+            HashMap::from([
+                ("execute".to_string(), Value::Bool(true)),
+                (
+                    "cwd".to_string(),
+                    Value::String(isolated_execution_workspace().display().to_string()),
+                ),
+            ]),
             None,
         )
         .await
@@ -2640,6 +2655,10 @@ mod tests {
             "follow up".to_string(),
             HashMap::from([
                 ("execute".to_string(), Value::Bool(true)),
+                (
+                    "cwd".to_string(),
+                    Value::String(isolated_execution_workspace().display().to_string()),
+                ),
                 (
                     STREAM_JSON_HISTORY_MESSAGES_OPTION.to_string(),
                     serde_json::json!([{
@@ -2682,7 +2701,13 @@ mod tests {
         let result = prompt_streaming_with_persistence_at(
             root.clone(),
             "stream please".to_string(),
-            HashMap::from([("execute".to_string(), Value::Bool(true))]),
+            HashMap::from([
+                ("execute".to_string(), Value::Bool(true)),
+                (
+                    "cwd".to_string(),
+                    Value::String(isolated_execution_workspace().display().to_string()),
+                ),
+            ]),
             |event| {
                 if let kiana_services::api::streaming::StreamEvent::ContentBlockDelta {
                     delta: kiana_services::api::streaming::Delta::TextDelta { text },
@@ -2789,8 +2814,27 @@ mod tests {
         assert!(!should_execute_model(&options));
     }
 
+    fn prepare_isolated_execution_home(env: &crate::test_support::ScopedEnv<'_>, home: &Path) {
+        let workspace = home.join("project");
+        fs::create_dir_all(workspace.join(".git")).unwrap();
+        env.set_var("KIANA_HOME", home);
+        env.set_var("HOME", home);
+        env.set_var("KIANA_CONFIG_FILE", home.join("config.toml"));
+        env.set_var("KIANA_HOOKS_FILE", home.join("hooks.json"));
+        kiana_types::write_project_trust(&workspace, kiana_types::ProjectTrust::Trusted).unwrap();
+    }
+
+    fn isolated_execution_workspace() -> PathBuf {
+        PathBuf::from(std::env::var_os("KIANA_HOME").expect("isolated execution home"))
+            .join("project")
+    }
+
     fn failing_execution_options(session_id: &str) -> HashMap<String, Value> {
         HashMap::from([
+            (
+                "cwd".to_string(),
+                Value::String(isolated_execution_workspace().display().to_string()),
+            ),
             ("execute".to_string(), Value::Bool(true)),
             (
                 "session_id".to_string(),
@@ -2802,6 +2846,9 @@ mod tests {
 
     fn unavailable_harness_env() -> crate::test_support::ScopedEnv<'static> {
         let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_CONFIG_FILE",
             "KIANA_HOOKS_FILE",
             "KIANA_HOOKS",
             "KIANA_SESSION_START_HOOKS",
@@ -2812,6 +2859,8 @@ mod tests {
             "KIANA_OPENAI_API_KEY",
             "OPENAI_API_KEY",
         ]);
+        let home = test_root("unavailable-harness-home");
+        prepare_isolated_execution_home(&env, &home);
         std::env::remove_var("KIANA_HARNESS_SCRIPT");
         std::env::remove_var("KIANA_PROVIDER");
         std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
@@ -2827,11 +2876,15 @@ mod tests {
         let path = dir.join("script.json");
         fs::write(&path, serde_json::json!([{"text": text}]).to_string()).unwrap();
         let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_CONFIG_FILE",
             "KIANA_HOOKS_FILE",
             "KIANA_HOOKS",
             "KIANA_SESSION_START_HOOKS",
             "KIANA_HARNESS_SCRIPT",
         ]);
+        prepare_isolated_execution_home(&env, &dir);
         env.set_var("KIANA_HARNESS_SCRIPT", &path);
         (env, dir)
     }

@@ -1,4 +1,16 @@
-//! The single command and capability control plane for Kiana.
+//! Kiana 的命令与能力控制面，是请求授权和运行生命周期的权威层。
+//!
+//! 入口 crate 将协议请求送到 `kiana-daemon::DaemonHost`，daemon 再调用这里的
+//! [`ControlPlane`]。本 crate 依赖 `kiana-domain` 中的请求与状态对象，并通过
+//! `kiana-ports` 定义的 `RunnerPort`、`CapabilityBrokerPort`、`EventStorePort` 等接口
+//! 调用模型运行时、能力执行器和事件存储；策略判断与 Gate 收敛则分别委托给
+//! `kiana-policy` 和 `kiana-gates`。
+//!
+//! 阅读一次普通运行时，建议先看 [`ControlPlane`] 持有哪些端口，再按
+//! `lifecycle`（建立运行）→ `approvals` / `dispatch`（检查并派发能力）→
+//! `events`（记录事实）→ `receipts`（读取事件投影）跟调用链。这里负责决定请求
+//! 能否进入下一步，但真正的副作用由 Broker handler 执行，事件持久化由 EventStore
+//! 实现负责；`ControlPlane` 不直接运行模型或 shell。
 
 mod approval_binding;
 mod approvals;
@@ -523,11 +535,20 @@ use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{watch, Mutex as AsyncMutex};
 
+/// 持有一个内核文件锁的租约。
+///
+/// 文件句柄保存在结构体中，句柄释放时操作系统锁随之释放。控制面因此可以把同一组路径
+/// 锁覆盖到 Run 或受监督进程的生命周期，而不是仅在检查路径时短暂加锁。
 pub struct PathLockLease {
+    /// 锁的文件描述符；字段私有，调用方只能持有或丢弃整份租约。
     _file: File,
 }
 
-/// The same OS locks are held by short Run scopes and explicitly supervised processes.
+/// 为工作区中的指定路径获取进程间可见的操作系统锁。
+///
+/// Run scope 和显式受监督进程使用相同的文件锁协议，避免两个执行者分别通过本地内存
+/// 锁检查，却同时改写同一工作区路径。返回的租约必须保持存活到临界操作结束；错误会
+/// 映射成 `Conflict`，由调用方停止并保留拒绝原因。
 pub fn acquire_workspace_resources(
     project_root: &str,
     paths: &[String],
@@ -536,14 +557,27 @@ pub fn acquire_workspace_resources(
         .map_err(|reason| PortError::Conflict(reason.to_owned()))
 }
 
+/// daemon 装配 `ControlPlane` 时可提供的运行期限制。
+///
+/// 这里的步数是单个 turn 可推进的 Runner step 数量上限；它不是 token、工具调用或并发
+/// 预算。其他预算由 Runner 台账、角色配置及对应的服务端 authority 分别约束。
 pub struct ControlPlaneRuntimeConfig {
+    /// 覆盖每轮模型运行可推进的最大 step 数。
     pub max_steps_per_turn: u32,
 }
 
 struct RunTerminalScope {
+    /// 按 Run 串行化并发终态写入的异步互斥量。
+    ///
+    /// 当前调用方只获取互斥锁，没有读取或设置内部 bool；终态是否已提交仍以 EventLog 查询结果为准，
+    /// 不能把此 bool 当作持久化的“已记录”状态。
     recorded: AsyncMutex<bool>,
 }
 
+/// 作用域退出时自动清除进程内的终态收尾标记。
+///
+/// 这是 Rust 的 RAII 用法：guard 离开作用域（包括错误提前返回）时会调用 `Drop`，
+/// 所以不必在每个 `return` 分支手动释放同一资源。
 struct TerminalScopeGuard<'a> {
     control_plane: &'a ControlPlane,
     run_id: RunId,
@@ -591,15 +625,29 @@ const MAX_CONTEXT_BYTES_PER_FILE: u64 = 16 * 1024 * 1024;
 const MAX_CONTEXT_SNIPPET_LINES: u64 = 1_000;
 
 #[derive(Clone, Debug)]
+/// `ControlPlane` 在当前进程内维护的 session 归属索引。
+///
+/// 它用于把后续请求绑定到先前的 run、actor、项目与角色，拒绝同一 session 被换主体或
+/// 换工作区后继续使用。该结构是进程内缓存，不是跨重启的事实源；持久化事件仍由
+/// EventStore 提供。
 struct SessionBinding {
+    /// 该 session 当前绑定的运行 ID。
     run_id: RunId,
+    /// 首次绑定时的主体 ID；缺省时还须通过其他服务端身份校验。
     actor_id: Option<String>,
+    /// 运行绑定的规范化项目根目录。
     project_root: String,
+    /// 该 session 绑定的角色 ID。
     role_id: String,
+    /// 角色所属部门，用于应用部门范围规则。
     department_id: String,
 }
 
 #[derive(Clone, Copy)]
+/// 从事件中恢复审批续跑位置时使用的只读游标。
+///
+/// `continuation_recorded` 防止恢复流程重复写续跑事实；request id 与 sequence 用于把
+/// 游标绑定到原始事件位置，而不是根据当前内存状态猜测从哪里继续。
 struct PersistedApprovalCursor {
     run_id: RunId,
     event_request_id: RequestId,
@@ -607,15 +655,32 @@ struct PersistedApprovalCursor {
     continuation_recorded: bool,
 }
 
+/// 入口请求经过的授权、运行生命周期与能力派发权威。
+///
+/// `DaemonHost` 构造并持有此对象。若不同入口分别创建 ControlPlane，审批、session 绑定、
+/// 取消信号与事件读取就会分裂，因此产品入口必须复用 daemon 装配的实例。Core 通过
+/// `Arc<dyn Port>` 持有可替换端口：`Arc` 让并发任务共享同一对象，`dyn Port` 允许 daemon
+/// 注入具体 adapter 或测试替身。内部 Mutex/watch 保护进程内可变状态和取消信号，不会
+/// 因此变成持久化事实源。
+///
+/// 阅读普通运行时可从 `lifecycle` 的 Run 创建开始，再跟 `approvals` / `dispatch` 的权限
+/// 检查，最后读 `events` / `receipts`。Core 决定请求是否可以继续并记录结果；真正的文件、
+/// 进程或外部 I/O 仍由 Broker 下游 handler 执行。
 pub struct ControlPlane {
+    /// 按服务端请求上下文评估能力申请。
     policy: Arc<dyn PolicyEngine>,
+    /// 将策略结论收敛为允许、拒绝或等待审批的控制状态。
     gates: Arc<dyn GateEngine>,
+    /// 运行事件的读取与追加端口；Receipt 也从事件事实构造。
     events: Arc<dyn EventStorePort>,
     /// Optional immutable artifact persistence. The default remains fail-closed for typed
     /// artifact publication; composition roots opt in with `with_artifact_store`.
     artifact_store: Option<Arc<dyn ArtifactStorePort>>,
+    /// 已授权能力的执行出口；Core 不直接调用具体 handler。
     capabilities: Arc<dyn CapabilityBrokerPort>,
+    /// 审批 challenge 与消费状态的存取接口。
     approvals: Arc<dyn ApprovalStorePort>,
+    /// 执行 Runner command 并向 Core 回送 Runner event 的接口。
     runner: Arc<dyn RunnerPort>,
     workspace_checkpoints: Option<Arc<dyn kiana_ports::WorkspaceCheckpointPort>>,
     max_steps_per_turn: Option<u32>,
@@ -634,12 +699,16 @@ pub struct ControlPlane {
     active_terminal_scopes: Mutex<HashMap<RunId, Arc<RunTerminalScope>>>,
     path_locks: Mutex<HashMap<String, String>>,
     durable_path_locks: Mutex<HashMap<String, Vec<PathLockLease>>>,
-    /// Process-local admission only. It never executes a capability; the Broker remains the
-    /// single effect boundary and CellRegistry remains the budget/path authority.
+    /// 进程内的并发准入协调器。它只安排或拒绝能力申请，不执行能力；Broker 仍是唯一的
+    /// 副作用边界，预算与路径权限仍由 CellRegistry 等服务端 authority 约束。
     pub(crate) admission_scheduler: Arc<CapabilityAdmissionScheduler>,
 }
 
 #[derive(Debug, thiserror::Error)]
+/// ControlPlane 返回给调用方的结构化失败类型。
+///
+/// Domain 错误保留领域校验原因，Port 错误保留存储、Runner 或 Broker 接口的失败类别；
+/// 入口可以补充上下文，但不能把策略拒绝和冲突统一改写成模糊的 I/O 错误。
 pub enum CoreError {
     #[error(transparent)]
     Domain(#[from] kiana_domain::DomainError),

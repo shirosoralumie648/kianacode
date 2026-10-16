@@ -22,6 +22,8 @@ fn sc36_pins_the_five_surfaces_and_the_daemon_as_reference() {
         "PROTOCOL_PARITY_REPORT_SCHEMA",
         "compare_protocol_parity",
         "ProtocolParityReport",
+        "reference.command_id",
+        "reference.operation",
     ] {
         assert!(source.contains(marker), "SC-36 module lost {marker}");
     }

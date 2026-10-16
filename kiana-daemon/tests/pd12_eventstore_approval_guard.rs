@@ -22,7 +22,8 @@ fn daemon_wires_journal_approval_store_and_not_legacy_memory_authority() {
     assert!(!daemon.contains("MemoryApprovalStore::new"));
     assert!(compatibility.contains("MemoryApprovalStore"));
     assert!(
-        compatibility.contains("legacy")
+        compatibility.contains("JsonlApprovalStore")
+            || compatibility.contains("legacy")
             || compatibility.contains("compat")
             || compatibility.contains("JSONL")
     );

@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn inspector_is_redacted_and_correction_reuses_memory_mutation() {
     let domain = include_str!("../../kiana-domain/src/inspector.rs");
@@ -37,5 +40,11 @@ fn inspector_is_redacted_and_correction_reuses_memory_mutation() {
     assert!(domain.contains("locator_digest"));
     assert!(domain.contains("operator_approval"));
     assert!(!domain.contains("ModelClient"));
-    assert!(!daemon.contains("CapabilityBroker"));
+    let review_handler =
+        source_guard::item_source(daemon, "impl CapabilityHandler for MemoryReviewHandler");
+    assert!(review_handler.contains("server_memory_scope(&request, &arguments, true)"));
+    assert!(review_handler.contains("memory_review_operator_required"));
+    assert!(review_handler.contains("ensure_memory_projection"));
+    assert!(!review_handler.contains("CapabilityBroker"));
+    assert!(!review_handler.contains("register_static"));
 }

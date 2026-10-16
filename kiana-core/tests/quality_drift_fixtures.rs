@@ -1,11 +1,9 @@
-//! EQ-46 failure-first behavior fixtures for version-bucket drift metrics, alerts and the
-//! `drift.alerted` event payload.
+//! EQ-46 failure-first 合同 fixture：覆盖版本桶指标、告警和 `drift.alerted` 事件载荷。
 //!
-//! Every test names one rejected-first item from the card and asserts a structured error code
-//! that is greppable in `kiana-domain/src/quality_drift.rs` or `kiana-domain/src/versioning.rs`.
-//! Nothing here reads a live drift stream, appends an EventLog fact, switches a route, mutates a
-//! grant or dispatches a provider: the module under test is a pure decision over supplied
-//! digests, version buckets and counters, so these are contract fixtures and not runtime evidence.
+//! 每个测试先构造应被拒绝或审慎处理的输入，再断言稳定错误码或结构化 verdict。测试直接调用 Core 的
+//! 公开薄适配器，但不经过产品命令路由，也不从真实数据源生成 report/threshold；所有摘要、游标、桶和
+//! 计数都是内存合成值。这里不做线上监控读取、不追加事实事件、不切换配置、不调 provider，因此 fixture
+//! 只能证明给定输入上的合同行为，不能证明后台告警已接通或真实数据来源可信。
 
 use kiana_core::{evaluate_quality_drift, DRIFT_ALERT_COMMAND};
 use kiana_domain::{
@@ -18,11 +16,13 @@ use serde_json::json;
 /// `DriftThreshold::validate` compares against this literal; it has no exported constant.
 const THRESHOLD_SCHEMA: &str = "kiana.quality-drift-threshold.v1";
 
+/// 构造测试用的摘要外形：固定 `sha256:` 前缀和 64 个重复十六进制字符。
+/// 这满足格式校验，但不代表内容是实际计算出的哈希。
 fn digest(seed: char) -> String {
     format!("sha256:{}", seed.to_string().repeat(64))
 }
 
-/// A bounded audit/version identity. It is not a provider request and not an execution permit.
+/// 构造测试用版本身份；字段仅用来产生不同的版本 key，不对应真实模型配置。
 fn route(model_id: &str) -> RouteDecision {
     RouteDecision {
         schema: ROUTE_DECISION_SCHEMA.to_owned(),
@@ -37,6 +37,8 @@ fn route(model_id: &str) -> RouteDecision {
     }
 }
 
+/// 通过基础 DriftReport API 添加样本，避免 fixture 直接捏造桶内计数和 EventId 列表。
+/// 前 `errors` 条样本记为失败，每条耗时都使用给定的 `mean_elapsed_ms`。
 fn record_bucket(
     report: &mut DriftReport,
     model_id: &str,
@@ -56,13 +58,14 @@ fn record_bucket(
     }
 }
 
-/// One version bucket with 4 turns at 100ms each, so the derived error rate is `errors * 250`.
+/// 构造单个版本桶：4 次调用、每次 100 ms，因此错误率为 `errors * 250` milli。
 fn single_bucket_report(errors: u64) -> DriftReport {
     let mut report = DriftReport::default();
     record_bucket(&mut report, "model-a", 4, errors, 100);
     report
 }
 
+/// 构造 threshold 并从其合同字段计算摘要，确保测试重点落在 evaluator 输入而非摘要装配错误。
 fn threshold(
     minimum_samples: u64,
     max_error_rate_milli: Option<u64>,
@@ -79,6 +82,7 @@ fn threshold(
     threshold
 }
 
+/// 把全部合成值组合成评估输入；游标 9 只是非零样例，route/grant 前后摘要刻意保持相同。
 fn input(report: DriftReport, threshold: DriftThreshold) -> DriftEvaluationInput {
     DriftEvaluationInput {
         schema: DRIFT_INPUT_SCHEMA.to_owned(),
@@ -94,7 +98,7 @@ fn input(report: DriftReport, threshold: DriftThreshold) -> DriftEvaluationInput
     }
 }
 
-/// 2/4 turns erroring is 500 milli, which breaches the 400 milli limit below.
+/// 准备 4 个样本、其中 2 个失败的输入，错误率 500 milli，高于下方 400 milli 限值。
 fn breached_input() -> DriftEvaluationInput {
     input(
         single_bucket_report(2),
@@ -102,7 +106,7 @@ fn breached_input() -> DriftEvaluationInput {
     )
 }
 
-/// Proves a claimed route switch is rejected with `drift_input_invalid` before any alert exists.
+/// route 前后摘要不一致时，在计算指标或产生告警前拒绝输入。
 #[test]
 fn route_digest_mismatch_is_rejected_before_any_alert() {
     let mut candidate = breached_input();
@@ -113,7 +117,7 @@ fn route_digest_mismatch_is_rejected_before_any_alert() {
     );
 }
 
-/// Proves a claimed grant mutation is rejected with `drift_input_invalid` before any alert exists.
+/// grant 前后摘要不一致时，同样 fail closed，不返回告警对象。
 #[test]
 fn grant_digest_mismatch_is_rejected_before_any_alert() {
     let mut candidate = breached_input();
@@ -124,9 +128,8 @@ fn grant_digest_mismatch_is_rejected_before_any_alert() {
     );
 }
 
-/// Proves a bucket stored under a key other than its own `version_key` is rejected as
-/// `drift_bucket_key_mismatch`, and that the adapter refuses the whole input as
-/// `drift_input_invalid` instead of evaluating a mis-attributed version bucket.
+/// 把合法桶搬到错误 key 下，先验证 Domain 报告拒绝错配，再验证 Core adapter 将子合同失败
+/// 折叠为 `drift_input_invalid`，不对错误归因的数据继续计算。
 #[test]
 fn version_bucket_key_mismatch_is_rejected() {
     let mut report = single_bucket_report(2);
@@ -149,8 +152,8 @@ fn version_bucket_key_mismatch_is_rejected() {
     );
 }
 
-/// Proves a `version.drift` projection that claims an automatic model switch is rejected as
-/// `drift_report_invalid`; drift evaluation has no route-selection authority to begin with.
+/// source report 若声称自动切换标志为 true，会被 DriftReport validator 拒绝；
+/// evaluator 本身没有选择或切换模型的职责。
 #[test]
 fn report_claiming_automatic_model_switch_is_rejected() {
     let mut report = single_bucket_report(2);
@@ -163,8 +166,7 @@ fn report_claiming_automatic_model_switch_is_rejected() {
     );
 }
 
-/// Proves a report with no version buckets is rejected as `drift_samples_missing` instead of
-/// silently evaluating to a healthy verdict.
+/// 合同允许空 DriftReport，但 evaluator 必须用 `drift_samples_missing` 拒绝，不能静默给 Healthy。
 #[test]
 fn empty_report_is_rejected_without_samples() {
     let report = DriftReport::default();
@@ -175,8 +177,7 @@ fn empty_report_is_rejected_without_samples() {
     );
 }
 
-/// Proves a zero minimum-sample threshold is rejected as `drift_threshold_invalid`, a threshold
-/// with no limit at all as `drift_threshold_empty`, and both are refused by the adapter.
+/// minimum_samples=0 超出阈值合同；两个上限都为空也没有判定条件；二者都由 adapter 拒绝。
 #[test]
 fn invalid_or_empty_threshold_is_rejected() {
     let degenerate = threshold(0, Some(400), Some(1_000));
@@ -194,8 +195,7 @@ fn invalid_or_empty_threshold_is_rejected() {
     );
 }
 
-/// Proves a breaching bucket that is below `minimum_samples` yields `NeedsReview` with no alert
-/// and no event, so insufficient evidence can never escalate into a `drift.alerted` fact.
+/// 样本量不足时返回 NeedsReview，且 alert/event 都为空；不足证据不升级为告警 payload。
 #[test]
 fn insufficient_samples_never_produce_an_alert() {
     let mut report = DriftReport::default();
@@ -209,9 +209,8 @@ fn insufficient_samples_never_produce_an_alert() {
     assert!(evaluation.metrics.validate().is_ok());
 }
 
-/// Proves a tampered alert or event payload cannot present itself as publishable: flipping
-/// `authority_changes_applied`, claiming a route switch, or renaming the event kind each fail
-/// their structured validator even though the shape still deserializes.
+/// 对可反序列化但内容被篡改的 payload 单独校验：authority flag、前后 route 摘要或事件 kind
+/// 变化后，已有摘要不再匹配，嵌套告警/外层事件都会被拒绝。
 #[test]
 fn tampered_alert_or_event_payload_cannot_publish_itself() {
     let evaluation = evaluate_quality_drift(&breached_input()).expect("EQ-46 breach");
@@ -237,9 +236,8 @@ fn tampered_alert_or_event_payload_cannot_publish_itself() {
     assert_eq!(renamed.validate(), Err("drift_alert_event_invalid"));
 }
 
-/// Proves metrics keep one strictly ascending, de-duplicated bucket per version key: the real
-/// two-version metrics validate, while duplicating a version bucket or reversing bucket order is
-/// rejected as `drift_metrics_invalid`. The only mutation applied is the bucket list itself.
+/// 两版本输出按 key 严格排序；重复版本桶或交换顺序都会破坏指标合同。
+/// 此处只改测试副本的 buckets，不影响 evaluator 原始结果。
 #[test]
 fn cross_version_bucket_duplicate_or_reordered_metrics_are_rejected() {
     let key_a = route("model-a").version_key();
@@ -271,8 +269,7 @@ fn cross_version_bucket_duplicate_or_reordered_metrics_are_rejected() {
     assert_eq!(reordered.validate(), Err("drift_metrics_invalid"));
 }
 
-/// Proves a version bucket under both limits evaluates to `Healthy` with no alert and no event,
-/// and that the source report still carries `automatic_model_switch=false`.
+/// 样本足够且错误率/均耗时都未严格超过限值时为 Healthy，不产生 alert/event。
 #[test]
 fn below_threshold_metrics_stay_healthy_and_emit_no_alert() {
     let candidate = input(
@@ -291,10 +288,9 @@ fn below_threshold_metrics_stay_healthy_and_emit_no_alert() {
     assert_eq!(evaluation.metrics.buckets[0].mean_elapsed_ms, 100);
 }
 
-/// The EQ-46 card acceptance: a `drift.alerted` event is produced for the breaching version
-/// bucket, and it is evidence only — route and grant digests are identical before and after,
-/// `authority_changes_applied` stays false, the report never auto-switches a model, and every
-/// payload validates against its own contract.
+/// 主验收 fixture：超限桶生成结构完整的告警事件，同时输入 route/grant 前后摘要不变，
+/// authority flag 保持 false，且 report 不携带自动切换声明。所有载荷各自通过合同校验，
+/// 但这仍只证明内存计算结果，不证明事件已持久化。
 #[test]
 fn drift_alert_does_not_change_route_or_grant() {
     let candidate = breached_input();

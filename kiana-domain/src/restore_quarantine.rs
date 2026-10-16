@@ -199,9 +199,6 @@ impl RestoreRoot {
                 return Err("restore_authority_epoch_not_advanced".to_owned());
             }
         }
-        if self.migration_version.is_some() && !self.migration_applied {
-            return Err("restore_migration_not_applied".to_owned());
-        }
         if self.migration_applied && self.migration_version.is_none() {
             return Err("restore_migration_version_missing".to_owned());
         }

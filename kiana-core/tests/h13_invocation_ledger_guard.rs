@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source};
+
 #[test]
 fn h13_invocation_ledger_commits_every_boundary_before_side_effects() {
     let dispatch = include_str!("../src/dispatch.rs");
@@ -49,7 +53,8 @@ fn h13_invocation_ledger_commits_every_boundary_before_side_effects() {
     assert!(verifier < handler);
     assert!(dispatch.contains("result.delivery_claimed"));
     assert!(dispatch.contains("AggregateVersion::new(\"result_delivery\""));
-    assert!(projection.contains("dispatch without a terminal result"));
+    let project = compact_code(&item_source(projection, "pub fn project_invocations("));
+    assert!(project.contains("ifmatches!(entry.state,CapabilityExecutionState::Dispatching|CapabilityExecutionState::Executing){entry.state=CapabilityExecutionState::Unknown;}"));
     assert!(recovery.contains("cache_invocation_projection"));
     for forbidden in [
         "execute_before_execution_commit",

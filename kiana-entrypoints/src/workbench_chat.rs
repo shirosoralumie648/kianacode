@@ -336,6 +336,18 @@ impl WorkbenchView {
         let Some(active_run_id) = self.stream_turn.as_ref().map(|stream| stream.run_id) else {
             return Ok(None);
         };
+        let event_run_id = match &event {
+            RunStreamEvent::Delta { run_id, .. }
+            | RunStreamEvent::Terminal { run_id, .. }
+            | RunStreamEvent::Usage { run_id, .. }
+            | RunStreamEvent::ToolCall { run_id, .. }
+            | RunStreamEvent::ApprovalRequested { run_id, .. }
+            | RunStreamEvent::Error { run_id, .. } => Some(*run_id),
+            RunStreamEvent::Unknown => None,
+        };
+        if event_run_id.is_some_and(|run_id| run_id != active_run_id) {
+            return Err(anyhow!("stream_run_id_mismatch"));
+        }
         let timeline_apply = self
             .timeline
             .apply_event(event.clone())
@@ -348,19 +360,11 @@ impl WorkbenchView {
             return Ok(None);
         }
         match event {
-            RunStreamEvent::Delta { run_id, text } => {
-                if run_id != active_run_id {
-                    return Err(anyhow!("stream_run_id_mismatch"));
-                }
+            RunStreamEvent::Delta { text, .. } => {
                 self.push_stream_delta(&text);
                 Ok(None)
             }
-            RunStreamEvent::Terminal { run_id, response } => {
-                if run_id != active_run_id {
-                    return Err(anyhow!("stream_run_id_mismatch"));
-                }
-                Ok(Some(response))
-            }
+            RunStreamEvent::Terminal { response, .. } => Ok(Some(response)),
             RunStreamEvent::ApprovalRequested { .. } => {
                 self.push_system("awaiting_approval：使用 /approvals 查看，再明确批准或拒绝。");
                 Ok(None)
@@ -1457,6 +1461,52 @@ mod tests {
             .messages
             .iter()
             .any(|message| message.role == ChatRole::Assistant));
+    }
+
+    #[test]
+    fn every_foreign_stream_event_is_rejected_before_mutating_the_timeline() {
+        let run_id = RunId::new();
+        let foreign = RunId::new();
+        let events = vec![
+            delta_event(foreign, "wrong"),
+            RunStreamEvent::Terminal {
+                run_id: foreign,
+                response: response_with_run_id(
+                    ExecutionStatus::Completed,
+                    foreign,
+                    serde_json::json!({"output":{}}),
+                ),
+            },
+            RunStreamEvent::Usage {
+                run_id: foreign,
+                data: serde_json::json!({}),
+            },
+            RunStreamEvent::ToolCall {
+                run_id: foreign,
+                data: serde_json::json!({}),
+            },
+            RunStreamEvent::ApprovalRequested {
+                run_id: foreign,
+                data: serde_json::json!({}),
+            },
+            RunStreamEvent::Error {
+                run_id: foreign,
+                data: serde_json::json!({}),
+            },
+        ];
+        for event in events {
+            let mut view = running_view();
+            view.begin_stream(run_id);
+            let messages = view.messages.clone();
+            assert_eq!(
+                view.apply_stream_event(event).unwrap_err().to_string(),
+                "stream_run_id_mismatch"
+            );
+            assert!(view.timeline.items().is_empty());
+            assert_eq!(view.messages.len(), messages.len());
+            assert!(view.running);
+            assert_eq!(view.stream_turn.as_ref().unwrap().run_id, run_id);
+        }
     }
 
     #[test]

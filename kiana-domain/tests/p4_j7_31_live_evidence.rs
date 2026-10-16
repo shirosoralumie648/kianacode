@@ -164,9 +164,10 @@ fn verified_connection_requires_typed_operator_approval() {
     let mut value = evidence(
         ProviderLiveEvidenceSource::LiveNetwork,
         ProviderLiveEvidenceStatus::Verified,
-        Some("operator-approval".to_owned()),
+        Some("approval:provider-live-1".to_owned()),
         Vec::new(),
     );
+    value.operator_approval_ref = Some("operator-approval".to_owned());
     value.evidence_digest = value.digest();
     assert_eq!(
         value.validate().expect_err("approval ref must be typed"),

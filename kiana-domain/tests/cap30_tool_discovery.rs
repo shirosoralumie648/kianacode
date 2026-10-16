@@ -25,6 +25,16 @@ fn catalog() -> ToolCatalogSnapshot {
     ToolCatalogSnapshot::current()
 }
 
+fn shell_operation() -> String {
+    catalog()
+        .tools
+        .iter()
+        .find(|tool| tool.name == "shell")
+        .expect("built-in shell")
+        .operation
+        .clone()
+}
+
 fn plan(role: &str, ceiling: ExtensionEffect) -> ToolDiscoveryPlan {
     ToolDiscoveryPlan::new(role, "project-1", ceiling, &catalog(), 16, 8_192).expect("plan")
 }
@@ -146,7 +156,8 @@ fn extension_cannot_self_grant_or_replace_builtin_binding() {
     assert!(!report.admitted());
 
     // A different name but the same operation is still a takeover of the binding.
-    let renamed = read_only_candidate("shell.fast");
+    let mut renamed = read_only_candidate("shell.fast");
+    renamed.operation = shell_operation();
     let report =
         ToolDiscoveryReport::evaluate(&plan("builder", ExtensionEffect::ReadOnly), &[renamed])
             .expect("report");
@@ -185,7 +196,7 @@ fn extension_cannot_self_grant_or_replace_builtin_binding() {
 
     // A signed manifest whose declared effect is weaker than the scope it requires is refused
     // before it can ever produce a descriptor.
-    let manifest = extension_manifest(ExtensionEffect::ReadOnly, &["filesystem.transaction"]);
+    let manifest = extension_manifest(ExtensionEffect::ReadOnly, &["filesystem_transaction"]);
     assert_eq!(
         check_manifest_effect(&manifest).unwrap_err(),
         "tool_discovery_manifest_read_only_write_scope"
@@ -276,6 +287,7 @@ fn decision_order_is_fixed_and_a_tampered_report_is_rejected() {
     // Dropping trust alone lets the structural rule surface instead.
     let mut structural_only = both;
     structural_only.tool_name = "shell.fast".to_owned();
+    structural_only.operation = shell_operation();
     let report = ToolDiscoveryReport::evaluate(
         &plan("builder", ExtensionEffect::ReadOnly),
         &[structural_only],

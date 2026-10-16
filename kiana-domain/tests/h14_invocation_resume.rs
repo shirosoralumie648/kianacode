@@ -1,3 +1,8 @@
+//! H14 Domain 绑定合同的合成数据测试。
+//!
+//! Fixture 手工构造 Run、CapabilityRequest、ExecutionScope 和 RequestContext，再验证恢复绑定
+//! 的字段派生、JSON 往返，以及参数或 owner 漂移会被拒绝。它不写 EventLog、不提交审批，
+//! 也不调用 Core 的恢复/派发流程；测试证明范围仅限 Domain DTO 规则。
 use kiana_domain::{
     capability_action_digest, AuthenticatedPrincipalRef, CapabilityKind, CapabilityRequest,
     ExecutionScope, InvocationId, InvocationResumeBinding, ProjectIdentity, RequestContext,
@@ -5,6 +10,7 @@ use kiana_domain::{
 };
 use serde_json::json;
 
+// 这些固定摘要只满足数据合同格式，不能作为真实项目、策略或内容的认证凭证。
 fn digest(ch: char) -> String {
     format!(
         "sha256:{}",
@@ -12,6 +18,7 @@ fn digest(ch: char) -> String {
     )
 }
 
+// 生成一份字段彼此对应的最小请求上下文，供每个用例复制后只改变一个身份条件。
 fn fixture() -> (
     RunId,
     RequestId,
@@ -90,6 +97,7 @@ fn fixture() -> (
     (run_id, request_id, turn_id, step_id, request, context)
 }
 
+/// 正向合同：Invocation 派生、Turn/Step 绑定、validate_against 和 JSON 往返保持一致。
 #[test]
 fn binding_round_trips_and_keeps_server_owned_identity() {
     let (run_id, event_request_id, turn_id, step_id, request, context) = fixture();
@@ -116,6 +124,7 @@ fn binding_round_trips_and_keeps_server_owned_identity() {
     assert_eq!(decoded, binding);
 }
 
+/// 负向合同：审批等待期间改动命令参数或调用 owner，必须无法冒充原请求恢复。
 #[test]
 fn changed_parameters_or_owner_cannot_resume_the_binding() {
     let (run_id, event_request_id, _turn_id, _step_id, request, context) = fixture();

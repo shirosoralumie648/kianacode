@@ -1,17 +1,45 @@
-//! Machine-readable RuntimeEvent kind, version and migration contracts.
+//! # 文件职责
 //!
-//! RuntimeEvent remains a compatibility-shaped envelope. This registry is the server-owned
-//! interpretation layer: unknown opaque events remain inspectable, while unknown events in a
-//! required product family fail closed before a projector can treat them as authority.
+//! 本文件登记运行事件（`RuntimeEvent`）的事件类型、版本、必需 ID、允许字段、终态属性和
+//! 旧格式迁移规则。事件载荷是事件日志中的持久数据；这里的登记表是服务端解释这些数据
+//! 的权威契约，防止不同生产者和投影器各自猜测字段含义。
+//!
+//! # 在系统中的位置与数据流
+//!
+//! ```text
+//! ControlPlane / Runner / 其他事件生产者
+//!   -> RuntimeEvent（身份字段 + data 载荷）
+//!   -> EventStore::validate_event_for_storage()
+//!      -> stream 元数据检查
+//!      -> 现代格式（带聚合/版本元数据且 data 是对象）调用本文件 validate_runtime_event()
+//!      -> 后续再检查身份关联、审计、治理和秘密信息
+//!   -> 所有写入边界通过后才可进入持久事实日志；任何失败都会阻止追加
+//!
+//! 读取旧事件 -> resolve_event_payload()
+//!   -> Current：按当前契约校验后的载荷
+//!   -> Migrated：经具名迁移器解释的旧载荷（原始事件字节不被改写）
+//!   -> Opaque：可检查但不能进入权威/执行投影的未知可选事件
+//! ```
+//!
+//! `EventKindSpec` 把每种事件与所属聚合、必需 ID、字段白名单、是否终态及迁移规则绑定；
+//! `EVENT_KIND_SPECS` 是这张登记表。未知但属于关键产品事件族的类型会失败关闭，避免
+//! 投影器把自己不认识的事件当作授权或执行事实；允许保持不透明的类型只能供查询查看。
+//! 较早的 legacy event frame 可能缺少聚合/版本信封或使用非对象载荷，会暂时走兼容写入路径，
+//! 不经过此处的现代事件登记校验；不要把“本函数验证通过”等同于 EventStore 整体完成验证。
+//! 当前明确迁移入口由测试覆盖，workspace 生产读取代码尚未直接调用
+//! `resolve_event_payload()`。
 
 use crate::{RuntimeEvent, SchemaVersion, UnknownEventPolicy, UNKNOWN_EVENT_POLICY};
+// `Serialize` 来自 serde，用于让静态事件契约可以被转换成 JSON 等外部格式，供检查工具或
+// API 查看；实际的事件载荷使用 serde_json::Value 承载，并在写入前按本文件的白名单验证。
 use serde::Serialize;
 use serde_json::Value;
 
 pub const RUNTIME_EVENT_SCHEMA: &str = "kiana.runtime-event.v1";
 pub const RUNTIME_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
-// The request identity is carried by RuntimeEvent.request_id, not duplicated in the payload.
+// 顶层 RuntimeEvent.request_id 才是统一事件信封中的请求身份；载荷字段白名单不重复放入
+// request_id，避免两份相同身份在后续演变中出现互相矛盾的值。
 const REQUEST_IDS: &[&str] = &[];
 const SESSION_ASSIGNMENT_IDS: &[&str] = &["session_id"];
 const RUN_IDS: &[&str] = &["run_id"];
@@ -133,8 +161,16 @@ const RUN_CLARIFICATION_REQUESTED_FIELDS: &[&str] = &[
     "status",
 ];
 const INVOCATION_IDS: &[&str] = &["run_id", "capability_request_id"];
+const INVOCATION_DIRECT_IDS: &[&str] = &["capability_request_id"];
 const CAPABILITY_DECISION_IDS: &[&str] = &[];
 const EXECUTION_PREPARED_IDS: &[&str] = &[
+    "execution_id",
+    "invocation_id",
+    "capability_request_id",
+    "action_digest",
+    "attempt",
+];
+const EXECUTION_PREPARED_DIRECT_IDS: &[&str] = &[
     "execution_id",
     "invocation_id",
     "capability_request_id",
@@ -177,30 +213,72 @@ const COST_CORRECTION_IDS: &[&str] = &[
 ];
 const COST_ALLOCATION_IDS: &[&str] = &["run_id", "allocation_id", "usage_id"];
 
+/// 一种运行事件在服务端的静态契约。
+///
+/// 事件生产者把 `kind` 和 JSON 载荷写入 `RuntimeEvent`；本结构由本 crate 维护的
+/// `EVENT_KIND_SPECS` 提供，供 EventStore 写入校验及 schema 版本解析使用。它不是事件本身，
+/// 而是说明事件应该如何被解释的规则：归属哪个聚合、哪些身份字段必须出现、载荷允许哪些键、
+/// 该事件是否结束其所属聚合，以及旧版本是否有显式迁移器。
+///
+/// 修改白名单会直接改变哪些持久事件可以进入日志；修改 `terminal` 或聚合归属也可能影响
+/// 读取方如何归并事件。因此扩展事件格式时，应同时检查其生产者、写入边界和投影器，而不能
+/// 只在这里添加一个字段就假定整条数据流已经理解该字段。
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct EventKindSpec {
+    /// 持久化事件的稳定类型名，例如 `run.completed`。
     pub kind: &'static str,
+    /// 载荷所使用的 schema 名称；通常与运行事件信封 schema 相同。
     pub schema: &'static str,
+    /// 此类型当前登记的主、次版本。
     pub version: SchemaVersion,
+    /// 对事件契约负责的 crate 名称，供审计和工具查询所有权边界。
     pub owner_crate: &'static str,
+    /// 事件改变或描述的聚合类别，例如 run、approval 或 execution permit。
     pub aggregate_type: &'static str,
+    /// 载荷中必须非空的身份键。它们用于把事件关联到对应对象或尝试。
     pub required_ids: &'static [&'static str],
+    /// 此事件载荷允许出现的键集合；未知键会被拒绝，避免未经登记的数据被误当成事实。
     pub allowed_fields: &'static [&'static str],
+    /// 此事件是否结束它所代表的生命周期单元；有些事件只结束子尝试，不代表外层 run 结束。
     pub terminal: bool,
+    /// 对秘密数据的写入策略标记；实际扫描与拒绝逻辑位于事件写入边界。
     pub secret_policy: &'static str,
+    /// 可处理旧主版本的迁移器名称；为 `None` 表示没有登记该类型的主版本迁移。
     pub migration: Option<&'static str>,
 }
 
 impl EventKindSpec {
-    /// Return whether a payload at `incoming` can be read under this kind's schema.
+    /// 判断传入的 schema 版本能否按该事件类型的当前主版本规则继续读取。
     ///
-    /// Runtime event readers are forward-compatible across additive minor versions, but they
-    /// must not interpret an older minor as if it contained fields introduced by the current
-    /// contract. A major change is handled separately by an explicit migration entry.
+    /// 【作用】次版本号只允许向前兼容；主版本必须完全相同，较旧的次版本不能冒充当前契约。
+    /// 通过这里只代表版本号可继续处理，载荷字段仍会由 `validate_event_payload()` 独立检查。
+    ///
+    /// 【调用者】主要由 `validate_version()` 和事件 schema 解析流程调用。
+    ///
+    /// 【输入】`incoming` 是持久事件信封声明的版本；`self.version` 是登记表中的当前版本。
+    ///
+    /// 【输出】兼容时返回 `true`，主版本不符或次版本低于当前契约时返回 `false`。
+    ///
+    /// 【为什么这样设计】次版本用于兼容增加字段等演进；破坏性主版本变化必须经过具名迁移，
+    /// 不能仅因 JSON 看起来还能解析，就把旧事件当成当前事件解释。
     pub fn accepts_version(&self, incoming: &SchemaVersion) -> bool {
         self.version.major == incoming.major && incoming.minor >= self.version.minor
     }
 
+    /// 校验 schema 版本，并把不兼容情况转换为稳定的事件错误码。
+    ///
+    /// 【调用者】由版本解析函数间接使用；调用方通常再把错误转换为写入或读取失败。
+    ///
+    /// 【输入】事件生产者或存储记录携带的 `incoming` 版本。
+    ///
+    /// 【输出】兼容时返回 `Ok(())`；较旧次版本返回
+    /// `event_schema_version_downgrade`，其余不兼容主版本返回
+    /// `event_schema_version_incompatible`。
+    ///
+    /// 【副作用】无。该函数只检查版本号，不读取或修改事件载荷。
+    ///
+    /// 【为什么这么设计】把“版本可否读取”和“JSON 内容是否合法”拆开，使版本迁移与字段
+    /// 白名单各自承担清楚的责任；不能将成功结果当成载荷已验证。
     pub fn validate_version(&self, incoming: &SchemaVersion) -> Result<(), String> {
         if self.version.major == incoming.major && incoming.minor < self.version.minor {
             return Err("event_schema_version_downgrade".to_owned());
@@ -212,11 +290,19 @@ impl EventKindSpec {
     }
 }
 
-/// Result of resolving one event payload against the server-owned registry.
+/// 一个事件载荷经过服务端契约登记表解析后的结果。
 ///
-/// `Opaque` deliberately retains the original value. It is queryable evidence only and must not
-/// be folded into an authority or execution projection. `Migrated` records the named adapter that
-/// made the legacy payload readable; it does not rewrite the original event bytes.
+/// 【数据流】读取方把事件类型、版本和载荷交给 `resolve_event_payload()`；解析成功后得到以下
+/// 三种状态之一。该枚举只描述“如何解释已存数据”，不会重写事件日志，也不会授予执行权限。
+///
+/// `Current` 表示类型已登记，版本通过检查，且载荷通过当前字段契约。
+/// `Migrated` 表示旧主版本经具名迁移器转换成可读取形状；同时保留迁移器和源/目标版本，
+/// 以便调用方知道这不是原样的当前格式。
+/// `Opaque` 表示类型属于允许保留的未知事件；原始载荷可供查询和审计，但不能并入授权或执行
+/// 投影，因为本程序并不知道它表达什么状态变化。
+///
+/// ⚠ 不要把 `Opaque` 简化成普通 `Current`。那会让未理解的事件绕过类型语义边界，
+/// 使投影器可能把未知数据误解为系统事实。
 #[derive(Clone, Debug, PartialEq)]
 pub enum EventSchemaResolution {
     Current {
@@ -235,6 +321,10 @@ pub enum EventSchemaResolution {
 }
 
 impl EventSchemaResolution {
+    /// 以只读方式取得三种解析结果中携带的载荷。
+    ///
+    /// 调用者通常用于展示、审计或后续已知类型处理。返回引用而不是克隆载荷，避免大型
+    /// JSON 对象被无必要地复制；此访问器不表示载荷已经取得执行或授权含义。
     pub fn payload(&self) -> &Value {
         match self {
             Self::Current { payload }
@@ -243,11 +333,17 @@ impl EventSchemaResolution {
         }
     }
 
+    /// 判断解析结果是否仍是未知事件的只读不透明形式。
+    ///
+    /// 投影器可用此标记决定是否跳过状态归并；未知载荷虽然能检查，但不能作为已知事实应用。
     pub const fn is_opaque(&self) -> bool {
         matches!(self, Self::Opaque { .. })
     }
 }
 
+// 以下数组是各类事件的 JSON 载荷键白名单。它们按生命周期/领域分组复用：
+// `required_ids` 只规定关联对象所需的身份键，`allowed_fields` 则限制整个载荷中可以出现的键。
+// 将两者分开，才能允许可选上下文存在，同时仍拒绝拼写错误或未审计的新字段。
 const RUN_FIELDS: &[&str] = &[
     "run_id",
     "schema",
@@ -332,7 +428,108 @@ const RUN_FIELDS: &[&str] = &[
     "lease_digest",
     "resource_digest",
 ];
-const RUN_REJECTED_FIELDS: &[&str] = &["run_id", "reason"];
+// run.completed 可以保留 Harness 交付的模型标识、token 用量以及凭证引用。
+// 这些数据只在完成事件中有明确语义，所以不能直接扩充通用 RUN_FIELDS，
+// 否则 failed/cancelled 等其他终态也会意外接受这些字段。
+const RUN_COMPLETED_FIELDS: &[&str] = &[
+    "run_id",
+    "schema",
+    "sequence",
+    "session_id",
+    "actor_id",
+    "project_root",
+    "turn_id",
+    "turn",
+    "text",
+    "steps",
+    "stop_reason",
+    "step",
+    "step_id",
+    "error",
+    "reason",
+    "outcome",
+    "result",
+    "snapshot",
+    "harness",
+    "sandbox",
+    "attempt",
+    "effect_started",
+    "effect_known",
+    "zero_effect",
+    "stop_state",
+    "fenced",
+    "invocation_id",
+    "capability_request_id",
+    "call_id",
+    "request_id",
+    "capability",
+    "operation",
+    "risk",
+    "action_digest",
+    "arguments",
+    "cell_id",
+    "capability_grant_id",
+    "budget_lease_id",
+    "execution_scope",
+    "resume_binding",
+    "cancellation_state",
+    "cancellation_reason",
+    "cancellation_targets",
+    "cancellation_at_unix_ms",
+    "stop_confirmed",
+    "cancellation_fact",
+    "cancel_actor_id",
+    "input_id",
+    "source",
+    "target",
+    "target_turn_id",
+    "received_sequence",
+    "disposition",
+    "interaction_id",
+    "question",
+    "options",
+    "required",
+    "expires_at_unix_ms",
+    "cancel_policy",
+    "created_by_role",
+    "responder_roles",
+    "status",
+    "request",
+    "wait",
+    "answer",
+    "answer_id",
+    "request_digest",
+    "answer_digest",
+    "waiting_for_input",
+    "turn_outcome",
+    "contract_digest",
+    "output_digest",
+    "artifact_refs",
+    "verification_refs",
+    "blockers",
+    "outcome_digest",
+    "terminal",
+    "kind",
+    "effect_usage",
+    "owner_digest",
+    "lease_digest",
+    "resource_digest",
+    "model_id",
+    "usage",
+    "secret_ref",
+];
+const RUN_REJECTED_FIELDS: &[&str] = &[
+    "run_id",
+    "reason",
+    "command",
+    "session_id",
+    "packet_id",
+    "status",
+    "author_session_id",
+    "reviewer_session_id",
+    "author_role_id",
+];
+
 const RUN_TOOL_CALL_FIELDS: &[&str] = &[
     "run_id",
     "capability_request_id",
@@ -423,6 +620,10 @@ const RUN_RECEIPT_FIELDS: &[&str] = &[
     "work_packet_id",
     "input",
 ];
+
+// request 与 session assignment 保存入口请求和“会话绑定到哪个 actor / 项目 / 角色”的快照。
+// 此处定义的是事件载荷可出现的字段；真正对项目路径和角色权限的授权判断属于 ControlPlane，
+// 不能把字段通过 schema 校验误当成权限已获批准。
 const REQUEST_FIELDS: &[&str] = &[
     "command",
     "arguments",
@@ -467,6 +668,9 @@ const SESSION_ASSIGNMENT_FIELDS: &[&str] = &[
     "project_identity",
     "assignment",
 ];
+
+// communication 和 delegation 记录跨角色交接、回执、事件升级及计划状态转换。
+// 生命周期事件使用专门白名单，是为了区分“发出消息”和“对消息/事件作出处理”的证据形状。
 const COMMUNICATION_FIELDS: &[&str] = &[
     "message",
     "message_id",
@@ -558,6 +762,9 @@ const QUALITY_FIELDS: &[&str] = &[
 ];
 const RECOVERY_FIELDS: &[&str] = &["run_id", "recovery"];
 macro_rules! invocation_fields {
+    // invocation_fields! 给 invocation / capability / execution / result-delivery 事件提供共享的
+    // 关联身份和执行效果字段；具体事件再通过宏参数加入自己的专属字段。复用的是字段形状，
+    // 不代表这些事件可以互换：各自的 EventKindSpec 仍单独指定必需 ID、聚合和终态语义。
     ($($extra:literal),* $(,)?) => {
         &[
             "run_id",
@@ -663,6 +870,9 @@ const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "error",
     "cache_usage",
     "harness_budget",
+    "cell_budget",
+    "usage_accounting",
+    "budget_error",
     "provider_timing",
     "retry_reservation",
     "stop_reason_normalized",
@@ -806,6 +1016,9 @@ const SETTLEMENT_FOLD_FIELDS: &[&str] = &[
     "revision",
     "event_digest",
 ];
+
+// billing / cost 字段组记录用量到费用的关联、账本追加、修正与分摊。
+// ID 和 digest 把账单结果绑定到源事件/条目；不能把它们当作任意备注字段删去或换名。
 const COST_FIELDS: &[&str] = &[
     "schema",
     "version",
@@ -889,6 +1102,9 @@ const COST_ALLOCATION_FIELDS: &[&str] = &[
     "source_digest",
     "allocation_digest",
 ];
+
+// approval 字段组分别描述审批请求、决策、过期、撤销、消费等生命周期事实。
+// 各状态使用精确白名单，避免一个宽泛联合结构把“已请求”载荷里的字段带入“已批准”事件。
 const APPROVAL_FIELDS: &[&str] = &[
     "approval_id",
     "request_hash",
@@ -962,6 +1178,22 @@ const APPROVAL_DENIED_FIELDS: &[&str] = &[
     "decided_by",
     "decision_fact",
 ];
+// 人工审批响应会在具类型的审批状态转换后，再发出绑定 subject request 的直接决策事件。
+// 这个直接信封与 journal transition 是两种生产格式，因此分开登记，不能取两组字段的并集；
+// 否则任一生产者都能夹带另一条链路才允许的字段。
+const APPROVAL_DIRECT_DECISION_IDS: &[&str] = &["approval_id", "subject_request_id", "session_id"];
+const APPROVAL_DIRECT_DECISION_FIELDS: &[&str] = &[
+    "approval_id",
+    "request_hash",
+    "session_id",
+    "actor_id",
+    "decision",
+    "subject_request_id",
+    "operation",
+    "expires_at_unix_ms",
+    "scope",
+    "run_id",
+];
 const APPROVAL_EXPIRED_FIELDS: &[&str] = &[
     "schema",
     "approval_id",
@@ -1019,6 +1251,8 @@ const ACTION_FIELDS: &[&str] = &[
 ];
 
 macro_rules! spec {
+    // 统一填充每个事件都会共享的 envelope schema、owner 和秘密策略；调用点只声明该事件
+    // 自己的聚合类型、必需 ID、载荷白名单、终态和迁移器，便于集中审计而不复制默认值。
     ($kind:literal, $aggregate:literal, $ids:expr, $fields:expr, $terminal:expr, $migration:expr) => {
         EventKindSpec {
             kind: $kind,
@@ -1035,6 +1269,14 @@ macro_rules! spec {
     };
 }
 
+/// 服务端认可的事件类型登记表。
+///
+/// 这是事件契约的单一静态来源：验证函数按 `kind` 查找这里的规格，再检查 schema 版本、
+/// 必需身份字段及字段白名单。事件生产者和读取方应共享此表，不要在入口、UI 或投影模块
+/// 另写一份“差不多”的允许字段列表，否则写入成功的数据可能无法被其他模块一致解释。
+///
+/// `terminal` 表示该事件关闭它所代表的生命周期单元；有些事件结束整个 run，有些只结束一次
+/// capability 尝试。必须结合 `kind` 和具体业务事件理解，不能仅凭该标记就认定外层 run 结束。
 pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     spec!(
         "request.accepted",
@@ -1308,7 +1550,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         false,
         Some("legacy_run_event_v0_to_v1")
     ),
-    // Terminal closes this capability attempt only, not the enclosing run.
+    // 此终态仅关闭这次 capability 尝试，不代表它所属的整个 run 结束。
     spec!(
         "run.capability_blocked",
         "run",
@@ -1369,7 +1611,7 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "run.completed",
         "run",
         RUN_IDS,
-        RUN_FIELDS,
+        RUN_COMPLETED_FIELDS,
         true,
         Some("legacy_run_event_v0_to_v1")
     ),
@@ -1809,6 +2051,11 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
     ),
 ];
 
+/// 事件主版本迁移清单，按事件族、来源版本、目标版本和迁移器名称登记。
+///
+/// 这里的记录必须与 `EventKindSpec.migration` 及 `upcast_event_payload()` 中的实际分发相符；
+/// 清单只表示某个版本方向被允许，不会单独实现转换。当前条目是 v0 到 v1 的 envelope 兼容，
+/// 对应 payload 保持原形状，并仍需要通过当前字段契约。
 pub const EVENT_MIGRATIONS: &[(&str, u32, u32, &str)] = &[
     ("run", 0, 1, "legacy_run_event_v0_to_v1"),
     ("approval", 0, 1, "legacy_approval_event_v0_to_v1"),
@@ -1817,10 +2064,24 @@ pub const EVENT_MIGRATIONS: &[(&str, u32, u32, &str)] = &[
     ("session", 0, 1, "legacy_session_event_v0_to_v1"),
 ];
 
+/// 按稳定类型名查找该事件的服务端契约。
+///
+/// 【调用者】版本检查、未知事件策略和 payload 解析函数均从此表查找；测试也使用它核对表项。
+/// 【输入】事件信封中的 `kind` 字符串。
+/// 【输出】已登记时返回静态规格引用；未知类型返回 `None`，由调用方进一步区分可保留的可选
+/// 事件和必须认识的产品事件。
+/// 【副作用/失败】无副作用；找不到类型本身不直接报错，因为是否报错取决于事件所属类别。
 pub fn event_kind_spec(kind: &str) -> Option<&'static EventKindSpec> {
     EVENT_KIND_SPECS.iter().find(|spec| spec.kind == kind)
 }
 
+/// 判断未知事件类型是否落在必须由当前产品版本理解的关键事件族中。
+///
+/// 前缀集合覆盖请求、运行、授权、执行、会话、模型、费用等会影响状态或审计的事实。
+/// 【调用者】`unknown_event_policy()` 用它对未登记类型执行失败关闭判断。
+/// 【输出】命中任何受管前缀时为 `true`；其他未知命名空间可被保留为不透明数据。
+/// 【为什么这么设计】允许未知类型被检查有助于兼容外围扩展；但关键执行事件如果本版本
+/// 不认识，继续投影可能误授予权限或伪造状态，因此必须拒绝。
 pub fn event_kind_is_required(kind: &str) -> bool {
     [
         "request.",
@@ -1844,6 +2105,14 @@ pub fn event_kind_is_required(kind: &str) -> bool {
     .any(|prefix| kind.starts_with(prefix))
 }
 
+/// 为已登记、关键未知和可选未知类型决定是否能继续处理。
+///
+/// 【调用者】`validate_runtime_event()` 与 `resolve_event_payload()` 在没有事件规格时调用。
+/// 【输入】事件的稳定类型名。
+/// 【输出】已登记类型及可选未知类型返回 `PreserveOpaqueWithoutExecution` 策略；关键事件族的
+/// 未知类型返回 `unknown_required_event_kind`。
+/// 【失败后果】事件存储边界会把错误转换为写入失败；不会自动重试、禁用账号或执行回退。
+/// 【设计原因】可选事件可以留作查询证据，但关键事实必须先有明确契约，不能猜测它的含义。
 pub fn unknown_event_policy(kind: &str) -> Result<UnknownEventPolicy, String> {
     if event_kind_spec(kind).is_some() {
         return Ok(UNKNOWN_EVENT_POLICY);
@@ -1854,6 +2123,13 @@ pub fn unknown_event_policy(kind: &str) -> Result<UnknownEventPolicy, String> {
     Ok(UNKNOWN_EVENT_POLICY)
 }
 
+/// 检查某种已登记事件能否使用传入的 schema 版本。
+///
+/// 【调用者】由 `resolve_event_payload()` 在校验当前版本载荷前调用；迁移旧主版本则走
+/// 显式迁移分支。目前 workspace 中该读取解析入口还没有生产调用者。
+/// 【输入】类型名和事件信封上携带的 `SchemaVersion`。
+/// 【输出/失败】版本兼容返回 `Ok(())`；未知关键事件、未知类型或版本不兼容返回稳定错误码。
+/// 【副作用】无。它不转换载荷，也不写入或修复日志。
 pub fn check_event_schema_version(kind: &str, incoming: &SchemaVersion) -> Result<(), String> {
     let spec = event_kind_spec(kind).ok_or_else(|| {
         unknown_event_policy(kind)
@@ -1863,6 +2139,12 @@ pub fn check_event_schema_version(kind: &str, incoming: &SchemaVersion) -> Resul
     spec.validate_version(incoming)
 }
 
+/// 查找某个事件主版本转换所允许使用的迁移器名称。
+///
+/// 【输入】事件 kind，以及来源和目标主版本号。
+/// 【输出】只有事件规格与本文件的显式迁移清单都匹配时才返回迁移器名；否则为 `None`。
+/// 【设计原因】规格里的迁移字段与版本对照清单必须同时匹配，避免只登记了名字却没有批准
+/// 该事件族/版本方向。具体执行还要由 `upcast_event_payload()` 匹配实现。
 pub fn event_migration(kind: &str, from_major: u32, to_major: u32) -> Option<&'static str> {
     event_kind_spec(kind).and_then(|spec| {
         spec.migration.filter(|_| {
@@ -1873,12 +2155,22 @@ pub fn event_migration(kind: &str, from_major: u32, to_major: u32) -> Option<&'s
     })
 }
 
-/// Apply a named legacy event upcaster without mutating the stored event.
+/// 应用一个已登记的旧版事件载荷迁移器，不修改事件日志中的原始字节。
 ///
-/// The current v0 event families keep their payload shape across the v0-to-v1 envelope change, so
-/// their upcasters are intentionally identity transforms. Keeping the dispatch explicit still
-/// matters: adding a migration entry without an implementation must fail closed, and every
-/// upcaster validates the bounded current payload before it can be projected.
+/// 【作用】把指定旧主版本的载荷转换为当前读取方可接受的形状。目前登记的 v0→v1 家族载荷
+/// 形状保持不变，因此实现是 identity transform（原样返回）；显式调度仍然存在，以保证未来
+/// 真正需要改形状时必须落实对应实现。
+///
+/// 【调用者】由 `resolve_event_payload()` 在遇到已登记的旧主版本时调用；当前 workspace 的
+/// 生产读取路径尚未直接调用 `resolve_event_payload()`，行为由领域契约测试覆盖。
+/// 【输入】事件类型、来源/目标主版本和待迁移载荷（所有权转移进来，成功后原样或转换后返回）。
+/// 【输出】迁移成功并通过当前载荷校验后返回载荷。
+/// 【失败情况】无迁移规则时返回 `event_migration_unavailable`；规则有登记但没有实现时返回
+/// `event_migration_unimplemented`；载荷不符合当前有界契约时返回 payload 校验错误。
+/// 【副作用】无，不会重写事件日志，也不会改变系统状态。
+///
+/// ⚠ 不要因为现有迁移器目前是原样返回，就删除版本分发和 payload 校验。版本边界仍用于
+/// 阻止未登记的旧格式被投影；未来新增字段语义变化时还需要在这里提供真正的转换。
 pub fn upcast_event_payload(
     kind: &str,
     from_major: u32,
@@ -1898,12 +2190,20 @@ pub fn upcast_event_payload(
     }
 }
 
-/// Resolve a payload through the event registry without mutating the original event.
+/// 通过事件登记表解析载荷，并保留它来自当前格式、旧格式还是未知类型的信息。
 ///
-/// This is the executable migration boundary for readers and projectors. Registered current
-/// payloads are validated before use; registered legacy payloads must have a named migration and
-/// are returned with that adapter identity; unknown optional kinds are retained as opaque values;
-/// required-family unknowns and unknown fields fail closed.
+/// 【作用】为读取方提供统一入口：当前版事件按当前契约校验；旧版事件走具名迁移；可选未知
+/// 事件保留为 `Opaque`，仅供查询检查。
+/// 【调用者】目前由 `kiana-domain` 的契约测试调用；workspace 生产代码还没有直接接入此解析
+/// 函数。写入事件时使用的是下面的 `validate_runtime_event()`。
+/// 【输入】事件 `kind`、信封上的版本和 JSON payload。payload 会按值传入，成功结果拥有该值。
+/// 【输出】`Current`、`Migrated` 或 `Opaque` 三类之一。
+/// 【失败情况】关键事件族的未知 kind、未来不兼容主版本、未登记迁移、缺少必需 ID、未知字段
+/// 或无效 payload 均返回错误；失败数据不能作为权威投影输入。
+/// 【副作用】无；尤其不会回写旧事件，也不会执行事件表示的动作。
+///
+/// 数据流：存储事件 → 读取者提供 kind/version/payload → 本函数检查登记表 → 返回已验证载荷
+/// 或只读不透明载荷 → 上层读取逻辑决定如何展示/投影。
 pub fn resolve_event_payload(
     kind: &str,
     incoming: &SchemaVersion,
@@ -1938,6 +2238,22 @@ pub fn resolve_event_payload(
     })
 }
 
+/// 按事件类型验证 JSON payload 的身份键、字段集合及类型专属语义。
+///
+/// 【调用者】EventStore 的现代信封校验经 `validate_runtime_event()` 间接调用；旧版 schema
+/// 解析器和领域测试也直接调用。ACP adapter 在读取待审批快照时会用它检查每个
+/// `approval.requested` 项，再额外核对 Run、Session 与审批/能力请求 ID 的绑定。
+/// 【输入】事件类型名和 JSON 值。已知事件必须是 JSON object；未知类型按关键/可选策略处理。
+/// 【输出】所有契约通过时返回 `Ok(())`，否则返回稳定的错误字符串供上游转换为存储错误。
+/// 【副作用】无。此处只拒绝不合约数据，不会记录日志、重试请求、禁用账号或修复数据。
+/// 【失败后果】通过 EventStore 写入时，错误会被映射为 `PortError::Failed`，该事件不会进入
+/// 持久事实日志；是否向最终用户展示何种错误由更上层入口决定。
+///
+/// 【核心流程】先选出该 kind 对应的具体 payload 契约（部分事件存在两种生产信封），再验证
+/// 关联身份、必需 ID、字段白名单，最后执行 run/model 等类型专属检查。
+///
+/// ⚠ 不要把不同生产者的字段白名单合并成宽松并集。相同事件名可能有直接请求信封和具 schema
+/// 的 journal 信封；区分来源形状可以阻止一种生产者伪装成另一种事实。
 pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String> {
     let Some(spec) = event_kind_spec(kind) else {
         return unknown_event_policy(kind).map(|_| ());
@@ -1945,7 +2261,37 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
     let object = payload
         .as_object()
         .ok_or_else(|| "event_payload_object_required".to_owned())?;
-    let (required_ids, allowed_fields) = model_payload_contract(kind, object, spec)?;
+    // 审批的状态 journal 与直接决策响应共享 approved/denied 名称，但 schema 字段不同，
+    // 因而必须分别选取精确契约。类似地，没有 run_id 的执行事件来自直接调用链，不能套用
+    // 把 run 作为父级上下文的 invocation 规格；这里仅在确实缺少 run_id 时切换 identity 集合。
+    let (required_ids, allowed_fields) = if matches!(kind, "approval.approved" | "approval.denied")
+    {
+        approval_decision_payload_contract(object, spec)?
+    } else if matches!(
+        kind,
+        "capability.completed"
+            | "capability.failed"
+            | "capability.cancelled"
+            | "capability.result_unknown"
+            | "invocation.dispatching"
+            | "invocation.executing"
+            | "execution.prepared"
+            | "execution.result_committed"
+    ) && object.get("run_id").is_none_or(Value::is_null)
+    {
+        (
+            if kind == "execution.prepared" {
+                EXECUTION_PREPARED_DIRECT_IDS
+            } else {
+                INVOCATION_DIRECT_IDS
+            },
+            spec.allowed_fields,
+        )
+    } else {
+        model_payload_contract(kind, object, spec)?
+    };
+    // capability.decision 的 run_id 与 capability_request_id 要么同时出现，要么同时省略；
+    // 只出现一个会让审计记录无法明确绑定到具体运行上下文，因此作为不完整身份拒绝。
     if kind == "capability.decision" {
         match (object.get("run_id"), object.get("capability_request_id")) {
             (None, None) => {}
@@ -1955,6 +2301,8 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
         }
     }
     if kind == "run.rejected" {
+        // 拒绝事件本身必须说明拒绝理由；否则事件虽然能进入日志，却无法向请求者或审计读取者
+        // 解释是哪条前置条件不成立。
         let reason = object
             .get("reason")
             .and_then(Value::as_str)
@@ -1963,25 +2311,161 @@ pub fn validate_event_payload(kind: &str, payload: &Value) -> Result<(), String>
         let _ = reason;
     }
 
+    // required_ids 是身份约束，不等同于“字段可以缺省”：这里要求键存在且 JSON 值非 null。
+    // ID 类型更细的格式校验由相应领域值对象/其他验证器负责。
     for id in required_ids {
         if !object.get(*id).is_some_and(|value| !value.is_null()) {
             return Err(format!("event_required_id_missing:{id}"));
         }
     }
+    // 精确白名单是持久化兼容边界：未知键可能是拼写错误，也可能是尚未经过审计的新语义。
+    // 两种情况都不能在没有更新契约的前提下静默进入事实日志。
     if object
         .keys()
         .any(|key| !allowed_fields.iter().any(|allowed| allowed == key))
     {
         return Err("event_payload_unknown_field".to_owned());
     }
+    if kind == "run.rejected" {
+        validate_run_rejected_context(object)?;
+    }
+    if kind == "run.completed" {
+        validate_run_completed_metadata(object)?;
+    }
+    if kind == "run.model_turn" {
+        if let Some(outcome) = object.get("outcome") {
+            // serde_json 将动态 JSON 解码为领域类型 ModelOutcome，再调用该类型自己的不变量
+            // 校验。这样事件契约检查的是业务对象约束，而不仅是“outcome 是一个 object”。
+            let outcome: crate::ModelOutcome = serde_json::from_value(outcome.clone())
+                .map_err(|_| "event_model_outcome_invalid".to_owned())?;
+            outcome
+                .validate()
+                .map_err(|_| "event_model_outcome_invalid".to_owned())?;
+        }
+    }
     if kind == "model.prepared" && !object.contains_key("schema") {
+        // 缺少 schema 的 model.prepared 属于旧的模型预算审计 envelope，而不是新模型调用事件；
+        // 单独校验 permit、准备记录和 authority version 之间的绑定关系。
         validate_model_budget_prepared(object)?;
     }
     Ok(())
 }
 
-// The journal budget and typed provider/lifecycle producers share three event names.
-// Select one bounded payload shape; admitting their field union would hide mixed facts.
+/// 校验 run.rejected 可选的评审上下文，使持久化诊断字段保持可读且结构稳定。
+///
+/// 【调用者】仅由 `validate_event_payload()` 在必需 ID 和字段白名单通过后调用。
+/// 【输入】JSON object 的只读映射；字段可能缺失，因为拒绝原因可能正是输入资料不完整。
+/// 【输出/失败】所有已提供字段形状正确时成功；非空文本字段为空/非字符串、author_role_id
+/// 不是字符串，或 status 无法反序列化为 WorkPacketStatus 时返回带字段名的错误。
+/// 【为什么 role 可以为空】缺失作者角色本身可以是评审被拒绝的原因；该值仅作诊断文本，
+/// 不会因为它是字符串就授予任何角色或权限。
+fn validate_run_rejected_context(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    for field in [
+        "command",
+        "session_id",
+        "packet_id",
+        "author_session_id",
+        "reviewer_session_id",
+    ] {
+        if let Some(value) = object.get(field) {
+            if value.as_str().is_none_or(|text| text.trim().is_empty()) {
+                return Err(format!("event_rejected_field_invalid:{field}"));
+            }
+        }
+    }
+    // 缺失作者角色本身就可能是拒绝评审的原因，因此诊断字符串允许为空；它不授予角色，
+    // 但仍拒绝非字符串形状，保证读取方不必处理任意 JSON 类型。
+    if object
+        .get("author_role_id")
+        .is_some_and(|role| !role.is_string())
+    {
+        return Err("event_rejected_field_invalid:author_role_id".to_owned());
+    }
+    if let Some(status) = object.get("status") {
+        serde_json::from_value::<crate::WorkPacketStatus>(status.clone())
+            .map_err(|_| "event_rejected_field_invalid:status".to_owned())?;
+    }
+    Ok(())
+}
+
+/// 校验 run.completed 终态事件可选附带的模型、token 用量和凭证引用。
+///
+/// 【调用者】由 `validate_event_payload()` 在完整 run 事件通过字段白名单后调用。
+/// 【输入】完成事件载荷的 JSON object；三个元数据键都允许缺省，存在时必须符合其各自格式。
+/// 【输出/失败】合法则成功；空模型 ID、非对象或多出字段/缺少 token 数字、无效凭证引用分别
+/// 返回稳定错误码。
+/// 【安全含义】secret_ref 只能是通过事件秘密扫描器检查的非空引用，不能在普通完成事件中
+/// 偷渡凭证明文；token 用量仅接受无符号整数并且键只能是 input_tokens/output_tokens。
+fn validate_run_completed_metadata(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    if let Some(model_id) = object.get("model_id") {
+        if model_id.as_str().is_none_or(|text| text.trim().is_empty()) {
+            return Err("event_completed_model_id_invalid".to_owned());
+        }
+    }
+    if let Some(usage) = object.get("usage") {
+        let usage = usage
+            .as_object()
+            .ok_or_else(|| "event_completed_usage_invalid".to_owned())?;
+        if usage
+            .keys()
+            .any(|field| !matches!(field.as_str(), "input_tokens" | "output_tokens"))
+        {
+            return Err("event_payload_unknown_field".to_owned());
+        }
+        if ["input_tokens", "output_tokens"]
+            .iter()
+            .any(|field| usage.get(*field).and_then(Value::as_u64).is_none())
+        {
+            return Err("event_completed_usage_invalid".to_owned());
+        }
+    }
+    if let Some(reference) = object.get("secret_ref") {
+        let reference = reference
+            .as_str()
+            .filter(|reference| !reference.trim().is_empty())
+            .ok_or_else(|| "event_completed_secret_ref_invalid".to_owned())?;
+        // SecretScanChannel::Event 表示扫描的是即将写进事件日志的文本；扫描失败时将其
+        // 统一报告为无效引用，从而避免敏感值落入长期保存、可导出的事件事实。
+        crate::scan_secret_sentinels(crate::SecretScanChannel::Event, reference)
+            .map_err(|_| "event_completed_secret_ref_invalid".to_owned())?;
+    }
+    Ok(())
+}
+
+/// 根据审批决策 payload 的 schema 标记选择状态 journal 或直接决策契约。
+///
+/// 【调用者】仅由 `validate_event_payload()` 处理 `approval.approved`/`approval.denied` 时调用。
+/// 【输入】payload 对象和该事件在登记表里的默认规格。
+/// 【输出】返回该形状对应的必需 ID 与允许字段；无 schema 表示直接响应，有两个已知审批
+/// schema 表示标准 journal transition。
+/// 【失败】schema 存在但类型错误或名称未知时返回 `event_approval_payload_schema_invalid`。
+/// 【设计原因】不同审批生产者写出的事实粒度不同，不能用字段并集放行混合信封。
+fn approval_decision_payload_contract(
+    object: &serde_json::Map<String, Value>,
+    spec: &EventKindSpec,
+) -> Result<(&'static [&'static str], &'static [&'static str]), String> {
+    match object.get("schema") {
+        Some(Value::String(schema))
+            if schema == "kiana.approval-journal.v1" || schema == "kiana.approval.v1" =>
+        {
+            Ok((spec.required_ids, spec.allowed_fields))
+        }
+        None => Ok((
+            APPROVAL_DIRECT_DECISION_IDS,
+            APPROVAL_DIRECT_DECISION_FIELDS,
+        )),
+        _ => Err("event_approval_payload_schema_invalid".to_owned()),
+    }
+}
+
+/// 为共用 model.* 名称的不同生产链路选择各自有限的载荷格式。
+///
+/// 【调用者】`validate_event_payload()` 在通常的事件规格之外调用它。
+/// 【输入】事件类型、载荷对象和该类型的默认登记规格。
+/// 【输出】预算 journal、具类型模型调用事件或 model attempt 生命周期各自的必需 ID 和字段白名单。
+/// 【失败】schema 字段存在但类型/值不受支持时返回 `event_model_payload_schema_invalid`。
+/// 【设计原因】不同生产者共用部分事件名，但事实内容不同；按 schema 选单一有界格式，可以避免
+/// 把各格式字段取并集后接收一条混合来源、无法一致解释的事件。
 fn model_payload_contract(
     kind: &str,
     object: &serde_json::Map<String, Value>,
@@ -2012,7 +2496,21 @@ fn model_payload_contract(
     }
 }
 
+/// 检查旧模型预算链路的 model.prepared 载荷内部身份是否互相绑定。
+///
+/// 【调用者】当 model.prepared 没有显式 `schema` 字段时，由 payload 验证器调用。
+/// 【输入】先前已通过顶层 required ID 检查的 JSON object，预期包含 permit、prepared 审计数据和
+/// authority_versions。
+/// 【输出/失败】Permit、审计字段、模型调用 ID、run/attempt/request hash 和 authority 版本全部
+/// 一致时成功；JSON 结构无效、包含未知审计字段、身份不匹配或 authority 列表为空都会失败。
+/// 【副作用】无；函数只验证，不会调用模型、预留预算或变更 authority。
+///
+/// 【为什么需要交叉比对】只检查每个字段“能否解码”不足以保证它们属于同一次调用；这里把
+/// permit 与审计 event 的 run_id、model_request_id、request_hash 逐项绑定，避免拼接不同调用的
+/// 记录后仍通过结构校验。
 fn validate_model_budget_prepared(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    // serde_json 将载荷中的 JSON 值反序列化为领域许可类型，后续可检查该类型的版本与 ID；
+    // 解析失败意味着事件无法被当前代码安全理解，因此不应继续投影。
     let permit: crate::ModelCallPermit = serde_json::from_value(object["permit"].clone())
         .map_err(|_| "event_model_prepared_permit_invalid".to_owned())?;
     let audit = object["prepared"]
@@ -2055,6 +2553,21 @@ fn validate_model_budget_prepared(object: &serde_json::Map<String, Value>) -> Re
     Ok(())
 }
 
+/// 验证完整运行事件信封是否属于本版本允许处理的范围。
+///
+/// 【调用者】主要由 `kiana-eventlog::event_store_core` 在追加现代事件前调用；Core 的数据撤销
+/// 分页扫描、凭证恢复投影和 `kiana-quality::normalize` 也会在读取已提交事件时调用，用来拒绝
+/// 不能安全归并的历史。领域契约测试会直接传入信封验证边界。
+/// EventStore 对缺少聚合/版本元数据的 legacy frame 以及非对象旧载荷保留兼容路径，不会进入
+/// 此 registry 验证；现代信封通过此函数后仍需通过 EventStore 的其他身份、审计、治理与秘密检查。
+/// 【输入】由生产者构造的 `RuntimeEvent`，包含 kind、请求/关联信息和 JSON data。
+/// 【输出】已登记事件通过 payload 契约时返回成功；关键未知事件和非法载荷返回错误。
+/// 可选未知 kind 按 `PreserveOpaqueWithoutExecution` 留作不透明事实，不会在此解释其 payload。
+/// 【副作用】本函数无副作用。失败不会触发重试、账号禁用或自动修复；EventStore 会记录
+/// registry 校验失败诊断并拒绝追加。
+///
+/// 【核心流程】先确认 kind 对当前系统是已登记或允许不透明保留，再对已登记 kind 执行 payload
+/// 验证。顶层事件信封字段的其他完整性约束由 RuntimeEvent/EventStore 的其他契约共同负责。
 pub fn validate_runtime_event(event: &RuntimeEvent) -> Result<(), String> {
     unknown_event_policy(&event.kind)?;
     if event_kind_spec(&event.kind).is_some() {

@@ -605,6 +605,20 @@ impl StorageDegradationReport {
         for summary in &self.summaries {
             summary.validate()?;
         }
+        // A measured-subject claim is a more specific invariant than the derived report binding:
+        // report it before any edited status or decision can mask a missing receipt.
+        for subject in &self.measured_subjects {
+            let Some(budget) = self
+                .budgets
+                .iter()
+                .find(|budget| budget.subject == *subject)
+            else {
+                return Err("storage_degradation_measured_subject_unknown".to_owned());
+            };
+            if !budget.is_measured() {
+                return Err("capacity_budget_receipt_missing".to_owned());
+            }
+        }
         let (status, over_budget, measured, reason, remediation) = derive(
             &self.baseline_digest,
             &self.budgets,
@@ -626,22 +640,6 @@ impl StorageDegradationReport {
         if self.status == StorageDegradationStatus::Exceeded && self.reason.is_empty() {
             return Err("storage_degradation_exceeded_without_reason".to_owned());
         }
-        // A report that claims a subject was measured must carry the receipt, and a report that
-        // carries a receipt must say which subject it belongs to.
-        if !self.measured_subjects.is_empty() {
-            for subject in &self.measured_subjects {
-                let Some(budget) = self
-                    .budgets
-                    .iter()
-                    .find(|budget| budget.subject == *subject)
-                else {
-                    return Err("storage_degradation_measured_subject_unknown".to_owned());
-                };
-                if !budget.is_measured() {
-                    return Err("capacity_budget_receipt_missing".to_owned());
-                }
-            }
-        }
         if self.report_digest != self.digest() {
             return Err("storage_degradation_report_digest_mismatch".to_owned());
         }
@@ -651,27 +649,33 @@ impl StorageDegradationReport {
     /// The envelope a set of budgets describes. Reconstructed from the declared bounds so a
     /// report and its budgets cannot disagree about what was bounded.
     fn envelope_from_budgets(&self) -> CapacityEnvelope {
-        let bound = |subject: StorageCapacitySubject| -> u64 {
-            self.budgets
-                .iter()
-                .find(|budget| budget.subject == subject)
-                .map(|budget| budget.envelope_bound)
-                .unwrap_or(0)
-        };
-        CapacityEnvelope {
-            journal_max_bytes: bound(StorageCapacitySubject::BackupPrune),
-            journal_max_events: 1,
-            max_frame_bytes: bound(StorageCapacitySubject::EventFrame),
-            max_event_bytes: bound(StorageCapacitySubject::EventFrame),
-            max_batch_events: bound(StorageCapacitySubject::WriterQueue),
-            max_page_events: bound(StorageCapacitySubject::Index),
-            max_export_records: bound(StorageCapacitySubject::Index),
-            observability_queue_capacity: bound(StorageCapacitySubject::WriterQueue),
-            max_artifact_bytes: bound(StorageCapacitySubject::Artifact),
-            high_cardinality_rejected: true,
-            oversize_rejected: true,
-            backpressure_preserves_facts: true,
+        let mut capacity = default_capacity();
+        for budget in &self.budgets {
+            if budget.envelope_bound == 0 {
+                continue;
+            }
+            match budget.subject {
+                StorageCapacitySubject::EventFrame => {
+                    capacity.max_frame_bytes = budget.envelope_bound;
+                    capacity.max_event_bytes = budget.envelope_bound;
+                }
+                StorageCapacitySubject::Artifact => {
+                    capacity.max_artifact_bytes = budget.envelope_bound;
+                }
+                StorageCapacitySubject::Index => {
+                    capacity.max_page_events = budget.envelope_bound;
+                    capacity.max_export_records = budget.envelope_bound;
+                }
+                StorageCapacitySubject::BackupPrune => {
+                    capacity.journal_max_bytes = budget.envelope_bound;
+                }
+                StorageCapacitySubject::WriterQueue => {
+                    capacity.max_batch_events = budget.envelope_bound;
+                    capacity.observability_queue_capacity = budget.envelope_bound;
+                }
+            }
         }
+        capacity
     }
 
     pub fn digest(&self) -> String {
@@ -819,10 +823,10 @@ fn derive(
         }
     }
     // The card's third rejection: maintenance squeezing out user admission.
-    if let Some(budget) = budgets
-        .iter()
-        .find(|budget| maintenance_share_bps > budget.max_maintenance_share_bps)
-    {
+    if let Some(budget) = budgets.iter().find(|budget| {
+        budget.subject == StorageCapacitySubject::BackupPrune
+            && maintenance_share_bps > budget.max_maintenance_share_bps
+    }) {
         return refusal(
             budget.subject,
             "capacity_maintenance_budget_exceeded",

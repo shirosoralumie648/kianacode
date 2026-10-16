@@ -169,11 +169,46 @@ async fn retryable_429_then_success_records_two_attempts() {
 }
 
 #[tokio::test]
+async fn provider_503_rejection_does_not_retry_even_with_no_known_effect() {
+    let model = SequenceModel {
+        outcomes: vec![
+            transient("provider_http_503", ModelRetryClass::Rejected, true),
+            Ok(ModelOutput::text("must not run")),
+        ],
+        calls: Arc::new(AtomicUsize::new(0)),
+        attempt_ids: Arc::new(std::sync::Mutex::new(Vec::new())),
+        entered: Arc::new(Notify::new()),
+        rejected: true,
+        retry_after_ms: Some(1),
+        emit_delta_before_error: false,
+    };
+    let (harness, _, calls, _) = harness(model, std::time::Duration::from_secs(2));
+    let events = harness
+        .send(RunnerCommand::start_in(
+            RunId::new(),
+            "unsafe rejection",
+            "/p4-j7-23-503",
+            "read-only",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(harness_model_calls(&events), 1);
+    assert!(events.iter().any(
+        |event| matches!(event, RunnerEvent::Failed { error, .. } if error == "provider_http_503")
+    ));
+    assert!(!events.iter().any(|event| matches!(
+        event,
+        RunnerEvent::Completed { .. } | RunnerEvent::CapabilityRequested { .. }
+    )));
+}
+
+#[tokio::test]
 async fn provider_retries_do_not_consume_the_separate_repair_budget() {
     let model = SequenceModel {
         outcomes: vec![
             transient("provider_http_429", ModelRetryClass::Rejected, true),
-            transient("provider_http_503", ModelRetryClass::Rejected, true),
+            transient("provider_http_408", ModelRetryClass::Rejected, true),
             Ok(ModelOutput::text("recovered after two rejections")),
         ],
         calls: Arc::new(AtomicUsize::new(0)),

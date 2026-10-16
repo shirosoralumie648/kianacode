@@ -1,3 +1,7 @@
+//! EQ-46 Domain evaluator 的小型内存合同测试。
+//!
+//! 这些用例直接构造版本报告、阈值和摘要，不从外部读取当前策略或监控数据。它们检查阈值超限、样本不足、
+//! route/grant 快照不一致、摘要篡改和严格 JSON 字段边界；不证明告警已持久化、已通知用户或影响实际路由。
 use kiana_domain::{
     evaluate_drift, DriftAlertId, DriftEvaluationInput, DriftReport, DriftThreshold, DriftVerdict,
     EventId, RouteDecision, DRIFT_ALERT_EVENT_KIND, DRIFT_INPUT_SCHEMA,
@@ -8,6 +12,8 @@ const TARGET: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const ROUTE: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const GRANT: &str = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
+/// 构造含指定 turn 数的单版本报告；`error=true` 表示每个合成样本都记为错误。
+/// 通过 Domain `DriftReport::record()` 累加，避免手工篡改计数绕过源报告校验。
 fn report(error: bool, turns: usize) -> DriftReport {
     let route = RouteDecision {
         schema: "kiana.route-decision.v1".to_owned(),
@@ -29,6 +35,7 @@ fn report(error: bool, turns: usize) -> DriftReport {
     report
 }
 
+/// 构造含错误率上限和固定 1 秒耗时上限的合同，并按字段重算 threshold digest。
 fn threshold(minimum_samples: u64, max_error_rate_milli: Option<u64>) -> DriftThreshold {
     let mut threshold = DriftThreshold {
         schema: "kiana.quality-drift-threshold.v1".to_owned(),
@@ -41,6 +48,7 @@ fn threshold(minimum_samples: u64, max_error_rate_milli: Option<u64>) -> DriftTh
     threshold
 }
 
+/// 组合合成 report/threshold；前后快照故意相等，source_cursor=9 仅满足非零形状要求。
 fn make_input(report: DriftReport, threshold: DriftThreshold) -> DriftEvaluationInput {
     DriftEvaluationInput {
         schema: DRIFT_INPUT_SCHEMA.to_owned(),
@@ -58,6 +66,7 @@ fn make_input(report: DriftReport, threshold: DriftThreshold) -> DriftEvaluation
 
 #[test]
 fn drift_threshold_breach_emits_alert_without_authority_change() {
+    // 两个样本均失败，错误率为 1000 milli，严格大于 100 milli，因此生成告警证据。
     let result = evaluate_drift(&make_input(report(true, 2), threshold(1, Some(100)))).unwrap();
     assert_eq!(result.metrics.verdict, DriftVerdict::Alerted);
     let event = result.event.expect("threshold breach should emit an event");
@@ -76,6 +85,7 @@ fn drift_threshold_breach_emits_alert_without_authority_change() {
 
 #[test]
 fn insufficient_samples_need_review_and_do_not_pass() {
+    // 单个样本达不到 minimum_samples=2；即使错误率没有严格超过 1000 milli，也不能报 Healthy。
     let result = evaluate_drift(&make_input(report(false, 1), threshold(2, Some(1_000)))).unwrap();
     assert_eq!(result.metrics.verdict, DriftVerdict::NeedsReview);
     assert!(result.event.is_none());
@@ -83,6 +93,7 @@ fn insufficient_samples_need_review_and_do_not_pass() {
 
 #[test]
 fn route_or_grant_drift_is_rejected_before_alerting() {
+    // 任一前后快照不同都在指标计算前拒绝，避免把配置变化的结果伪装为相同运行条件下的 drift。
     let mut input = make_input(report(true, 2), threshold(1, Some(100)));
     input.route_digest_after = TARGET.to_owned();
     assert_eq!(evaluate_drift(&input), Err("drift_input_invalid"));
@@ -94,6 +105,7 @@ fn route_or_grant_drift_is_rejected_before_alerting() {
 
 #[test]
 fn drift_rejects_digest_and_unknown_field_tampering() {
+    // JSON 仍可反序列化，但 threshold 摘要必须匹配阈值字段；额外字段由 deny_unknown_fields 拒绝。
     let mut input =
         serde_json::to_value(make_input(report(false, 2), threshold(1, Some(1_000)))).unwrap();
     input["threshold"]["threshold_digest"] = json!(TARGET);

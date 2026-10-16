@@ -140,7 +140,7 @@ async fn untrusted_run_never_reaches_model_or_broker() {
     assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
     assert_eq!(
         response.error.as_deref(),
-        Some("workspace_write_requires_trusted_non_safe_profile")
+        Some("port_failed:AUTH_CALLER_UNTRUSTED")
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(host
@@ -149,7 +149,13 @@ async fn untrusted_run_never_reaches_model_or_broker() {
         .unwrap()
         .unwrap()
         .iter()
-        .all(|event| event.kind != "run.capability_requested"));
+        .all(|event| !matches!(
+            event.kind.as_str(),
+            "run.capability_requested"
+                | "execution.prepared"
+                | "execution.started"
+                | "capability.completed"
+        )));
 }
 
 #[tokio::test]

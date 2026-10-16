@@ -1,4 +1,4 @@
-use kiana_core::project_model_attempts;
+use kiana_core::{project_model_attempts, ModelAttemptProjectionError};
 use kiana_domain::{ModelAttemptRecord, RequestId, RunId, RuntimeEvent, TraceStatus, TurnId};
 use serde_json::{json, Value};
 
@@ -92,6 +92,26 @@ fn model_attempt_projection_is_deterministic_and_secret_free() {
         );
     }
     record.validate().unwrap();
+}
+
+#[test]
+fn model_attempt_projection_rejects_event_id_content_drift_but_allows_exact_replay() {
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let request_id = RequestId::new();
+    let successful = successful_event(run_id, request_id, turn_id);
+
+    let exact = project_model_attempts(run_id, &[successful.clone(), successful.clone()]).unwrap();
+    assert_eq!(exact.len(), 1);
+
+    let mut drift = successful.clone();
+    drift.data["finish"] = json!("length");
+    assert_eq!(
+        project_model_attempts(run_id, &[successful.clone(), drift]),
+        Err(ModelAttemptProjectionError::EventIdentityConflict {
+            event_id: successful.event_id.to_string(),
+        })
+    );
 }
 
 fn failed_event(

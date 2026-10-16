@@ -14,7 +14,7 @@ use kiana_domain::{
     json_digest, AuthenticatedPrincipalRef, CapabilityRequest, DataClass, DataPayloadState,
     DeleteRequest, EntryPointKind, EventId, ProjectIdentity, RequestContext, RequestId,
     RetentionDisposition, RoleSpec, Sc37DenyCase, Sc37DenyFamily, Sc37DenyMatrix,
-    Sc37DispatchSurface, SecurityReasonCode,
+    Sc37DispatchSurface, SecurityReasonCode, SessionId,
 };
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -456,21 +456,33 @@ fn sc37_entrypoint_bypass_direct_route_and_cross_entrypoint_replay_are_rejected(
     value["route"] = json!("direct-broker");
     assert!(EntrypointCommand::from_json(&value).is_err());
 
-    // A command digest replayed under a different entrypoint is refused by the matrix.
+    // The same command and trusted context may cross entrypoints: the entrypoint label is not a
+    // second authority path.
     let denied = command
         .clone()
         .with_decision(EntrypointDecision::Denied)
         .unwrap();
-    let mut forged = denied.clone();
-    forged.entrypoint = EntryPointKind::Web;
+    let equivalent_web = EntrypointCommand::new(EntryPointKind::Web, &context, &intent)
+        .unwrap()
+        .with_decision(EntrypointDecision::Denied)
+        .unwrap();
+    let equivalent = EntrypointParityMatrix::new(vec![denied.clone(), equivalent_web], 0).unwrap();
+    assert!(equivalent.validate().is_ok());
+
+    // A replay under a different session is refused even if an attacker relabels it as another
+    // entrypoint. The changed context digest changes the command digest, so the matrix cannot
+    // bind the forged command to the original authorization fact.
+    let mut forged_context = context.clone();
+    forged_context.session_id = SessionId::new("sc37-replayed-session");
+    let forged = EntrypointCommand::new(EntryPointKind::Web, &forged_context, &intent)
+        .unwrap()
+        .with_decision(EntrypointDecision::Denied)
+        .unwrap();
     let mut matrix = EntrypointParityMatrix::new(vec![denied], 0).unwrap();
     matrix.commands[0] = forged;
     matrix.matrix_digest = matrix.digest();
     let denial = matrix.validate().unwrap_err();
-    assert!(matches!(
-        denial.as_str(),
-        "entrypoint_parity_command_mismatch" | "entrypoint_parity_matrix_digest_mismatch"
-    ));
+    assert_eq!(denial, "entrypoint_parity_command_mismatch");
 
     let case = recorded(
         "sc37_entrypoint_bypass_direct_route",

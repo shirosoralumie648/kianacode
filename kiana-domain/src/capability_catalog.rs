@@ -78,7 +78,7 @@ impl CapabilityCatalogEntry {
         let manifest_digest = extension_manifest_digest(manifest)?;
         let requested_capabilities = manifest.required_capabilities.clone();
         bounded_capabilities(&requested_capabilities, "capability_requested")?;
-        let effective_capabilities = requested_capabilities
+        let mut effective_capabilities = requested_capabilities
             .intersection(available)
             .filter(|capability| grant.contains(*capability) && approval.contains(*capability))
             .cloned()
@@ -92,6 +92,10 @@ impl CapabilityCatalogEntry {
                 .iter()
                 .any(|capability| !read_only_capability(capability));
         let (decision, reason) = if read_only_write {
+            // A denied read-only manifest must not retain an executable write capability in the
+            // projected effective set. Keep the requested set for audit, but make the deny result
+            // inert before it is digested or handed to any caller.
+            effective_capabilities.clear();
             (
                 CapabilityCatalogDecision::Denied,
                 "extension_read_only_write_denied".to_owned(),

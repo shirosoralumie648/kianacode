@@ -31,7 +31,10 @@ fn dependency_missing_and_duplicate_edges_fail_closed() {
     assert_eq!(error.code, "packet_dependency_missing");
     assert_eq!(error.packet_id, "absent");
 
-    let duplicate = BTreeMap::from([("root".to_owned(), packet("root", &["dep", "dep"]))]);
+    let duplicate = BTreeMap::from([
+        ("root".to_owned(), packet("root", &["dep", "dep"])),
+        ("dep".to_owned(), packet("dep", &[])),
+    ]);
     assert_eq!(
         validate_dependency_dag(&duplicate).unwrap_err().code,
         "packet_dependency_duplicate"

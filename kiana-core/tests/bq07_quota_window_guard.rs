@@ -13,6 +13,10 @@ fn quota_window_and_group_contracts_use_trusted_utc_clock() {
         "quota_clock_rollback",
         "timezone: \"UTC\"",
         "retry_after_ms",
+        "pub fn check_at(",
+        "clock.require_trusted()?",
+        "wall_now_unix_ms",
+        "check_with_retry_after",
         "alias",
         "credential_group",
     ] {

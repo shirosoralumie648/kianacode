@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn company_process_is_a_pure_adapter_over_the_existing_workflow_planner() {
     let domain = include_str!("../../kiana-domain/src/company_process.rs");
@@ -34,6 +37,7 @@ fn company_process_is_a_pure_adapter_over_the_existing_workflow_planner() {
         );
     }
     assert!(core_process.contains("plan_company_process"));
+    let domain = source_guard::production_source(domain);
     assert!(!domain.contains("CapabilityBroker"));
     assert!(!domain.contains("Runner"));
     assert!(!domain.contains("serde_json::from_str::<CapabilityRequest>"));

@@ -1,3 +1,8 @@
+//! CAP-02 输入边界的跨 crate 静态源码守卫。
+//!
+//! 该测试读取 Runner、Core、Broker、Daemon、Provider、baseline 和 workflow 文本，确认指定
+//! parser/schema/normalizer 接缝仍存在；它不运行这些接缝，也不证明某个生产请求已通过它们。
+/// 固定五工具输入从 bounded parse/schema 到 ShellCommandPlan/Provider 转换的源码标记范围。
 #[test]
 fn capability_input_boundary_is_shared_by_runner_core_broker_and_daemon() {
     let catalog = include_str!("../../kiana-domain/src/tool_catalog.rs");

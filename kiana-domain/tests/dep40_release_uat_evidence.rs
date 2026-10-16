@@ -96,12 +96,13 @@ fn live_uat_requires_typed_operator_approval() {
         UatProviderMode::LiveOptIn,
         ReleaseUatProofLevel::Live,
         ReleaseUatEvidenceStatus::Verified,
-        Some("operator-approval".to_owned()),
+        Some("approval:uat".to_owned()),
         vec![A.to_owned()],
         true,
         Vec::new(),
     )
     .expect("live UAT evidence shape");
+    value.operator_approval_ref = Some("operator-approval".to_owned());
     value.evidence_digest = value.digest();
     assert_eq!(
         value

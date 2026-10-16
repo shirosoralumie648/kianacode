@@ -34,3 +34,21 @@ fn auth_command_output_is_sanitized_but_other_commands_are_unchanged() {
     let other = "plain output";
     assert_eq!(sanitize_command_output("doctor", other), other);
 }
+
+#[test]
+fn text_auth_status_preserves_only_known_presence_markers() {
+    let text = "Auth status\napi_key: set\nsource: config\noauth_access_token: missing\noauth_refresh_token: set";
+    assert_eq!(sanitize_command_output("auth", text), text);
+    for value in [
+        "sk-live-fixture-secret",
+        "set extra-credential",
+        "Bearer fixture-secret",
+    ] {
+        let text = format!("Auth status\napi_key: {value}\nsource: config");
+        let safe = sanitize_command_output("auth", &text);
+        assert_eq!(safe, "Auth status\napi_key: [REDACTED]\nsource: config");
+        assert!(!safe.contains(value));
+    }
+    let safe = sanitize_command_output("auth", "api_key: set\nnotes: token=fixture-secret\n");
+    assert_eq!(safe, "api_key: set\nnotes: token=[REDACTED]\n");
+}

@@ -79,6 +79,41 @@ async fn jsonl_frame_checksum_and_torn_tail_recovery_are_bounded() {
 }
 
 #[test]
+fn jsonl_v2_rejects_duplicate_wire_keys_before_header_or_frame_decode() {
+    let duplicate = temp_path("duplicate-key");
+    write_fixture(
+        &duplicate,
+        br#"{"schema":"kiana.journal-header.v2","schema":"kiana.journal-header.v2","required":true,"writer_version":2}
+"#,
+    );
+    let error = JsonlEventLog::open(&duplicate).unwrap_err();
+    assert!(error.to_string().contains("eventlog_corrupt"), "{error}");
+    cleanup(&duplicate);
+
+    let nested = temp_path("nested-duplicate-key");
+    let frame = JournalFrame::new(JournalFramePayload::Event {
+        event: RuntimeEvent::new(RequestId::new(), 1, "run.started", json!({})).unwrap(),
+    })
+    .unwrap();
+    let encoded = serde_json::to_string(&frame).unwrap().replacen(
+        r#""body":{"type":"event","event":"#,
+        r#""body":{"type":"event","type":"event","event":"#,
+        1,
+    );
+    assert!(encoded.contains(r#""type":"event","type":"event""#));
+    write_fixture(
+        &nested,
+        format!(
+            "{}\n{encoded}\n",
+            serde_json::to_string(&JournalHeader::default()).unwrap()
+        ),
+    );
+    let error = JsonlEventLog::open(&nested).unwrap_err();
+    assert!(error.to_string().contains("eventlog_corrupt"), "{error}");
+    cleanup(&nested);
+}
+
+#[test]
 fn jsonl_v2_source_contract_keeps_checksum_sync_lock_and_bounded_tail() {
     let source = include_str!("../src/jsonl.rs");
     let journal = include_str!("../../kiana-domain/src/journal.rs");
@@ -95,6 +130,7 @@ fn jsonl_v2_source_contract_keeps_checksum_sync_lock_and_bounded_tail() {
         "eventlog_repair_failed",
         "MAX_JOURNAL_LOG_BYTES",
         "uncertain_write",
+        "parse_json_value_reject_duplicates",
     ] {
         assert!(
             source.contains(marker),

@@ -38,20 +38,27 @@ fn canonical_event_uses_whitelist_and_shared_redaction_boundary() {
     let request_id = RequestId::new();
     let data = json!({
         "run_id": "run-1",
-        "text": "Authorization: Bearer should-not-escape",
-        "arguments": {"api_key": "secret-value", "safe": "visible"}
+        "capability_request_id": "capability-1",
+        "arguments": {
+            "text": "Authorization: Bearer should-not-escape",
+            "api_key": "secret-value",
+            "safe": "visible"
+        }
     });
     let trace = TraceNormalizer::new()
         .canonicalize(
             &[DurableEvent::new(
                 4,
-                event(request_id, 1, "run.prompt", "run-1", data),
+                event(request_id, 1, "run.capability_requested", "run-1", data),
             )],
             ArrayPolicy::Ordered,
         )
         .expect("canonical trace");
     let value = &trace.events[0].value;
-    assert_eq!(value["data"]["text"], "Authorization: Bearer [REDACTED]");
+    assert_eq!(
+        value["data"]["arguments"]["text"],
+        "Authorization: Bearer [REDACTED]"
+    );
     assert_eq!(value["data"]["arguments"]["api_key"], "[REDACTED]");
     assert_eq!(value["data"]["arguments"]["safe"], "visible");
     assert!(trace.canonical_bytes().is_ok());

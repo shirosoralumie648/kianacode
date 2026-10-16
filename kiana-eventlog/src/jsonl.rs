@@ -1,25 +1,47 @@
-//! 落盘的 append-only 事件账本：完整、带校验和、阻塞 I/O 有界的 JSONL 事务帧。
+//! JSONL（每行一条 JSON 记录）事件存储 adapter（适配器），实现 `EventStorePort`。
 //!
-//! # 这个文件是「持久」这个词的落地处
+//! 【本模块在系统中的位置】
+//! ```text
+//! DaemonHost 创建 JsonlEventLog 并注入 ControlPlane
+//!     ↓
+//! ControlPlane 经 EventStorePort 提交事件或原子状态转换
+//!     ↓
+//! 【本模块】把事件/事务帧编码后写入 JSONL 文件，并维护可查询的内存索引
+//!     ↓
+//! 重新打开时从文件重放记录，供 Core 的恢复、收据和查询流程读取
+//! ```
 //!
-//! 仓库的证明阶梯里有 `durable` 这一级。它不是评审给的一个标签，
-//! 而是**由这个文件的行为决定的**：帧完整、有校验和、写完 fsync、
-//! 目录项也 fsync、并发写者被锁住。任何一条不成立，结论就上不到那一级。
+//! `kiana-eventlog/src/memory.rs` 提供相同端口的进程内实现；它适合测试或显式注入，进程
+//! 退出后数据消失。当前本地 Daemon 通常装配本模块。两者的接口相似不代表持久性相同。
 //!
-//! 对照 `lib.rs` 里那句「内存实现不是轻量的持久实现」——差别就在这里。
+//! 【写入与读取的数据流】
+//! `RuntimeEvent` / `TransitionBatch`
+//! → 校验顺序、幂等键或转换前置条件
+//! → 编码成单行 JSON（v2 事务帧带校验和）
+//! → 写文件、flush、同步文件；Unix 上再同步目录并复核文件身份
+//! → 更新 `DiskCache` 中的 JournalState、偏移量与游标
+//! 读取时方向相反：从缓存增量读取新字节 → 严格解析 JSON → 校验帧形状和校验和
+//! → 更新 `JournalState` → 由 `read_all`、`read_stream`、`read_command` 等端口方法返回。
 //!
-//! # 「complete frame」的含义
+//! 【原子性、恢复与证明边界】
+//! 单个 `TransitionBatch` 是否受支持由 `supports_atomic_transitions()` 报告；当前实现仅在
+//! Unix 平台报告支持。事务帧可用于重放和校验，但写入失败时可能无法确定数据是否已落盘，
+//! 因此提交会返回 `Unknown`，调用方必须核对命令收据，不能把未知结果当作可盲目重试的失败。
+//! 启动重放时，符合条件的末尾不完整记录会被截断；已提交前缀损坏、帧校验失败或不支持的
+//! 记录形状会报错。**这不是“事件永久可查”或“文件不可篡改”的保证**：文件系统、平台能力、
+//! 崩溃时序和仓库证据共同决定实际证明等级，须查 `CURRENT_STATUS.md` 与对应回执。
 //!
-//! 一条事件要么**完整地**在文件里，要么**不在**。半行、截断的帧、
-//! 校验和对不上的帧，都会被读回来时识别出来并拒绝，而不是当成有效事件。
-//! 事件一旦写进去就是**永久可查**的，所以「写了一半」这种状态必须被消除，
-//! 而不是被容忍。
-//! Complete, checksummed JSONL transaction frames with bounded blocking I/O.
+//! 【与相邻文件的关系】
+//! `lib.rs` 暴露默认日志路径及 adapter；`journal_core.rs` 负责内存中的事件/事务索引和状态
+//! 转换校验；`event_store_core.rs` 提供共用的追加计划及幂等键规则；`integrity.rs` 通过本模块
+//! 读取文件并生成扫描报告。上游主要是 Daemon 装配的 ControlPlane，下游是读事件的 Core、
+//! 收据和恢复逻辑；本模块只负责存储 adapter，不决定业务授权是否通过。
 use crate::event_store_core::{validate_idempotency_key, AppendPlan};
 use crate::journal_core::{append_result, capabilities, JournalState, TransitionPlan};
 use async_trait::async_trait;
 use kiana_domain::*;
 use kiana_ports::{EventAppendResult, EventStorePort, PortError};
+use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
 #[cfg(not(unix))]
 use std::fs::OpenOptions;
 use std::fs::{self, File};
@@ -36,6 +58,9 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio::sync::Semaphore;
 
+// 每个 JsonlEventLog 实例最多允许 16 个阻塞存储任务同时占用工作线程准入名额。
+// 超出时 with_store_state 会立即返回队列已满，而不是让 Tokio 的 spawn_blocking 队列
+// 无限积压；这会把背压（backpressure，即下游处理跟不上时向调用方施加限制）显式传回。
 const MAX_STORAGE_WORKERS: usize = 16;
 fn failed(reason: impl Into<String>) -> PortError {
     PortError::Failed(reason.into())
@@ -74,24 +99,17 @@ impl JournalFiles {
             directory,
         })
     }
-    /// 确认**父目录还是打开时那个父目录**。
+    /// 检查当前父目录路径是否仍指向打开 `JournalFiles` 时固定的目录对象。
     ///
-    /// 【这是一个 TOCTOU 防御，而且是必要的】
-    /// 打开时把父目录的 device + inode 记下来，之后**每一次**操作前都重新读一次
-    /// 当前的父目录元数据，对不上就拒绝。
+    /// Unix 上，`open_directory` 持有目录文件描述符；本方法对路径执行 `symlink_metadata`，
+    /// 再与该文件描述符的 device/inode 快照比较。若路径已经被换成符号链接或另一个目录，
+    /// 后续文件操作会拒绝继续。`open_name` 又通过固定目录描述符相对打开文件名，避免重新
+    /// 从完整路径解析目录。
     ///
-    /// 攻击方式是：进程打开账本之后，攻击者把父目录换成另一个——
-    /// 一个指向别处的符号链接，或者直接换成一个新目录。
-    /// 这时「我打开的仍然是原来那个账本」这个假设就不成立了，
-    /// 而后续的写入会落到攻击者控制的地方。
-    ///
-    /// 只在 open 时检查一次是不够的：检查与使用之间存在窗口。
-    /// 必须在**每次使用前**复核。
-    ///
-    /// 【与仓库其它地方同源】
-    /// `kiana-core/src/dispatch.rs` 的 `project_root_identity` 用 dev+ino
-    /// 是同一个道理；`kiana-daemon` 的 loopback 绑定、`mcp.rs` 缺的那道检查，
-    /// 讲的也都是「拿不准的时候宁可拒绝」。
+    /// ⚠ device/inode 是本地文件系统身份线索，不是不可伪造的永久标识；文件系统异常、inode
+    /// 复用或检查之后立即发生的替换仍需由前后复核和打开的文件描述符共同处理。此检查降低
+    /// 路径被替换后误操作的风险，不等于密码学证明，也不能单独证明所有竞态均已消失。
+    /// 非 Unix 构建没有此处的目录文件描述符比较，相关能力通过 storage capability 报告。
     fn verify_parent(&self) -> Result<(), PortError> {
         #[cfg(unix)]
         {
@@ -142,8 +160,9 @@ impl JournalFiles {
         }
         #[cfg(not(unix))]
         {
-            // OpenOptions has no portable no-follow flag. Check the directory entry both before
-            // and after opening, and expose the remaining race through the capability contract.
+            // 非 Unix 的标准 OpenOptions 没有跨平台的“禁止跟随符号链接”标志，因此在打开前
+            // 后各检查一次目录项，并通过 capability 明示仍存在的检查/使用竞态。两次检查
+            // 能缩小风险窗口，但不能等同 Unix openat(O_NOFOLLOW) 的原子路径约束。
             reject_non_unix_symlink(path)?;
             let mut options = OpenOptions::new();
             options.read(true).write(true).append(true).create(create);
@@ -210,7 +229,7 @@ impl JournalFiles {
         }
         Ok(())
     }
-    /// fsync **目录本身**，而不只是文件。
+    /// 在支持的平台上同步**目录本身**，而不只是文件。
     ///
     /// 【为什么这是必须的】
     /// 在大多数文件系统上，一个**新建文件**的持久性不取决于文件内容有没有落盘，
@@ -220,13 +239,12 @@ impl JournalFiles {
     /// 也就是说：只 fsync 文件，得到的是「文件内容安全，但目录项可能丢」。
     /// 那正好是最坏的一种丢失——**看起来写成功了，其实没有**。
     ///
-    /// 【它前后各调一次 verify_parent】
-    /// 因为 fsync 目录这个动作本身也作用在「当前那个目录」上。
-    /// 中间目录被换掉的话，sync 到的就是别的地方。
+    /// 【Unix 分支在 fsync 前后各调一次 verify_parent】
+    /// 因为 fsync 目录这个动作作用于已打开的目录描述符；前后复核可发现目录名在操作期间被换走。
     ///
-    /// ⚠ 非 Unix 平台上这些检查不做。**这意味着该平台上达不到 `durable` 那一级**，
-    ///   而不是「大概也可以」。这与 `project_root_identity` 里
-    ///   `identity_strength: "path_only"` 的处理是同一条纪律：降级要标明。
+    /// ⚠ 非 Unix 分支没有目录文件描述符，因此这里不会执行目录 `sync_all`，路径复核也无法
+    ///   提供 Unix 分支的相同保证。这个差异应由调用方检查平台 capability 并结合实际证据
+    ///   评估；不能仅凭此函数或平台名称宣布某项系统级 proof level 成立或不成立。
     fn sync_directory(&self) -> Result<(), PortError> {
         self.verify_parent()?;
         #[cfg(unix)]
@@ -248,14 +266,25 @@ impl Drop for ProcessEventLogLock {
     }
 }
 
+/// 当前进程对 JSONL 文件的已验证视图。
+///
+/// 文件是跨进程共享的事实来源；这个缓存只是减少重复解析的索引。每次存储操作仍会在文件
+/// 锁内调用 `load_delta` 检查外部新增内容，因此不能把缓存当成独立权威状态。
 #[derive(Debug, Default)]
 struct DiskCache {
+    /// 已从文件中验证并折叠出的事件、命令收据和流索引。
     journal: JournalState,
+    /// 已确认解析的文件字节位置；下一次增量重放从此处继续。
     offset: u64,
+    /// 已消费的 JSONL 行数，用于生成损坏记录的定位信息。
     line: u64,
+    /// 当前读取到的日志写入格式版本；0 表示仍是兼容旧格式。
     writer_version: u32,
+    /// 上次确认的文件身份快照；Unix 使用 device/inode，其他平台使用占位值。
     identity: Option<(u64, u64)>,
+    /// 上次观察到的修改时间，仅用于触发内容复核，不能单独作为文件未变的证明。
     modified: Option<SystemTime>,
+    /// 最近写入或同步的结果不确定；下一次重放需重新建立同步屏障。
     uncertain_write: bool,
 }
 #[derive(Debug)]
@@ -264,6 +293,11 @@ struct Inner {
     cache: Mutex<DiskCache>,
     lifecycle: AtomicU8,
 }
+/// 将 EventStorePort 操作映射到本地 JSONL 文件的持久化 adapter。
+///
+/// 通常由 `DaemonHost` 在组装阶段创建，再以 `Arc<dyn EventStorePort>` 注入 Core。`inner`
+/// 共享文件、缓存和关闭状态；`workers` 限制同步文件 I/O 的并发准入。业务代码应依赖端口，
+/// 而不直接操作这里的路径或缓存。
 #[derive(Debug)]
 pub struct JsonlEventLog {
     path: PathBuf,
@@ -271,10 +305,27 @@ pub struct JsonlEventLog {
     workers: Arc<Semaphore>,
 }
 impl JsonlEventLog {
+    /// 按 `KIANA_HOME` 或默认用户目录定位会话事件日志并打开它。
+    ///
+    /// 【调用者与数据流】`DaemonHost` 本地装配路径调用此方法；路径由 `lib.rs` 的
+    /// `default_sessions_log_path()` 计算。打开时创建所需父目录、获取进程间锁，并将已有记录
+    /// 重放到新的 `DiskCache`，之后 `EventStorePort` 的读写都通过该缓存和同一日志文件完成。
+    ///
+    /// 【失败情况】配置路径缺失/非法、目录或文件权限不符合约束、锁无法取得、文件内容损坏
+    /// 或 I/O 失败时返回 `PortError`；调用者无法获得一个部分初始化的 adapter。
     pub fn open_default() -> Result<Self, PortError> {
         Self::open(crate::default_sessions_log_path()?)
     }
-    /// Synchronous startup compatibility API. Async applications should use open_async.
+    /// 打开指定日志文件并同步重放已有内容。
+    ///
+    /// 【调用者】同步启动代码或 `open_async` 的阻塞工作线程。
+    /// 【输入】绝对路径按原样使用；相对路径以调用进程当前工作目录为基准转成绝对路径。
+    /// 【输出】返回带有已重放缓存的 adapter；后续读写通过 `EventStorePort` 完成。
+    /// 【副作用】可能创建父目录和锁文件，并读取、修复符合规则的末尾不完整记录。
+    /// 【失败情况】路径解析、父目录安全校验、文件锁定、日志重放或文件 I/O 失败时返回错误。
+    ///
+    /// ⚠ 该函数会同步等待文件系统操作。异步运行时应使用 `open_async`，避免在异步执行器
+    /// 的工作线程上直接做启动 I/O；同步版本保留给现有同步装配调用方。
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortError> {
         let path = if path.as_ref().is_absolute() {
             path.as_ref().to_path_buf()
@@ -299,22 +350,31 @@ impl JsonlEventLog {
             workers: Arc::new(Semaphore::new(MAX_STORAGE_WORKERS)),
         })
     }
+    /// 将同步打开/重放工作移到 Tokio 的阻塞线程池中执行。
+    ///
+    /// 入口等异步调用方通过 `.await` 等待打开结果，但文件系统 I/O 不直接占用异步 worker。
+    /// 线程任务本身失败时返回 `eventlog_open_worker_failed`；底层路径、锁或重放错误原样
+    /// 作为 `PortError` 传回调用者。
     pub async fn open_async(path: impl AsRef<Path>) -> Result<Self, PortError> {
         let path = path.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || Self::open(path))
             .await
             .map_err(|_| failed("eventlog_open_worker_failed"))?
     }
+    /// 使用默认会话日志路径，并通过 `open_async` 在阻塞线程中完成文件打开和重放。
     pub async fn open_default_async() -> Result<Self, PortError> {
         Self::open_async(crate::default_sessions_log_path()?).await
     }
+    /// 返回 adapter 当前使用的日志文件路径；不读取或刷新文件内容。
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    /// Report the platform-specific guarantees that protect journal and lock files. Non-Unix
-    /// adapters retain an explicit symlink check but cannot prove a race-free no-follow open or
-    /// portable hardlink identity, so those limitations remain visible to callers.
+    /// 报告当前平台对日志文件和锁文件提供的安全能力。
+    ///
+    /// Unix 可使用目录文件描述符、`openat`/`O_NOFOLLOW` 和 device/inode 比对；非 Unix 实现
+    /// 保留显式符号链接检查，但无法证明无竞态的 no-follow 打开，也没有可移植的硬链接身份
+    /// 校验。上层必须根据返回能力决定哪些保证可依赖，不能把不同平台当成同一实现。
     pub fn storage_security_capabilities(&self) -> StorageSecurityCapabilities {
         StorageSecurityCapabilities::current()
     }
@@ -329,6 +389,11 @@ impl JsonlEventLog {
         f: impl FnOnce(&JournalFiles, &mut DiskCache) -> Result<T, PortError> + Send + 'static,
         allow_closing: bool,
     ) -> Result<T, PortError> {
+        // 先在提交任务前检查一次生命周期，在线程池任务开始后再检查一次：任务可能在排队期间
+        // 遇到 close。Semaphore permit 在闭包结束时自动释放，保证成功和错误路径都归还名额。
+        // 文件锁串行化跨实例/跨进程操作，Mutex 再保护本实例缓存；这里按固定顺序获取两者，
+        // 后续闭包不应改变顺序，以免并发路径互相等待。
+        // try_acquire_owned 不排队，因此超过 16 个并发 I/O 时会以 Unavailable 显式拒绝。
         let lifecycle = self.inner.lifecycle.load(Ordering::Acquire);
         if lifecycle != 0 && !(allow_closing && lifecycle == 1) {
             return Err(failed("eventlog_closed"));
@@ -351,6 +416,7 @@ impl JsonlEventLog {
                 .lock()
                 .map_err(|_| failed("eventlog_cache_poisoned"))?;
             if let Some(mut file) = inner.files.open_name(&inner.files.path, false)? {
+                // 另一个进程可能已经追加事件；执行本次读写闭包前先把缓存追到文件末尾。
                 load_delta(&inner.files, &mut file, &mut cache)?;
             } else if cache.identity.is_some() {
                 return Err(failed("eventlog_file_removed"));
@@ -362,6 +428,8 @@ impl JsonlEventLog {
     }
 
     async fn flush_health(&self) -> Result<EventStoreHealth, PortError> {
+        // flush_store 会对已打开的日志执行文件同步、目录同步（若平台支持）和文件身份复核，
+        // 然后把缓存中的事件数与写入格式汇总为健康视图。I/O 失败时不返回“看起来健康”的值。
         self.with_store(|files, cache| {
             flush_store(files, cache)?;
             Ok(EventStoreHealth::new(
@@ -378,6 +446,8 @@ impl JsonlEventLog {
 #[async_trait]
 impl EventStorePort for JsonlEventLog {
     fn supports_atomic_transitions(&self) -> bool {
+        // 当前只有 Unix 路径提供本实现要求的原子事务帧能力；非 Unix 调用方必须先检查此值，
+        // commit_transition 会明确返回 unsupported，而不能悄悄退化成多条独立 append。
         cfg!(unix)
     }
     fn capabilities(&self) -> EventStoreCapabilities {
@@ -388,6 +458,7 @@ impl EventStorePort for JsonlEventLog {
     async fn flush(&self) -> Result<EventStoreHealth, PortError> {
         self.flush_health().await
     }
+    // 读取当前已重放状态的健康快照；进入 with_store 时会先重放外部进程新增的日志尾部。
     async fn health(&self) -> Result<EventStoreHealth, PortError> {
         self.with_store(|_, cache| {
             Ok(EventStoreHealth::new(
@@ -400,10 +471,15 @@ impl EventStorePort for JsonlEventLog {
         })
         .await
     }
+    // 先执行 flush，再返回已确认的逻辑事件游标。
+    // 游标表示日志中已重放的逻辑事件数量，不是文件字节偏移。同步失败会作为 PortError
+    // 返回，而不会给调用者一个无法确认是否落盘的游标。
     async fn last_durable_cursor(&self) -> Result<EventCursor, PortError> {
         Ok(self.flush_health().await?.last_durable_cursor)
     }
     async fn close(&self) -> Result<EventStoreHealth, PortError> {
+        // 生命周期状态：0=开放、1=正在关闭、2=已关闭。CAS 只允许一个调用者执行关闭；
+        // with_store_state(..., true) 让这次最终 flush 在状态 1 下通过，其它新操作会被拒绝。
         self.inner
             .lifecycle
             .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
@@ -433,6 +509,10 @@ impl EventStorePort for JsonlEventLog {
         result
     }
     async fn commit_transition(&self, batch: TransitionBatch) -> Result<CommitOutcome, PortError> {
+        // 此路径提交一个带前置条件的事务帧，是 Core 原子状态转换使用的端口操作。
+        // 它先在内存 JournalState 中计划冲突/重放/追加，再将帧同步写盘，成功后才应用到缓存。
+        // 如果写入或 worker 返回阶段出错，磁盘上可能已经有完整帧，因此返回 Unknown，
+        // 把核对责任交给调用方按 command_id 查询；不能直接当作“肯定没发生”再次执行。
         if !self.supports_atomic_transitions() {
             return Err(PortError::Unavailable(
                 "event_store_atomic_transitions_unsupported".into(),
@@ -474,6 +554,8 @@ impl EventStorePort for JsonlEventLog {
         }
     }
     async fn read_command(&self, id: &RequestId) -> Result<Option<CommandReceipt>, PortError> {
+        // Receipt 是判断某个 command 是否已提交的重要恢复依据。找到收据时额外同步并复核
+        // 日志文件；未找到时返回 None，表示当前已验证日志中没有该 command 的收据。
         let id = *id;
         self.with_store(move |files, cache| {
             let receipt = cache.journal.commands.get(&id).cloned();
@@ -485,10 +567,13 @@ impl EventStorePort for JsonlEventLog {
         .await
     }
     async fn read_from(&self, cursor: u64, limit: usize) -> Result<JournalPage, PortError> {
+        // 返回从逻辑游标开始的一页事件，实际的边界、下一游标和 has_more 由 JournalState
+        // 统一计算。这里先通过 with_store 追平外部写入；本函数不把游标解释成文件字节位置。
         self.with_store(move |_, cache| cache.journal.page(cursor, limit))
             .await
     }
     async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+        // 兼容入口：没有显式预期流版本时复用 append_expected 的顺序校验和持久化路径。
         self.append_expected(event, None).await
     }
     async fn append_expected(
@@ -496,6 +581,9 @@ impl EventStorePort for JsonlEventLog {
         event: RuntimeEvent,
         expected: Option<u64>,
     ) -> Result<(), PortError> {
+        // 兼容逐事件追加端口，并可选检查调用方给出的目标流预期版本 expected。它不会替代优先用于
+        // authority transition 的 commit_transition。若 I/O 失败，事件可能已部分或完整写入，
+        // 所以返回带 result_unknown 的 Unavailable；后续需从日志重放确认，不能假定未追加。
         self.with_store(move |files, cache| {
             let AppendPlan::Append(event) = cache.journal.plan_legacy(event, expected, false)?
             else {
@@ -522,6 +610,8 @@ impl EventStorePort for JsonlEventLog {
         event: RuntimeEvent,
         expected: Option<u64>,
     ) -> Result<EventAppendResult, PortError> {
+        // 幂等追加要求事件含合法幂等键。相同请求重放时返回原事件和 replay 标志，避免重复
+        // 记账；新事件则走相同落盘路径。写入结果不确定时仍必须先核对日志，再决定是否重试。
         validate_idempotency_key(&event)?;
         self.with_store(move |files, cache| {
             match cache.journal.plan_legacy(event, expected, true)? {
@@ -546,20 +636,28 @@ impl EventStorePort for JsonlEventLog {
         .await
     }
     async fn read_request(&self, id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        // 按 RequestId 返回已重放事件中的请求子集，供上层恢复某次请求的时间线。
         let id = *id;
         self.with_store(move |_, cache| Ok(cache.journal.request(&id)))
             .await
     }
     async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
+        // 返回当前日志的全部逻辑事件快照。此 API 会复制事件集合，适合审计/完整性扫描等
+        // 明确需要全量数据的调用方，不应被高频分页 UI 用来替代 read_from。
         self.with_store(|_, cache| Ok(cache.journal.events.clone()))
             .await
     }
     async fn read_stream(&self, kind: &str, id: &str) -> Result<Vec<RuntimeEvent>, PortError> {
+        // 以领域流类型和流 ID 查询一个聚合子流；具体匹配和顺序由 JournalState 实现，避免
+        // 不同 EventStore adapter 各自发明事件关联规则。
         let (kind, id) = (kind.to_owned(), id.to_owned());
         self.with_store(move |_, cache| Ok(cache.journal.stream(&kind, &id)))
             .await
     }
 }
+/// 用领域层定义的规范编码生成单行 JSON，并执行帧大小上限检查。
+///
+/// 输出包含结尾换行，供 JSONL 逐行解析。编码失败或超过上限时在写盘前返回错误。
 fn encode_line(value: &impl serde_compat::JournalEncode) -> Result<Vec<u8>, PortError> {
     let mut bytes = value.journal_bytes().map_err(failed)?;
     if bytes.len() > MAX_JOURNAL_FRAME_BYTES {
@@ -568,7 +666,8 @@ fn encode_line(value: &impl serde_compat::JournalEncode) -> Result<Vec<u8>, Port
     bytes.push(b'\n');
     Ok(bytes)
 }
-// The adapter deliberately needs no additional serde dependency: its wire DTOs own serialization.
+// 帧/Header 的 JSON 编码由领域 DTO 的 canonical_journal_bytes 统一负责，避免在 adapter 中
+// 另造一份字段顺序或校验和规则。下面这个小 trait 只把两类受支持的记录接到 encode_line。
 mod serde_compat {
     pub(super) trait JournalEncode {
         fn journal_bytes(&self) -> Result<Vec<u8>, String>;
@@ -584,6 +683,10 @@ mod serde_compat {
         }
     }
 }
+/// 在追加前检查日志总字节上限，并为尚未升级的日志预留 v2 header 空间。
+///
+/// `256` 是 header 的固定容量预留，不是事件数或行数。若修改 header 字段或 schema，维护者
+/// 必须确认其实际编码仍能放入预留值；否则升级时可能越过这里的容量保护或被过度拒绝。
 fn check_disk_capacity(cache: &DiskCache, next: usize) -> Result<(), PortError> {
     let header = if cache.writer_version < JOURNAL_WRITER_VERSION {
         256
@@ -605,8 +708,9 @@ fn encode_legacy_record(
     event: &RuntimeEvent,
 ) -> Result<(Vec<u8>, bool), PortError> {
     if cache.writer_version == 0 {
-        // Compatibility-only logs retain their existing single-event wire format until
-        // the first atomic command durably installs the required writer header.
+        // 旧格式日志继续逐行写 RuntimeEvent，直到首次原子命令需要升级格式；那次写入会先
+        // 安装 v2 header，再以带校验和的 JournalFrame 写新事件。这样老日志可继续读取，
+        // 又不会把 header 之前的数据误当成 v2 帧。
         let mut bytes =
             serde_json::to_vec(event).map_err(|e| failed(format!("eventlog_encode_failed:{e}")))?;
         if bytes.len() > MAX_JOURNAL_EVENT_BYTES {
@@ -627,6 +731,10 @@ fn write_frame(
     bytes: &[u8],
     upgrade: bool,
 ) -> Result<(), PortError> {
+    // 调用者持有进程间锁和本地缓存锁。写入顺序是：校验文件快照 →（必要时）先安装并同步
+    // v2 header → 写记录并同步文件 → 同步目录 → 复核命名路径仍指向同一文件 → 最后推进缓存。
+    // header 与后续事件不是一个文件系统事务；若中间失败，调用者需要保留 uncertain 状态并
+    // 由下次 load_delta 重放判断磁盘上已经留下什么。
     let mut file = files
         .open_name(&files.path, true)?
         .ok_or_else(|| failed("eventlog_file_missing"))?;
@@ -650,8 +758,9 @@ fn write_frame(
         .map_err(|e| io_error("eventlog_sync_failed", e))?;
     files.sync_directory()?;
     files.verify_named_file(&files.path, &file)?;
-    // No fallible operation may follow cursor publication: otherwise an Unknown response
-    // could skip the durable frame during the next read and lose its command receipt.
+    // remember_file 成功后才推进缓存 offset/line：游标一旦发布，后续增量读取就会从新位置开始。
+    // 若先推进游标、之后又遇到可失败操作，Unknown 结果可能跳过已落盘帧，导致 command receipt
+    // 不进入缓存。这里的顺序因此是恢复正确性的一部分，不能把这些更新随意交换。
     remember_file(&file, cache)?;
     cache.offset += bytes.len() as u64;
     cache.line += 1;
@@ -659,6 +768,8 @@ fn write_frame(
     Ok(())
 }
 fn verify_cached_file(file: &File, cache: &DiskCache) -> Result<(), PortError> {
+    // 防止在缓存 offset 已代表旧内容时，把新打开的替换文件当成同一份日志继续追加。
+    // Unix 同时比较 device/inode；其它平台没有可移植的同等身份元组，只能依赖其安全能力。
     let metadata = file
         .metadata()
         .map_err(|e| io_error("eventlog_metadata_failed", e))?;
@@ -675,6 +786,8 @@ fn verify_cached_file(file: &File, cache: &DiskCache) -> Result<(), PortError> {
     Ok(())
 }
 fn confirm_sync(files: &JournalFiles, cache: &DiskCache) -> Result<(), PortError> {
+    // 对当前命名的日志再次校验长度/身份，再同步文件和目录，最后复核路径名称仍指向该文件。
+    // 例如 read_command 命中 receipt 时会走这里，确保返回的恢复依据经过一次同步确认。
     let file = files
         .open_name(&files.path, false)?
         .ok_or_else(|| failed("eventlog_file_removed"))?;
@@ -685,6 +798,7 @@ fn confirm_sync(files: &JournalFiles, cache: &DiskCache) -> Result<(), PortError
     files.verify_named_file(&files.path, &file)
 }
 fn flush_store(files: &JournalFiles, cache: &DiskCache) -> Result<(), PortError> {
+    // 有已知日志文件身份时同步该文件；尚未创建日志文件时只尝试同步父目录。
     if cache.identity.is_some() {
         confirm_sync(files, cache)
     } else {
@@ -711,6 +825,10 @@ fn load_delta(
     file: &mut File,
     cache: &mut DiskCache,
 ) -> Result<(), PortError> {
+    // 把上次验证的 byte offset 到当前文件末尾增量重放进缓存。调用者必须先持有进程间锁和
+    // 缓存 Mutex；这里还检查文件身份、大小上限、已提交前缀以及每条记录的 schema/校验和。
+    // 合法但缺少末尾换行的最后一行会补写换行；符合条件的 EOF 截断尾记录会回退到上一条
+    // 已验证记录边界。中间损坏、旧前缀变化或校验不通过会返回错误，不会静默跳过。
     let original_offset = cache.offset;
     let metadata = file
         .metadata()
@@ -734,8 +852,8 @@ fn load_delta(
         && cache.modified != metadata.modified().ok()
         && !cache.uncertain_write
     {
-        // A peer may have removed its own incomplete tail without changing this
-        // committed prefix. Revalidate once instead of accepting mtime as authority.
+        // 另一个进程可能只修剪了未提交的文件尾部，已提交前缀仍然相同。修改时间变化只能触发
+        // 重新校验，不能直接证明内容遭到修改；因此从头重放并比较前缀事件和收据。
         let mut verified = DiskCache::default();
         load_delta(files, file, &mut verified)?;
         if verified.offset != cache.offset
@@ -771,7 +889,7 @@ fn load_delta(
             cache.line += 1;
             continue;
         }
-        let value = match serde_json::from_slice::<serde_json::Value>(payload) {
+        let value = match parse_json_value_reject_duplicates(payload) {
             Ok(value) => value,
             Err(e)
                 if !newline
@@ -779,6 +897,8 @@ fn load_delta(
                     && (cache.writer_version == JOURNAL_WRITER_VERSION
                         || !cache.journal.events.is_empty()) =>
             {
+                // 仅对新格式日志（或已有有效旧事件之后）容忍 EOF 截断：此时不完整尾行不可能
+                // 是完整提交记录。将文件裁回本行起点，并同步修复；更早的损坏记录不能走此分支。
                 file.set_len(cache.offset)
                     .map_err(|e| io_error("eventlog_repair_failed", e))?;
                 file.sync_all()
@@ -804,8 +924,9 @@ fn load_delta(
             let source_shape = canonical_journal_bytes(&value).map_err(failed)?;
             let frame: JournalFrame = serde_json::from_value(value)
                 .map_err(|_| failed(format!("eventlog_frame_invalid:line={line_number}")))?;
-            // RuntimeEvent remains permissive for v1 callers, but a v2 authority frame
-            // must not silently discard newly required fields nested in an event.
+            // 旧 RuntimeEvent 调用方仍按兼容 schema 读取；v2 authority frame 则必须保留所有
+            // 当前结构能识别的字段。规范化前后形状不同，说明反序列化会丢字段或当前代码不认识
+            // 该版本，因此拒绝而不是把不完整对象应用到 JournalState。
             if canonical_journal_bytes(&frame).map_err(failed)? != source_shape {
                 return Err(failed("eventlog_frame_shape_unsupported"));
             }
@@ -832,6 +953,8 @@ fn load_delta(
         cache.offset += bytes.len() as u64;
         cache.line += 1;
         if !newline {
+            // 这是一条可以完整解析的 JSON 记录，只是文件尾缺少 JSONL 分隔符。保留该记录，
+            // 补上换行并同步；这与上面的“EOF 截断 JSON”分支不同，不能把合法事件一起丢掉。
             file.write_all(b"\n")
                 .map_err(|e| io_error("eventlog_repair_newline_write_failed", e))?;
             file.sync_all()
@@ -842,8 +965,9 @@ fn load_delta(
         }
     }
     if cache.offset != original_offset || cache.uncertain_write {
-        // A previous process may have lost its sync/commit response. Establish the same
-        // persistence barrier before any reader exposes its complete authority frames.
+        // 上一个进程可能在同步或提交响应阶段失联，磁盘上留下了当前进程尚未确认的记录。
+        // 在向读取方暴露这些已重放的 authority frame 前，再建立文件与目录同步屏障；若同步
+        // 失败，读取操作也失败，避免把尚未确认的恢复结果报告成稳定状态。
         cache.uncertain_write = true;
         file.sync_all()
             .map_err(|e| io_error("eventlog_recovery_sync_failed", e))?;
@@ -854,7 +978,151 @@ fn load_delta(
     cache.uncertain_write = false;
     Ok(())
 }
+/// 将一行 JSON 解码成 `Value`，并拒绝任意层级对象中的重复键。
+///
+/// 【调用位置与数据流】`load_delta` 在判断 header、v2 frame 或兼容事件类型之前调用本函数；
+/// 字节切片 → `StrictValueSeed`/`StrictValueVisitor` 递归构造 JSON 值 → 返回给 schema 分支
+/// → 领域 DTO 反序列化 → frame 校验和与状态转换校验。
+///
+/// 【为什么不直接使用 `serde_json::from_slice::<Value>`】标准 `Value` map 对重复键会覆盖
+/// 先前值，这会丢失原始日志中出现过的内容，使校验针对的值和写入文本不再一一对应。本解析器
+/// 在本 adapter 接受记录之前拒绝重复键，减少本模块内部对同一行含义不一致的机会；它不宣称
+/// 能约束仓库外的任意 JSON 工具，也不能代替帧校验和。
+fn parse_json_value_reject_duplicates(
+    bytes: &[u8],
+) -> Result<serde_json::Value, serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let value = StrictValueSeed.deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(value)
+}
+
+struct StrictValueSeed;
+
+impl<'de> DeserializeSeed<'de> for StrictValueSeed {
+    type Value = serde_json::Value;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(StrictValueVisitor)
+    }
+}
+
+struct StrictValueVisitor;
+
+impl<'de> Visitor<'de> for StrictValueVisitor {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON value with unique object keys")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::Bool(value))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let number =
+            serde_json::Number::from_f64(value).ok_or_else(|| E::custom("invalid JSON number"))?;
+        Ok(serde_json::Value::Number(number))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::String(value.to_owned()))
+    }
+
+    fn visit_borrowed_str<E>(self, value: &'de str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        self.visit_str(value)
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::String(value))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::Null)
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(serde_json::Value::Null)
+    }
+
+    /// 递归处理 JSON 数组中的元素。
+    ///
+    /// serde 的访问者模式遇到数组时调用 `visit_seq`。元素可能包含嵌套数组或对象，因此每个
+    /// 元素都重新经过 `StrictValueSeed`，使对象键检查覆盖整个 JSON 树，而不只是最外层。
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element_seed(StrictValueSeed)? {
+            values.push(value);
+        }
+        Ok(serde_json::Value::Array(values))
+    }
+
+    /// 递归构造 JSON 对象，并在发现重复键时拒绝整条记录。
+    ///
+    /// 【为什么在存入 `serde_json::Map` 前检查】map 本身只保留每个键的一个值；先查询已有键，
+    /// 才能在覆盖发生前识别输入歧义。遇到重复键返回 serde 解析错误，最终由 `load_delta`
+    /// 转成带行号的 `eventlog_corrupt`，不会让这一行继续进入 JournalState。
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut object = serde_json::Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if object.contains_key(&key) {
+                return Err(serde::de::Error::custom("duplicate JSON object key"));
+            }
+            let value = map.next_value_seed(StrictValueSeed)?;
+            object.insert(key, value);
+        }
+        Ok(serde_json::Value::Object(object))
+    }
+}
+
 fn read_bounded_line(reader: &mut impl BufRead) -> Result<Vec<u8>, PortError> {
+    // 不使用 read_until 一次性无限增长：按 BufRead 缓冲块读取，一旦单行超过最大 frame
+    // 字节数加 1 个换行符就拒绝。该边界保护重放过程，避免异常文件把内存占用拖到无上限。
     let mut line = Vec::new();
     loop {
         let available = reader
@@ -880,6 +1148,9 @@ fn read_bounded_line(reader: &mut impl BufRead) -> Result<Vec<u8>, PortError> {
     Ok(line)
 }
 fn create_parent_directories(parent: &Path) -> Result<(), PortError> {
+    // 从目标父目录向上找到最近的现存目录，再由浅到深补建缺失目录。Unix 新建目录权限为
+    // 0o700（仅当前用户可访问），每建一级就同步该目录和它的父目录，降低崩溃后目录项消失
+    // 的风险。发现已有路径不是实际目录（包括符号链接元数据）时拒绝继续。
     let mut missing = Vec::new();
     let mut current = parent;
     loop {
@@ -926,6 +1197,8 @@ fn create_parent_directories(parent: &Path) -> Result<(), PortError> {
 
 #[cfg(unix)]
 fn validate_unix_storage_file(metadata: &std::fs::Metadata) -> Result<(), PortError> {
+    // 日志和锁必须是普通文件、不可通过硬链接共享到另一位置，且 group/other 不得有权限。
+    // 0o077 选出 group 与 other 的全部读/写/执行位；0o600 是生产文件创建时使用的私有权限。
     if !metadata.is_file() {
         return Err(failed("eventlog_not_regular_file"));
     }
@@ -952,6 +1225,8 @@ fn reject_non_unix_symlink(path: &Path) -> Result<(), PortError> {
 
 #[cfg(unix)]
 fn open_directory(path: &Path) -> Result<File, PortError> {
+    // 将目录打开成稳定的文件描述符，供后续 openat、身份复核和目录同步复用。
+    // O_NOFOLLOW 防止最后一级目录本身是符号链接；错误通过 PortError 返回给打开/写入调用方。
     let name = std::ffi::CString::new(path.as_os_str().as_bytes())
         .map_err(|_| failed("eventlog_parent_invalid"))?;
     let fd = unsafe {
@@ -969,7 +1244,8 @@ fn open_directory(path: &Path) -> Result<File, PortError> {
     Ok(unsafe { File::from_raw_fd(fd) })
 }
 
-// Preserve the existing explicit-directory compatibility helper and its fixture.
+// Linux 测试夹具仍需用显式父目录文件描述符构造路径替换场景；这是测试辅助函数，生产写入
+// 使用上面的 JournalFiles 封装。保留它可让安全回归用例继续覆盖同一类目录身份边界。
 #[cfg(all(test, target_os = "linux"))]
 fn open_eventlog_directory(path: &Path) -> Result<File, PortError> {
     let parent = path

@@ -43,7 +43,10 @@ impl ControlPlane {
         arguments: Value,
     ) -> Result<CoreResponse, CoreError> {
         if !context.project_trusted
-            || context.permission_profile == PermissionProfile::Safe
+            || matches!(
+                context.permission_profile,
+                PermissionProfile::Safe | PermissionProfile::Ask
+            )
             || !RoleSpec::lookup(&context.role_id)
                 .is_some_and(|r| r.department_id == context.department_id)
         {

@@ -1,8 +1,8 @@
 //! Pure Harness lifecycle driver.
 //!
-//! The driver owns only bounded state transitions. It never calls a model, Broker, EventLog or
-//! filesystem. External IDs, time and effect observations arrive as `DriverInput`; callers then
-//! perform the existing I/O and persist the resulting RunnerEvent facts through ControlPlane.
+//! 驱动器只管理有界状态转移，不调用模型、Broker、EventLog 或文件系统。
+//! 步骤/交互 ID 与效果观察通过 `DriverInput` 传入；时间和 deadline 检查留在 harness。
+//! 调用方执行 I/O，并通过 ControlPlane 持久化相应的 RunnerEvent 事实。
 //!
 //! ===========================================================================
 //! 【下面这一段是给「刚接手本 crate」的读者做的导读】
@@ -14,7 +14,8 @@
 //!
 //! * 上游（谁调用我）：`kiana-runner/src/harness.rs`（`use crate::state_driver::RunDriver`）。
 //!   harness 在开始一轮、开一个 step、收到模型输出、收到工具结果、被取消时
-//!   把这些事实喂进来，并按照本文件返回的「意图（intent）」去执行真正的 I/O。
+//!   把这些输入交给 RunDriver 更新帧。便捷方法通常丢弃意图列表，实际 I/O 顺序
+//!   由 harness 的控制流安排，并不是统一的 intent 执行器。
 //! * 下游（我输出给谁）：只输出 `DriverIntent` 列表 + 新的 `RunFrame`。
 //!   真正的动作由 harness 执行。
 //! * 外部测试：crate 外的 `kiana-core/tests/{p0_b01_state_machine_guard,er22_cancel_recovery_guard,
@@ -28,8 +29,8 @@
 //!        ▼
 //!   transition(&frame, input)  ←── 纯函数：只读旧帧 + 输入，返回新帧 + 意图
 //!        │
-//!        ├──► Vec<DriverIntent>  ──▶ harness 照着做（调模型 / 发能力请求 / 等待）
-//!        └──► RunFrame（新的）    ──▶ 覆盖回 driver.frame；并且可以被 checkpoint 序列化
+//!        ├──► Vec<DriverIntent>  ──▶ 描述阶段意图；调用方可读取，便捷方法会丢弃
+//!        └──► RunFrame（新的）    ──▶ RunDriver 保存此帧，可随 checkpoint 序列化
 //! ```
 //!
 //! ## 为什么核心是「纯函数」
@@ -46,16 +47,17 @@
 //!    「副作用全部由 harness 在状态机之外执行」是本设计最核心的边界。
 //! 3. **可以被别的层复用**：daemon / 恢复流程可以拿一个反序列化的 `RunFrame` 直接重放。
 //!
-//! `RunDriver` 只是给这个纯函数加了一个 `&mut self` 外壳，方便链式调用；它没有任何额外逻辑。
+//! `RunDriver::transition` 在成功时保存新帧并返回意图；begin_turn 等便捷方法只返回
+//! 成功/错误，另有 validate 方法检查帧。错误不替换旧帧，但这不代表外部 I/O 会回滚。
 //!
 //! ## 三个必须分清的概念
 //!
 //! * `HarnessPhase` —— **运行到哪儿了**（阶段，可能继续推进）。
 //! * `DriverTerminal` —— **怎么结束的**（终态：正常结束/失败/取消/未知）。
 //! * `DriverError`   —— **这次迁移被拒绝了**（异常：状态机拒绝了你要求的迁移）。
-//!   终态和错误是两回事：**终态是正常流程的一部分**（比如用户主动取消是 `DriverTerminal::Cancelled`，
-//!   这是一次成功执行的取消），而 `DriverError` 表示状态机认为这次操作不合法
-//!   （比如第二个 driver 来抢同一个 turn 所有权），调用方应该把运行当作失败处理。
+//!   终态和错误是两回事：RequestCancel 仅进入 Cancelling，收到 StopConfirmed 后才会
+//!   写入 Cancelled。DriverError 拒绝的是本次迁移，调用方要传播或处理它，不能把它
+//!   自动视为已经写入了 Failed 终态。
 
 use kiana_domain::{InteractionId, RunId, StepId, TurnId};
 use serde::{Deserialize, Serialize};
@@ -65,7 +67,7 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 //
 // `RunFrame` / `TurnFrame` 会被 `KianaHarness::checkpoint()` 序列化成 JSON 存到 checkpoint 里
-// （harness.rs:1919 附近），也可能在进程重启后被 `restore()` 反序列化回来。
+// （见 harness 的 checkpoint/restore 实现），也可能在重建运行时被反序列化回来。
 // 一旦线上已经存在按旧格式写下的 checkpoint，后来代码改了字段，
 // 就必须能**认出「这份数据是哪一版写的」**，否则会把新字段用默认值静默填成看起来合法的帧，
 // 造成状态错乱却查不出来。
@@ -76,15 +78,9 @@ use serde::{Deserialize, Serialize};
 pub const RUN_FRAME_SCHEMA: &str = "kiana.harness-run-frame.v1";
 pub const TURN_FRAME_SCHEMA: &str = "kiana.harness-turn-frame.v1";
 
-// 邮箱容量：一次运行在「等待处理」期间最多能接受多少个外部输入。
-//
-// 为什么必须有上限：外部输入（steering 文本、命令、澄清回答）是**外部输入源**。
-// 如果一个客户端不停往里灌而运行侧迟迟不消费，队列会无界增长直到把进程内存吃光。
-// 满了之后 `transition(QueueInput)` 返回 `DriverError::MailboxFull`——
-// **明确拒绝（fail-closed）而不是丢弃**，这样调用方知道消息没进去，可以重试或报错。
-//
-// 64 这个值：一次 agent 循环里的实际人机交互量级（几条 steering、几条澄清）远小于 64；
-// 留出这个量级既能覆盖突发批量注入，又能把最坏内存占用钉在一个可预测的小数字上。
+// 输入计数上限，不是保存消息正文的 Inbox 容量。
+// QueueInput 在 accepted_inputs >= mailbox_capacity 时返回 MailboxFull；BeginTurn 清零。
+// 它只约束此帧的接收计数，不度量文本字节，也不证明真实队列的最坏内存占用。
 pub const DEFAULT_MAILBOX_CAPACITY: u32 = 64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -377,11 +373,40 @@ fn move_phase(
     Ok(())
 }
 
-/// Pure state transition function. No I/O, clock, ID allocation or side effects occur here.
+/// 纯状态转移：只读旧帧与输入，返回新帧及意图，不做 I/O、读时钟或分配 ID。
+///
+/// 在局部克隆上修改，Err 不改变传入帧；这不是授权、预算或外部副作用的事务。
+/// 同一帧和输入产生相同结果，但恢复时仍须由外层核对现实执行状态。
+/// RunDriver::transition 保存结果，便捷方法会丢弃意图列表；实际 I/O 由 harness 编排。
+///
+/// ## 主要路径
+///
+/// Idle 经 QueueInput 进入 Queued；BeginTurn 进入 Preparing，BeginStep 进入 ModelPending。
+/// 有工具的 ModelOutput 进入 ToolPending；已知 ToolResult 会递减 pending_tools 后
+/// 转到 ModelPending，并不在这里等待计数归零。未知效果转入 RecoveryRequired。
+/// complete=true 且无工具时写入 Completed，阶段为 TurnFinished；此后仍可 BeginTurn。
+/// 相同阶段的 move_phase 直接成功，不再生成阶段意图。
+///
+/// RequestCancel 与 StopConfirmed 是两个输入：前者请求停止，后者才写 Cancelled。
+/// Terminal 输入可显式写终态，但不能把已有终态改成另一种结果。
+///
+/// ## 常见拒绝
+///
+/// | 错误 | 条件示例 |
+/// |---|---|
+/// | InvalidTransition | 阶段迁移不在允许表中，例如 Idle 收到 ToolResult |
+/// | SecondOwner | owner 为空，或已有不同 owner |
+/// | OwnerMismatch | release 的 owner 与当前记录不同 |
+/// | MailboxFull | accepted_inputs 已达到 mailbox_capacity |
+/// | StepInvalid | step 为零或不递增；此分支不校验 StepId 的值 |
+/// | TerminalConflict | 已写 Completed，又收到 Terminal { outcome: Failed } |
 pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransition, DriverError> {
     let mut next = frame.clone();
     let mut intents = Vec::new();
     match input {
+        // ===== 输入队列相关 =====
+        // QueueInput：一条消息入队（例如 steering 指令、澄清回答）。
+        // 如果当前空闲，队列开始工作。
         DriverInput::QueueInput => {
             if next.accepted_inputs >= u64::from(next.mailbox_capacity) {
                 return Err(DriverError::MailboxFull);
@@ -392,46 +417,62 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
             }
             intents.push(DriverIntent::AcknowledgeInput);
         }
+
+        // ===== Turn 生命周期 =====
+        // BeginTurn：开始新一轮模型调用。重置各种计数器和临时状态。
         DriverInput::BeginTurn => {
-            next.accepted_inputs = 0;
-            next.pending_tools = 0;
+            next.accepted_inputs = 0; // 清空本 turn 的输入计数
+            next.pending_tools = 0; // 清空待执行工具数
             next.step_id = None;
             next.step = 0;
-            next.pending_interaction_id = None;
+            next.pending_interaction_id = None; // 清空待澄清的问题
             next.terminal = None;
             next.turn.terminal = None;
             move_phase(&mut next, HarnessPhase::Preparing, &mut intents)?;
         }
+
+        // ===== Driver 所有权（多方竞争的仲裁）=====
+        // ClaimDriver：一个所有者声明「我要独占这个 driver 的执行权」。
+        // 同一所有者多次 claim 是允许的（幂等），但不同所有者不行。
         DriverInput::ClaimDriver { owner } => {
             if owner.trim().is_empty() {
                 return Err(DriverError::SecondOwner);
             }
             if let Some(current) = &next.driver_owner {
                 if current != &owner {
-                    return Err(DriverError::SecondOwner);
+                    return Err(DriverError::SecondOwner); // 已被他人 claim
                 }
             } else {
-                next.driver_owner = Some(owner);
+                next.driver_owner = Some(owner); // 首次 claim
             }
         }
+
+        // ReleaseDriver：所有者释放执行权。必须是真正的所有者。
         DriverInput::ReleaseDriver { owner } => {
             if next.driver_owner.as_deref() != Some(owner.as_str()) {
-                return Err(DriverError::OwnerMismatch);
+                return Err(DriverError::OwnerMismatch); // 释放者必须与记录的 owner 一致
             }
             next.driver_owner = None;
         }
+
+        // ===== Step 执行 =====
+        // BeginStep：记录传入的 StepId，只检查 step 数字为正且递增。
         DriverInput::BeginStep { step_id, step } => {
             if step == 0 || (next.step != 0 && step <= next.step) {
-                return Err(DriverError::StepInvalid);
+                return Err(DriverError::StepInvalid); // step number 必须递增
             }
             next.step_id = Some(step_id);
             next.step = step;
             move_phase(&mut next, HarnessPhase::ModelPending, &mut intents)?;
         }
+
+        // ===== 模型输出 =====
+        // ModelOutput：模型响应了。检查是否有工具调用、是否完成。
         DriverInput::ModelOutput {
             tool_count,
             complete,
         } => {
+            // 不能同时「有工具调用」和「已完成」
             if complete && tool_count != 0 {
                 return Err(DriverError::InvalidTransition {
                     from: next.phase,
@@ -439,28 +480,42 @@ pub fn transition(frame: &RunFrame, input: DriverInput) -> Result<DriverTransiti
                 });
             }
             if tool_count > 0 {
+                // 有工具要执行，等待工具结果
                 next.pending_tools = tool_count;
                 move_phase(&mut next, HarnessPhase::ToolPending, &mut intents)?;
             } else if complete {
+                // 没有工具，且标记了完成 → turn 结束
                 next.pending_tools = 0;
                 next.terminal = Some(DriverTerminal::Completed);
                 next.turn.terminal = next.terminal;
                 move_phase(&mut next, HarnessPhase::TurnFinished, &mut intents)?;
             } else {
+                // 没有工具、也没完成 → 保持/进入 ModelPending；同阶段不新增意图
                 move_phase(&mut next, HarnessPhase::ModelPending, &mut intents)?;
             }
         }
+
+        // ===== 工具结果 =====
+        // ToolResult：一个工具执行完了。如果不知道副作用，进入恢复模式；
+        // 否则递减计数器，继续问模型。
         DriverInput::ToolResult { effect_known } => {
             if !effect_known {
+                // 不知道有没有执行 → 需要恢复
                 move_phase(&mut next, HarnessPhase::RecoveryRequired, &mut intents)?;
             } else {
+                // 副作用确认 → 递减待处理工具数
                 next.pending_tools = next.pending_tools.saturating_sub(1);
                 move_phase(&mut next, HarnessPhase::ModelPending, &mut intents)?;
             }
         }
+
+        // ===== 流程控制：等待 =====
+        // AwaitApproval：等待 ControlPlane 的核准（例如「允许我执行这个能力吗」）。
         DriverInput::AwaitApproval => {
             move_phase(&mut next, HarnessPhase::AwaitingApproval, &mut intents)?;
         }
+
+        // AwaitClarification：模型有个问题要问用户。保存问题 ID。
         DriverInput::AwaitClarification { interaction_id } => {
             if interaction_id.as_uuid().is_nil()
                 || next.pending_interaction_id.is_some()

@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 #[test]
 fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
     let registry = include_str!("../src/cell_registry.rs");
@@ -11,6 +15,12 @@ fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
     let cell_fixture = include_str!("p1_c02_cell_lifecycle.rs");
     let reliability = include_str!("p2_k6_01_reliability.rs");
     let data_fixture = include_str!("p2_k7_01_data_governance.rs");
+    let swarm = include_str!("../../kiana-domain/src/swarm.rs");
+    let swarm_transition = compact_code(&item_source(swarm, "pub fn transition("));
+    let release = compact_code(&item_source(
+        platform,
+        "async fn release_quarantined_resources(",
+    ));
     let swarm_fixture = include_str!("p4_j6_01_bounded_swarm.rs");
 
     for marker in [
@@ -42,7 +52,11 @@ fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
         "swarm_merged",
     ] {
         assert!(
-            collaboration.contains(marker) || swarm_fixture.contains(marker),
+            if marker == "SwarmStatus::ResultUnknown" {
+                swarm_transition.contains(".any(|c|c.status==ExecutionStatus::ResultUnknown){swarm.status=SwarmStatus::ResultUnknown;")
+            } else {
+                collaboration.contains(marker) || swarm_fixture.contains(marker)
+            },
             "CP-17 descendant marker missing: {marker}"
         );
     }
@@ -69,9 +83,15 @@ fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
         "result_unknown",
     ] {
         assert!(
-            dispatch.contains(marker)
-                || projection.contains(marker)
-                || reliability.contains(marker),
+            if marker == "release_requires_stop_evidence" {
+                release.contains(r#"event.data["stop_confirmed"]==true"#)
+                    && release.contains("if!self.await_capability_stop(run_id).await")
+                    && release.contains("resource_release_stop_unconfirmed")
+            } else {
+                dispatch.contains(marker)
+                    || projection.contains(marker)
+                    || reliability.contains(marker)
+            },
             "CP-17 quarantine marker missing: {marker}"
         );
     }
@@ -85,9 +105,13 @@ fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
         "new_request_required",
     ] {
         assert!(
-            platform.contains(marker)
-                || domain_platform.contains(marker)
-                || reliability.contains(marker),
+            if marker == "automatic_retry_allowed:false" {
+                compact_code(platform).contains("\"automatic_retry_allowed\":false")
+            } else {
+                platform.contains(marker)
+                    || domain_platform.contains(marker)
+                    || reliability.contains(marker)
+            },
             "CP-17 reconciliation marker missing: {marker}"
         );
     }
@@ -105,7 +129,7 @@ fn cp17_revocation_cleanup_and_cell_retirement_are_fenced_and_idempotent() {
             "retire_without_stop",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "CP-17 bypass marker: {forbidden}"
             );
         }

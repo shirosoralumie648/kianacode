@@ -1,4 +1,13 @@
-/// Searchable prompt history picker for the TUI.
+//! TUI 的 prompt 历史选择器，以及搜索词的独立使用历史。
+//!
+//! 进入链路：REPL 的 `/history` → `App` 发出 `LoadPromptHistory` → entrypoints adapter 从
+//! prompt-history JSONL 读取 `HistoryEntry` → `load_entries()` 清理并保存到本地 state。
+//! 用户按 Enter 选中一项后，本文件只发出 `RestorePrompt`；`App` 再把文本放回 REPL 草稿，
+//! 不会在这里向模型提交请求。
+//!
+//! 这里还有第二种“历史”：`SearchHistoryManager` 保存用户搜索过的查询词及其次数/时间，
+//! 与可恢复的 prompt 内容不是同一份数据，也不会提供 session 恢复能力。该模块属于已 park 的
+//! 旧 TUI，不是 DaemonHost 主执行路径。
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -14,45 +23,60 @@ use std::sync::{Arc, Mutex};
 use crate::app::AppScreen;
 use crate::search_history::{SearchHistoryEntry, SearchHistoryManager};
 
+/// 一条可放回输入框的旧 prompt；实际文件读写由 entrypoints adapter 负责。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HistoryEntry {
+    /// 原始 prompt 文本；serde default 让缺少该字段的旧 JSON 行按空字符串读取。
     #[serde(default)]
     pub prompt: String,
+    /// adapter 提供的展示时间文本，不在本 screen 中解析成日期。
     #[serde(default)]
     pub timestamp: String,
 }
 
 impl HistoryEntry {
+    /// 将 adapter 读出的 prompt 和展示时间组合成一条 UI 数据。
     pub fn new(prompt: String, timestamp: String) -> Self {
         Self { prompt, timestamp }
     }
 }
 
+/// 历史 screen 向 App 汇报的结果；它描述用户意图，不直接执行应用操作。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HistoryEvent {
+    /// 用户取消浏览，要求 App 返回指定 screen。
     SwitchScreen(AppScreen),
+    /// 用户选择的文本交给 App 恢复到 REPL 草稿。
     RestorePrompt(String),
 }
 
+/// 历史页交互状态；列表索引始终指向当前过滤结果，而不是原始 entries 的索引。
 #[derive(Debug)]
 pub struct HistoryState {
+    /// entrypoints adapter 加载并按 prompt 去重后的历史，通常新记录排在前面。
     pub entries: Vec<HistoryEntry>,
+    /// 当前过滤列表中的选中位置；筛选变化时必须重新裁剪到有效范围。
     pub selected: usize,
+    /// Ratatui 用于在列表绘制时同步高亮/视口的状态。
     pub list_state: ListState,
+    /// adapter 加载主 prompt 历史时的展示标记。
     pub loading: bool,
+    /// 当前输入的过滤词；非空时会即时过滤 prompt 和 timestamp。
     pub search_query: String,
+    /// 是否正处于接收搜索字符的模式；为空查询也可以是 active。
     pub search_active: bool,
 
-    /// 搜索历史管理器
+    /// 搜索词统计管理器；Arc 提供共享所有权，Mutex 保护每次同步读写。
+    /// 当前静态调用点都在本 screen 内；如果初始化失败为 None，prompt 历史仍可用，只是不保存搜索词。
     pub search_history: Option<Arc<Mutex<SearchHistoryManager>>>,
 
-    /// 是否显示搜索历史（Ctrl+R 触发）
+    /// 是否覆盖显示搜索词历史面板；当前 Ctrl+R 分支只有在搜索输入模式中可达。
     pub showing_search_history: bool,
 
-    /// 搜索历史选中索引
+    /// 搜索词历史面板中的选中位置，与 prompt 列表的 selected 分开维护。
     pub search_history_selected: usize,
 
-    /// 搜索历史列表状态
+    /// 搜索词历史列表专用的 Ratatui 高亮/视口状态。
     pub search_history_list_state: ListState,
 }
 
@@ -63,7 +87,8 @@ impl Default for HistoryState {
         let mut search_history_list_state = ListState::default();
         search_history_list_state.select(Some(0));
 
-        // 尝试初始化搜索历史管理器
+        // 搜索词统计的存储路径可能无法创建或读取；这里吞掉初始化错误，让主 prompt 历史浏览仍可继续。
+        // None 会让相关记录/显示函数退化为空结果，不会影响恢复 prompt 的流程。
         let search_history = SearchHistoryManager::with_default_path()
             .ok()
             .map(|manager| Arc::new(Mutex::new(manager)));
@@ -84,6 +109,11 @@ impl Default for HistoryState {
 }
 
 impl HistoryState {
+    /// 按“搜索词历史面板 → 搜索输入 → 普通列表快捷键”的优先级解释一次按键。
+    ///
+    /// 【调用者】`App::handle_key()` 仅在 History screen 活动时调用，并解释返回的 `HistoryEvent`。
+    /// 【输出】Esc 可请求离开页面，Enter 可请求恢复当前 prompt；其他按键只更新本地选择/查询状态。
+    /// 搜索过滤使用 ASCII 小写比较，因此它对英文字母不区分大小写，但不是完整的 Unicode 大小写折叠。
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<HistoryEvent> {
         // 显示搜索历史时的特殊处理
         if self.showing_search_history {
@@ -128,7 +158,8 @@ impl HistoryState {
             }
             KeyCode::Enter => {
                 if let Some(entry) = self.selected_entry() {
-                    // 记录到搜索历史
+                    // 只记录非空过滤词；选中 prompt 本身不会被复制到搜索词历史。
+                    // Mutex 若已 poison，unwrap 会 panic；这里没有把该状态转换成可显示错误。
                     if !self.search_query.is_empty() {
                         if let Some(manager) = &self.search_history {
                             manager
@@ -171,17 +202,22 @@ impl HistoryState {
         None
     }
 
+    /// 接收 adapter 读出的 prompt 历史，先去空白/去重，再修正当前列表选择。
+    ///
+    /// 若新列表比旧列表短，`normalize_selection()` 会把过期索引移回最后一项；空列表则取消高亮。
     pub fn load_entries(&mut self, entries: Vec<HistoryEntry>) {
         self.entries = normalize_history_entries(entries);
         self.normalize_selection();
     }
 
+    /// 把过滤列表中的位置映射回原始 entries；没有选中项时返回 None，Enter 因而不会恢复内容。
     pub fn selected_entry(&self) -> Option<&HistoryEntry> {
         self.filtered_indices()
             .get(self.selected)
             .and_then(|index| self.entries.get(*index))
     }
 
+    /// App 切入历史 screen 前清掉旧查询，避免上一次搜索意外限制新一轮浏览。
     pub fn reset_search(&mut self) {
         self.clear_search();
     }
@@ -215,6 +251,7 @@ impl HistoryState {
     }
 
     fn filtered_indices(&self) -> Vec<usize> {
+        // 保存原始下标而不是复制整条记录；显示与 Enter 都通过同一映射取得当前结果。
         let query = self.search_query.trim().to_ascii_lowercase();
         if query.is_empty() {
             return (0..self.entries.len()).collect();
@@ -228,7 +265,10 @@ impl HistoryState {
             .collect()
     }
 
-    /// 处理搜索历史键盘事件
+    /// 处理覆盖层中的搜索词选择；Enter 将查询词放回搜索框并再次计入使用次数。
+    ///
+    /// 每次取历史列表时都在锁内生成拥有所有权的快照，锁释放后才修改 HistoryState，避免同时借用
+    /// 管理器与界面字段。Mutex 中毒仍会由 unwrap 转成 panic。
     fn handle_search_history_key(&mut self, key: KeyEvent) -> Option<HistoryEvent> {
         match key.code {
             KeyCode::Esc => {
@@ -265,17 +305,17 @@ impl HistoryState {
                         .unwrap()
                         .get_sorted_history(Some("prompt_history"));
                     if let Some(entry) = history.get(self.search_history_selected) {
-                        // 填充到搜索框
+                        // 选中搜索词只恢复过滤条件，不会直接选择或恢复某条 prompt。
                         self.search_query = entry.query.clone();
                         self.showing_search_history = false;
 
-                        // 记录这次使用
+                        // 再次使用历史查询会更新 last_used/use_count，让 frecency 排序反映本次访问。
                         manager
                             .lock()
                             .unwrap()
                             .record_search(&entry.query, "prompt_history");
 
-                        // 重新过滤结果
+                        // 新查询可能排除当前选项，统一把选择裁剪到新的过滤结果范围。
                         self.normalize_selection();
                     }
                 }
@@ -285,7 +325,7 @@ impl HistoryState {
         }
     }
 
-    /// 获取搜索历史条目用于显示
+    /// 返回当前 screen 所属的 `prompt_history` 查询词历史；未能创建 manager 时按空列表显示。
     fn get_search_history_entries(&self) -> Vec<SearchHistoryEntry> {
         if let Some(manager) = &self.search_history {
             manager
@@ -298,6 +338,9 @@ impl HistoryState {
     }
 }
 
+/// 清理 adapter 读出的 prompt 列表：去掉首尾空白、空内容和重复文本。
+///
+/// HashSet 只用于判断“是否见过”，输出仍沿用输入顺序；因此 adapter 若按新到旧提供数据，保留的是最新重复项。
 pub fn normalize_history_entries(entries: Vec<HistoryEntry>) -> Vec<HistoryEntry> {
     let mut seen = HashSet::new();
     entries
@@ -320,6 +363,7 @@ fn history_entry_matches_query(entry: &HistoryEntry, query: &str) -> bool {
 pub struct HistoryScreen;
 
 impl HistoryScreen {
+    /// 绘制主 prompt 列表、可选的搜索词历史覆盖区域和按键说明；不读写历史文件。
     pub fn draw(frame: &mut Frame, state: &mut HistoryState) {
         let area = frame.area();
 
@@ -365,6 +409,7 @@ impl HistoryScreen {
             return;
         }
 
+        // `selected` 已归一化为过滤结果下标，渲染列表也按相同顺序构造，二者才能正确对齐。
         let filtered_entries = state.filtered_entries();
         if filtered_entries.is_empty() {
             let para = Paragraph::new(format!(
@@ -452,7 +497,7 @@ impl HistoryScreen {
         frame.render_widget(help, area);
     }
 
-    /// 绘制搜索历史列表
+    /// 绘制搜索词使用历史；这块数据来自 SearchHistoryManager，而非 prompt-history 文件。
     fn draw_search_history(frame: &mut Frame, state: &mut HistoryState, area: Rect) {
         let history_entries = state.get_search_history_entries();
 

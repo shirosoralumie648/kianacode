@@ -126,9 +126,10 @@ fn decide(
 fn from_scratch_replay_and_incremental_replay_land_on_the_same_state() {
     // The card's positive requirement: two paths, one answer. This is the only fixture that
     // asserts convergence, and it asserts it on the digests both paths actually publish.
-    let all = fold(&[1, 2, 3]);
-    let head = fold(&[1, 2]);
-    let incremental = append_audit_tail(&head, &tail_from(3), 3).expect("SC-32 incremental tail");
+    let events = [committed_event(1), committed_event(2), committed_event(3)];
+    let all = project_audit_from_scratch(PROJECTOR, &events, 1).expect("SC-32 complete fold");
+    let head = project_audit_from_scratch(PROJECTOR, &events[..2], 1).expect("SC-32 head");
+    let incremental = append_audit_tail(&head, &events[2..], 3).expect("SC-32 incremental tail");
 
     assert_eq!(all.state_digest(), incremental.state_digest());
     assert_eq!(all.source_event_digest, incremental.source_event_digest);
@@ -156,7 +157,7 @@ fn a_projection_that_would_cover_a_fact_is_refused_by_the_append_only_rule() {
     let identities = head.snapshot.source_event_ids.clone();
 
     // The extension the reducer produces is the one shape the rule admits.
-    let appended = fold(&[1, 2, 3]);
+    let appended = append_audit_tail(&head, &tail_from(3), 3).expect("SC-32 appended fold");
     audit_projection_is_append_only(
         &head,
         appended.records(),
@@ -170,11 +171,11 @@ fn a_projection_that_would_cover_a_fact_is_refused_by_the_append_only_rule() {
         audit_projection_is_append_only(&head, &records, &identities).unwrap_err(),
         AuditProjectorError::ProjectionNotAppendOnly
     );
-    // Fewer rows still leaves the dropped identity behind, so the identity prefix also catches it.
+    // Even intact rows cannot replace the committed source identity prefix with a shorter one.
     assert_eq!(
         audit_projection_is_append_only(
             &head,
-            &records,
+            head.records(),
             &head.snapshot.source_event_ids[..head.snapshot.source_event_ids.len() - 1]
         )
         .unwrap_err(),
@@ -326,6 +327,64 @@ fn a_view_that_rewrote_its_state_under_an_unchanged_generation_is_drift_not_lag(
     // Drift is still a lag in the shared vocabulary, because the fold is behind the published
     // cursor only in name; the reason is what tells the two apart.
     assert!(!view.lag.read_consistent());
+}
+
+#[test]
+fn equal_cursor_stale_generation_or_content_keeps_an_unknown_lag_and_denies_reads() {
+    let head = fold(&[1, 2]);
+    let scope = boundary(&digest('s'));
+    let request = query(&scope, 0, 10);
+    for content_drift in [true, false] {
+        let state_digest = if content_drift {
+            digest('x')
+        } else {
+            head.state_digest()
+        };
+        let published = AuditProjectionPosition::new(
+            if content_drift {
+                head.generation
+            } else {
+                head.generation + 1
+            },
+            head.source_cursor(),
+            &state_digest,
+            DATA_EPOCH,
+        )
+        .expect("SC-32 equal cursor position");
+        let view = freshness(&published, &head);
+        assert!(!view.fresh);
+        assert_eq!(view.lag.status, ProjectionLagStatus::Unknown);
+        assert_eq!(view.lag.projection_cursor, None);
+        assert!(!view.lag.read_consistent());
+        view.validate_against(&published, &head).unwrap();
+        let denied =
+            AuditProjectorAuthorization::evaluate(&request, &head, &published, &scope, &view)
+                .unwrap();
+        assert_eq!(denied.disposition, AuditProjectorDisposition::Denied);
+        assert!(denied
+            .page(&request, &head, &published, &scope, &view)
+            .is_err());
+
+        // Re-sealing a cursor-only CaughtUp claim does not repair the mismatched source state.
+        let mut forged = view.clone();
+        forged.lag = kiana_domain::ProjectionLagView::new(
+            published.source_cursor,
+            Some(head.source_cursor()),
+            published.generation,
+            DATA_EPOCH,
+            None,
+        )
+        .unwrap();
+        forged.view_digest = forged.digest();
+        assert_eq!(
+            forged.validate_against(&published, &head).unwrap_err(),
+            "audit_projector_view_lag_binding_invalid"
+        );
+        assert!(AuditProjectorAuthorization::evaluate(
+            &request, &head, &published, &scope, &forged
+        )
+        .is_err());
+    }
 }
 
 #[test]

@@ -244,6 +244,7 @@ pub struct ProviderCapacityQueueEntry {
     pub attempt_id: AttemptId,
     pub requested_tokens: u64,
     pub enqueued_at_unix_ms: u64,
+    pub deadline_unix_ms: u64,
     pub queue_ticket: u64,
     pub entry_digest: String,
 }
@@ -255,6 +256,7 @@ impl ProviderCapacityQueueEntry {
         attempt_id: AttemptId,
         requested_tokens: u64,
         enqueued_at_unix_ms: u64,
+        deadline_unix_ms: u64,
     ) -> Result<Self, String> {
         let mut entry = Self {
             schema: PROVIDER_CAPACITY_ENTRY_SCHEMA.to_owned(),
@@ -264,6 +266,7 @@ impl ProviderCapacityQueueEntry {
             attempt_id,
             requested_tokens,
             enqueued_at_unix_ms,
+            deadline_unix_ms,
             queue_ticket: 0,
             entry_digest: String::new(),
         };
@@ -282,6 +285,7 @@ impl ProviderCapacityQueueEntry {
             || self.attempt_id.as_uuid().is_nil()
             || self.requested_tokens == 0
             || self.enqueued_at_unix_ms == 0
+            || self.deadline_unix_ms <= self.enqueued_at_unix_ms
             || enqueued && self.queue_ticket == 0
             || self.entry_digest != self.digest()
             || digest(&self.entry_digest, "provider_capacity_entry_digest").is_err()
@@ -309,6 +313,7 @@ impl ProviderCapacityQueueEntry {
             "attempt_id": self.attempt_id,
             "requested_tokens": self.requested_tokens,
             "enqueued_at_unix_ms": self.enqueued_at_unix_ms,
+            "deadline_unix_ms": self.deadline_unix_ms,
             "queue_ticket": self.queue_ticket,
         }))
     }
@@ -841,6 +846,7 @@ impl ProviderCapacityController {
             request.attempt_id,
             request.requested_tokens,
             request.requested_at_unix_ms,
+            request.deadline_unix_ms,
         )?;
         let ticket = self.queue.enqueue(entry.clone())?;
         entry.queue_ticket = ticket;
@@ -927,6 +933,7 @@ impl ProviderCapacityController {
         let Some(entry) = self.queue.dequeue() else {
             return Ok(None);
         };
+        let requested_at_unix_ms = now_unix_ms.max(entry.enqueued_at_unix_ms);
         let request = ProviderCapacityRequest::new(
             entry.session_id.clone(),
             entry.run_id,
@@ -934,10 +941,18 @@ impl ProviderCapacityController {
             self.policy.group.clone(),
             self.window.clone(),
             entry.requested_tokens,
-            now_unix_ms.max(entry.enqueued_at_unix_ms),
-            now_unix_ms.saturating_add(self.policy.max_queue_wait_ms),
+            if requested_at_unix_ms < entry.deadline_unix_ms {
+                requested_at_unix_ms
+            } else {
+                // Keep the original request valid so an already-expired queue item can
+                // produce a typed rejection without extending its absolute deadline.
+                entry.enqueued_at_unix_ms
+            },
+            entry.deadline_unix_ms,
         )?;
-        if request.requested_at_unix_ms >= request.deadline_unix_ms {
+        if now_unix_ms >= entry.deadline_unix_ms
+            || request.requested_at_unix_ms >= request.deadline_unix_ms
+        {
             return self
                 .decision(
                     ProviderCapacityOutcomeKind::Reject,
@@ -1111,17 +1126,24 @@ impl ProviderCircuitBreaker {
         if now_unix_ms == 0 {
             return Err("provider_circuit_clock_invalid".to_owned());
         }
-        self.half_open_probe_in_flight = false;
-        self.failure_count = self.failure_count.saturating_add(1);
-        if self.state == ProviderCircuitState::HalfOpen
-            || self.failure_count >= self.failure_threshold
-        {
-            self.state = ProviderCircuitState::Open;
-            self.open_until_unix_ms = Some(
+        let next_failure_count = self.failure_count.saturating_add(1);
+        let opens = self.state == ProviderCircuitState::HalfOpen
+            || next_failure_count >= self.failure_threshold;
+        let next_open_until = if opens {
+            Some(
                 now_unix_ms
                     .checked_add(self.open_duration_ms)
                     .ok_or_else(|| "provider_circuit_open_until_overflow".to_owned())?,
-            );
+            )
+        } else {
+            None
+        };
+
+        self.half_open_probe_in_flight = false;
+        self.failure_count = next_failure_count;
+        if opens {
+            self.state = ProviderCircuitState::Open;
+            self.open_until_unix_ms = next_open_until;
         }
         self.health_digest = self.digest();
         self.validate()

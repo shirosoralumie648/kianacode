@@ -36,6 +36,11 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
             && correlation.contains("        self.validate()?;\n        scope.validate()?;"),
         "OA-02 request binding must validate the full context before identity checks"
     );
+    assert!(
+        correlation.contains("pub fn with_source_cursor(&self, source_cursor: u64)")
+            && correlation.contains("next.source_cursor = Some(source_cursor);\n        next.validate()?;\n        Ok(next)"),
+        "OA-02 source cursor builder must validate its complete output"
+    );
     for marker in [
         "correlation_attempt_id_invalid",
         "correlation_causation_event_id_invalid",
@@ -63,7 +68,16 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
     assert!(baseline.contains("legacy"));
     let event_store = include_str!("../../kiana-eventlog/src/event_store_core.rs");
     assert!(event_store.contains("event_identity_links_invalid"));
+    let journal = include_str!("../../kiana-eventlog/src/journal_core.rs");
+    assert!(journal.contains("event.event_id.as_uuid().is_nil()"));
+    assert!(journal.contains("event.request_id.as_uuid().is_nil()"));
+    assert!(eventlog_fixtures.contains("nil_top_level_event_identity_is_denied_before_append"));
+    assert!(baseline.contains("event_identity_invalid"));
     for comparison in [
+        "existing.redaction_profile == candidate.redaction_profile",
+        "existing.payload_recoverable == candidate.payload_recoverable",
+        "existing.data_epoch == candidate.data_epoch",
+        "existing.artifact_refs == candidate.artifact_refs",
         "existing.command_id == candidate.command_id",
         "existing.correlation_id == candidate.correlation_id",
         "existing.causation_event_id == candidate.causation_event_id",
@@ -75,6 +89,7 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
         );
     }
     for fixture in [
+        "idempotent_replay_rejects_redaction_or_artifact_metadata_drift",
         "idempotent_replay_rejects_command_id_drift",
         "idempotent_replay_rejects_correlation_id_drift",
         "idempotent_replay_rejects_causation_event_id_drift",

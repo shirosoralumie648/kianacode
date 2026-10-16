@@ -149,9 +149,19 @@ fn deterministic_provider_receipt_is_canonical_and_redacted() {
         first.final_payload_sha256,
         connector_payload_sha256(&json!({"id": "one"}))
     );
+    let mut missing_fixture_binding = binding.clone();
+    missing_fixture_binding.definition.operations.insert(
+        "missing".to_owned(),
+        binding.definition.operations["lookup"].clone(),
+    );
     assert_eq!(
         fixture
-            .provider_receipt(&binding, "missing", "lookup-one", &json!({}))
+            .provider_receipt(
+                &missing_fixture_binding,
+                "missing",
+                "lookup-one",
+                &json!({})
+            )
             .unwrap_err(),
         "connector_fixture_operation_missing"
     );

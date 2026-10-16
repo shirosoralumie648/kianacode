@@ -13,15 +13,27 @@ fn require(source: &str, markers: &[&str], label: &str) {
 fn process_continuations_are_opaque_owner_scoped_and_supervised() {
     let job = include_str!("../../kiana-domain/src/job_handle.rs");
     let execution = include_str!("../../kiana-daemon/src/execution_control.rs");
-    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
+    let supervisor = &[
+        include_str!("../../kiana-daemon/src/process_supervisor.rs"),
+        include_str!("../../kiana-daemon/src/execution_control.rs"),
+    ]
+    .concat();
     let leases = include_str!("../../kiana-domain/src/resource_leases.rs");
     let sessions = include_str!("../src/sessions.rs");
-    let actions = include_str!("../../kiana-domain/src/actions.rs");
+    let actions = &[
+        include_str!("../../kiana-domain/src/actions.rs"),
+        include_str!("../../kiana-domain/src/operation_catalog.rs"),
+    ]
+    .concat();
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let receipts = include_str!("../src/receipts.rs");
     let er19 = include_str!("er19_process_handle_guard.rs");
     let h17 = include_str!("../../kiana-domain/tests/h17_job_handle.rs");
-    let baseline = include_str!("../../docs/roadmap/cap27-process-handle-pty-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cap27-process-handle-pty-baseline.md"),
+        include_str!("../../docs/roadmap/capability.md"),
+    ]
+    .concat();
 
     require(
         job,
@@ -148,7 +160,11 @@ fn pty_is_explicit_and_disconnect_or_stop_cannot_claim_success() {
     let execution = include_str!("../../kiana-daemon/src/execution_control.rs");
     let capabilities = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
     let domain = include_str!("../../kiana-domain/src/capabilities.rs");
-    let baseline = include_str!("../../docs/roadmap/cap27-process-handle-pty-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cap27-process-handle-pty-baseline.md"),
+        include_str!("../../docs/roadmap/capability.md"),
+    ]
+    .concat();
 
     require(
         execution,

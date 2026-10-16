@@ -4,7 +4,7 @@ fn daemon_restore_verifier_only_checks_manifest_and_replacement_fence() {
     for marker in [
         "SnapshotManifest",
         "RestoreVerificationFact",
-        "manifest.validate",
+        ".validate()",
         "restore_manifest_fact_binding_invalid",
         "verify_restore",
     ] {

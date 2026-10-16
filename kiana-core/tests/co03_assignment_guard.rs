@@ -7,9 +7,10 @@ fn company_authority_has_assignment_revalidation_boundary() {
 
     for marker in [
         "RoleAssignmentStatus",
-        "AssignmentDirectory::resolve",
+        "pub fn resolve",
         "assignment_expired_or_missing",
         "authority_epoch",
+        "self.valid_from_unix_ms == 0",
     ] {
         assert!(
             domain.contains(marker),

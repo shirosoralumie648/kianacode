@@ -108,6 +108,46 @@ fn forged_authority_unknown_command_scope_and_idempotency_conflict_fail_closed()
     let expected = authority("operator-a", 7);
     request.validate_authority(&expected).unwrap();
 
+    let query = OpsQueryRequest::new(
+        OpsQuery::Status,
+        kiana_protocol::RequestId::parse_str(&uuid_from_u128(9)).expect("query request id"),
+        expected.clone(),
+        None,
+        json!({}),
+    )
+    .unwrap();
+    query.validate_authority(&expected).unwrap();
+
+    let mut forged_query_actor = query.clone();
+    forged_query_actor.authority.actor_id = "operator-b".to_owned();
+    forged_query_actor.query_digest = forged_query_actor.digest();
+    assert_eq!(
+        forged_query_actor
+            .validate_authority(&expected)
+            .unwrap_err(),
+        "ops_actor_mismatch"
+    );
+
+    let mut forged_query_epoch = query.clone();
+    forged_query_epoch.authority.authority_epoch = 8;
+    forged_query_epoch.query_digest = forged_query_epoch.digest();
+    assert_eq!(
+        forged_query_epoch
+            .validate_authority(&expected)
+            .unwrap_err(),
+        "ops_authority_epoch_mismatch"
+    );
+
+    let mut forged_query_scope = query.clone();
+    forged_query_scope.authority.scope = OpsScope::new(Some(project()), None);
+    forged_query_scope.query_digest = forged_query_scope.digest();
+    assert_eq!(
+        forged_query_scope
+            .validate_authority(&expected)
+            .unwrap_err(),
+        "ops_scope_mismatch"
+    );
+
     let mut forged_actor = request.clone();
     forged_actor.authority.actor_id = "operator-b".to_owned();
     forged_actor.request_digest = forged_actor.digest();
@@ -160,4 +200,105 @@ fn forged_authority_unknown_command_scope_and_idempotency_conflict_fail_closed()
     let envelope =
         RequestEnvelope::ops_command(RequestMetadata::local("s", "/tmp/project"), request).unwrap();
     assert_eq!(envelope.schema, kiana_protocol::PROTOCOL_SCHEMA);
+}
+
+#[test]
+fn event_name_kind_and_unknown_retry_policy_fail_closed() {
+    let operation_id = command().operation_id;
+    for (cursor, (name, kind)) in [
+        ("ops.operation.accepted", OpsEventKind::Accepted),
+        ("ops.operation.state_changed", OpsEventKind::StateChanged),
+        ("ops.operation.completed", OpsEventKind::Completed),
+        ("ops.operation.failed", OpsEventKind::Failed),
+        ("ops.operation.cancelled", OpsEventKind::Cancelled),
+        ("ops.operation.unknown", OpsEventKind::Unknown),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        OpsEvent::new(name, kind, operation_id, cursor as u64 + 1, json!({}))
+            .unwrap()
+            .validate()
+            .unwrap();
+    }
+
+    let mut mismatched = OpsEvent::new(
+        "ops.operation.accepted",
+        OpsEventKind::Accepted,
+        operation_id,
+        7,
+        json!({}),
+    )
+    .unwrap();
+    mismatched.event = "ops.operation.failed".to_owned();
+    mismatched.event_digest = mismatched.digest();
+    assert_eq!(
+        mismatched.validate().unwrap_err(),
+        "ops_event_kind_mismatch"
+    );
+
+    assert_eq!(
+        OpsError::new(
+            OpsErrorCode::ResultUnknown,
+            "query the original operation",
+            true,
+            Some(operation_id),
+        )
+        .unwrap_err(),
+        "ops_result_unknown_retryable"
+    );
+    assert_eq!(
+        OpsError::new(
+            OpsErrorCode::ResultUnknown,
+            "query the original operation",
+            false,
+            None,
+        )
+        .unwrap_err(),
+        "ops_result_unknown_operation_invalid"
+    );
+
+    let mut tampered = OpsError::new(
+        OpsErrorCode::ResultUnknown,
+        "query the original operation",
+        false,
+        Some(operation_id),
+    )
+    .unwrap();
+    tampered.retryable = true;
+    tampered.error_digest = tampered.digest();
+    assert_eq!(
+        tampered.validate().unwrap_err(),
+        "ops_result_unknown_retryable"
+    );
+    assert_eq!(
+        OpsEnvelope::new(
+            kiana_protocol::RequestId::parse_str(&uuid_from_u128(8)).expect("request id"),
+            OpsEnvelopeBody::Error(tampered),
+        )
+        .unwrap_err(),
+        "ops_result_unknown_retryable"
+    );
+
+    let mut missing_operation = OpsError::new(
+        OpsErrorCode::ResultUnknown,
+        "query the original operation",
+        false,
+        Some(operation_id),
+    )
+    .unwrap();
+    missing_operation.operation_id = None;
+    missing_operation.error_digest = missing_operation.digest();
+    assert_eq!(
+        missing_operation.validate().unwrap_err(),
+        "ops_result_unknown_operation_invalid"
+    );
+    assert_eq!(
+        OpsEnvelope::new(
+            kiana_protocol::RequestId::parse_str(&uuid_from_u128(10)).expect("request id"),
+            OpsEnvelopeBody::Error(missing_operation),
+        )
+        .unwrap_err(),
+        "ops_result_unknown_operation_invalid"
+    );
 }

@@ -184,6 +184,45 @@ fn deployment_config_rejects_tampered_revision_and_duplicate_source() {
 }
 
 #[test]
+fn deployment_config_rejects_out_of_order_sources_with_valid_digests() {
+    let mut value = snapshot();
+    value.sources.swap(0, 1);
+    for source in &value.sources {
+        source.validate().unwrap();
+    }
+    value.config_revision = value.config_revision_digest();
+    value.snapshot_digest = value.digest();
+
+    assert_eq!(
+        value.validate().unwrap_err(),
+        "deployment_config_source_order_invalid"
+    );
+}
+
+#[test]
+fn deployment_config_constructor_rejects_duplicate_source_kinds() {
+    let base = snapshot();
+    let mut sources = base.sources;
+    sources.push(source(
+        DeploymentConfigSourceKind::UserFile,
+        "user:second",
+        None,
+    ));
+
+    assert_eq!(
+        DeploymentConfigSnapshot::new(
+            &trust(true),
+            base.allowed_environment_keys,
+            sources,
+            base.effective_non_secret_config,
+            base.secret_refs,
+        )
+        .unwrap_err(),
+        "deployment_config_source_duplicate"
+    );
+}
+
+#[test]
 fn deployment_config_diff_derives_changed_paths_and_impact() {
     let old = snapshot();
     let trusted = trust(true);

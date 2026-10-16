@@ -1,11 +1,15 @@
 //! CAP-33 source guard for the controlled OCI/gVisor environment boundary.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn container_backend_is_fail_closed_and_identity_bound() {
     let source = include_str!("../../kiana-daemon/src/container_environment.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let baseline = include_str!("../../docs/roadmap/cap33-container-baseline.md");
     let inventory = include_str!("../../kiana-domain/src/container_inventory.rs");
+    let platform = include_str!("../../kiana-domain/src/platform_backend.rs");
 
     for marker in [
         "EnvironmentPort",
@@ -73,7 +77,13 @@ fn container_backend_is_fail_closed_and_identity_bound() {
         "gVisor",
     ] {
         assert!(
-            baseline.contains(marker),
+            if marker == "behavior_verified=false" {
+                source_guard::platform_report_has_evidence_fence(platform)
+                    && baseline.contains("This runs no container and observes no runtime")
+                    && baseline.contains("| proof_level | `source`;")
+            } else {
+                baseline.contains(marker)
+            },
             "CAP-33 baseline marker missing: {marker}"
         );
     }

@@ -5,6 +5,14 @@ fn release_attestation_keeps_subject_builder_and_transparency_bindings() {
     let domain = include_str!("../../kiana-domain/src/release_attestation.rs");
     let verifier = include_str!("../../scripts/verify-release-provenance.py");
     let workflow = include_str!("../../.github/workflows/sc29-release-provenance.yml");
+    let status = include_str!("../../CURRENT_STATUS.md");
+    let evidence = status
+        .split("### SC-29 Release artifact provenance")
+        .nth(1)
+        .expect("SC-29 evidence section")
+        .split("\n### ")
+        .next()
+        .unwrap();
     let baseline = include_str!("../../docs/roadmap/sc29-release-provenance-baseline.md");
     for marker in [
         "ReleaseManifest",
@@ -62,7 +70,11 @@ fn release_attestation_keeps_subject_builder_and_transparency_bindings() {
         "reviewer",
     ] {
         assert!(
-            baseline.contains(marker),
+            if marker == "reviewer" || marker == "limitations" {
+                evidence.contains(&format!("{marker}:"))
+            } else {
+                baseline.contains(marker)
+            },
             "SC-29 baseline marker missing: {marker}"
         );
     }

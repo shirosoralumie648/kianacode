@@ -7,6 +7,8 @@ fn provider_capacity_path_is_bounded_and_fallback_is_re_admitted() {
         "KIANA_MODEL_QUEUE_LIMIT",
         "try_acquire_owned",
         "provider_capacity_queue_full",
+        "deadline_unix_ms",
+        "provider_capacity_queue_wait_expired",
         "ProviderCircuitBreaker",
         "provider_circuit_open",
         "HalfOpenProbeGuard",

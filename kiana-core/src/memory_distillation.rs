@@ -484,7 +484,10 @@ impl ControlPlane {
             || claim.data["internal_session_id"] != json!(context.session_id)
             || claim.data["source"] != serde_json::to_value(&source).unwrap_or(Value::Null)
             || !history_empty
-            || context.permission_profile != PermissionProfile::Safe
+            || matches!(
+                context.permission_profile,
+                PermissionProfile::Safe | PermissionProfile::Ask
+            )
             || context.cell_id.is_some()
             || context.work_packet_id.is_some()
             || !context.path_allow.is_empty()

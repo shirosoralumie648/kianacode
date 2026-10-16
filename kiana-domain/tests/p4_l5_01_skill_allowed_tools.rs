@@ -13,7 +13,7 @@ fn skill_allowed_tools_cannot_grant_shell() {
         "shell.exec",
         json!({"role_id": "builder", "command": "echo fixture"}),
     );
-    let contract = ExtensionExecutionContract {
+    let mut contract = ExtensionExecutionContract {
         extension_id: "review-skill".to_owned(),
         publisher: "fixture-publisher".to_owned(),
         package_sha256: "a".repeat(64),
@@ -32,6 +32,7 @@ fn skill_allowed_tools_cannot_grant_shell() {
         scope_digest: "sha256:".to_owned() + &"f".repeat(64),
         handler_effect: ExtensionEffect::ReadWrite,
     };
+    contract.scope_digest = contract.canonical_scope_digest();
     assert_eq!(
         contract.check(&request),
         Err("extension_read_only_write_denied")
@@ -43,11 +44,16 @@ fn skill_allowed_tools_cannot_grant_shell() {
         "memory.search",
         json!({"role_id": "builder"}),
     );
-    let read_contract = ExtensionExecutionContract {
+    let mut read_contract = ExtensionExecutionContract {
         required_capabilities: BTreeSet::from(["memory.search".to_owned()]),
         handler_effect: ExtensionEffect::ReadOnly,
         ..contract
     };
+    read_contract.scope_digest = read_contract.canonical_scope_digest();
     assert!(read_contract.check(&query).is_ok());
+
+    let mut forged = read_contract;
+    forged.scope_digest = format!("sha256:{}", "f".repeat(64));
+    assert_eq!(forged.check(&query), Err("extension_scope_digest_mismatch"));
     assert_eq!(request.risk, RiskLevel::ReadOnly);
 }

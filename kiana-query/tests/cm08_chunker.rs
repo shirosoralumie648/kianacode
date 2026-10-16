@@ -1,11 +1,18 @@
+//! CM-08 Query syntax-lite chunker 集成 fixture。
+//!
+//! 这里直接输入内存字符串，检查源文本可完整重建、代码符号 parent provenance、文档标题分类和 Unicode byte/line range。
+//! 测试不运行编译器/parser，也没有证明 `chunk_text()` 已接入生产 index builder。
+
 use kiana_domain::{ChunkKind, ChunkSet};
 use kiana_query::{chunk_text, ChunkingOptions};
 
+/// 构造可通过格式检查的 source digest fixture。
 fn digest(value: char) -> String {
     format!("sha256:{}", value.to_string().repeat(64))
 }
 
 #[test]
+/// 常见 Rust 声明前缀可以产生代码语义段；即使被切窗，所有 chunk 仍应无损重建输入。
 fn code_chunks_reconstruct_source_with_symbol_parent_provenance() {
     let source =
         "use crate::x;\n\npub fn first() {\n    one();\n}\n\npub fn second() {\n    two();\n}\n";
@@ -34,6 +41,7 @@ fn code_chunks_reconstruct_source_with_symbol_parent_provenance() {
 }
 
 #[test]
+/// Markdown 标题按章节切分，超长 Unicode 内容的窗口仍保持有效 byte/line range。
 fn document_and_oversized_windows_keep_byte_and_line_ranges() {
     let source = "# Intro\n第一段落\n## Next\nsecond paragraph with unicode 中文\n";
     let set = chunk_text(

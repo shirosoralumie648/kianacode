@@ -216,6 +216,12 @@ impl RetentionArchiveReport {
         {
             return Err("retention_report_binding_invalid".to_owned());
         }
+        // These fields are claims about the pass itself, rather than measurements copied from
+        // the sample. A caller that changes either claim and re-seals report_digest must still be
+        // rejected; otherwise the digest would authenticate a lie instead of the contract.
+        if !self.ledger_fact_unchanged || self.limitations != retention_report_limitations() {
+            return Err("retention_report_binding_invalid".to_owned());
+        }
         if self.report_digest != self.digest() {
             return Err("retention_report_digest_mismatch".to_owned());
         }
@@ -238,6 +244,14 @@ impl RetentionArchiveReport {
             "limitations": self.limitations,
         }))
     }
+}
+
+fn retention_report_limitations() -> Vec<String> {
+    vec![
+        "every count in this report was supplied; nothing was measured here".to_owned(),
+        "the ledger digests are the caller's before and after, not a diff this module took"
+            .to_owned(),
+    ]
 }
 
 /// Evaluate one pass against its bounds.
@@ -306,11 +320,7 @@ pub fn evaluate_retention_archive(
         latency_p50_ms: p50,
         latency_p95_ms: p95,
         ledger_fact_unchanged: true,
-        limitations: vec![
-            "every count in this report was supplied; nothing was measured here".to_owned(),
-            "the ledger digests are the caller's before and after, not a diff this module took"
-                .to_owned(),
-        ],
+        limitations: retention_report_limitations(),
         report_digest: String::new(),
     };
     report.report_digest = report.digest();

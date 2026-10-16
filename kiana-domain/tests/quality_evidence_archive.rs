@@ -105,7 +105,7 @@ fn archive_rejects_missing_fields_paths_and_secrets() {
 #[test]
 fn archive_rejects_duplicate_or_unavailable_proof() {
     let mut duplicate = archive();
-    duplicate.artifacts[1].kind = QualityArchiveArtifactKind::Report;
+    duplicate.artifacts[1] = duplicate.artifacts[0].clone();
     duplicate.archive_digest = duplicate.canonical_digest();
     assert_eq!(
         duplicate.validate().unwrap_err(),

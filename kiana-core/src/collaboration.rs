@@ -1218,7 +1218,10 @@ impl ControlPlane {
                 }
             }
         } else if !context.project_trusted
-            || matches!(context.permission_profile, PermissionProfile::Safe)
+            || matches!(
+                context.permission_profile,
+                PermissionProfile::Safe | PermissionProfile::Ask
+            )
         {
             self.record_event(
                 request_id,

@@ -1,5 +1,8 @@
 //! CAP-34 source guard for the evidence matrix and non-skip semantics.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn conformance_matrix_keeps_unsupported_rows_visible_and_fenced() {
     let source = include_str!("../../kiana-domain/src/capability_conformance.rs");
@@ -48,10 +51,19 @@ fn conformance_matrix_keeps_unsupported_rows_visible_and_fenced() {
         "partial",
     ] {
         assert!(
-            baseline.contains(marker),
+            if marker == "effect fence" {
+                let validator = source_guard::item_source(source, "pub fn validate(");
+                let code = source_guard::compact_code(&validator);
+                code.contains("if!self.effect_fence_verified||(self.scenario==ConformanceScenario::Resume&&!self.resume_fence_verified)")
+                    && code.contains("extension_transport_and_resume_cannot_bypass_effect_fences")
+                    && baseline.contains("effect/resume fence")
+            } else {
+                baseline.contains(marker)
+            },
             "CAP-34 baseline marker missing: {marker}"
         );
     }
+    let source = source_guard::production_source(source);
     assert!(!source.contains("CapabilityBroker::new"));
     assert!(!source.contains("tokio::"));
 }

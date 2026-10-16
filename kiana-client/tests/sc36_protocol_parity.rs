@@ -78,7 +78,7 @@ fn an_approval_shown_as_decided_without_naming_the_reference_is_refused() {
     // The other four show the button as decided and name nothing.
     assert_eq!(
         compare_protocol_parity(&observations).unwrap_err(),
-        ProtocolParityError::ApprovalReferenceMismatch
+        ProtocolParityError::ApprovalReferenceMissing
     );
 }
 
@@ -134,8 +134,21 @@ fn surfaces_showing_different_states_are_refused_one_field_at_a_time() {
             "revision",
         ),
         (
-            Box::new(|o: &mut ProtocolObservation| o.receipt_digest = None),
+            Box::new(|o: &mut ProtocolObservation| {
+                o.receipt_digest = Some(
+                    "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+                        .to_owned(),
+                )
+            }),
             "receipt",
+        ),
+        (
+            Box::new(|o: &mut ProtocolObservation| o.command_id = "cmd-2".to_owned()),
+            "command_id",
+        ),
+        (
+            Box::new(|o: &mut ProtocolObservation| o.operation = "run.other.v1".to_owned()),
+            "operation",
         ),
         (
             Box::new(|o: &mut ProtocolObservation| o.error_code = Some("denied".to_owned())),
@@ -159,14 +172,35 @@ fn an_unknown_outcome_rendered_as_settled_is_refused() {
     let mut observations = agreeing();
     for entry in &mut observations {
         entry.disposition = "unknown".to_owned();
-        entry.receipt_digest = None;
     }
-    observations[0].approval = ApprovalPresentation::RenderedDecided;
-    observations[0].approval_reference = Some(APPROVAL_REF.to_owned());
+    observations[0].disposition = "applied".to_owned();
     assert_eq!(
         compare_protocol_parity(&observations).unwrap_err(),
         ProtocolParityError::UnknownRenderedAsSettled
     );
+}
+
+#[test]
+fn an_accepted_command_is_not_misclassified_as_a_settled_unknown() {
+    let mut observations = agreeing();
+    for entry in &mut observations {
+        entry.disposition = "unknown".to_owned();
+    }
+    observations[0].disposition = "accepted".to_owned();
+    assert_eq!(
+        compare_protocol_parity(&observations).unwrap_err(),
+        ProtocolParityError::Mismatch("disposition")
+    );
+}
+
+#[test]
+fn an_unknown_outcome_may_have_a_receipt_and_pending_approval() {
+    let mut observations = agreeing();
+    for entry in &mut observations {
+        entry.disposition = "unknown".to_owned();
+        entry.approval = ApprovalPresentation::RenderedPending;
+    }
+    assert!(compare_protocol_parity(&observations).is_ok());
 }
 
 #[test]

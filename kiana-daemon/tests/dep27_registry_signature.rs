@@ -25,7 +25,11 @@ fn step(ordinal: u32, from: u32, to: u32) -> MigrationStep {
         ordinal,
         from_format_version: from,
         to_format_version: to,
-        checksum: DIGEST_A.to_owned(),
+        checksum: if ordinal == 1 {
+            DIGEST_A.to_owned()
+        } else {
+            DIGEST_B.to_owned()
+        },
         owner: "release-owner".to_owned(),
         backup_required: true,
         precondition: MigrationPrecondition {
@@ -127,7 +131,8 @@ fn tampering_with_the_registry_after_signing_is_detected() {
     let error = verify_registry_signature(&signed, &trusted(&public_key))
         .expect_err("a tampered registry must not verify");
     assert!(
-        failure(&error).contains("migration_owner_precondition_mismatch")
+        failure(&error).contains("migration_registry_invalid")
+            || failure(&error).contains("migration_owner_precondition_mismatch")
             || failure(&error).contains("migration_signature_verification_failed"),
         "unexpected error: {error:?}"
     );

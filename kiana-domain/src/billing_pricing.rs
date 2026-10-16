@@ -214,6 +214,14 @@ impl RateCard {
     ) -> Result<CostEstimate, String> {
         self.validate()?;
         usage.validate()?;
+        if has_unproven_token_overlap(usage) {
+            return CostEstimate::new(
+                self.rate_card_id,
+                self.card_version,
+                Money::new(self.currency.clone(), 0)?,
+                Some(BillingUnknownReason::Unsupported),
+            );
+        }
         let mut total = Money::new(self.currency.clone(), 0)?;
         let mut unknown = None;
         total = add_dimension(
@@ -323,6 +331,13 @@ impl RateCard {
             "source": self.source,
         }))
     }
+}
+
+fn has_unproven_token_overlap(usage: &UsageVector) -> bool {
+    let positive = |value: Option<u64>| value.is_some_and(|units| units > 0);
+    (positive(usage.input_tokens)
+        && (positive(usage.cache_read_tokens) || positive(usage.cache_write_tokens)))
+        || (positive(usage.output_tokens) && positive(usage.reasoning_output_tokens))
 }
 
 fn add_dimension(

@@ -145,6 +145,27 @@ impl LocalTraceExporter {
             .collect()
     }
 
+    fn checked_attributes(
+        summary: &TraceSummary,
+    ) -> Result<BTreeMap<String, String>, TraceExportError> {
+        let attributes = Self::allowlisted_attributes(summary);
+        let raw = serde_json::to_value(&attributes).map_err(|_| {
+            TraceExportError::RecordInvalid("trace_export_encode_failed".to_owned())
+        })?;
+        let profile =
+            kiana_domain::RedactionProfile::for_signal(kiana_domain::RedactionSignal::Export);
+        let encoded = kiana_domain::encode_bounded_value(&profile, &raw)
+            .map_err(TraceExportError::RecordInvalid)?;
+        // The source summary is sealed. Refuse unsafe metadata instead of publishing
+        // transformed values that no longer match its source-bound meaning.
+        if encoded.value != raw {
+            return Err(TraceExportError::RecordInvalid(
+                "trace_export_attributes_changed".to_owned(),
+            ));
+        }
+        Ok(attributes)
+    }
+
     pub fn export_summary(
         &self,
         summary: &TraceSummary,
@@ -175,7 +196,7 @@ impl LocalTraceExporter {
             summary.source_cursor,
             summary.source_event_ids.clone(),
             summary.duration_ms,
-            Self::allowlisted_attributes(summary),
+            Self::checked_attributes(summary)?,
         )
         .map_err(TraceExportError::RecordInvalid)?;
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);

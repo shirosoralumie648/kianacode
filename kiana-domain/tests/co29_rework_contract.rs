@@ -105,3 +105,38 @@ fn unknown_attempt_and_successor_cycle_are_rejected() {
         "rework_successor_cycle"
     );
 }
+
+#[test]
+fn non_reclaimable_attempt_rejection_preserves_empty_and_existing_ledgers() {
+    for state in [
+        ReworkAttemptState::Unknown,
+        ReworkAttemptState::NeverStarted,
+    ] {
+        let mut ledger = ReworkLedger::default();
+        assert_eq!(
+            ledger
+                .record(provenance("packet-1", "packet-2", state))
+                .unwrap_err(),
+            "rework_attempt_not_reclaimable"
+        );
+        assert!(ledger.successors.is_empty());
+
+        ledger
+            .record(provenance(
+                "packet-1",
+                "packet-2",
+                ReworkAttemptState::Rejected,
+            ))
+            .expect("prior rejected attempt");
+        let before = ledger.clone();
+        assert_eq!(
+            ledger
+                .record(provenance("packet-2", "packet-3", state))
+                .unwrap_err(),
+            "rework_attempt_not_reclaimable"
+        );
+        assert_eq!(ledger, before);
+        assert_eq!(ledger.successor("packet-1"), Some("packet-2"));
+        assert!(ledger.successor("packet-2").is_none());
+    }
+}

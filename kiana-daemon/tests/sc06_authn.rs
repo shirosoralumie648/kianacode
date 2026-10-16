@@ -28,7 +28,7 @@ fn local_authn_adapter_issues_and_validates_opaque_sessions() {
             .open_session("sc06-session", 100, 100, AuthenticationAssurance::Local)
             .unwrap_err()
             .to_string(),
-        "conflict: AUTH_SESSION_REPLAY"
+        "port_conflict:AUTH_SESSION_REPLAY"
     );
 }
 

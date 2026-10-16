@@ -1,8 +1,14 @@
-//! Human-readable CLI rendering for additive run-stream events.
+//! CLI 对运行流事件的可读呈现层。
 //!
-//! The stream is a display projection only. The renderer writes model text deltas as
-//! they arrive, but it never treats the stream closing or the text itself as a
-//! terminal fact: only a `Terminal` envelope ends the command.
+//! `DaemonHost` 通过广播订阅发布增量运行事件；本文件只把其中的文本增量写到 stdout，
+//! 并在收到 `Terminal` envelope 后返回最终响应。运行流是 UI 展示投影，不是事实账本：
+//! 通道关闭、订阅者落后或收到一段文本，都不能单独证明 Run 已经完成，只有带有终态响应
+//! 的 `Terminal` 事件才会结束这次命令。
+//!
+//! 本模块由 `kiana-entrypoints::harness_run::run_envelope` 在普通 run 的流式显示分支调用。
+//! 它会复用同一 `DaemonHost` 和 `KianaClient`，不会创建第二个模型循环，也不会绕过
+//! `ControlPlane`。流式脱敏器只负责屏幕输出中的敏感文本处理，EventStore 中的事实记录
+//! 仍由 daemon/core 写入。
 
 use anyhow::{anyhow, Context, Result};
 use kiana_daemon::{RunStreamSubscription, StreamingRedactor};
@@ -14,11 +20,12 @@ use std::time::Duration;
 
 const TERMINAL_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 
-pub(crate) async fn run_envelope(
+pub(crate) async fn render_stream_envelope(
     session_id: String,
     prompt: String,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
+    // session id 同时作为普通初次 run 的 run id 线索；订阅必须先建立，避免错过首个 delta。
     let run_id = RunId::parse_str(&session_id).ok_or_else(|| anyhow!("stream_run_id_required"))?;
     let host = crate::harness_run::new_local_host_with_options(options)?;
     let mut subscription = host.subscribe_run(run_id);
@@ -61,6 +68,7 @@ async fn wait_for_terminal<W: Write>(
     run_id: RunId,
     renderer: &mut StreamRenderer<W>,
 ) -> Result<ResponseEnvelope> {
+    // 任务响应可能先于最后一条广播事件返回，因此这里继续消费直到真正收到 Terminal。
     loop {
         let event = subscription.recv().await.map_err(stream_recv_error)?;
         if let Some(response) = renderer.handle_envelope(run_id, event)? {
@@ -90,6 +98,10 @@ fn stream_recv_error(error: tokio::sync::broadcast::error::RecvError) -> anyhow:
     }
 }
 
+/// 将运行流变成终端文本的有状态呈现器。
+///
+/// `cursor` 防止重连或广播重复消费旧事件；`redactor` 保留跨分片的扫描状态，避免
+/// 一个敏感值被拆在两个 Delta 中时只检查到半段。
 struct StreamRenderer<W: Write> {
     writer: W,
     redactor: StreamingRedactor,
@@ -112,6 +124,7 @@ impl<W: Write> StreamRenderer<W> {
         run_id: RunId,
         envelope: RunStreamEnvelope,
     ) -> Result<Option<ResponseEnvelope>> {
+        // 事件序号由服务端提供；旧事件或重复事件只推进失败，不应再次写到终端。
         if !envelope
             .advance_cursor(&mut self.cursor)
             .map_err(anyhow::Error::msg)?
@@ -133,6 +146,7 @@ impl<W: Write> StreamRenderer<W> {
                 Ok(None)
             }
             RunStreamEvent::Terminal { run_id, response } => {
+                // 终态前先冲刷 redactor 的尾部，再补换行，确保最后一个增量不会留在缓冲区。
                 ensure_run_id(expected_run_id, run_id)?;
                 self.flush_redactor()?;
                 self.finish_line()?;

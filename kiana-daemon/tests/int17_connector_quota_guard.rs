@@ -25,7 +25,7 @@ fn daemon_rechecks_quota_before_fixture_and_preserves_single_spine() {
             "INT-17 daemon marker missing: {marker}"
         );
     }
-    assert!(daemon.contains("fixture.find_case"));
+    assert!(daemon.contains(".find_case("));
     assert!(daemon.contains("validate_connector_quota_boundary"));
     assert!(!daemon.contains("tokio::spawn"));
     assert!(!daemon.contains("reqwest::Client"));

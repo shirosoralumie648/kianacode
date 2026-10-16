@@ -206,7 +206,7 @@ impl ConnectorHttpsTransportCapabilities {
 /// 因此实现方不可能静默地选中它）。
 ///
 /// 含义是：这里**没有"跟随系统环境变量"这种选项**。要么调用方显式给一个
-/// 代理地址，要么没有代理。如果允许适配器去读 `HTTP_PROXY` 之类的环境变量，
+/// 代理地址，要么没有代理。如果允许适配器去读环境代理变量，
 /// 一个恶意的环境配置就能把所有 HTTPS 流量导向攻击者服务器，而请求报文里
 /// 看不到任何异常。显式化把这条路彻底堵死了。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -332,14 +332,26 @@ fn sc38_unknown_major_is_rejected_not_upgraded() {
 
 #[test]
 fn sc38_unknown_major_invariant_requires_unknown_major_shape() {
-    let case = property_case(
+    let input = digest_of(&serde_json::json!({
+        "case": "sc38_mismatched_shape",
+        "shape": Sc38InputShape::RandomPayload.as_str(),
+    }));
+    let decision = digest_of(&serde_json::json!({
+        "case": "sc38_mismatched_shape",
+        "reason": SecurityReasonCode::FactSchemaUnknownMajor.as_str(),
+    }));
+    let result = Sc38PropertyCase::new(
         "sc38_mismatched_shape",
+        0x5C37_0000_0000_0001,
+        0,
         Sc38InputShape::RandomPayload,
         Sc38Invariant::UnknownMajorRejected,
         SecurityReasonCode::FactSchemaUnknownMajor,
+        input,
+        decision,
     );
     assert_eq!(
-        case.validate().unwrap_err(),
+        result.unwrap_err(),
         "sc38_property_case_unknown_major_shape_invalid"
     );
 }
@@ -432,7 +444,13 @@ fn sc38_missing_shape_or_seed_mismatch_is_rejected() {
         SecurityReasonCode::UnknownUnclassified,
     );
     assert_eq!(
-        Sc38PropertyCorpus::new("sc38-corpus", 1, "source:sc38", vec![single.clone()]).unwrap_err(),
+        Sc38PropertyCorpus::new(
+            "sc38-corpus",
+            0x5C37_0000_0000_0001,
+            "source:sc38",
+            vec![single.clone()],
+        )
+        .unwrap_err(),
         "sc38_property_shape_uncovered"
     );
 
@@ -699,7 +717,6 @@ fn fixture_correlation_binds_request_run_and_cursor_without_granting_authority()
 
     let mut tampered = correlation;
     tampered.source_cursor = Some(8);
-    tampered.correlation_digest = tampered.digest();
     assert_eq!(
         tampered.validate().unwrap_err(),
         "sc_fixture_correlation_digest_mismatch"

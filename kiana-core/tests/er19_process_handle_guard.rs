@@ -1,5 +1,9 @@
 //! ER-19 source guard for process/job handles, fencing and stop evidence.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source};
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
         assert!(
@@ -181,11 +185,17 @@ fn er_lease_expiry_does_not_release_live_process() {
         job,
         &[
             "expires_at_unix_ms",
-            "job_handle_expired",
+            "job_handle_header_invalid",
             "authority_epoch",
             "handle_digest",
         ],
-        "job expiry",
+        "job expiry identity",
+    );
+    let validate = compact_code(&item_source(execution, "fn validate_job_handle("));
+    assert!(validate.contains("ifunix_time_ms()?>=handle.expires_at_unix_ms"));
+    assert!(validate.contains("job_handle_expired"));
+    assert!(
+        compact_code(&item_source(job, "pub fn validate(")).contains("self.expires_at_unix_ms==0")
     );
     require(
         leases,

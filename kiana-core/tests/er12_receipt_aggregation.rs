@@ -101,6 +101,66 @@ fn aggregation_rejects_empty_or_foreign_source() {
 }
 
 #[test]
+fn aggregation_rejects_stream_and_payload_run_identity_conflicts() {
+    let run_id = RunId::new();
+    let other = RunId::new();
+    for (stream_run_id, payload_run_id) in [(run_id, other), (other, run_id)] {
+        let conflicting = event(
+            stream_run_id,
+            1,
+            "run.model_turn",
+            json!({"run_id":payload_run_id,"attempted":true}),
+        );
+        assert_eq!(
+            aggregate_receipt_facts(run_id, &[conflicting]).unwrap_err(),
+            "invocation_event_run_id_conflict"
+        );
+    }
+}
+
+#[test]
+fn aggregation_isolates_interleaved_runs_in_a_shared_event_store() {
+    let run_id = RunId::new();
+    let other = RunId::new();
+    let target_events = vec![
+        event(
+            run_id,
+            1,
+            "run.model_turn",
+            json!({"run_id":run_id,"attempted":true,"usage":{"input_tokens":3,"output_tokens":5}}),
+        ),
+        event(
+            run_id,
+            2,
+            "capability.completed",
+            json!({"run_id":run_id,"changed":[{"path":"target.txt"}],"evidence_refs":["artifact:target"]}),
+        ),
+    ];
+    let mixed_events = vec![
+        event(
+            other,
+            1,
+            "run.model_turn",
+            json!({"run_id":other,"attempted":true,"usage":{"input_tokens":100,"output_tokens":200}}),
+        ),
+        target_events[0].clone(),
+        event(
+            other,
+            2,
+            "capability.completed",
+            json!({"run_id":other,"changed":[{"path":"foreign.txt"}],"evidence_refs":["artifact:foreign"]}),
+        ),
+        target_events[1].clone(),
+    ];
+    let expected = aggregate_receipt_facts(run_id, &target_events).unwrap();
+    let actual = aggregate_receipt_facts(run_id, &mixed_events).unwrap();
+    assert_eq!(
+        serde_json::to_value(actual).unwrap(),
+        serde_json::to_value(expected).unwrap()
+    );
+}
+
+#[test]
 fn er12_aggregation_is_event_and_artifact_bound() {
     let receipts = include_str!("../src/receipts.rs");
     let domain = include_str!("../../kiana-domain/src/receipt_aggregation.rs");

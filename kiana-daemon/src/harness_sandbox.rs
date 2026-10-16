@@ -17,6 +17,8 @@ use std::fs::{self, File};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -542,13 +544,12 @@ fn mark_unlisted_fds_cloexec(keep: &[RawFd]) -> std::io::Result<()> {
 fn close_range_cloexec(first: u32, last: u32) -> std::io::Result<()> {
     // CLOSE_RANGE_CLOEXEC keeps the Rust spawn error pipe usable by the bwrap helper while
     // ensuring that unknown descriptors disappear when bwrap execs the actual tool.
-    const CLOSE_RANGE_CLOEXEC: libc::c_uint = 1;
     let result = unsafe {
         libc::syscall(
             libc::SYS_close_range,
             first as libc::c_uint,
             last as libc::c_uint,
-            CLOSE_RANGE_CLOEXEC,
+            libc::CLOSE_RANGE_CLOEXEC,
         )
     };
     if result == -1 {
@@ -613,6 +614,19 @@ fn canonicalize_file(path: &Path) -> Result<PathBuf, PortError> {
     if !resolved.is_file() {
         return Err(PortError::Failed("sandbox_unavailable:bwrap".to_owned()));
     }
+    #[cfg(unix)]
+    if resolved
+        .metadata()
+        .map_err(|cause| PortError::Failed(format!("sandbox_unavailable:bwrap:{cause}")))?
+        .permissions()
+        .mode()
+        & 0o111
+        == 0
+    {
+        return Err(PortError::Failed(
+            "sandbox_unavailable:bwrap:not_executable".to_owned(),
+        ));
+    }
     Ok(resolved)
 }
 
@@ -630,6 +644,63 @@ mod tests {
         let root = std::env::temp_dir().join(format!("kiana-bwrap-plan-{stamp}"));
         fs::create_dir_all(&root).unwrap();
         root
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn fd_fence_marks_descriptor_cloexec_without_closing_it() {
+        let file = File::open("/dev/null").unwrap();
+        let fd = file.as_raw_fd();
+        assert!(fd >= 3);
+        assert_eq!(unsafe { libc::fcntl(fd, libc::F_SETFD, 0) }, 0);
+        close_range_cloexec(fd as u32, fd as u32)
+            .expect("kernel must accept the CLOSE_RANGE_CLOEXEC flag");
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+        assert!(
+            flags >= 0,
+            "CLOEXEC fencing must not close a live descriptor"
+        );
+        assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        file.metadata()
+            .expect("spawn error/mount descriptors remain usable before exec");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn fd_fence_exec_keeps_only_pinned_mount_and_no_new_privileges() {
+        let root = temp_root();
+        fs::write(root.join("allowed"), "permitted-mount-probe").unwrap();
+        fs::write(root.join("ambient"), "ambient-must-not-leak").unwrap();
+        let allowed = Arc::new(File::open(root.join("allowed")).unwrap());
+        let ambient = File::open(root.join("ambient")).unwrap();
+        let allowed_fd = allowed.as_raw_fd();
+        let ambient_fd = ambient.as_raw_fd();
+        assert_eq!(unsafe { libc::fcntl(ambient_fd, libc::F_SETFD, 0) }, 0);
+        let plan = BwrapPlan {
+            program: PathBuf::from("/bin/sh"),
+            args: Vec::new(),
+            pinned: vec![allowed],
+        };
+        // This is an FD/pre-exec contract probe, not a replacement sandbox backend. Actual
+        // shell confinement is exercised by the unchanged bwrap handler tests.
+        let script = format!(
+            "test -r /proc/self/fd/{allowed_fd} && test ! -e /proc/self/fd/{ambient_fd} && \
+             grep -q '^NoNewPrivs:[[:space:]]*1$' /proc/self/status && cat /proc/self/fd/{allowed_fd}"
+        );
+        let mut command = tokio::process::Command::new(&plan.program);
+        command.env_clear();
+        command.env("PATH", "/usr/bin:/bin");
+        plan.configure_command(&mut command);
+        let output = command.arg("-c").arg(script).output().await.unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"permitted-mount-probe");
+        assert!(output.stderr.is_empty(), "{output:?}");
+        assert_eq!(
+            unsafe { libc::fcntl(ambient_fd, libc::F_GETFD) },
+            0,
+            "the child's FD fence must not mutate the parent descriptor"
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     fn plan_args(sandbox: &str) -> (PathBuf, Vec<String>) {
@@ -652,9 +723,9 @@ mod tests {
             .rposition(|arg| arg == root.to_string_lossy().as_ref())
             .unwrap();
         assert!(tmpfs < rebind);
-        assert!(args.contains(&"--ro-bind".to_string()));
+        assert!(args.contains(&"--ro-bind-fd".to_string()));
         assert!(!args.windows(3).any(|window| {
-            window[0] == "--bind" && window[1] == root.to_string_lossy().as_ref()
+            window[0] == "--bind-fd" && window[2] == root.to_string_lossy().as_ref()
         }));
         let _ = fs::remove_dir_all(&root);
     }
@@ -663,7 +734,7 @@ mod tests {
     fn workspace_write_binds_project() {
         let (root, args) = plan_args("workspace-write");
         assert!(args.windows(3).any(|window| {
-            window[0] == "--bind" && window[1] == root.to_string_lossy().as_ref()
+            window[0] == "--bind-fd" && window[2] == root.to_string_lossy().as_ref()
         }));
         let _ = fs::remove_dir_all(&root);
     }
@@ -752,5 +823,23 @@ mod tests {
         assert!(!map.contains_key("KIANA_HARNESS_SCRIPT"));
         assert!(!map.contains_key("KIANA_SYSTEM_PROMPT"));
         assert!(!map.contains_key("EDITOR"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonicalize_file_rejects_regular_file_without_execute_bit() {
+        let root = temp_root();
+        let candidate = root.join("bwrap");
+        fs::write(&candidate, b"fixture").unwrap();
+        fs::set_permissions(&candidate, fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert_eq!(
+            canonicalize_file(&candidate),
+            Err(PortError::Failed(
+                "sandbox_unavailable:bwrap:not_executable".to_owned()
+            ))
+        );
+
+        let _ = fs::remove_dir_all(&root);
     }
 }

@@ -1,8 +1,14 @@
+//! INT-09 连接器健康事件投影的行为 fixture。
+//!
+//! 测试在内存中构造 binding 与 health `RuntimeEvent`，检查最新事实、revision drift 和畸形/孤立事实
+//! 的失败路径；不连接真实 connector adapter、凭证或 EventStore，也不证明 live health。
+
 use kiana_domain::*;
 use kiana_query::project_connector_health;
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// 构造带指定配置 revision 的本地演示 binding。
 fn binding(revision: u64) -> ConnectorBindingSnapshot {
     ConnectorBindingSnapshot {
         definition: ConnectorDefinition {
@@ -41,12 +47,14 @@ fn binding(revision: u64) -> ConnectorBindingSnapshot {
     }
 }
 
+/// 构造 sequence 与 stream version 一致的合成事件，便于投影 fixture 控制事件顺序。
 fn event(sequence: u64, kind: &str, data: serde_json::Value) -> RuntimeEvent {
     RuntimeEvent::new(RequestId::new(), sequence, kind, data)
         .unwrap()
         .with_stream_metadata(CONNECTOR_STREAM, "/repo", sequence)
 }
 
+/// 构造携带指定 binding revision 和检查时间的健康事实。
 fn health(revision: u64, checked_at_unix_ms: u64) -> ConnectorHealthFact {
     ConnectorHealthFact::new(
         "connector-demo",
@@ -65,6 +73,7 @@ fn health(revision: u64, checked_at_unix_ms: u64) -> ConnectorHealthFact {
 }
 
 #[test]
+/// 更新 binding revision 后旧 health fact 会标 stale；追加新 revision 的事实后恢复匹配。
 fn projection_keeps_latest_fact_and_marks_revision_drift_stale() {
     let events = vec![
         event(1, "connector.binding", json!({"state": binding(1)})),
@@ -96,6 +105,7 @@ fn projection_keeps_latest_fact_and_marks_revision_drift_stale() {
 }
 
 #[test]
+/// 无对应 binding 的健康事实和字段不完整的健康 payload 都使整份投影失败。
 fn projection_fails_closed_for_foreign_or_malformed_health_facts() {
     let foreign = ConnectorHealthFact::new(
         "connector-demo",

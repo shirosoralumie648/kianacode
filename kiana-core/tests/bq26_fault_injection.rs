@@ -217,8 +217,8 @@ fn provider_5xx_after_send_is_never_auto_retried() {
         .expect("provider 5xx case")
         .clone();
     assert_eq!(
-        observation.refusal.code, "side_effect_unknown",
-        "a 503 is checked against the side-effect fence before its retry class"
+        observation.refusal.code, "recovery_disposition_not_retryable",
+        "a terminal 503 recovery disposition is denied before any retry"
     );
     assert_eq!(
         observation.refusal.forbidden_value.as_deref(),
@@ -373,7 +373,7 @@ fn forged_digest_and_missing_case_are_both_refused() {
 
     let mut duplicated = report.clone();
     let first = duplicated.observations[0].clone();
-    duplicated.observations[0] = first;
+    duplicated.observations[1] = first;
     assert!(
         duplicated.validate().is_err(),
         "a duplicated case must be refused"

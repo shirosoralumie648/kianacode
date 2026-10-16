@@ -9,6 +9,7 @@ fn dep03_compatibility_matrix_stays_pure_and_explicit() {
         "domain_schema",
         "store_format",
         "projection_version",
+        "projection_version_downgrade",
         "workflow_definition_digest",
         "provider_route_digest",
         "extension_digest",
@@ -19,6 +20,7 @@ fn dep03_compatibility_matrix_stays_pure_and_explicit() {
         "protocol_major_mismatch",
         "store_format_downgrade",
         "workflow_definition_drift",
+        "config_revision_drift",
         "validate_deployment_compatibility",
     ] {
         assert!(

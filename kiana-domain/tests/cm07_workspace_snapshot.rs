@@ -1,9 +1,16 @@
+//! CM-07 Domain workspace snapshot 合同测试。
+//!
+//! 本文件手工构造身份、trust、disposition 和摘要，不访问真实目录，也不调用 Query scanner。
+//! 它验证 Domain DTO 对 supplied evidence 的内部一致性与稳定拒绝错误；不能证明字段来自真实文件系统。
+
 use kiana_domain::*;
 
+/// 用固定重复字符生成形状正确的 SHA-256 fixture，不对应真实内容。
 fn digest(value: char) -> String {
     format!("sha256:{}", value.to_string().repeat(64))
 }
 
+/// 构造可控的文件身份 fixture；调用者可分别改变大小和可选内容摘要。
 fn identity(size: u64, digest_value: Option<String>) -> WorkspaceFileIdentity {
     WorkspaceFileIdentity {
         device: Some(1),
@@ -15,6 +22,7 @@ fn identity(size: u64, digest_value: Option<String>) -> WorkspaceFileIdentity {
     }
 }
 
+/// 提供非零且互相兼容的小预算，避免测试依赖生产默认值。
 fn limits() -> WorkspaceSnapshotLimits {
     WorkspaceSnapshotLimits {
         max_files: 4,
@@ -26,6 +34,7 @@ fn limits() -> WorkspaceSnapshotLimits {
 }
 
 #[test]
+/// 稳定的 Trusted 普通文件证据可以进入 Indexed，并能组成结构有效的 Snapshot。
 fn trusted_read_requires_stable_before_after_identity() {
     let file = WorkspaceFileSnapshot {
         schema: WORKSPACE_FILE_SNAPSHOT_SCHEMA.to_owned(),
@@ -60,6 +69,7 @@ fn trusted_read_requires_stable_before_after_identity() {
 }
 
 #[test]
+/// Untrusted 正文只能是 metadata-only；读取前后身份变化时 Trusted 文件必须标为 Fenced。
 fn untrusted_material_is_metadata_only_and_fenced_change_is_not_safe() {
     let metadata = WorkspaceFileSnapshot {
         schema: WORKSPACE_FILE_SNAPSHOT_SCHEMA.to_owned(),
@@ -95,6 +105,7 @@ fn untrusted_material_is_metadata_only_and_fenced_change_is_not_safe() {
 }
 
 #[test]
+/// 文件数上限必须有效，且聚合快照拒绝重复相对路径。
 fn snapshot_rejects_duplicate_paths_and_invalid_limits() {
     let invalid = WorkspaceSnapshotLimits {
         max_files: 0,

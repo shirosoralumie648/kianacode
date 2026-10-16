@@ -13,7 +13,7 @@ fn items() -> Vec<RetrievalItem> {
     vec![
         RetrievalItem {
             id: "a".to_owned(),
-            text: "checkout deployment".to_owned(),
+            text: "checkout deployment archive notes".to_owned(),
             source_digest: digest('a'),
             permission_scope_digest: digest('s'),
             allowed: true,

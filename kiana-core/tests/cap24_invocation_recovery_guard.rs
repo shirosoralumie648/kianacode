@@ -1,11 +1,55 @@
 //! CAP-24 source guard for event-derived invocation recovery and reconciliation.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
-        assert!(
-            source.contains(marker),
-            "CAP-24 {label} marker missing: {marker}"
-        );
+        let present = match *marker {
+            "dispatch without a terminal result" => {
+                let projection = source_guard::item_source(source, "pub fn project_invocations(");
+                source_guard::compact_code(&projection).contains(
+                    "ifmatches!(entry.state,CapabilityExecutionState::Dispatching|CapabilityExecutionState::Executing){entry.state=CapabilityExecutionState::Unknown;}"
+                )
+            }
+            "automatic_retry_allowed:false" => source_guard::production_source(source)
+                .contains("\"automatic_retry_allowed\":false"),
+            "new_request_required:true" => {
+                source_guard::production_source(source).contains("\"new_request_required\":true")
+            }
+            "Redacted arguments/history cannot be used" => {
+                let checkpoint = source_guard::compact_code(&source_guard::item_source(
+                    source,
+                    "pub(crate) async fn checkpoint_run(",
+                ));
+                let resume = source_guard::compact_code(&source_guard::item_source(
+                    source,
+                    "pub async fn resume_run(",
+                ));
+                checkpoint.contains("letmutsafe=redact_event_value(&raw);")
+                    && checkpoint.contains("ifsafe!=raw{safe[\"resumable\"]=json!(false);}")
+                    && resume.contains(
+                        "snapshot_value.get(\"resumable\").and_then(Value::as_bool)!=Some(true)",
+                    )
+            }
+            "Unknown effects retain their resource reservation" => {
+                let settle = source_guard::compact_code(&source_guard::item_source(
+                    source,
+                    "pub(crate) async fn settle_resumed_cell(",
+                ));
+                settle.contains("ExecutionStatus::ResultUnknown=>CellLifecycle::Quarantined,")
+                    && settle.contains("elseifstatus!=ExecutionStatus::ResultUnknown{")
+                    && settle.contains(".retire_cell(cell_id,\"run_continuation_terminal\")")
+            }
+            "never permits automatic retry" => {
+                let policy = kiana_domain::CapabilityErrorCode::ResultUnknown.policy();
+                !policy.retryable
+                    && policy.requires_new_authorization
+                    && policy.requires_reconciliation
+            }
+            _ => source.contains(marker),
+        };
+        assert!(present, "CAP-24 {label} marker missing: {marker}");
     }
 }
 
@@ -214,7 +258,7 @@ fn retry_and_reconciliation_are_separate_from_replay() {
             "unknown_result_auto_retry",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !source_guard::production_source(source).contains(forbidden),
                 "CAP-24 bypass marker present: {forbidden}"
             );
         }

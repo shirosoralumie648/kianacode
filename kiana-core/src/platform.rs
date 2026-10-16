@@ -178,7 +178,10 @@ impl ControlPlane {
         arguments: &Value,
         payload: Value,
     ) -> Result<CoreResponse, CoreError> {
-        if context.permission_profile == PermissionProfile::Safe {
+        if matches!(
+            context.permission_profile,
+            PermissionProfile::Safe | PermissionProfile::Ask
+        ) {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "human_write_requires_non_safe_profile",
@@ -674,7 +677,10 @@ impl ControlPlane {
         context: &RequestContext,
         arguments: Value,
     ) -> Result<CoreResponse, CoreError> {
-        if context.permission_profile == PermissionProfile::Safe {
+        if matches!(
+            context.permission_profile,
+            PermissionProfile::Safe | PermissionProfile::Ask
+        ) {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "human_write_requires_non_safe_profile",

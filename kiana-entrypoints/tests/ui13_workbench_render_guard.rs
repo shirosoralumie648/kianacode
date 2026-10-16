@@ -24,6 +24,7 @@ fn ui13_renderer_is_bounded_typed_and_display_only() {
             "UI-13 renderer marker missing: {marker}"
         );
     }
+    let wiring: String = workbench.chars().filter(|ch| !ch.is_whitespace()).collect();
     for marker in [
         "self.timeline.reset(run_id)",
         "self.timeline.apply_event(event.clone())",
@@ -33,7 +34,12 @@ fn ui13_renderer_is_bounded_typed_and_display_only() {
         "TimelineItemKind::Artifact",
     ] {
         assert!(
-            workbench.contains(marker),
+            wiring.contains(
+                &marker
+                    .chars()
+                    .filter(|ch| !ch.is_whitespace())
+                    .collect::<String>()
+            ),
             "Workbench timeline wiring missing: {marker}"
         );
     }

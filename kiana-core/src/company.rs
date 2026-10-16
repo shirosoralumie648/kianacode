@@ -376,6 +376,16 @@ impl ControlPlane {
                 other => Err(other.into()),
             };
         }
+        // Retryable staging returns the first immutable manifest, including its timestamp.
+        // The pre-publication transition above remains the deny boundary; rebuild the response
+        // projection from the finalized proof so it matches the fact that will be committed.
+        let next = if artifact_persisted {
+            state
+                .transition(&request.command, &authority, &proof)
+                .map_err(company_error)?
+        } else {
+            next
+        };
         let event = CompanyEvent {
             schema: COMPANY_EVENT_SCHEMA.to_owned(),
             project_root: company_root(&context),
@@ -1157,7 +1167,12 @@ fn company_context(context: &RequestContext, write: bool) -> Result<(), &'static
     if !context.project_trusted {
         return Err("project_untrusted");
     }
-    if write && matches!(context.permission_profile, PermissionProfile::Safe) {
+    if write
+        && matches!(
+            context.permission_profile,
+            PermissionProfile::Safe | PermissionProfile::Ask
+        )
+    {
         return Err("company_write_requires_non_safe_profile");
     }
     let role = RoleSpec::lookup(&context.role_id).ok_or("role_unknown")?;

@@ -111,7 +111,7 @@ fn a_malformed_owner_is_rejected_as_malformed_not_as_missing() {
     let control = SecurityControl::new(
         "ctl-bad-owner",
         "an owner that carries a secret is a different defect from an absent one",
-        "https://alice:hunter2@controls.internal/",
+        "artifact/sk-live-fixture-owner",
         None,
         parent_scope(),
         vec![],
@@ -673,13 +673,33 @@ fn an_evidence_reference_that_carries_a_secret_is_refused() {
     // Evidence is a reference plus a digest, never a payload. A reference that needs to contain
     // the value in order to be useful is a second copy of the secret.
     let evidence = ControlEvidence::new(
-        "https://alice:hunter2@evidence.internal/",
+        "artifact/sk-live-fixture-evidence",
         digest('a'),
         ProofLevel::Source,
     );
     assert_eq!(
         evidence.unwrap_err(),
         "security_control_evidence_ref_secret_detected"
+    );
+}
+
+#[test]
+fn owner_and_evidence_userinfo_need_redaction_before_sentinel_validation() {
+    let mut control = durable_control();
+    control.owner = "https://alice:fixture-password@controls.internal/".to_owned();
+    control.control_digest = control.digest();
+    assert_eq!(
+        control.validate().unwrap_err(),
+        "security_control_owner_not_redacted"
+    );
+    assert_eq!(
+        ControlEvidence::new(
+            "https://alice:fixture-password@evidence.internal/",
+            digest('a'),
+            ProofLevel::Source
+        )
+        .unwrap_err(),
+        "security_control_evidence_ref_not_redacted"
     );
 }
 

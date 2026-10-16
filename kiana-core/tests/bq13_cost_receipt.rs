@@ -93,11 +93,23 @@ fn aggregate_rejects_cost_event_run_or_stream_drift() {
     let usage = usage();
     let card = card();
     let cost = CostBreakdown::from_usage(&usage, Some(&card), 1, 2_000).expect("estimate");
-    let mut event = cost.to_runtime_event(RequestId::new(), 1).expect("event");
-    event.data["run_id"] = json!(RunId::new());
+    let mut foreign_usage = usage.clone();
+    foreign_usage.run_id = RunId::new();
+    foreign_usage.usage_digest = foreign_usage.digest();
+    let foreign =
+        CostBreakdown::from_usage(&foreign_usage, Some(&card), 1, 2_000).expect("foreign estimate");
+    let event = foreign
+        .to_runtime_event(RequestId::new(), 1)
+        .expect("valid foreign event");
     assert_eq!(
         project_receipt_cost_breakdown(usage.run_id, &[event]).unwrap_err(),
         "receipt_cost_event_run_mismatch"
+    );
+    let mut event = cost.to_runtime_event(RequestId::new(), 1).expect("event");
+    event.aggregate_id = Some(RunId::new().to_string());
+    assert_eq!(
+        project_receipt_cost_breakdown(usage.run_id, &[event]).unwrap_err(),
+        "receipt_cost_event_stream_mismatch"
     );
 }
 

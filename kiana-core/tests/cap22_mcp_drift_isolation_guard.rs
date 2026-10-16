@@ -1,17 +1,31 @@
 //! CAP-22 source guard for MCP result/schema drift and per-invocation isolation.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
-        assert!(
-            source.contains(marker),
-            "CAP-22 {label} marker missing: {marker}"
-        );
+        let present = match *marker {
+            "mcp_result_unknown" => {
+                let run = source_guard::item_source(source, "async fn run(");
+                let code = source_guard::compact_code(&run);
+                code.contains("letneeds_reconciliation=!stop_confirmed||(started&&performed.is_err());")
+                    && code.contains("ifcancelled||needs_reconciliation{")
+                    && code.contains("CapabilityErrorCode::ResultUnknown")
+                    && code.contains("mcp_call_unconfirmed")
+                    && code.contains("if!started&&stop_confirmed{AdapterCommitState::NotStarted}else{AdapterCommitState::Unknown}")
+                    && code.contains("attach_adapter_result(result,AdapterResultKind::Mcp,commit)")
+            }
+            _ => source.contains(marker),
+        };
+        assert!(present, "CAP-22 {label} marker missing: {marker}");
     }
 }
 
 #[test]
 fn mcp_drift_invalidates_snapshot_and_keeps_effect_unknown() {
-    let harness = include_str!("../../kiana-daemon/src/harness_mcp.rs");
+    let harness =
+        &source_guard::production_source(include_str!("../../kiana-daemon/src/harness_mcp.rs"));
     let stdio = include_str!("../../kiana-daemon/src/mcp_stdio.rs");
     let approvals = include_str!("../src/approvals.rs");
     let baseline = include_str!("../../docs/roadmap/capability.md");

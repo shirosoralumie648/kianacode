@@ -30,8 +30,8 @@ fn criteria() -> CriteriaSnapshot {
         milestone_versions: BTreeMap::new(),
         packet_versions: BTreeMap::new(),
         project_criteria: vec!["criterion".to_owned()],
-        milestone_criteria: Vec::new(),
-        packet_criteria: Vec::new(),
+        milestone_criteria: vec!["criterion".to_owned()],
+        packet_criteria: vec!["criterion".to_owned()],
         criterion_refs: Vec::new(),
     }
 }

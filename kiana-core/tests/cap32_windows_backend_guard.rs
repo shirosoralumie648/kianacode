@@ -1,5 +1,8 @@
 //! CAP-32 partial guard: Windows behavior remains unverified until target CI/backend exists.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn windows_backend_requirements_and_no_fake_success_are_explicit() {
     let ports = include_str!("../../kiana-ports/src/lib.rs");
@@ -19,7 +22,21 @@ fn windows_backend_requirements_and_no_fake_success_are_explicit() {
         "target Windows CI",
         "no fake success",
     ] {
-        assert!(baseline.contains(marker), "CAP-32 marker missing: {marker}");
+        assert!(
+            match marker {
+                "behavior_verified=false" =>
+                    source_guard::platform_report_has_evidence_fence(platform),
+                "target Windows CI" =>
+                    baseline.contains("target-machine receipt")
+                        && baseline.contains("source guard only")
+                        && baseline.contains("| proof_level | `source`;"),
+                "no fake success" =>
+                    source_guard::platform_report_has_evidence_fence(platform)
+                        && baseline.contains("fixture data, not evidence"),
+                _ => baseline.contains(marker),
+            },
+            "CAP-32 marker missing: {marker}"
+        );
     }
     for marker in [
         "PlatformTarget",

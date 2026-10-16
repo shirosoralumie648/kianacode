@@ -25,6 +25,8 @@ pub enum CapabilityAttemptProjectionError {
     EventRunIdInvalid,
     #[error("capability_attempt_event_run_id_conflict")]
     EventRunIdConflict,
+    #[error("capability_attempt_event_identity_conflict")]
+    EventIdentityConflict,
     #[error("capability_attempt_event_field_invalid:{0}")]
     EventFieldInvalid(&'static str),
     #[error("capability_attempt_cursor_overflow")]
@@ -956,10 +958,13 @@ pub fn project_capability_attempts(
         }
     }
     run_events.sort_by_key(|(index, _)| *index);
-    let mut seen = HashSet::new();
+    let mut seen: HashMap<EventId, &RuntimeEvent> = HashMap::new();
     let mut states: HashMap<(RequestId, u32), AttemptState> = HashMap::new();
     for (index, event) in run_events {
-        if !seen.insert(event.event_id) {
+        if let Some(previous) = seen.insert(event.event_id, event) {
+            if previous != event {
+                return Err(CapabilityAttemptProjectionError::EventIdentityConflict);
+            }
             continue;
         }
         let request_id = request_id_for(event).or_else(|| {

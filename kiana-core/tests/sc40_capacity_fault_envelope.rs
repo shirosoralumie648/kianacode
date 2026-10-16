@@ -133,6 +133,7 @@ fn a_clock_fault_that_did_not_move_the_clock_is_refused() {
     // With the rollback actually observed, the same family is judged on its ordinary bounds.
     let mut observed = healthy();
     observed.family = Bq26FaultClass::ClockFault;
+    observed.clock_rollback_detected = true;
     assert_eq!(
         evaluate_capacity_fault(&observed, &budget()).unwrap_err(),
         "capacity_fault_clock_rollback"

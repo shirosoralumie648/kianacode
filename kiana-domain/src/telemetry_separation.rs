@@ -201,9 +201,9 @@ pub struct TelemetryChannelCandidate {
     pub key: String,
     pub kind: TelemetryValueKind,
     pub data_class: DataClass,
-    /// Present exactly when `kind` is `Text`. Its content is never read by this module: a text
-    /// candidate is admitted on the class floor and the redaction guarantee it claims, and it is
-    /// refused on shape alone for `Metric`, which has no such guarantee to claim.
+    /// Present exactly when `kind` is `Text`. Bounded diagnostic messages may contain ASCII
+    /// spaces; per-channel checks still reject payload-shaped keys, unredacted content and text
+    /// aimed at `Metric`.
     pub text: Option<String>,
     /// Present exactly when `kind` is `Reference`. A reference must be a bounded, secret-free
     /// digest or an opaque handle, because a reference is the one shape that is safe to keep in
@@ -354,7 +354,7 @@ impl TelemetryChannelCandidate {
                 if value.len() > MAX_TELEMETRY_TEXT {
                     return Err("telemetry_candidate_text_too_long".to_owned());
                 }
-                safe_text(value, "telemetry_candidate_text")?;
+                bounded_text(value, "telemetry_candidate_text", true)?;
             }
             (TelemetryValueKind::Reference, None, Some(value), None) => {
                 safe_text(value, "telemetry_candidate_reference")?;
@@ -843,7 +843,9 @@ pub fn is_high_cardinality_label(key: &str) -> bool {
         || lower.contains("principal_id")
         || lower.contains("file")
         || lower.contains("path")
-        || lower.contains("prompt")
+        // `prompt_version` is a bounded, explicitly supported dimension. Keep unknown prompt
+        // labels rejected so a payload cannot be smuggled into telemetry by changing its shape.
+        || (lower.contains("prompt") && lower != "prompt_version")
         || lower.contains("raw_response")
         || lower.contains("raw_request")
         || lower.contains("command")
@@ -1002,6 +1004,19 @@ impl TelemetrySafetyReport {
 
     pub fn validate_against(&self, request: &TelemetrySafetyRequest) -> Result<(), String> {
         request.validate()?;
+        // A report that refuses something may not also call itself admitted, and one that admits
+        // everything may not carry a refusal list. Either pairing would let a caller read the
+        // status line and skip the list.
+        if self.status == TelemetrySafetyStatus::Admitted
+            && (!self.refused_keys.is_empty() || !self.reason.is_empty())
+        {
+            return Err("telemetry_report_admitted_with_refusal".to_owned());
+        }
+        if self.status == TelemetrySafetyStatus::Refused
+            && (self.refused_keys.is_empty() || self.reason.is_empty())
+        {
+            return Err("telemetry_report_refused_without_reason".to_owned());
+        }
         let (status, decisions, refused_keys, reason, remediation) = derive(request);
         if self.schema != TELEMETRY_SAFETY_REPORT_SCHEMA
             || !self
@@ -1016,19 +1031,6 @@ impl TelemetrySafetyReport {
             || self.request_digest != request.request_digest
         {
             return Err("telemetry_report_binding_invalid".to_owned());
-        }
-        // A report that refuses something may not also call itself admitted, and one that admits
-        // everything may not carry a refusal list. Either pairing would let a caller read the
-        // status line and skip the list.
-        if self.status == TelemetrySafetyStatus::Admitted
-            && (!self.refused_keys.is_empty() || !self.reason.is_empty())
-        {
-            return Err("telemetry_report_admitted_with_refusal".to_owned());
-        }
-        if self.status == TelemetrySafetyStatus::Refused
-            && (self.refused_keys.is_empty() || self.reason.is_empty())
-        {
-            return Err("telemetry_report_refused_without_reason".to_owned());
         }
         if self.decisions.is_empty() {
             return Err("telemetry_report_no_decisions".to_owned());
@@ -1160,10 +1162,15 @@ fn remediation(decision: &TelemetryChannelDecision) -> &'static str {
 /// Bounded, secret-free text. Rejects the shapes that make a value unusable as a channel key or
 /// reference before any content check: a UUID, a filesystem path or a URL.
 fn safe_text(value: &str, field: &str) -> Result<(), String> {
+    bounded_text(value, field, false)
+}
+
+/// Only diagnostic text admits ASCII spaces; keys and references retain their strict shape.
+fn bounded_text(value: &str, field: &str, allow_spaces: bool) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > MAX_TELEMETRY_TEXT {
         return Err(format!("{field}_invalid"));
     }
-    if value.contains(['\0', '\r', '\n', ' ', '\t']) {
+    if value.contains(['\0', '\r', '\n', '\t']) || (!allow_spaces && value.contains(' ')) {
         return Err(format!("{field}_invalid"));
     }
     if value.contains("..") || value.contains("://") {

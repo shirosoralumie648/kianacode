@@ -770,8 +770,10 @@ pub(crate) fn try_filter_run_events(
         let conflicting_run_stream = matches!(stream, (Some("run"), Some(_))) && !exact_run_stream;
         let belongs = match event.data.get("run_id") {
             Some(Value::String(value)) => {
-                if (conflicting_run_stream || exact_run_stream) && value != &run_id_str {
-                    return Err("invocation_event_run_id_conflict".to_owned());
+                if let (Some("run"), Some(stream_run_id)) = stream {
+                    if value != stream_run_id {
+                        return Err("invocation_event_run_id_conflict".to_owned());
+                    }
                 }
                 value == &run_id_str && !conflicting_run_stream
             }

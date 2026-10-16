@@ -15,6 +15,7 @@ fn signed_skill_scopes_are_server_bound_and_rechecked_before_dispatch() {
         "secret_policy_digest",
         "expires_at_unix_ms",
         "validate_at",
+        "canonical_scope_digest",
         "matches_manifest",
         "extension_scope_generation_stale",
         "extension_scope_policy_digest_mismatch",
@@ -30,7 +31,7 @@ fn signed_skill_scopes_are_server_bound_and_rechecked_before_dispatch() {
         "fold_registry",
         "ExtensionExecutionScope::new",
         "extension_scope_expiry_overflow",
-        "contract.validate_at",
+        ".validate_at(",
         "contract.matches_manifest",
         "extension_execution_snapshot_inactive",
     ] {
@@ -43,7 +44,7 @@ fn signed_skill_scopes_are_server_bound_and_rechecked_before_dispatch() {
         "admit_extensions",
         "request_extension_scopes",
         "ExtensionAdmission",
-        "contract.check",
+        ".check(",
     ] {
         assert!(
             broker.contains(marker),

@@ -7,6 +7,9 @@ fn schema_and_event_registry_are_the_single_compatibility_boundary() {
         "SCHEMA_CONTRACTS",
         "check_schema_compatibility",
         "allow_unknown_fields",
+        "CompatibilityPolicy::BackwardCompatible",
+        "CompatibilityPolicy::Breaking",
+        "contract.compatibility",
         "SchemaLayer::Wire",
         "SchemaLayer::RuntimeEvent",
     ] {

@@ -1,3 +1,7 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 #[test]
 fn sc15_cancel_fence_and_unknown_reconciliation_boundary_is_present() {
     let cancellation = include_str!("../../kiana-domain/src/cancellation.rs");
@@ -33,7 +37,14 @@ fn sc15_cancel_fence_and_unknown_reconciliation_boundary_is_present() {
         "CancelPendingTools",
     ] {
         assert!(
-            driver.contains(marker),
+            if marker == "DriverTerminal::Unknown" {
+                item_source(driver, "pub enum DriverTerminal").contains("Unknown")
+                    && compact_code(&item_source(driver, "pub fn transition("))
+                        .contains("DriverInput::Terminal{outcome}")
+                    && compact_code(driver).contains("next.terminal=Some(outcome)")
+            } else {
+                driver.contains(marker)
+            },
             "SC-15 runner state marker missing: {marker}"
         );
     }
@@ -93,7 +104,11 @@ fn sc15_cancel_fence_and_unknown_reconciliation_boundary_is_present() {
         "resource_release_stop_unconfirmed",
     ] {
         assert!(
-            platform.contains(marker),
+            if marker == "automatic_retry_allowed:false" {
+                compact_code(platform).contains("\"automatic_retry_allowed\":false")
+            } else {
+                platform.contains(marker)
+            },
             "SC-15 reconciliation marker missing: {marker}"
         );
     }
@@ -104,7 +119,19 @@ fn sc15_cancel_fence_and_unknown_reconciliation_boundary_is_present() {
         "Unknown effects retain their resource reservation",
     ] {
         assert!(
-            recovery.contains(marker),
+            if marker == "requires_reconciliation"
+                || marker == "Unknown effects retain their resource reservation"
+            {
+                let settle = compact_code(&item_source(
+                    recovery,
+                    "pub(crate) async fn settle_resumed_cell(",
+                ));
+                settle.contains("ExecutionStatus::ResultUnknown=>CellLifecycle::Quarantined")
+                    && settle.contains("elseifstatus!=ExecutionStatus::ResultUnknown")
+                    && settle.contains(".retire_cell(")
+            } else {
+                recovery.contains(marker)
+            },
             "SC-15 recovery marker missing: {marker}"
         );
     }
@@ -115,7 +142,7 @@ fn sc15_cancel_fence_and_unknown_reconciliation_boundary_is_present() {
             "unknown_effect_is_success",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "SC-15 cancellation bypass marker: {forbidden}"
             );
         }

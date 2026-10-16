@@ -1,9 +1,16 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::{compact_code, item_source, production_source};
+
 #[test]
 fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
     let domain = include_str!("../../kiana-domain/src/redaction.rs");
     let events = include_str!("../src/events.rs");
     let core_redaction = include_str!("../src/redaction.rs");
     let receipts = include_str!("../src/receipts.rs");
+    let lifecycle = include_str!("../src/lifecycle.rs");
+    let output = include_str!("../../kiana-daemon/src/execution_output.rs");
+    let output_budget = include_str!("../../kiana-domain/src/execution_output.rs");
     let runner = include_str!("../../kiana-runner/src/harness.rs");
     let stream = include_str!("../../kiana-runner/src/stream_normalizer.rs");
     let provider_response = include_str!("../../kiana-provider/src/response.rs");
@@ -61,7 +68,15 @@ fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
         "run.model_turn",
     ] {
         assert!(
-            runner.contains(marker),
+            match marker {
+                "run.delta" =>
+                    item_source(lifecycle, "async fn flush_run_delta(").contains(marker)
+                        && production_source(runner).contains("RunnerEvent::Delta"),
+                "run.model_turn" =>
+                    item_source(lifecycle, "pub(crate) async fn drive_run(").contains(marker)
+                        && production_source(runner).contains("RunnerEvent::ModelTurn"),
+                _ => production_source(runner).contains(marker),
+            },
             "SC-20 runner marker missing: {marker}"
         );
     }
@@ -72,7 +87,14 @@ fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
         "late_delta_after_cancel_is_discarded",
     ] {
         assert!(
-            stream.contains(marker),
+            if marker == "truncated" {
+                let push = item_source(stream, "pub fn push(");
+                push.contains("stream_text_limit")
+                    && push.contains("stream_tool_arguments_limit")
+                    && push.contains("stream_delta_limit")
+            } else {
+                stream.contains(marker)
+            },
             "SC-20 stream bound marker missing: {marker}"
         );
     }
@@ -83,7 +105,8 @@ fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
         "lease.consume",
     ] {
         assert!(
-            provider_transport.contains(marker),
+            compact_code(provider_transport)
+                .contains(&marker.split_whitespace().collect::<String>()),
             "SC-20 provider marker missing: {marker}"
         );
     }
@@ -96,7 +119,17 @@ fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
         "env_clear",
     ] {
         assert!(
-            shell.contains(marker),
+            match marker {
+                "redact_text" => item_source(output, "pub(crate) fn safe_output_text_for(")
+                    .contains("redact_text"),
+                "EXEC_OUTPUT_MAX_BYTES" =>
+                    compact_code(&item_source(output, "pub(crate) async fn read_capped"))
+                        .contains("ifobserved_bytes>budget.observed_max_bytesasu64")
+                        && compact_code(&item_source(output_budget, "pub fn validate(")).contains(
+                            "self.collect_max_bytes>MAX_EXECUTION_OUTPUT_REF_BYTESasusize"
+                        ),
+                _ => production_source(shell).contains(marker),
+            },
             "SC-20 shell marker missing: {marker}"
         );
     }
@@ -141,7 +174,7 @@ fn sc20_redaction_is_recursive_bounded_stable_and_applied_at_all_boundaries() {
     ] {
         for forbidden in ["raw_headers", "raw_response_body", "secret_value"] {
             assert!(
-                !source.contains(forbidden),
+                !production_source(source).contains(forbidden),
                 "SC-20 raw secret egress marker: {forbidden}"
             );
         }

@@ -87,12 +87,12 @@ fn a_disk_or_queue_over_its_limit_is_refused() {
 #[test]
 fn a_p95_over_its_bound_is_refused_using_a_fixed_fixture() {
     let mut sample = clean();
-    // One slow observation in ten is a p95 of 30 and a p100 of 100, which is the whole reason to
-    // name a percentile instead of a maximum.
+    // With nearest-rank semantics, the slow tenth observation is also the p95. This is the whole
+    // reason to name a percentile instead of silently substituting a different statistic.
     sample.latency_observations_ms = vec![10, 10, 10, 10, 10, 10, 10, 10, 10, 9_000];
     assert_eq!(
         percentile_ms(&sample.latency_observations_ms, 95).unwrap(),
-        10
+        9_000
     );
     assert_eq!(
         percentile_ms(&sample.latency_observations_ms, 100).unwrap(),

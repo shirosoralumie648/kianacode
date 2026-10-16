@@ -4,10 +4,10 @@
 //! contracts. It does not own a runner, broker, permission store, or execution loop. Every
 //! mutating result is a `UiActionV1` intent for the server-side ControlPlane to authorize.
 
-use kiana_domain::{json_digest, RequestId, SessionId};
+use kiana_domain::{json_digest, ExecutionStatus, RequestId, SessionId};
 use kiana_protocol::{
-    UiActionV1, UiFeedFrameV1, UiSnapshotV1, UI_ACTION_SCHEMA, UI_FEED_FRAME_SCHEMA,
-    UI_SNAPSHOT_SCHEMA,
+    UiActionV1, UiFeedFrameV1, UiSnapshot, UiSnapshotV1, PROTOCOL_SCHEMA, UI_ACTION_SCHEMA,
+    UI_FEED_FRAME_SCHEMA, UI_SNAPSHOT_SCHEMA,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -195,6 +195,7 @@ pub struct AcpSessionAdapter {
     last_sequence: u64,
     terminal: bool,
     handler_installed: bool,
+    recovery_prepared: bool,
     connection: AcpConnectionState,
     pending_permissions: BTreeMap<String, AcpPermissionRequest>,
 }
@@ -222,6 +223,9 @@ impl AcpSessionAdapter {
         &mut self,
         request: AcpInitializeRequest,
     ) -> Result<AcpInitializeResponse, AcpAdapterError> {
+        if self.connection == AcpConnectionState::Degraded {
+            return Err(AcpAdapterError::ReconcileRequired);
+        }
         if request.schema != ACP_INITIALIZE_SCHEMA
             || request.client_name.trim().is_empty()
             || request.client_version.trim().is_empty()
@@ -272,6 +276,9 @@ impl AcpSessionAdapter {
         authority_epoch: impl Into<String>,
     ) -> Result<AcpSessionReference, AcpAdapterError> {
         self.require_initialized()?;
+        if self.connection == AcpConnectionState::Degraded {
+            return Err(AcpAdapterError::ReconcileRequired);
+        }
         let owner_digest = bounded_digest(owner_digest.into(), "owner_digest")?;
         let authority_epoch = bounded_id(authority_epoch.into(), "authority_epoch")?;
         self.session_id = Some(session_id.clone());
@@ -279,6 +286,7 @@ impl AcpSessionAdapter {
         self.authority_epoch = Some(authority_epoch.clone());
         self.last_sequence = 0;
         self.terminal = false;
+        self.recovery_prepared = false;
         self.pending_permissions.clear();
         self.connection = if self.handler_installed {
             AcpConnectionState::Attached
@@ -298,16 +306,137 @@ impl AcpSessionAdapter {
         if !self.handler_installed {
             return Err(AcpAdapterError::FeedHandlerRequired);
         }
-        self.require_owner(session_id, owner_digest)?;
+        self.require_session_owner(session_id, owner_digest)?;
         if self.authority_epoch.as_deref() != Some(authority_epoch) {
             return Err(AcpAdapterError::EpochMismatch);
         }
-        self.connection = AcpConnectionState::Attached;
+        // A resume response is a recovery plan, not evidence that the display gap is repaired.
+        self.connection = AcpConnectionState::Degraded;
+        self.recovery_prepared = true;
         Ok(AcpResumeResult {
             session: self.session_reference(),
             replay_from_sequence: self.last_sequence,
             snapshot_required: true,
         })
+    }
+
+    /// Hydrate the original session from the daemon's owner-scoped snapshot.
+    /// This only repairs disposable display state; it grants no execution authority.
+    pub fn hydrate_snapshot(
+        &mut self,
+        session_id: &SessionId,
+        owner_digest: &str,
+        snapshot: &UiSnapshot,
+    ) -> Result<AcpSessionReference, AcpAdapterError> {
+        self.require_initialized()?;
+        if !self.handler_installed {
+            return Err(AcpAdapterError::FeedHandlerRequired);
+        }
+        self.require_session_owner(session_id, owner_digest)?;
+        if !self.recovery_prepared {
+            return Err(AcpAdapterError::ReconcileRequired);
+        }
+        if snapshot.schema != PROTOCOL_SCHEMA || snapshot.pending_actions.len() > 128 {
+            return Err(AcpAdapterError::InvalidInput("snapshot"));
+        }
+        if snapshot.session_id != session_id.as_str() {
+            return Err(AcpAdapterError::SessionMismatch);
+        }
+        // DaemonHost::ui_snapshot obtains this cursor from the current RunStreamHub.
+        // Its epoch with a zero tail is the real producer's initial display position.
+        // It is never used as a feed sequence or inferred from the event ledger.
+        self.validate_snapshot_display_cursor(&snapshot.cursor)?;
+        if self.authority_epoch.as_deref() != Some(snapshot.cursor.epoch.as_str()) {
+            return Err(AcpAdapterError::EpochMismatch);
+        }
+        let idle = snapshot.run_id.is_none()
+            && snapshot.status.is_none()
+            && snapshot.stream_cursor.is_none();
+        let (sequence, terminal) = if idle {
+            if self.last_sequence != 0
+                || self.terminal
+                || !snapshot.pending_actions.is_empty()
+                || self.authority_epoch.as_deref() != Some(snapshot.cursor.epoch.as_str())
+            {
+                return Err(AcpAdapterError::InvalidInput("snapshot_idle"));
+            }
+            (0, false)
+        } else {
+            if snapshot.run_id.is_none() || snapshot.status.is_none() {
+                return Err(AcpAdapterError::InvalidInput("snapshot_stream_cursor"));
+            }
+            let cursor = snapshot
+                .stream_cursor
+                .as_ref()
+                .ok_or(AcpAdapterError::InvalidInput("snapshot_stream_cursor"))?;
+            self.validate_snapshot_display_cursor(cursor)?;
+            if self.authority_epoch.as_deref() != Some(cursor.epoch.as_str()) {
+                return Err(AcpAdapterError::EpochMismatch);
+            }
+            if cursor.sequence < self.last_sequence || cursor.sequence == u64::MAX {
+                return Err(AcpAdapterError::InvalidInput("snapshot_stream_cursor"));
+            }
+            if snapshot.status == Some(ExecutionStatus::ResultUnknown) {
+                return Err(AcpAdapterError::ReconcileRequired);
+            }
+            // These are raw approval.requested facts, not an executable ApprovalChallenge.
+            // Reuse their registered contract and bind them to this snapshot's run/session.
+            let run_id = snapshot.run_id.map(|run_id| run_id.to_string());
+            for action in &snapshot.pending_actions {
+                kiana_domain::validate_event_payload("approval.requested", action)
+                    .map_err(AcpAdapterError::ProjectionInvalid)?;
+                kiana_domain::validate_secret_free(action)
+                    .map_err(AcpAdapterError::ProjectionInvalid)?;
+                if action["run_id"].as_str() != run_id.as_deref()
+                    || action["session_id"].as_str() != Some(session_id.as_str())
+                    || action["approval_id"]
+                        .as_str()
+                        .and_then(kiana_domain::ApprovalId::parse_str)
+                        .is_none()
+                    || action["capability_request_id"]
+                        .as_str()
+                        .and_then(RequestId::parse_str)
+                        .is_none()
+                {
+                    return Err(AcpAdapterError::InvalidInput(
+                        "snapshot_pending_action_binding",
+                    ));
+                }
+            }
+            (
+                cursor.sequence,
+                snapshot.status.is_some_and(ExecutionStatus::is_terminal),
+            )
+        };
+        if self.terminal && !terminal {
+            return Err(AcpAdapterError::InvalidInput(
+                "snapshot_terminal_regression",
+            ));
+        }
+        self.last_sequence = sequence;
+        self.terminal = terminal;
+        self.pending_permissions.clear();
+        self.recovery_prepared = false;
+        self.connection = AcpConnectionState::Attached;
+        Ok(self.session_reference())
+    }
+
+    fn validate_snapshot_display_cursor(
+        &self,
+        cursor: &kiana_protocol::UiCursor,
+    ) -> Result<(), AcpAdapterError> {
+        // A zero tail is accepted only for the untouched original adapter and a
+        // source-bound current epoch. Shared UiCursor validation remains strict.
+        if cursor.sequence == 0
+            && self.last_sequence == 0
+            && !self.terminal
+            && self.authority_epoch.as_deref() == Some(cursor.epoch.as_str())
+        {
+            return Ok(());
+        }
+        cursor
+            .validate()
+            .map_err(|error| AcpAdapterError::ProjectionInvalid(error.to_owned()))
     }
 
     pub fn prompt(
@@ -428,6 +557,7 @@ impl AcpSessionAdapter {
         }
         if sequence != self.last_sequence + 1 {
             self.connection = AcpConnectionState::Degraded;
+            self.recovery_prepared = false;
             return Ok(AcpUpdateDisposition::Gap {
                 expected: self.last_sequence + 1,
                 received: sequence,
@@ -445,6 +575,7 @@ impl AcpSessionAdapter {
     pub fn disconnect(&mut self) {
         self.connection = AcpConnectionState::Degraded;
         self.handler_installed = false;
+        self.recovery_prepared = false;
     }
 
     pub fn close(&mut self) {
@@ -464,15 +595,24 @@ impl AcpSessionAdapter {
         session_id: &SessionId,
         owner_digest: &str,
     ) -> Result<(), AcpAdapterError> {
+        self.require_session_owner(session_id, owner_digest)?;
+        if !matches!(self.connection, AcpConnectionState::Attached) {
+            return Err(AcpAdapterError::FeedHandlerRequired);
+        }
+        Ok(())
+    }
+
+    fn require_session_owner(
+        &self,
+        session_id: &SessionId,
+        owner_digest: &str,
+    ) -> Result<(), AcpAdapterError> {
         self.require_initialized()?;
         if self.session_id.as_ref() != Some(session_id) {
             return Err(AcpAdapterError::SessionMismatch);
         }
         if self.owner_digest.as_deref() != Some(owner_digest) {
             return Err(AcpAdapterError::SessionOwnerMismatch);
-        }
-        if !matches!(self.connection, AcpConnectionState::Attached) {
-            return Err(AcpAdapterError::FeedHandlerRequired);
         }
         Ok(())
     }

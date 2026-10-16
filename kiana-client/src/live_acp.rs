@@ -220,9 +220,24 @@ impl LiveAcpSession {
             .adapter
             .resume_session(session_id, owner_digest, authority_epoch)?;
         self.session = Some(result.session.clone());
+        self.reconnect_verified = false;
+        self.state = LiveAcpState::Unknown;
+        Ok(result)
+    }
+
+    pub fn hydrate_snapshot(
+        &mut self,
+        session_id: &SessionId,
+        owner_digest: &str,
+        snapshot: &kiana_protocol::UiSnapshot,
+    ) -> Result<(), LiveAcpError> {
+        let session = self
+            .adapter
+            .hydrate_snapshot(session_id, owner_digest, snapshot)?;
+        self.session = Some(session);
         self.reconnect_verified = true;
         self.state = LiveAcpState::Attached;
-        Ok(result)
+        Ok(())
     }
 
     pub fn prompt(
@@ -300,6 +315,7 @@ impl LiveAcpSession {
             AcpUpdateDisposition::Replay { .. } => {}
             AcpUpdateDisposition::Gap { .. } => {
                 self.state = LiveAcpState::Unknown;
+                self.reconnect_verified = false;
                 self.add_limitation(
                     "feed_gap_reconcile_required",
                     "A feed gap requires server snapshot hydration before live continuation",

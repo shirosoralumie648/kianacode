@@ -1,5 +1,9 @@
 //! CP-25 source guard for the shared Skills/Hooks/Memory/MCP/Secret boundary.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+use source_guard::production_source;
+
 #[test]
 fn cp_untrusted_extension_cannot_inject_execution_authority() {
     let skills = include_str!("../../kiana-daemon/src/harness_skills.rs");
@@ -58,6 +62,7 @@ fn cp_mcp_schema_change_invalidates_pending_approval() {
 
 #[test]
 fn cp_secret_handle_cannot_cross_actor_or_destination() {
+    let provider_config = include_str!("../../kiana-provider/src/config.rs");
     let credentials = include_str!("../../kiana-domain/src/credentials.rs");
     let identity = include_str!("../../kiana-domain/src/identity_contracts.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
@@ -77,10 +82,12 @@ fn cp_secret_handle_cannot_cross_actor_or_destination() {
             credentials.contains(marker)
                 || identity.contains(marker)
                 || ports.contains(marker)
-                || broker.contains(marker),
+                || broker.contains(marker)
+                || (marker == "credential_ref: Option<SecretRef>"
+                    && production_source(provider_config).contains(marker)),
             "CP-25 secret boundary marker missing: {marker}"
         );
     }
     assert!(!ports.contains("resolve_credential.*String"));
-    assert!(!broker.contains("secret_value"));
+    assert!(!production_source(broker).contains("secret_value"));
 }

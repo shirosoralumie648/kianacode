@@ -1197,6 +1197,7 @@ mod tests {
             )
             .await
             .unwrap();
+        let persisted_before_retry = fs::read(&path).unwrap();
         assert_eq!(
             stale
                 .consume_with_proof(
@@ -1207,8 +1208,11 @@ mod tests {
                 )
                 .await
                 .unwrap_err(),
-            PortError::Conflict("approval_store_concurrent_update".to_owned())
+            PortError::Conflict("approval_already_consumed".to_owned())
         );
+        // decide_with_proof refreshes disk state before attempting the CAS. A sequential stale
+        // instance therefore observes consumption directly, rather than losing a concurrent CAS.
+        assert_eq!(fs::read(&path).unwrap(), persisted_before_retry);
         let reopened = MemoryApprovalStore::open(&path).unwrap();
         assert_eq!(
             reopened
@@ -1217,6 +1221,8 @@ mod tests {
                 .unwrap_err(),
             PortError::Conflict("approval_already_consumed".to_owned())
         );
+        assert_eq!(fs::read(&path).unwrap(), persisted_before_retry);
+        assert_eq!(fs::read_to_string(&path).unwrap().lines().count(), 1);
         let _ = fs::remove_file(&path);
     }
 

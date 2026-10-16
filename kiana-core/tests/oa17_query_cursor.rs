@@ -19,7 +19,7 @@ fn cursor_binds_epoch_projection_source_and_filter_digest() {
         cursor
     );
     let mut forged = cursor.clone();
-    forged.after_cursor = 5;
+    forged.after_cursor = cursor.source_cursor + 1;
     assert_eq!(
         forged.validate().unwrap_err(),
         "audit_query_cursor_out_of_range"

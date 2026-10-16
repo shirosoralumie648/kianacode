@@ -34,10 +34,15 @@ fn fixture_declares_recovery_deny_first_contract() {
         .unwrap()
         .iter()
         .any(|item| item.as_str().unwrap().contains("implicitly")));
-    assert!(value["denied"].as_array().unwrap().iter().any(|item| item
+    assert!(value["accepted"].as_array().unwrap().iter().any(|item| item
         .as_str()
         .unwrap()
         .contains("gap updates remain blocked")));
+    assert!(value["denied"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item.as_str().unwrap().contains("gap silently continues")));
 }
 
 #[test]

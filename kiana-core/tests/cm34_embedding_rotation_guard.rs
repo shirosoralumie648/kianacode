@@ -1,3 +1,6 @@
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 #[test]
 fn embedding_manifest_and_rotation_are_offline_and_generation_bound() {
     let domain = include_str!("../../kiana-domain/src/embedding_manifest.rs");
@@ -32,6 +35,7 @@ fn embedding_manifest_and_rotation_are_offline_and_generation_bound() {
     }
     assert!(domain.contains("network_allowed"));
     assert!(domain.contains("new_generation <= self.old_generation"));
-    assert!(!domain.contains("reqwest"));
-    assert!(!domain.contains("download"));
+    let domain_code = source_guard::production_source(domain);
+    assert!(!domain_code.contains("reqwest"));
+    assert!(!domain_code.contains("download"));
 }

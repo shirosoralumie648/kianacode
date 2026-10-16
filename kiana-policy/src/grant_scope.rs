@@ -406,10 +406,18 @@ impl GrantScope {
     /// 如果直接用 `first`（引用），会因为后续 `current` 的类型不匹配而编译不过。
     /// 这一行的克隆是"用第一层作为累加器初始值"的标准写法。
     ///
-    /// 【⚠ 求交集的顺序不影响结果】
-    /// 交集运算是可交换的（`A ∩ B = B ∩ A`），所以层序无关。
-    /// 但要注意：**某一层的错误会先暴露**。
-    /// 传进来的层若有一份本身无效，`intersect` 开头的 `validate()` 会立即拒绝。
+    /// 【⚠ 权限集合语义与派生身份的顺序不是一回事】
+    /// 当各层都有效，且主体、项目、授权世代一致时，能力集合、Scope、布尔权限和到期时间
+    /// 按交集、AND、取较早值收敛；从“最终允许哪些操作”的集合语义看，重新排列层通常不改变
+    /// 可用范围。`capabilities` 是 Vec，输出顺序会沿用当前累加器一侧的顺序。
+    ///
+    /// 但不能据此认为返回的 `GrantScope` 完全与层序无关：每次 `intersect()` 都生成新的
+    /// `GrantId`，并把当时累加器的 ID 写入 `parent_grant_id`。因此层序会改变派生身份链，
+    /// 也会改变字段列表顺序；不要依赖两个不同顺序得到相同 ID 或相同父级引用。
+    ///
+    /// 另外，错误会在遍历到对应层时立即返回：较早出现的无效层或不匹配层会先决定错误码，
+    /// 后续层不会继续检查。`intersect()` 开头的 `validate()` 和主体/项目/世代检查共同决定
+    /// 这条失败路径。
     pub fn intersect_all(layers: &[Self]) -> Result<Self, String> {
         let Some((first, rest)) = layers.split_first() else {
             return Err("grant_scope_layers_required".to_owned());

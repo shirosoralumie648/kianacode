@@ -513,7 +513,10 @@ impl PolicyEngine for DefaultPolicyEngine {
             },
             RiskLevel::LocalWrite => {
                 // Safe 档需要审批；Balanced/Autonomous 仍受角色路径与 sandbox 边界约束。
-                if matches!(context.permission_profile, PermissionProfile::Safe) {
+                if matches!(
+                    context.permission_profile,
+                    PermissionProfile::Safe | PermissionProfile::Ask
+                ) {
                     PolicyDecision::Ask {
                         reason: "local_write_requires_approval".to_owned(),
                     }
@@ -930,14 +933,25 @@ mod tests {
     use serde_json::Value;
 
     fn capability(kind: CapabilityKind, risk: RiskLevel) -> CapabilityRequest {
-        CapabilityRequest::new(RequestId::new(), kind, "execute", Value::Null).with_risk(risk)
+        match kind {
+            CapabilityKind::Query => CapabilityRequest::new(
+                RequestId::new(),
+                kind,
+                "context.repo_map",
+                serde_json::json!({}),
+            )
+            .with_risk(risk),
+            CapabilityKind::Filesystem => apply_patch("README.md").with_risk(risk),
+            _ => CapabilityRequest::new(RequestId::new(), kind, "execute", Value::Null)
+                .with_risk(risk),
+        }
     }
 
     #[test]
     /// 测试辅助：构造一个指定能力和风险等级的请求。
     fn untrusted_projects_cannot_execute_capabilities() {
         let context = RequestContext::local("session-1", "/repo");
-        let request = capability(CapabilityKind::Filesystem, RiskLevel::ReadOnly);
+        let request = capability(CapabilityKind::Query, RiskLevel::ReadOnly);
         assert!(matches!(
             DefaultPolicyEngine.evaluate(&context, &request),
             PolicyDecision::Deny { .. }
@@ -973,19 +987,35 @@ mod tests {
     fn sensitive_and_side_effecting_operations_require_approval() {
         let mut context = RequestContext::local("session-1", "/repo");
         context.project_trusted = true;
-        let secret = capability(CapabilityKind::Secret, RiskLevel::ReadOnly);
         let write = capability(CapabilityKind::Filesystem, RiskLevel::LocalWrite);
+        for request in [write, mcp_call()] {
+            assert!(matches!(
+                DefaultPolicyEngine.evaluate(&context, &request),
+                PolicyDecision::Ask { .. }
+            ));
+        }
+        assert!(is_sensitive_operation("publish_release"));
+        assert!(is_sensitive_operation("permission_grant"));
+    }
+
+    #[test]
+    fn unknown_secret_and_publish_operations_cannot_be_approved_into_the_catalog() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        let secret = capability(CapabilityKind::Secret, RiskLevel::ReadOnly);
         let publish = CapabilityRequest::new(
             RequestId::new(),
             CapabilityKind::Network,
             "publish_release",
             Value::Null,
         );
-        for request in [secret, write, publish] {
-            assert!(matches!(
+        for request in [secret, publish] {
+            assert_eq!(
                 DefaultPolicyEngine.evaluate(&context, &request),
-                PolicyDecision::Ask { .. }
-            ));
+                PolicyDecision::Deny {
+                    reason: "action_operation_unknown".to_owned()
+                }
+            );
         }
     }
 
@@ -1157,6 +1187,20 @@ mod tests {
             }
             other => panic!("expected ask, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn ask_profile_requires_approval_for_local_write() {
+        let mut context = RequestContext::local("session-1", "/repo");
+        context.project_trusted = true;
+        context.permission_profile = PermissionProfile::Ask;
+        let request = capability(CapabilityKind::Filesystem, RiskLevel::LocalWrite);
+        assert_eq!(
+            DefaultPolicyEngine.evaluate(&context, &request),
+            PolicyDecision::Ask {
+                reason: "local_write_requires_approval".to_owned()
+            }
+        );
     }
 
     #[test]

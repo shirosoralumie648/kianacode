@@ -64,7 +64,17 @@ impl ArtifactProvenance {
     pub fn validate(&self) -> Result<(), String> {
         required(&self.producer_kind, "artifact_producer_kind", 128)?;
         required(&self.producer_id, "artifact_producer_id", 256)?;
-        required(&self.recorded_by, "artifact_recorded_by", 256)
+        required(&self.recorded_by, "artifact_recorded_by", 256)?;
+        if self
+            .source_event_id
+            .is_some_and(|event_id| event_id.as_uuid().is_nil())
+            || self
+                .source_run_id
+                .is_some_and(|run_id| run_id.as_uuid().is_nil())
+        {
+            return Err("artifact_provenance_identity_invalid".to_owned());
+        }
+        Ok(())
     }
 }
 
@@ -122,6 +132,9 @@ impl ArtifactVersion {
         {
             return Err("artifact_version_invalid".to_owned());
         }
+        if self.artifact_id.as_uuid().is_nil() {
+            return Err("artifact_version_identity_invalid".to_owned());
+        }
         required(&self.artifact_schema, "artifact_schema", 128)?;
         valid_digest(&self.content_hash, "artifact_content_hash")?;
         valid_digest(&self.scope_digest, "artifact_scope_digest")?;
@@ -157,6 +170,9 @@ impl ArtifactRef {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != ARTIFACT_REF_SCHEMA || self.version == 0 {
             return Err("artifact_ref_invalid".to_owned());
+        }
+        if self.artifact_id.as_uuid().is_nil() {
+            return Err("artifact_ref_identity_invalid".to_owned());
         }
         required(&self.artifact_schema, "artifact_ref_schema", 128)?;
         valid_digest(&self.content_hash, "artifact_ref_content_hash")?;
@@ -210,6 +226,14 @@ impl EvidenceRef {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != EVIDENCE_REF_SCHEMA || self.created_at_unix_ms == 0 {
             return Err("evidence_ref_invalid".to_owned());
+        }
+        if self.evidence_id.as_uuid().is_nil()
+            || self.run_id.as_uuid().is_nil()
+            || self
+                .invocation_id
+                .is_some_and(|invocation_id| invocation_id.as_uuid().is_nil())
+        {
+            return Err("evidence_ref_identity_invalid".to_owned());
         }
         required(&self.evidence_kind, "evidence_kind", 128)?;
         valid_digest(&self.scope_digest, "evidence_scope_digest")?;
@@ -275,6 +299,9 @@ impl Criterion {
             || self.evidence_kinds.len() > 32
         {
             return Err("criterion_invalid".to_owned());
+        }
+        if self.criterion_id.as_uuid().is_nil() {
+            return Err("criterion_identity_invalid".to_owned());
         }
         required(&self.source_ref, "criterion_source_ref", 512)?;
         required(&self.description, "criterion_description", 16_384)?;

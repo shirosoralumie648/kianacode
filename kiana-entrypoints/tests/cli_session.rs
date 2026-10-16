@@ -400,15 +400,31 @@ async fn session_reply_model_execution_prints_assistant_text() {
 }"#,
     )
     .unwrap();
+    let project = root.join("project");
+    let home = root.join("home");
+    fs::create_dir_all(project.join(".git")).unwrap();
+    fs::create_dir_all(&home).unwrap();
+    let trust = Command::new(env!("CARGO_BIN_EXE_kiana"))
+        .current_dir(&project)
+        .env("HOME", &home)
+        .env("KIANA_HOME", &home)
+        .args(["trust", "."])
+        .output()
+        .unwrap();
+    assert!(trust.status.success(), "isolated project trust failed");
     let (base_url, state, server) = start_session_reply_mock_model_server().await;
 
     let output_sessions_dir = sessions_dir.clone();
     let output = tokio::task::spawn_blocking(move || {
         Command::new(env!("CARGO_BIN_EXE_kiana"))
+            .current_dir(&project)
+            .env("HOME", &home)
+            .env("KIANA_HOME", &home)
+            .env("KIANA_CONFIG_FILE", home.join("config.toml"))
             .arg("--base-url")
             .arg(base_url)
             .arg("--model")
-            .arg("mock-session-reply-model")
+            .arg("claude-sonnet-4-6")
             .arg("session")
             .arg("reply")
             .arg("session-one")
@@ -437,7 +453,7 @@ async fn session_reply_model_execution_prints_assistant_text() {
         "session reply complete"
     );
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0]["model"], "mock-session-reply-model");
+    assert_eq!(requests[0]["model"], "claude-sonnet-4-6");
     assert_eq!(
         requests[0]["messages"].as_array().unwrap()[1]["content"],
         "follow up"

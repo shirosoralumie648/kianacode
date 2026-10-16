@@ -102,6 +102,7 @@ pub async fn main_from_args(args: &[String]) -> Result<()> {
             "--permission-profile" => {
                 profile = match value {
                     "safe" => PermissionProfile::Safe,
+                    "ask" => PermissionProfile::Ask,
                     "balanced" => PermissionProfile::Balanced,
                     _ => return Err(anyhow!("permission_profile_unsupported")),
                 }

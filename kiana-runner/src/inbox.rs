@@ -3,10 +3,50 @@
 //! `next-turn` 用于下一轮模型开始前的唤醒输入，`next-step` 用于当前运行边界的 steering/
 //! inject。每条输入都有 server-owned InputId、来源、目标、接收序号和目标 turn；队列状态
 //! 可随 HarnessCheckpoint 序列化，claimed ledger 防止相同 InputId 重复消费。
+//!
+//! ===========================================================================
+//! 【下面这一段是给「刚接手本模块」的读者做的导读】
+//!
+//! ## 本模块在系统里的位置
+//!
+//! Inbox 暂存用户/steering 文本，不解析控制命令，也不执行取消。
+//! harness 通过 `dispatch`/`inject_message` 接收输入，在 Start/Continue 中领取 NextTurn，
+//! 在 `model_step_once` 中领取 NextStep，再转换成 `ModelMessage::user` 加入历史。
+//! `RunnerCommand::Cancel` 由独立的取消路径处理，不等待 inbox 消费。
+//!
+//! ## 两级时间边界
+//!
+//! **NextTurn**：为开始或继续一轮保留的文本输入。
+//! **NextStep**：在后续模型步边界加入的 steering/inject 文本，不直接改工具调用或权限。
+//!
+//! 同一队列按插入顺序领取；两队列按各自边界消费，不保证跨队列的全局接收顺序。
+//!
+//! ## 防重复与幂等性
+//!
+//! 字段校验通过后，`insert_inner()` 按 InputId 查重：队列中已有则返回旧消息与 Duplicate；
+//! 已领取则返回本次消息（复用旧 received_sequence）与 Claimed，不再次入队。
+//! 已领取台账只保存 ID/序号，不保留旧正文，也不比较重传正文是否一致。
+//! `insert()` 丢弃这些明细并返回 `Ok(())`；`insert_for_run()` 才返回带 disposition 的收据。
+//!
+//! ## 容量限制与反压
+//!
+//! `insert_inner()` 对新 ID 检查目标队列容量；已满时返回 `inbox_backpressure`。
+//! 它拒绝新输入而不是挤掉已排队的消息，调用方需要处理这个反压错误。
+//! 三个常数定义了上限：
+//! * `INBOX_MAX_MESSAGES`：单个队列（next_turn 或 next_step）最多 256 条消息
+//! * `INBOX_MAX_CLAIMED_IDS`：新消息入队时检查已领取台账是否达到 4096 条
+//! * `INBOX_MAX_TEXT_BYTES`：单条消息文本最多 256 KiB（按 UTF-8 字节计）
+//!
+//! `claim()` 本身不做容量检查；多个待领消息可能把台账推过上限，随后 `validate()` 会拒绝。
+//! 这些限制不能被描述成对所有公开队列操作都自动生效的总内存上限。
 
 use kiana_domain::{InputDisposition, InputId, InputReceipt, RunId, TurnId};
 use serde::{Deserialize, Serialize};
 
+// ===== 容量上限常数 =====
+//
+// 入队时限制目标队列条数、已有 claim 台账长度与消息字节数，超限返回明确错误。
+// validate() 还会检查序列化队列及台账；此处不推测常数背后的业务容量需求。
 pub const INBOX_MAX_MESSAGES: usize = 256;
 pub const INBOX_MAX_CLAIMED_IDS: usize = 4096;
 pub const INBOX_MAX_TEXT_BYTES: usize = 256 * 1024;
@@ -81,12 +121,20 @@ pub struct Inbox {
 }
 
 impl Inbox {
-    /// 将消息追加到指定目标队列尾部，保持插入顺序；队满、文本过大或重复 ID 会拒绝。
+    /// 接收文本输入；新 ID 追加到目标队列，已排队或已领取的 ID 不重复入队。
+    ///
+    /// 返回 `Ok(())` 可能表示新输入或有效重复输入，不能据此区分 Accepted/Duplicate/Claimed。
+    /// 字段无效、队满、claim 台账已满或序号溢出分别返回 `inbox_message_invalid`、
+    /// `inbox_backpressure`、`inbox_claim_ledger_full`、`inbox_sequence_exhausted`。
     pub fn insert(&mut self, target: InboxTarget, message: InboxMessage) -> Result<(), String> {
         self.insert_inner(target, message).map(|_| ())
     }
 
-    /// 带 Run 作用域的输入入口，返回可由 ControlPlane/EventLog 记录的 ACK。
+    /// 带 Run 作用域的输入入口，返回可由 ControlPlane/EventLog 记录的 ACK 收据。
+    ///
+    /// 与 insert 共用 insert_inner，并为结果构造带 RunId 的 InputReceipt。
+    /// 只有 Accepted 收据会追加到 accepted_receipts；本方法不自行写 EventLog。
+    /// 收据构造发生在队列操作之后，若构造失败不会回滚已完成的入队。
     pub fn insert_for_run(
         &mut self,
         run_id: RunId,
@@ -108,6 +156,29 @@ impl Inbox {
         Ok(receipt)
     }
 
+    // ===== 内部细节：insert_inner 的决策树 =====
+    //
+    // insert_inner 是 Inbox 的**防守线**。它按以下顺序检查，第一条失败的返回错误：
+    //
+    // 1. **字段合法性**（消息本身格式）
+    //    - InputId 不能是 nil UUID
+    //    - source 不能为空、不能超 256 字节、不能含 \0
+    //    - text 不能为空、不能超 INBOX_MAX_TEXT_BYTES
+    //
+    // 2. **重复检测**（已在队列里的消息）
+    //    - 用 find() 在两个队列里扫一遍，有就返回 Duplicate
+    //
+    // 3. **Claim 台账检测**（已经被取走过的消息）
+    //    - 只保存了 ID/序号：返回本次消息，覆盖为传入 target 和旧序号，标记 Claimed
+    //
+    // 4. **容量检测**
+    //    - 目标队列是否已满（≥ INBOX_MAX_MESSAGES）
+    //    - claimed_input_ids 是否已满（≥ INBOX_MAX_CLAIMED_IDS）
+    //
+    // 5. **序号分配并入队**
+    //    - 递增 next_sequence
+    //    - 新消息推进目标队列
+    //    - 返回 Accepted
     fn insert_inner(
         &mut self,
         target: InboxTarget,
@@ -150,7 +221,10 @@ impl Inbox {
         Ok((message, InputDisposition::Accepted))
     }
 
-    /// 原子取出并清空指定目标队列，并把 InputId 放入 bounded claim ledger。
+    /// 在独占借用下取出并清空目标队列，把 ID/序号追加到 claim ledger，再返回消息。
+    ///
+    /// mem::take 替换 Vec，不是并发原子操作或持久事务。此方法不检查台账容量；
+    /// 后续有效输入若复用这些 ID，insert_inner 会返回 Claimed 而不重新入队。
     pub fn claim(&mut self, target: InboxTarget) -> Vec<InboxMessage> {
         let messages = std::mem::take(self.queue_mut(target));
         self.claimed_input_ids.extend(
@@ -161,7 +235,9 @@ impl Inbox {
         messages
     }
 
-    /// 返回每条已消费输入的 receipt，供上层在同一 command 中写入 ACK/consumed fact。
+    /// 领取消息后，为每条消息构造 Claimed 收据；不证明消息已被模型处理或写入 EventLog。
+    ///
+    /// claim 先清空队列并更新台账，再构造收据。如果收据构造失败，队列不会自动恢复。
     pub fn claim_with_receipts(
         &mut self,
         run_id: RunId,

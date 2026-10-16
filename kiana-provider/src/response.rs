@@ -454,7 +454,11 @@ pub(crate) fn decode(value: Value, prepared: &PreparedModelCall) -> Result<Model
             measured = ollama_usage(&value)?;
         }
         ModelProtocol::GeminiInteractions => {
-            let status = required(&value, "status")?;
+            // A completion state is outcome evidence, not a provider identity.
+            let status = value["status"]
+                .as_str()
+                .filter(|status| !status.trim().is_empty())
+                .ok_or_else(|| error("provider_response_incomplete"))?;
             if status == "incomplete" {
                 return Err(error("model_transport_incomplete"));
             }
@@ -1379,9 +1383,14 @@ pub fn replay_stream_fixture(
     {
         return Ok((reply, deltas));
     }
-    Err(response_evidence(ModelError::invalid(
+    // The request has already been sent when a stream reaches EOF without a terminal frame.
+    // Keep the fixture boundary aligned with the live transport path: the provider-side effect
+    // is unknown and must be reconciled before any retry is considered.
+    Err(ModelError::transport(
         "provider_stream_incomplete",
-    )))
+        ModelRetryClass::Never,
+        true,
+    ))
 }
 
 fn index(value: &Value, key: &str) -> Result<usize, ModelError> {
@@ -2158,6 +2167,21 @@ mod tests {
             accumulator.finish(&prepared).unwrap_err().code,
             "model_stop_content_mismatch"
         );
+    }
+
+    #[test]
+    fn gemini_missing_completion_status_is_incomplete_without_a_success_reply() {
+        let prepared = gemini_prepared();
+        for status in [None, Some(Value::Null), Some(json!(false)), Some(json!(""))] {
+            let mut response = json!({"id":"interaction-status", "steps":[]});
+            if let Some(status) = status {
+                response["status"] = status;
+            }
+            assert_eq!(
+                decode(response, &prepared).unwrap_err().code,
+                "provider_response_incomplete"
+            );
+        }
     }
 
     #[test]

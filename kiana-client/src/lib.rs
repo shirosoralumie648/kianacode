@@ -8,8 +8,9 @@ use async_trait::async_trait;
 use kiana_protocol::{
     ApprovalDecision, ApprovalId, AuditExportRequest, AuditQueryRequest, ConnectorCommand,
     ConnectorCommandRequest, EntryPointKind, ExtensionCommandRequest, ExtensionVisibilitySnapshot,
-    ParityRequest, RequestEnvelope, RequestMetadata, ResponseEnvelope, RunId, TurnId,
-    UiConnectorHealthProjection, UiHandshakeRequest, UiHandshakeResponse, UiHealth, WorkPacket,
+    OpsCommandRequest, OpsQueryRequest, ParityRequest, RequestEnvelope, RequestMetadata,
+    ResponseEnvelope, RunId, TurnId, UiConnectorHealthProjection, UiHandshakeRequest,
+    UiHandshakeResponse, UiHealth, WorkPacket,
 };
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -332,6 +333,35 @@ where
         self.transport
             .send(RequestEnvelope::command(metadata, name, arguments))
             .await
+    }
+
+    /// Send a typed operations command through the shared versioned wire spine.
+    ///
+    /// This method only validates and transports the evidence envelope. Actor, authority epoch,
+    /// scope, approval and execution decisions remain server-owned; a successful transport call
+    /// is not an authorization or operation result.
+    pub async fn ops_command(
+        &self,
+        metadata: RequestMetadata,
+        request: OpsCommandRequest,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        let envelope =
+            RequestEnvelope::ops_command(metadata, request).map_err(ClientError::Protocol)?;
+        self.transport.send(envelope).await
+    }
+
+    /// Send a typed read-only operations query through the shared versioned wire spine.
+    ///
+    /// Query construction and transport are shared by every client surface; the daemon still
+    /// owns authentication, scope checks and projection selection.
+    pub async fn ops_query(
+        &self,
+        metadata: RequestMetadata,
+        request: OpsQueryRequest,
+    ) -> Result<ResponseEnvelope, ClientError> {
+        let envelope =
+            RequestEnvelope::ops_query(metadata, request).map_err(ClientError::Protocol)?;
+        self.transport.send(envelope).await
     }
 
     /// Read the authenticated CompanyOS governance-chain projection.

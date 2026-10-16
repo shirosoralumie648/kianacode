@@ -1,10 +1,17 @@
+//! BQ-13 Query 成本投影的合成事件 fixture 与源码边界检查。
+//!
+//! 行为用例构造本地 rate card、usage 和 cost event，检查投影游标及估算/实测/未知区分；最后一个
+//! 用例用 `include_str!` 检查 Query 源文件的只读依赖边界。所有用例均不调用真实 provider 或 EventStore。
+
 use kiana_domain::*;
 use kiana_query::{project_cost_receipt, CostQueryProjectionError};
 
+/// 生成仅符合 sha256 文本格式的 fixture 值；不会执行真实 hash。
 fn digest(seed: char) -> String {
     format!("sha256:{}", seed.to_string().repeat(64))
 }
 
+/// 构造仅供测试估算使用的临时费率卡。
 fn card() -> RateCard {
     let mut card = RateCard::new(
         RateCardId::new(),
@@ -24,6 +31,7 @@ fn card() -> RateCard {
     card
 }
 
+/// 构造带有已知输入/输出 token 数的 Provider usage 事实。
 fn usage() -> NormalizedUsage {
     NormalizedUsage::new(
         UsageId::new(),
@@ -49,6 +57,7 @@ fn usage() -> NormalizedUsage {
     .expect("usage")
 }
 
+/// 估算事件进入 Query wrapper 后保留 Domain cursor，并仍归类为 estimate。
 #[test]
 fn query_projector_preserves_cursor_and_measured_unknown_split() {
     let usage = usage();
@@ -65,12 +74,16 @@ fn query_projector_preserves_cursor_and_measured_unknown_split() {
     projection.validate().expect("valid projection");
 }
 
+/// 没有成本源事件必须返回不可用错误，不能把空输入伪装成零成本。
 #[test]
 fn query_projector_does_not_turn_empty_source_into_zero_cost() {
     let error = project_cost_receipt(RunId::new(), &[]).unwrap_err();
     assert_eq!(error, CostQueryProjectionError::SourceEmpty);
 }
 
+/// 静态检查 Query projector 仍委托 Domain reducer，且没有引入写入或 provider 依赖。
+///
+/// 该测试只做源文本 marker/禁止词断言，不运行 Domain reducer，也不证明整个 workspace 无其他执行路径。
 #[test]
 fn query_projector_source_guard_is_read_only() {
     let source = include_str!("../src/cost_projector.rs");

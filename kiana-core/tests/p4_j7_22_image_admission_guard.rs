@@ -1,4 +1,10 @@
+//! P4-J7-22 图片准入的跨 crate 静态源码守卫。
+//!
+//! `include_str!` 读取 Domain admission、model content、Provider request/gateway、baseline 和 workflow 字符串，
+//! 确认拒绝码、编码入口及限额标记仍存在；它不调用 ArtifactStore、ProviderGateway 或真实网络请求。
+
 #[test]
+/// 固定 Artifact/ProcessingGrant 绑定、Provider 编码后预算与不读文件/不抓 URL 的源码边界。
 fn p4_j7_22_image_admission_stays_artifact_bound_and_encodes_after_admission() {
     let domain = include_str!("../../kiana-domain/src/image_input.rs");
     let model = include_str!("../../kiana-domain/src/model.rs");

@@ -34,8 +34,12 @@ fn capabilities() -> ModelCapabilities {
 }
 
 fn card() -> RateCard {
+    card_with_id(RateCardId::new())
+}
+
+fn card_with_id(id: RateCardId) -> RateCard {
     let mut card = RateCard::new(
-        RateCardId::new(),
+        id,
         "provider-b",
         "model-b",
         "USD",
@@ -200,6 +204,11 @@ fn allowlist_pins_exact_route_and_model_identity() {
     let request = request(RunId::new(), &original);
     let mut drifted = candidate;
     drifted.route.model_id = "model-c".to_owned();
+    let mut wildcard_card = card();
+    wildcard_card.model_selector = "*".to_owned();
+    wildcard_card.rate_card_digest = wildcard_card.digest();
+    wildcard_card.validate().expect("wildcard card");
+    drifted.rate_card = Some(wildcard_card);
     assert_eq!(
         admit_fallback_attempt(&request, &drifted, &allowlist, AttemptId::new()).unwrap_err(),
         "fallback_route_not_allowlisted"
@@ -207,11 +216,47 @@ fn allowlist_pins_exact_route_and_model_identity() {
 }
 
 #[test]
+fn allowlist_rejects_connection_identity_drift() {
+    let candidate = candidate();
+    let allowlist = FallbackRouteAllowlist::from_routes(std::slice::from_ref(&candidate.route))
+        .expect("allowlist");
+    let mut changed = candidate.route.clone();
+    changed.connection_id = "different-connection".to_owned();
+    assert_eq!(
+        allowlist.contains(&changed).unwrap_err(),
+        "fallback_route_not_allowlisted"
+    );
+
+    let mut legacy = serde_json::to_value(&allowlist).expect("allowlist JSON");
+    legacy["entries"][0]
+        .as_object_mut()
+        .expect("entry object")
+        .remove("connection_id");
+    assert!(serde_json::from_value::<FallbackRouteAllowlist>(legacy).is_err());
+}
+
+#[test]
+fn allowlist_can_pin_multiple_connections_for_the_same_provider_and_model() {
+    let first = route("provider-b", "model-b", "backup-a");
+    let second = route("provider-b", "model-b", "backup-b");
+    let allowlist = FallbackRouteAllowlist::from_routes(&[first.clone(), second.clone()])
+        .expect("distinct connections are distinct allowlist entries");
+    assert_eq!(allowlist.entries.len(), 2);
+    allowlist
+        .contains(&first)
+        .expect("first connection allowed");
+    allowlist
+        .contains(&second)
+        .expect("second connection allowed");
+}
+
+#[test]
 fn every_fallback_attempt_has_independent_usage_rate_card_and_receipt() {
     let first = admission();
+    let rate_card = card_with_id(first.rate_card_id);
     let first_usage = usage(&first, UsageConfidence::Known);
     let first_cost =
-        CostBreakdown::from_usage(&first_usage, Some(&card()), 1, 2_000).expect("estimate");
+        CostBreakdown::from_usage(&first_usage, Some(&rate_card), 2, 2_000).expect("estimate");
     let first_receipt =
         FallbackAttemptReceipt::from_admission(&first, first_usage, first_cost, None)
             .expect("estimate receipt");
@@ -227,7 +272,7 @@ fn every_fallback_attempt_has_independent_usage_rate_card_and_receipt() {
     let measured_receipt = ProviderReceiptRef::new("provider-receipt-bq18").expect("receipt");
     let second_cost = CostBreakdown::from_provider_receipt(
         &second_usage,
-        Some(&card()),
+        Some(&rate_card),
         Money::new("USD", 31).expect("money"),
         measured_receipt.clone(),
         2_000,
@@ -245,9 +290,10 @@ fn every_fallback_attempt_has_independent_usage_rate_card_and_receipt() {
     assert_eq!(second_receipt.rate_card_version, 2);
 
     let unknown_admission = admission();
+    let unknown_card = card_with_id(unknown_admission.rate_card_id);
     let unknown_usage = usage(&unknown_admission, UsageConfidence::Unknown);
-    let unknown_cost =
-        CostBreakdown::from_usage(&unknown_usage, Some(&card()), 1, 2_000).expect("unknown cost");
+    let unknown_cost = CostBreakdown::from_usage(&unknown_usage, Some(&unknown_card), 1, 2_000)
+        .expect("unknown cost");
     let unknown = FallbackAttemptReceipt::from_admission(
         &unknown_admission,
         unknown_usage,
@@ -261,8 +307,9 @@ fn every_fallback_attempt_has_independent_usage_rate_card_and_receipt() {
 #[test]
 fn fallback_receipt_ledger_rejects_cross_attempt_reuse_and_conflict() {
     let first = admission();
+    let rate_card = card_with_id(first.rate_card_id);
     let usage = usage(&first, UsageConfidence::Known);
-    let cost = CostBreakdown::from_usage(&usage, Some(&card()), 1, 2_000).expect("cost");
+    let cost = CostBreakdown::from_usage(&usage, Some(&rate_card), 2, 2_000).expect("cost");
     let receipt =
         FallbackAttemptReceipt::from_admission(&first, usage, cost, None).expect("receipt");
     let mut ledger = FallbackReceiptLedger::default();

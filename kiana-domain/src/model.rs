@@ -182,7 +182,7 @@ impl ModelMessage {
     pub fn content_blocks(&self) -> Result<Vec<ModelContent>, ModelError> {
         if self.content.is_empty() {
             let mut blocks = Vec::new();
-            if !self.text.is_empty() {
+            if !self.text.is_empty() && self.role != ModelRole::Tool {
                 blocks.push(ModelContent::Text {
                     text: self.text.clone(),
                 });
@@ -1024,7 +1024,10 @@ impl ModelOutcome {
             || self.safe_message.len() > 4_096
             || (self.side_effect_state == ModelSideEffectState::Unknown && !self.request_sent)
             || (self.recovery_disposition == ModelRecoveryDisposition::TransportRetry
-                && (self.phase != "transport" || self.retry_class == ModelRetryClass::Never))
+                && (self.phase != "transport"
+                    || self.retry_class == ModelRetryClass::Never
+                    || (self.request_sent
+                        && self.side_effect_state == ModelSideEffectState::Unknown)))
         {
             return Err(ModelError::invalid("model_outcome_invalid"));
         }

@@ -14,12 +14,14 @@
 //!
 //! | 形态 | 例子 | 谁能读懂 |
 //! |---|---|---|
-//! | UUID 支撑的稳定标识 `struct XId(Uuid)` | `RunId` `EventId` `InvocationId` | 只有程序 |
+//! | UUID 支撑的稳定标识 `struct XId(Uuid)` | `RunId` `EventId` `InvocationId` | 程序按 Rust 类型区分；线上的字符串不带类型名 |
 //! | 人可读的会话标识 `struct SessionId(String)` | 会话名 | 人也能看 |
 //! | 工作指纹 `struct WorkFingerprint(String)` | 内容摘要 | 用于判重，不是身份 |
 //!
 //! 最后两个**不是 UUID**，这是有意的：会话标识要能在界面上显示，
 //! 工作指纹要能由内容算出来，两者都不是「随机生成的身份」。
+//! UUID 的外形也不等于保密或授权：有些值随机生成，有些从已有身份/路径确定性派生；
+//! 这些类型都不能单独当作访问凭证。
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
@@ -32,6 +34,11 @@ use uuid::Uuid;
 /// 互相传错照样编译通过。写成 `struct RunId(Uuid)` 才多出一层——
 /// 编译器会拒绝「一个参数声明为 `RunId` 的函数」收到 `EventId`。
 /// 这多出来的一层，就是这个文件存在的全部理由。
+///
+/// 宏同时派生 Serde 的 `Serialize`/`Deserialize`：前者把 Rust 值写到 JSON 等外部格式，
+/// 后者从外部格式读回 Rust 值。`#[serde(transparent)]` 表示序列化时只写底层 UUID，
+/// 不额外包一层对象，也不把 `RunId` 这个 Rust 类型名写进数据；因此线格式兼容的同时，
+/// 编译器内仍能区分这些 newtype。越过 JSON 等边界后，类型标签不再由这个包装器提供。
 ///
 /// 【代价：读代码时看不出某个类型是什么】
 /// newtype 的代价是自解释性差：`x.0` 是什么，得看定义。
@@ -57,6 +64,8 @@ macro_rules! uuid_id {
             }
 
             /// 从已有 UUID 构造标识，不进行额外格式校验。
+            ///
+            /// 包装动作也不会拒绝 nil UUID；调用方若要求非 nil，必须在所属领域对象处另行验证。
             pub const fn from_uuid(value: Uuid) -> Self {
                 Self(value)
             }
@@ -67,6 +76,8 @@ macro_rules! uuid_id {
             }
 
             /// 从字符串解析 UUID；首尾空白会被忽略，格式错误返回 `None`。
+            ///
+            /// 解析成功只证明它是 UUID 语法，不证明它是非 nil、随机生成或有权访问对应资源。
             pub fn parse_str(value: &str) -> Option<Self> {
                 Uuid::parse_str(value.trim()).ok().map(Self::from_uuid)
             }
@@ -75,13 +86,13 @@ macro_rules! uuid_id {
         /// ⚠ **`Default` 不是「空」，是「一个新的随机 id」。**
         ///
         /// 这是本文件最容易踩的一个坑：某个结构体派生（derive）了 `Default`，
-        /// 某个字段忘了赋值，于是拿到了一个**看起来完全正常**的随机 UUID。
-        /// 它不会报错、不会为空、序列化出来也是一个合法 id——
-        /// 直到某天有人发现两个本该不同的东西拿到了同一个身份。
+        /// 某个身份字段忘了显式赋值，仍会拿到一个**看起来完全正常**的新 UUID。
+        /// 它不会报错、不会为空，序列化出来也是合法 id；真正的风险是这个新身份与调用方
+        /// 想关联的 Run、事件或其他对象无关，错误可能延迟到查找/绑定时才显现。
         ///
         /// 换句话说：`Default` 在这里是**危险的默认值**。
-        /// 它之所以存在，是因为需要一个「构造不出有效值时也不能 panic」的出口；
-        /// 但它绝不能被当成「先占个位子回头再填」。
+        /// 它只是让通用默认构造仍能产生一个新 ID，不是「构造不出有效值时的空值出口」；
+        /// 也绝不能被当成「先占个位子回头再填」。UUID 偶然碰撞虽非数学上不可能，但不是这里的主要误用风险。
         ///
         /// 读到这里之后，你在别处看到 `..Default::default()` 时，
         /// 应该先问一句：这个字段是身份吗？如果是，那它多半已经错了。
@@ -99,6 +110,13 @@ macro_rules! uuid_id {
     };
 }
 
+// 主执行链里最容易混淆的身份分别表示：
+// - RequestId：一次入口/命令请求及其关联信息；同一请求的其他对象可以从它派生关联 ID。
+// - RunId 与 TurnId：一个长期执行实例，以及该实例中的一次交互轮次；新 turn 不会创建新的 Run。
+// - StepId 与 ModelAttemptId：Runner 的一次模型/工具驱动步骤，以及该步骤中的某一次 provider 尝试。
+// - InvocationId 与 ExecutionId：一次能力调用的关联身份，以及 Core 为其准备的执行身份；两者不是同一字段。
+// - EventId：单条事实事件的身份；事件还会另带 RequestId 关联来源请求。
+// 这些名字说明值的业务角色，不会自动验证 ID 之间的关系；绑定仍由 Core/对应 DTO 的校验负责。
 uuid_id!(RequestId);
 uuid_id!(InputId);
 uuid_id!(InteractionId);
@@ -194,11 +212,13 @@ uuid_id!(FenceTokenId);
 #[serde(transparent)]
 /// 用户或入口分配的会话标识。
 /// 会话标识。**不是 UUID，是调用方给的文字。**
+/// `Serialize`/`Deserialize` 与 `#[serde(transparent)]` 使外部表示直接是字符串；Rust 类型边界不会替字符串内容校验格式。
 ///
 /// 【为什么它不一样】
 /// 因为会话标识要能被人看见：界面上写着「会话 sc01」，而不是一串
-/// `9f3a7c2e-…`。程序内部的 id 越不可读越好（不泄漏结构、不可被猜测），
-/// 而会话标识恰好相反——它需要可读、可复制、可在对话里提到。
+/// `9f3a7c2e-…`。UUID 支撑的类型主要用于让程序按语义区分字段；原始 UUID 仍可能可见，
+/// 有些还是由现有值确定性派生，不能一概称为不可猜测或保密。会话标识恰好相反——
+/// 它需要可读、可复制、可在对话里提到。
 ///
 /// 这也是为什么它没有「生成随机值」的构造函数：生成一个 UUID 出来，
 /// 正好抹掉了它存在的理由。
@@ -209,7 +229,7 @@ uuid_id!(FenceTokenId);
 pub struct SessionId(String);
 
 impl SessionId {
-    /// 创建 session ID；该函数保留调用方的文字，不自动生成 UUID。
+    /// 创建 session ID；该函数保留调用方的原文，不自动生成 UUID、不裁剪空白，也不拒绝空字符串。
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }
@@ -251,7 +271,11 @@ impl WorkFingerprint {
     /// 按目标、输入引用、分区、输出契约和策略快照生成指纹。
     ///
     /// 输入引用会排序并去除空项，使同一工作集合不受输入顺序影响；关键字段缺失时拒绝
-    /// 生成。当前算法是 FNV-1a64 文字指纹，不应当作密码学哈希或跨系统防碰撞证明。
+    /// 生成。排序与过滤不会去重重复引用。当前算法是 FNV-1a64 文字指纹，不应当作密码学哈希
+    /// 或跨系统防碰撞证明。
+    /// ⚠ 规范字符串用 U+001F 连接引用，但输入中若本身含该字符就不会转义或拒绝；
+    /// 例如 `"alpha\u{1f}beta"` 一个引用与 `"alpha"`、`"beta"` 两个引用会编码成相同字节，
+    /// 因而得到相同指纹。这是哈希前的编码歧义，不需要发生 FNV 碰撞；本注释只记录边界。
     pub fn from_parts(
         objective: &str,
         input_refs: &[String],
@@ -297,6 +321,11 @@ impl fmt::Display for WorkFingerprint {
         self.0.fmt(formatter)
     }
 }
+/// 计算 FNV-1a 64 位非密码学哈希，供 `WorkFingerprint` 生成紧凑的确定性文本指纹。
+///
+/// `0xcbf29ce484222325` 是该算法的 64 位 offset basis（初始状态），`0x100000001b3` 是 FNV prime；
+/// `wrapping_mul` 让乘法按 64 位模数回绕，得到算法定义的无符号 64 位结果。
+/// 这个 helper 不提供抗恶意碰撞能力，不可用于签名、认证或机密校验。
 pub(crate) fn fnv1a64(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf29ce484222325;
     for byte in bytes {

@@ -40,6 +40,23 @@ fn external_receipt() -> ExternalReceiptRef {
     ExternalReceiptRef::new("ext-1", digest('e'), 1_700_000_000_000)
 }
 
+fn confirmed_success_without_provider_receipt() -> Result<EffectObservation, String> {
+    EffectObservation::new(
+        ExecutionId::new(),
+        InvocationId::new(),
+        1,
+        digest('a'),
+        digest('b'),
+        digest('c'),
+        None,
+        Some("pending".to_owned()),
+        1_700_000_000_000,
+        Some(digest('d')),
+        Vec::new(),
+        EffectObservationState::ConfirmedSuccess,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn request(
     observation: EffectObservation,
@@ -77,8 +94,15 @@ fn an_unknown_outcome_is_never_resolved_by_retrying_it() {
         EffectObservationState::ConfirmedSuccess,
         EffectObservationState::ConfirmedFailure,
     ] {
+        let provider_receipt = match state {
+            EffectObservationState::Unknown => None,
+            EffectObservationState::ConfirmedSuccess | EffectObservationState::ConfirmedFailure => {
+                Some("receipt-1")
+            }
+            EffectObservationState::NoEffect => None,
+        };
         let error = request(
-            observation(state, None, vec![digest('f')]),
+            observation(state, provider_receipt, vec![digest('f')]),
             EffectResolution::RetryWithoutEffect,
             None,
             None,
@@ -114,16 +138,8 @@ fn success_cannot_be_asserted_without_something_external_behind_it() {
         "effect_reconcile_success_without_external_ref"
     );
     assert_eq!(
-        request(
-            observation(EffectObservationState::ConfirmedSuccess, None, vec![]),
-            EffectResolution::Reconciled,
-            Some(external_receipt()),
-            None,
-            None,
-            vec![],
-        )
-        .unwrap_err(),
-        "effect_reconcile_observation_receipt_missing"
+        confirmed_success_without_provider_receipt().unwrap_err(),
+        "effect_observation_provider_receipt_required"
     );
     // And an unknown is never "reconciled" just because somebody supplied a reference.
     assert_eq!(

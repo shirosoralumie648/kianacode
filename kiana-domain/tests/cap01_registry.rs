@@ -1,3 +1,9 @@
+//! CAP-01 的 Domain 合同测试：核对模型工具目录、操作规格和 Capability Action 描述符之间的静态映射。
+//!
+//! 这些用例直接调用 `kiana-domain` 的纯内存目录函数，不启动 Daemon、Runner 或 Broker，
+//! 也不发送模型/Provider 请求。它们适合发现名称、schema、风险、能力类别和 descriptor
+//! 投影之间的回归，但不能单独证明宿主启动、Core 授权或具体 handler 执行成功。
+//! 继续追踪实现可读 `kiana-domain/src/tool_authority.rs`、`tool_catalog.rs` 和 `actions.rs`。
 use kiana_domain::{
     action_result_schema, canonical_action_operation, capability_action_descriptor,
     model_tool_name, model_tool_result_schema, operator_only_action, tool_catalog_digest,
@@ -9,8 +15,13 @@ use kiana_domain::{
 use serde_json::{json, Value};
 
 #[test]
+/// 验证五个模型可见工具均有唯一的规范规格、模型 schema 和动作目录绑定。
+///
+/// 这里的“覆盖”指 Domain 元数据能彼此对应；不代表运行时授予了这五项能力。
 fn tool_authority_covers_every_model_visible_tool() {
     validate_tool_authority().unwrap();
+    // 这是当前安全边界允许模型直接提出的五个规范工具名；ACTION_OPERATIONS 的全集更大，
+    // 其中还有只能由系统/操作员路径使用的内部操作，不能因此暴露给模型。
     let visible = [
         "shell",
         "apply_patch",
@@ -20,6 +31,8 @@ fn tool_authority_covers_every_model_visible_tool() {
     ];
     let schemas = tool_schemas();
     assert_eq!(schemas.len(), visible.len());
+    // 同时检查模型名、兼容 alias、内部 operation、能力/风险元数据和 action binding version，
+    // 防止只改 schema 名称却没有同步底层动作合同。
     for name in visible {
         let canonical = model_tool_name(name).expect("model tool mapping");
         let spec = tool_spec(name).unwrap();
@@ -41,6 +54,10 @@ fn tool_authority_covers_every_model_visible_tool() {
 }
 
 #[test]
+/// 用手工复制并篡改的 `ToolSpec` 检查 action binding 是否拒绝关键元数据漂移。
+///
+/// 测试只调用 Domain validator，没有改变全局静态目录；三个错误分别对应 operation、
+/// capability 与 minimum risk 不一致。它不覆盖所有 descriptor 字段或实际请求授权。
 fn tool_action_binding_rejects_controlled_metadata_drift() {
     let canonical = tool_spec("shell").unwrap();
 
@@ -67,6 +84,9 @@ fn tool_action_binding_rejects_controlled_metadata_drift() {
 }
 
 #[test]
+/// 确认标记为 operator-only 的操作不会拥有模型工具名称映射。
+///
+/// 这是静态目录关系检查，不会模拟操作者身份，也不代表 operator-only 操作的其他入口行为。
 fn operator_only_capabilities_never_enter_model_schema() {
     for operation in ACTION_OPERATIONS {
         if operator_only_action(operation) {
@@ -79,7 +99,12 @@ fn operator_only_capabilities_never_enter_model_schema() {
 }
 
 #[test]
+/// 对全部操作规格检查排序、完整性，以及五个模型工具 schema/目录 descriptor 的投影结果。
+///
+/// 38 个 operation 是内部动作目录规模，和当前五个模型可见工具不是同一概念。后半段只对
+/// 模型可见的五项校验 wire name、别名、schema、风险、副作用和调度元数据。
 fn operation_specs_preserve_model_schema_and_descriptor_projection() {
+    // 该列表冻结 Domain 操作目录的当前完整顺序；测试用精确顺序比较能发现遗漏、重复或重排。
     let expected_operations = [
         "shell.exec",
         "apply_patch",
@@ -150,6 +175,8 @@ fn operation_specs_preserve_model_schema_and_descriptor_projection() {
         }
     }
 
+    // 将模型 schema 作为独立期望值保存在测试中，避免实现端和测试端一起从同一个错误投影
+    // 得到相同结果而漏掉回归。这里描述模型输入，不是内部 action 的结果合同。
     let expected_schemas: Vec<Value> = vec![
         json!({
             "name":"shell",
@@ -194,12 +221,16 @@ fn operation_specs_preserve_model_schema_and_descriptor_projection() {
     ];
     assert_eq!(tool_schemas(), expected_schemas);
 
+    // current() 将 OperationSpec、模型参数 schema 和结果 schema 组合成快照；validate() 检查
+    // 其 digest 与 descriptor 形状，以下断言再逐字段核对公开合同。
     let snapshot = ToolCatalogSnapshot::current();
     snapshot.validate().unwrap();
     assert_eq!(snapshot.schema, TOOL_CATALOG_SCHEMA);
     assert_eq!(snapshot.version, TOOL_CATALOG_VERSION);
     assert_eq!(snapshot.digest, tool_catalog_digest());
     assert_eq!(snapshot.tools.len(), expected_schemas.len());
+    // tuple 顺序与下方断言对应：规范名、wire 名、别名、capability、operation、风险、
+    // 是否有副作用、resource 声明、max_parallelism。并行度只是 batch planner 元数据。
     let expected_tool_metadata = [
         (
             "shell",
@@ -279,6 +310,8 @@ fn operation_specs_preserve_model_schema_and_descriptor_projection() {
         assert_eq!(descriptor.minimum_risk, expected.5);
         assert_eq!(descriptor.side_effecting, expected.6);
         assert_eq!(descriptor.argument_schema, schema["parameters"]);
+        // 模型可见结果 schema 故意与统一 action result schema 区分；两者服务于不同边界，
+        // 不能为了“看起来统一”就直接替换其中一个。
         assert_eq!(descriptor.result_schema, model_tool_result_schema());
         assert_eq!(
             descriptor.result_schema,

@@ -154,3 +154,71 @@ fn resolved_digest_and_role_department_binding_fail_closed() {
         "resolved_assignment_digest_mismatch"
     );
 }
+
+#[test]
+fn resolved_assignment_rejects_zero_valid_from_time() {
+    let (directory, principal, organization_id, project_id, _) = fixtures();
+    let mut forged = directory
+        .resolve(&principal, organization_id, project_id, "builder", 100)
+        .unwrap();
+    forged.valid_from_unix_ms = 0;
+    forged.resolution_digest = forged.digest();
+
+    assert_eq!(
+        forged.validate().unwrap_err(),
+        "resolved_assignment_header_invalid"
+    );
+}
+
+#[test]
+fn assignment_contracts_reject_nil_typed_identity_with_recomputed_digests() {
+    let (directory, principal, organization_id, project_id, _) = fixtures();
+    let role = directory.role_assignments().next().unwrap().clone();
+    for nil_field in 0..3 {
+        let mut forged = role.clone();
+        match nil_field {
+            0 => forged.assignment_id = AssignmentId::from_uuid(uuid::Uuid::nil()),
+            1 => forged.organization_id = OrganizationId::from_uuid(uuid::Uuid::nil()),
+            _ => forged.project_ids[0] = ProjectId::from_uuid(uuid::Uuid::nil()),
+        }
+        forged.assignment_digest = forged.digest();
+        assert_eq!(
+            forged.validate().unwrap_err(),
+            "role_assignment_identity_invalid"
+        );
+    }
+
+    let project_assignment = directory.project_assignments().next().unwrap().clone();
+    for nil_field in 0..4 {
+        let mut forged = project_assignment.clone();
+        match nil_field {
+            0 => forged.project_assignment_id = ProjectAssignmentId::from_uuid(uuid::Uuid::nil()),
+            1 => forged.role_assignment_id = AssignmentId::from_uuid(uuid::Uuid::nil()),
+            2 => forged.organization_id = OrganizationId::from_uuid(uuid::Uuid::nil()),
+            _ => forged.project_id = ProjectId::from_uuid(uuid::Uuid::nil()),
+        }
+        forged.assignment_digest = forged.digest();
+        assert_eq!(
+            forged.validate().unwrap_err(),
+            "project_assignment_identity_invalid"
+        );
+    }
+
+    let resolved = directory
+        .resolve(&principal, organization_id, project_id, "builder", 100)
+        .unwrap();
+    for nil_field in 0..4 {
+        let mut forged = resolved.clone();
+        match nil_field {
+            0 => forged.assignment_id = AssignmentId::from_uuid(uuid::Uuid::nil()),
+            1 => forged.project_assignment_id = ProjectAssignmentId::from_uuid(uuid::Uuid::nil()),
+            2 => forged.organization_id = OrganizationId::from_uuid(uuid::Uuid::nil()),
+            _ => forged.project_id = ProjectId::from_uuid(uuid::Uuid::nil()),
+        }
+        forged.resolution_digest = forged.digest();
+        assert_eq!(
+            forged.validate().unwrap_err(),
+            "resolved_assignment_identity_invalid"
+        );
+    }
+}

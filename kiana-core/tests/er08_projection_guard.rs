@@ -5,8 +5,18 @@ fn er08_run_projection_is_terminal_and_replay_safe() {
     for marker in [
         "project_run_state",
         "RunProjectionError::TerminalConflict",
+        "RunProjectionError::EventRunIdConflict",
+        "RunProjectionError::EventIdentityConflict",
+        "RunProjectionError::IdentityLinksInvalid",
+        "run_event_run_id_conflict",
+        "run_event_run_id_invalid",
+        "run_identity_links_invalid",
+        ".validate_identity_links()",
+        "event_run_id(event)?",
+        "stream_version.is_some()",
+        "Request-local sequence",
         "outcome_for_kind",
-        "seen_keys",
+        "seen_events",
         "run.prompt",
         "run.queued",
         "run.cancelling",
@@ -28,6 +38,18 @@ fn er08_run_projection_is_terminal_and_replay_safe() {
         .find("if outcome.is_some()")
         .expect("late event guard");
     assert!(terminal < late_event_guard);
+    let identity_validation = projection
+        .find(".validate_identity_links()")
+        .expect("identity-link validation boundary");
+    let run_id_validation = projection
+        .find("event_run_id(event)?")
+        .expect("run identity validation boundary");
+    assert!(identity_validation < run_id_validation);
+    assert!(projection.contains("let mut ordered_events = Vec::new()"));
+    assert!(projection.contains("if previous != event"));
+    assert!(projection.contains("run_event_identity_conflict:"));
+    assert!(projection.contains("stream_version.is_some()"));
+    assert!(projection.contains("Request-local sequence"));
     for forbidden in [
         "CapabilityBrokerPort",
         "commit_transition",

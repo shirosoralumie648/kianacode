@@ -77,6 +77,8 @@ pub enum PermissionProfile {
     #[default]
     /// 最保守档位，默认拒绝高风险或未明确授权动作。
     Safe,
+    /// 允许工作区内模型写入，但每个写入能力仍必须经过一次人工审批。
+    Ask,
     /// 允许经过策略与审批的有限动作。
     Balanced,
     /// 请求更宽能力，但仍不能跳过硬拒绝和 ControlPlane。
@@ -951,8 +953,14 @@ impl DepartmentSpec {
         Ok(())
     }
 
-    /// 返回该部门中第一个可主持 symposium 的角色。
+    /// 返回该部门指定且具备主持权限的角色；initiating 由 Sponsor 主持。
     pub fn convene_chair_id(&self) -> Option<String> {
+        if self.department_id == DEPARTMENT_INITIATING
+            && self.roles.iter().any(|role_id| role_id == ROLE_SPONSOR)
+            && RoleSpec::lookup(ROLE_SPONSOR).is_some_and(|role| role.can_convene)
+        {
+            return Some(ROLE_SPONSOR.to_owned());
+        }
         self.roles.iter().find_map(|role_id| {
             RoleSpec::lookup(role_id)
                 .filter(|role| role.can_convene)

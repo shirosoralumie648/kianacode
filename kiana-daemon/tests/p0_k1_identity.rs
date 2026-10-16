@@ -64,9 +64,25 @@ async fn wire_actor_cannot_grant_role_or_department() {
     assert_eq!(rejected.status, ExecutionStatus::Blocked, "{rejected:?}");
     assert_eq!(
         rejected.error.as_deref(),
-        Some("session_assignment_mismatch")
+        Some("port_failed:AUTH_CALLER_UNTRUSTED")
     );
     assert_eq!(rejected.output, serde_json::Value::Null);
+    let events = host.persisted_events().await.unwrap().unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.kind == "run.started")
+            .count(),
+        1,
+        "the forged actor cannot start a second model run"
+    );
+    assert!(!events.iter().any(|event| matches!(
+        event.kind.as_str(),
+        "run.capability_requested"
+            | "execution.prepared"
+            | "execution.started"
+            | "capability.completed"
+    )));
 
     let _ = fs::remove_dir_all(root);
 }

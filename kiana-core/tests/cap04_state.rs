@@ -76,7 +76,7 @@ fn terminal_execution_cannot_transition_to_success_again() {
         ),
     ];
     let error = kiana_core::project_invocations(run_id, &events).unwrap_err();
-    assert_eq!(error, "invocation_state_transition_invalid");
+    assert_eq!(error, "invocation_terminal_conflict");
     let error = kiana_core::project_capability_attempts(run_id, &events).unwrap_err();
     assert!(error
         .to_string()
@@ -121,7 +121,7 @@ fn unknown_effect_cannot_be_projected_as_cancelled() {
         ),
     ];
     let error = kiana_core::project_invocations(run_id, &events).unwrap_err();
-    assert_eq!(error, "invocation_state_transition_invalid");
+    assert_eq!(error, "invocation_terminal_conflict");
     let error = kiana_core::project_capability_attempts(run_id, &events).unwrap_err();
     assert!(error
         .to_string()

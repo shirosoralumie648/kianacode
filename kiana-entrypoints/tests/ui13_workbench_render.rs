@@ -227,6 +227,9 @@ fn render_exposes_collapse_loading_and_total_item_limits() {
         Ok(TimelineApply::Applied)
     );
     let id = renderer.items()[0].id.clone();
+    assert!(renderer.items()[0].collapsed);
+    renderer.toggle_collapsed(&id).unwrap();
+    assert!(!renderer.items()[0].collapsed);
     renderer.toggle_collapsed(&id).unwrap();
     renderer.set_loading(&id, true).unwrap();
     assert!(renderer.items()[0].collapsed);
@@ -259,4 +262,37 @@ fn render_exposes_collapse_loading_and_total_item_limits() {
         .items()
         .iter()
         .any(|item| item.kind == TimelineItemKind::Limit));
+}
+
+#[test]
+fn authorization_redaction_preserves_header_spacing_and_safe_following_lines() {
+    let run_id = run_id("00000000-0000-0000-0000-000000000013");
+    for (input, expected) in [
+        (
+            "Authorization: Bearer fixture-credential",
+            "Authorization: [REDACTED]",
+        ),
+        (
+            "Authorization:\t Basic fixture-credential",
+            "Authorization:\t [REDACTED]",
+        ),
+        (
+            "Authorization:Bearer fixture-credential",
+            "Authorization:[REDACTED]",
+        ),
+        (
+            "Authorization:  Bearer fixture-credential\npublic next line",
+            "Authorization:  [REDACTED]\npublic next line",
+        ),
+    ] {
+        let mut renderer = TimelineRenderer::new(run_id);
+        renderer
+            .apply(&RunStreamEnvelope::new(RunStreamEvent::Delta {
+                run_id,
+                text: input.to_owned(),
+            }))
+            .unwrap();
+        assert_eq!(renderer.items()[0].body, expected);
+        assert!(!renderer.items()[0].body.contains("fixture-credential"));
+    }
 }

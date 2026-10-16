@@ -127,23 +127,21 @@ fn unknown_fence_cursor_and_approval_fail_closed_without_auto_rerun() {
 
 #[test]
 fn reconcile_rejects_cross_target_cursor_digest_and_actor_path_tamper() {
-    let mut cross_cursor = facts(8, 1);
-    cross_cursor[1].source_cursor = 10;
-    cross_cursor[1].fact_digest = cross_cursor[1].digest();
+    let mut cross_cursor = input(ReconcileCommand::Inspect, facts(8, 1));
+    cross_cursor.facts[1].source_cursor = 10;
+    cross_cursor.facts[1].fact_digest = cross_cursor.facts[1].digest();
+    cross_cursor.input_digest = cross_cursor.digest();
     assert_eq!(
-        input(ReconcileCommand::Inspect, cross_cursor)
-            .validate()
-            .unwrap_err(),
+        cross_cursor.validate().unwrap_err(),
         "deployment_reconcile_fact_binding_invalid"
     );
 
-    let mut cross_digest = facts(8, 1);
-    cross_digest[1].source_digest = E.to_owned();
-    cross_digest[1].fact_digest = cross_digest[1].digest();
+    let mut cross_digest = input(ReconcileCommand::Inspect, facts(8, 1));
+    cross_digest.facts[1].source_digest = E.to_owned();
+    cross_digest.facts[1].fact_digest = cross_digest.facts[1].digest();
+    cross_digest.input_digest = cross_digest.digest();
     assert_eq!(
-        input(ReconcileCommand::Inspect, cross_digest)
-            .validate()
-            .unwrap_err(),
+        cross_digest.validate().unwrap_err(),
         "deployment_reconcile_source_digest_mismatch"
     );
 

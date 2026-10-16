@@ -8,6 +8,37 @@
 //! 这里的 `authorization_id` 目前是控制面传入的关联标识，并非密码学签名。Broker 接受
 //! 已授权类型不等于授权已经 durable 或可跨进程验证；这类证明仍属于控制面、事件存储
 //! 和具体授权实现的责任。
+//!
+//! # 本文件在执行链中的位置
+//!
+//! 组合根 `kiana-daemon::DaemonHost` 装配并注册产品允许的 handler（能力处理器），再把
+//! `CapabilityBrokerPort` 注入 `kiana-core::ControlPlane`。ControlPlane 先完成请求规范化、
+//! 信任/权限/策略/Gate/审批与执行范围检查，只有通过后才构造
+//! `AuthorizedCapabilityRequest` 调用此处。Broker 是受控副作用的最后一个通用分发边界，
+//! 不会替上游补做授权，也不会自行创建 Run 或启动第二条模型循环。
+//!
+//! ```text
+//! EntryPoint -> DaemonHost -> ControlPlane
+//!   -> Policy / Gate / Approval / ExecutionScope
+//!   -> CapabilityBrokerPort -> 本文件的 CapabilityBroker
+//!   -> 请求与目录校验 -> 扩展准入 -> 精确 Handler 查找
+//!   -> Connector effect/quota 校验 -> 一次性 ExecutionPermit 校验/消费
+//!   -> CapabilityHandler -> 结果用量校验 -> 回到 ControlPlane
+//!   -> EventStore / Receipt / Runner 或调用方响应
+//! ```
+//!
+//! 这里的关键输入是上游构造的授权请求、其中绑定的 `ExecutionScope` 和一次性 permit；关键
+//! 输出是与同一 `request_id` 对应的 `CapabilityResult`，或由 [`PortError`] 表示的拒绝/端口
+//! 失败。Broker 不直接写 EventStore，Core 的统一 finalizer 负责把结果分类、脱敏、记入
+//! 终态事实并释放资源。handler 返回 `Err` 或结果用量证据不匹配时，Core 还必须结合是否已
+//! 进入执行阶段判断结果能否确认；不能把任意错误文本当成“肯定没有发生副作用”。
+//!
+//! 【阅读顺序】
+//! 先看 `CapabilityBrokerPort for CapabilityBroker` 的 `execute_cancellable()`，理解真正调用
+//! handler 前的验证顺序；再看 `validate_action()` 与 connector 边界 helper；之后读
+//! `CapabilityHandler` / `ExtensionAdmission`，区分静态 handler 与扩展 handler；最后读
+//! 动态工具发现相关的纯候选准入模块。它只判断候选是否满足给定授权面，不产生可执行请求；
+//! 不能因为该模块从 crate 根重导出，就推断它已经接入模型工具面或拥有独立执行能力。
 
 use async_trait::async_trait;
 use kiana_domain::{
@@ -164,6 +195,20 @@ pub trait CapabilityHandler: Send + Sync {
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError>;
 
+    /// 在执行前后观察取消信号，并把可确认的取消结果补齐为统一的 `CapabilityResult`。
+    ///
+    /// 【调用者】`CapabilityBroker` 的可取消端口和 `ExtensionHandler` 会调用此默认实现；
+    /// 具体 handler 只需实现 `execute()` 即可复用这层结果规范化。
+    ///
+    /// 【输入/输出】输入是已通过 Core/Broker 前置校验的授权请求与 Tokio `watch` 接收端；
+    /// 输出仍须带原 `request_id`。开始前已取消时返回 `not_executed=true`，执行返回后才
+    /// 观察到取消时记录完成前后的结果和停止确认。取消信号本身不能撤销已经发生的副作用。
+    ///
+    /// 【为什么不能直接 drop future】
+    /// 异步 future 被丢弃不一定能停止 handler 内部的阻塞工作或子进程；因此这里等待
+    /// `execute()` 自己完成，再由 Core 根据 `stop_confirmed`、`not_executed` 和结果状态
+    /// 决定是 `Cancelled` 还是 `ResultUnknown`。这不是强制终止机制，也不替代 Daemon 的
+    /// ProcessSupervisor。
     async fn execute_cancellable(
         &self,
         request: AuthorizedCapabilityRequest,
@@ -215,6 +260,10 @@ pub trait CapabilityHandler: Send + Sync {
 /// 由 `kiana-daemon` 之类的上层提供，判断某个扩展是否有权处理某类请求。
 ///
 pub trait ExtensionAdmission: Send + Sync {
+    /// 在扩展 handler 真正执行前，重新核对当前授权请求与扩展契约。
+    ///
+    /// 扩展可能在注册后被撤销、过期或替换，因此缓存的 descriptor/contract 不能当作永久
+    /// 授权。返回 `Err` 会阻止 handler 调用，并由 Broker 向 Core 返回结构化端口失败。
     async fn check(
         &self,
         request: &AuthorizedCapabilityRequest,
@@ -1062,6 +1111,8 @@ impl CapabilityBrokerPort for CapabilityBroker {
         request: AuthorizedCapabilityRequest,
         cancellation: tokio::sync::watch::Receiver<bool>,
     ) -> Result<CapabilityResult, PortError> {
+        // 先做请求形状/准备状态与扩展准入，再查精确 handler；这些失败都发生在 handler
+        // 调用前，Core 才能据此将结果标记为 not_executed，而不是把未知副作用混成失败。
         self.validate_action(&request)?;
         self.admit_extensions(&request).await?;
         let key = (
@@ -1078,8 +1129,12 @@ impl CapabilityBrokerPort for CapabilityBroker {
                 PortError::Unavailable(format!("capability_unregistered:{:?}:{}", key.0, key.1))
             })?;
         if *cancellation.borrow() {
+            // 取消信号在 permit 消费前到达，明确表示 handler 尚未开始；Core 可安全记录
+            // `cancelled:before_broker`，而不需要把本次请求升级为 ResultUnknown。
             return Err(PortError::Failed("cancelled:before_broker".to_owned()));
         }
+        // Connector 的 effect/quota 边界和一次性 permit 都必须贴近 handler 调用再次检查。
+        // 前面授权阶段的快照不能覆盖这段等待期间的撤销、过期或并发消费变化。
         validate_connector_effect_boundary(&request, connector_now_unix_ms()?)?;
         validate_connector_quota_boundary(&request, connector_now_unix_ms()?)?;
         self.permit_verifier
@@ -1088,6 +1143,8 @@ impl CapabilityBrokerPort for CapabilityBroker {
             .verify_and_consume(&request)
             .await?;
         let started_at = Instant::now();
+        // 从这里开始可能已经产生外部副作用；后续任何无结构化结果的错误都由 Core
+        // finalizer 按“结果未知”谨慎处理，而不是在 Broker 内自行猜测未执行。
         let result = handler
             .execute_cancellable(request.clone(), cancellation)
             .await?;
@@ -1103,6 +1160,8 @@ impl CapabilityBrokerPort for CapabilityBroker {
         &self,
         request: AuthorizedCapabilityRequest,
     ) -> Result<CapabilityResult, PortError> {
+        // 非可取消路径与上面共享同一套 catalog、扩展、connector、permit 和用量校验；
+        // 不能为了少传一个 watch 就绕过其中任一边界。
         self.validate_action(&request)?;
         self.admit_extensions(&request).await?;
         let key = (

@@ -35,7 +35,7 @@ fn observation(
         0,
         0,
         0,
-        4,
+        if state.is_not_started() { 0 } else { 4 },
         state,
         EventId::new(),
         1,

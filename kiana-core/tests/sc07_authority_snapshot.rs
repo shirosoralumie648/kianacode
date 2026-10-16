@@ -1,8 +1,9 @@
 use kiana_core::{SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA};
 use kiana_domain::{
     json_digest, AssignmentDirectory, AssignmentId, AuthenticatedPrincipalRef, DepartmentSnapshot,
-    DepartmentSpec, OrganizationId, ProjectAssignment, ProjectAssignmentId, ProjectIdentity,
-    ProjectTrustSnapshot, RequestContext, RoleAssignment, RoleAssignmentStatus, SecurityContextId,
+    DepartmentSpec, OrganizationId, ProjectAssignment, ProjectAssignmentId, ProjectId,
+    ProjectIdentity, ProjectTrustSnapshot, RequestContext, RoleAssignment, RoleAssignmentStatus,
+    SecurityContextId,
 };
 use serde_json::json;
 
@@ -139,4 +140,24 @@ fn authority_snapshot_rejects_foreign_role_project_and_untrusted_effect() {
     let mut tampered = snapshot.to_json().unwrap();
     tampered["assignment"]["project_id"] = json!(kiana_domain::ProjectId::new());
     assert!(SecurityAuthoritySnapshot::from_json(&tampered).is_err());
+}
+
+#[test]
+fn authority_snapshot_rejects_nil_assignment_identity_after_digest_recomputation() {
+    let (snapshot, _, _) = fixture(true);
+    let mut assignment = snapshot.assignment.clone();
+    assignment.project_id = ProjectId::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    assignment.resolution_digest = assignment.digest();
+    assert_eq!(
+        SecurityAuthoritySnapshot::from_parts(
+            snapshot.security_context_id,
+            snapshot.principal.clone(),
+            snapshot.project_trust.clone(),
+            assignment,
+            snapshot.department.clone(),
+            snapshot.authority_epoch,
+        )
+        .unwrap_err(),
+        "resolved_assignment_identity_invalid"
+    );
 }

@@ -138,6 +138,7 @@ pub fn parse_args(args: &[String]) -> Result<CompanyFlowRequest, String> {
                 request.permission_profile =
                     match take_value(args, &mut index, "--permission-profile")?.as_str() {
                         "safe" => PermissionProfile::Safe,
+                        "ask" => PermissionProfile::Ask,
                         "balanced" => PermissionProfile::Balanced,
                         _ => return Err("permission_profile_unsupported".to_owned()),
                     };

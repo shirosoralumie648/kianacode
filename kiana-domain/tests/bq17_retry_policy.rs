@@ -24,11 +24,9 @@ fn classifier_allows_only_known_no_effect_429_408_or_pre_send() {
     );
 
     for code in ["provider_http_429", "provider_http_408"] {
-        let rejected = RetryObservation::from_model_error(
-            &error(code, ModelRetryClass::Rejected, true),
-            false,
-            true,
-        );
+        let mut rejection = error(code, ModelRetryClass::Rejected, true);
+        rejection.side_effect_state = ModelSideEffectState::None;
+        let rejected = RetryObservation::from_model_error(&rejection, false, true);
         assert!(
             policy
                 .classify(1, 1, 1_000, &rejected)

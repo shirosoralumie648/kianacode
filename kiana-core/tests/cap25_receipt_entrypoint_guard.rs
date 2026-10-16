@@ -1,11 +1,22 @@
 //! CAP-25 source guard for receipt, result-pairing and four-entry parity.
 
+#[path = "support/source_guard.rs"]
+mod source_guard;
+
 fn require(source: &str, markers: &[&str], label: &str) {
     for marker in markers {
-        assert!(
-            source.contains(marker),
-            "CAP-25 {label} marker missing: {marker}"
-        );
+        let present = if *marker == "stream_gap" {
+            let subscribe = source_guard::item_source(source, "pub(crate) fn subscribe_after(");
+            let code = source_guard::compact_code(&subscribe);
+            code.contains("letgap=!same_epoch||after.is_some_and(|cursor|cursor.sequence>channel.sequence)||channel.sequence>last_sequence;")
+                && code.contains("RunStreamSubscription{")
+                && code.contains("gap,")
+                && source_guard::item_source(source, "pub const fn has_gap(").contains("self.gap")
+                && source_guard::item_source(source, "fn gap_frame(").contains("snapshot_required: true")
+        } else {
+            source.contains(marker)
+        };
+        assert!(present, "CAP-25 {label} marker missing: {marker}");
     }
 }
 
@@ -16,7 +27,11 @@ fn receipts_are_event_projections_with_owner_and_effect_boundaries() {
     let aggregation = include_str!("../../kiana-domain/src/receipt_aggregation.rs");
     let redaction = include_str!("../src/redaction.rs");
     let attempts = include_str!("../src/capability_attempt_projection.rs");
-    let baseline = include_str!("../../docs/roadmap/cap25-receipt-entrypoint-baseline.md");
+    let baseline = &[
+        include_str!("../../docs/roadmap/cap25-receipt-entrypoint-baseline.md"),
+        include_str!("../../docs/roadmap/capability.md"),
+    ]
+    .concat();
 
     require(
         receipts,
@@ -202,7 +217,7 @@ fn all_four_surfaces_share_parity_and_terminal_replay_without_execution() {
             "execute_authorized_request(",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !source_guard::production_source(source).contains(forbidden),
                 "CAP-25 bypass marker present: {forbidden}"
             );
         }

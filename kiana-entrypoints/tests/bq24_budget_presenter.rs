@@ -109,6 +109,8 @@ fn all_four_entrypoints_render_the_same_card_and_parity_refuses_a_divergent_one(
     // A surface that prints its own friendlier remainder is refused at validation.
     let mut frames = parity.frames.clone();
     frames[0].rendered_text = format!("{honest}\nremaining: 999999");
+    // Isolate semantic divergence from an invalid frame seal.
+    frames[0].frame_digest = frames[0].digest();
     let mut forged = BudgetCardParity {
         schema: BUDGET_CARD_PARITY_SCHEMA.to_owned(),
         card_digest: parity.card_digest.clone(),
