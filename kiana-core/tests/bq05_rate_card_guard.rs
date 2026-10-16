@@ -35,6 +35,7 @@ fn rate_card_store_is_pinned_and_unknown_price_is_not_authority() {
         "AudioOutputTokens",
         "Effects",
         "rate_card_version",
+        "self.rate_card_version == 0",
     ] {
         assert!(
             pricing.contains(marker),
