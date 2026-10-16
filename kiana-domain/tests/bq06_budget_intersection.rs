@@ -186,3 +186,100 @@ fn empty_intersection_and_invalid_provider_budget_fail_closed() {
     invalid.provider_id.clear();
     assert_eq!(invalid.validate().unwrap_err(), "provider_budget_invalid");
 }
+
+#[test]
+fn lease_remaining_projection_is_exact_after_partial_usage_and_reservation() {
+    let mut lease = BudgetLease::new(8, 900, 9_000, 4, 6);
+    // Direct admission boundaries: exactly-the-limit is allowed, one more is not.
+    assert!(lease.can_consume(8, 900, 6));
+    assert!(!lease.can_consume(9, 900, 6));
+    assert!(lease.can_reserve(8));
+    assert!(!lease.can_reserve(9));
+
+    lease.consume(2, 100, 1).unwrap();
+    lease.consume_model_call(50).unwrap();
+    lease.reserve(3).unwrap();
+    assert_eq!(lease.remaining_tool_calls(), 6);
+    assert_eq!(lease.remaining_model_calls(), 7);
+    assert_eq!(lease.remaining_tokens(), 750);
+    assert_eq!(lease.remaining_effects(), 5);
+    assert_eq!(lease.remaining_reserved_budget(), 5);
+    // The projection and the admission gate agree at the exact remainder.
+    assert!(lease.can_consume(6, 750, 5));
+    assert!(!lease.can_consume(7, 750, 5));
+
+    let before = (
+        lease.remaining_tool_calls(),
+        lease.remaining_model_calls(),
+        lease.remaining_tokens(),
+        lease.remaining_effects(),
+        lease.remaining_reserved_budget(),
+    );
+    lease.consume(1, 10, 1).unwrap();
+    lease.consume_model_call(10).unwrap();
+    lease.reserve(2).unwrap();
+    assert_eq!(lease.remaining_tool_calls(), 5);
+    assert_eq!(lease.remaining_model_calls(), 6);
+    assert_eq!(lease.remaining_tokens(), 730);
+    assert_eq!(lease.remaining_effects(), 4);
+    assert_eq!(lease.remaining_reserved_budget(), 3);
+    let after = (
+        lease.remaining_tool_calls(),
+        lease.remaining_model_calls(),
+        lease.remaining_tokens(),
+        lease.remaining_effects(),
+        lease.remaining_reserved_budget(),
+    );
+    assert!(
+        after.0 < before.0
+            && after.1 < before.1
+            && after.2 < before.2
+            && after.3 < before.3
+            && after.4 < before.4,
+        "remaining projections must monotonically decrease with usage/reservation"
+    );
+    lease.validate().unwrap();
+}
+
+#[test]
+fn lease_remaining_saturates_at_zero_and_deny_boundaries_hold() {
+    let mut lease = BudgetLease::new(2, 10, 1_000, 1, 1);
+    lease.consume(2, 10, 1).unwrap();
+    lease.reserve(2).unwrap();
+    lease.validate().unwrap();
+
+    assert_eq!(lease.remaining_tool_calls(), 0);
+    assert_eq!(lease.remaining_tokens(), 0);
+    assert_eq!(lease.remaining_effects(), 0);
+    assert_eq!(lease.remaining_reserved_budget(), 0);
+    assert_eq!(lease.remaining_model_calls(), 2);
+
+    assert!(lease.can_consume(0, 0, 0));
+    assert!(!lease.can_consume(1, 0, 0));
+    assert!(!lease.can_consume(0, 1, 0));
+    assert!(!lease.can_consume(0, 0, 1));
+    assert_eq!(lease.consume(1, 0, 0).unwrap_err(), "budget_lease_exceeded");
+    assert_eq!(lease.consume_model_call(1).unwrap_err(), "budget_lease_exceeded");
+    assert!(lease.can_reserve(0));
+    assert!(!lease.can_reserve(1));
+    assert_eq!(lease.reserve(1).unwrap_err(), "spawn_budget_exceeded");
+    lease.release(1).unwrap();
+    assert_eq!(lease.remaining_reserved_budget(), 1);
+    assert!(lease.can_reserve(1));
+
+    // A corrupted over-consumption must saturate to zero, never wrap or widen.
+    lease.tokens_used = 11;
+    assert!(lease.validate().is_err());
+    assert_eq!(lease.remaining_tokens(), 0);
+}
+
+#[test]
+fn lease_remaining_model_calls_uses_normalized_limit_for_legacy_zero() {
+    let mut lease = BudgetLease::new(3, 30, 1_000, 1, 1);
+    lease.max_model_calls = 0;
+    assert_eq!(lease.model_call_limit(), 3);
+    assert_eq!(lease.remaining_model_calls(), 3);
+    lease.consume_model_call(10).unwrap();
+    assert_eq!(lease.remaining_model_calls(), 2);
+    assert_eq!(lease.remaining_tokens(), 20);
+}
