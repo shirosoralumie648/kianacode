@@ -118,6 +118,13 @@ fn deleting_an_object_a_retained_thing_still_points_at_is_refused() {
 #[test]
 fn a_revocation_that_has_not_propagated_blocks_the_deletion() {
     // Four different ways to not have propagated, four different reasons.
+    //
+    // A layer that claims `Tombstoned` without a receipt is refused at construction
+    // (`revocation_observation_receipt_required`, PD-26), so the receipt-missing shape is supplied
+    // as a wire-shaped observation that skipped the constructor. The plan must still refuse it.
+    let mut receiptless = acknowledged(RevocationLayer::Facts);
+    receiptless.receipt_digest = None;
+    receiptless.observation_digest = receiptless.digest();
     let cases = [
         (Vec::new(), "retention_revocation_missing"),
         (
@@ -144,18 +151,7 @@ fn a_revocation_that_has_not_propagated_blocks_the_deletion() {
             .expect("stale epoch")],
             "retention_revocation_epoch_stale",
         ),
-        (
-            vec![RevocationLayerObservation::new(
-                RevocationLayer::Facts,
-                RevocationLayerState::Tombstoned,
-                CURRENT_EPOCH,
-                41u64,
-                None,
-                1_000,
-            )
-            .expect("no receipt")],
-            "retention_revocation_receipt_missing",
-        ),
+        (vec![receiptless], "retention_revocation_receipt_missing"),
     ];
     for (observations, expected) in cases {
         let request = RetentionDeletionRequest::new(
