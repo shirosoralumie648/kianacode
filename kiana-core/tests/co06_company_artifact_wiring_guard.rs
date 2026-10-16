@@ -1,8 +1,9 @@
 //! CI-only source guards for the CO-06 Company persistence boundary.
 //!
 //! These guards intentionally do not claim cross-store atomicity. They pin the ordering that
-//! prevents a denied state transition from publishing a blob and keeps EventLog as the only fact
-//! source while an explicitly injected ArtifactStorePort holds immutable bytes.
+//! prevents a denied state transition from publishing a blob, that a Company fact may only cite a
+//! manifest correlated with the staged bytes and readable back after commit, and that EventLog
+//! stays the only fact source while an explicitly injected ArtifactStorePort holds immutable bytes.
 
 #[test]
 fn artifact_publication_is_after_transition_and_before_company_fact_commit() {
@@ -61,4 +62,30 @@ fn artifact_store_is_explicitly_injected_and_historical_reads_use_the_port() {
     assert!(constructors.contains("pub fn with_artifact_store"));
     assert!(company.contains("store.read_artifact(&reference).await"));
     assert!(company.contains("stage_artifact_version(version, content).await"));
+}
+
+#[test]
+fn artifact_publication_verifies_staged_manifest_and_readback_before_fact() {
+    let source = include_str!("../src/company.rs");
+    let persist_start = source
+        .find("async fn persist_company_artifact")
+        .expect("artifact persistence boundary");
+    let persist = &source[persist_start..];
+    let stage = persist
+        .find("store.stage_artifact_version(version, content).await?")
+        .expect("artifact stage boundary");
+    let manifest_fence = persist
+        .find("company_artifact_staged_manifest_mismatch")
+        .expect("staged manifest correlation fence");
+    let commit = persist
+        .find(".commit_artifact(persisted.as_ref(), Some(persisted.version))")
+        .expect("artifact commit boundary");
+    let readback = persist
+        .find("company_artifact_committed_blob_unverified")
+        .expect("committed blob verification fence");
+    assert!(
+        stage < manifest_fence && manifest_fence < commit && commit < readback,
+        "the admitted manifest must correlate with the staged bytes before commit, and the committed blob must be readable back, before a Company fact may cite it"
+    );
+    assert!(persist.contains(".read_artifact(&persisted.as_ref())"));
 }

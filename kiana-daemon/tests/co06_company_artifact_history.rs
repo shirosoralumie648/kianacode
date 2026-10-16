@@ -12,7 +12,9 @@ use kiana_domain::{
 use kiana_eventlog::JsonlEventLog;
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
-use kiana_ports::{ApprovalStorePort, ArtifactContentPort, EventStorePort, PortError};
+use kiana_ports::{
+    ApprovalStorePort, ArtifactContentPort, ArtifactStorePort, EventStorePort, PortError,
+};
 use kiana_runner::{KianaHarness, ScriptedModel};
 use serde_json::json;
 use std::fs;
@@ -209,7 +211,7 @@ impl Drop for Fixture {
 
 fn company_control_plane(
     events: Arc<dyn EventStorePort>,
-    store: Arc<LocalArtifactStore>,
+    store: Arc<dyn ArtifactStorePort>,
 ) -> ControlPlane {
     let runner = KianaHarness::new(Arc::new(
         ScriptedModel::from_json(&json!([{"text":"unused fixture response"}]))
@@ -938,6 +940,168 @@ async fn artifact_fact_failure_retry_returns_the_persisted_version_and_replays_o
         assert_eq!(
             registered_event_id(reopened_events.as_ref()).await,
             event_id
+        );
+    }
+}
+
+/// Publication-precondition fault: delegate to the real local adapter, but withhold one
+/// precondition of the ControlPlane's committed-artifact fence once. Commit semantics and stored
+/// bytes remain the real adapter's; only the returned manifest or the read-back result is faulty.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ArtifactPublicationFault {
+    StagedManifestMismatch,
+    CommittedBlobUnreadable,
+}
+
+struct FaultyArtifactStore {
+    inner: Arc<LocalArtifactStore>,
+    fault: std::sync::Mutex<Option<ArtifactPublicationFault>>,
+}
+
+impl FaultyArtifactStore {
+    fn take_fault(&self, expected: ArtifactPublicationFault) -> bool {
+        let mut fault = self.fault.lock().expect("fixture fault lock");
+        if *fault == Some(expected) {
+            *fault = None;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[async_trait]
+impl ArtifactStorePort for FaultyArtifactStore {
+    async fn stage_artifact_version(
+        &self,
+        version: kiana_domain::ArtifactVersion,
+        content: Vec<u8>,
+    ) -> Result<kiana_domain::ArtifactVersion, PortError> {
+        let persisted = self.inner.stage_artifact_version(version, content).await?;
+        if self.take_fault(ArtifactPublicationFault::StagedManifestMismatch) {
+            let mut tampered = persisted;
+            tampered.content_hash = kiana_domain::journal_sha256(b"tampered staged manifest");
+            return Ok(tampered);
+        }
+        Ok(persisted)
+    }
+
+    async fn commit_artifact(
+        &self,
+        reference: kiana_domain::ArtifactRef,
+        expected_revision: Option<u64>,
+    ) -> Result<(), PortError> {
+        self.inner
+            .commit_artifact(reference, expected_revision)
+            .await
+    }
+
+    async fn read_artifact(
+        &self,
+        reference: &kiana_domain::ArtifactRef,
+    ) -> Result<Vec<u8>, PortError> {
+        if self.take_fault(ArtifactPublicationFault::CommittedBlobUnreadable) {
+            return Err(PortError::Unavailable(
+                "fixture_committed_blob_unreadable".to_owned(),
+            ));
+        }
+        self.inner.read_artifact(reference).await
+    }
+}
+
+#[tokio::test]
+async fn artifact_publication_denies_uncorrelated_manifest_and_unreadable_commit() {
+    for (fault, expected_code) in [
+        (
+            ArtifactPublicationFault::StagedManifestMismatch,
+            "company_artifact_staged_manifest_mismatch",
+        ),
+        (
+            ArtifactPublicationFault::CommittedBlobUnreadable,
+            "company_artifact_committed_blob_unverified",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+        let inner = Arc::new(fixture_artifact_store(&fixture).await);
+        let store: Arc<dyn ArtifactStorePort> = Arc::new(FaultyArtifactStore {
+            inner: inner.clone(),
+            fault: std::sync::Mutex::new(Some(fault)),
+        });
+        let core = company_control_plane(events.clone(), store);
+        let artifact_id = ArtifactId::new().to_string();
+        fs::write(
+            fixture.root.join("verified.txt"),
+            b"verified immutable bytes\n",
+        )
+        .expect("verified source");
+        let command = CompanyCommand::RegisterArtifact {
+            artifact_id: artifact_id.clone(),
+            relative_path: "verified.txt".to_owned(),
+        };
+
+        let denied = fixture
+            .command(
+                &core,
+                "builder-session",
+                RoleSpec::builder(),
+                0,
+                "verify-artifact-publication",
+                command.clone(),
+            )
+            .await
+            .expect("publication denial is a command response");
+        assert_eq!(
+            denied.status,
+            ExecutionStatus::Blocked,
+            "{fault:?}: {denied:?}"
+        );
+        assert_eq!(
+            denied.error.as_deref(),
+            Some(expected_code),
+            "{fault:?}: {denied:?}"
+        );
+        assert_eq!(
+            company_fact_count(events.as_ref()).await,
+            0,
+            "{fault:?}: a denied publication must not append a Company fact"
+        );
+
+        // The same idempotency key must complete against the first verified manifest once the
+        // adapter no longer withholds the publication precondition.
+        let retried = fixture
+            .command(
+                &core,
+                "builder-session",
+                RoleSpec::builder(),
+                0,
+                "verify-artifact-publication",
+                command,
+            )
+            .await
+            .expect("retry after publication denial");
+        assert_eq!(
+            retried.status,
+            ExecutionStatus::Completed,
+            "{fault:?}: {retried:?}"
+        );
+        assert_eq!(company_fact_count(events.as_ref()).await, 1, "{fault:?}");
+        let fact = registered_company_event(events.as_ref()).await;
+        let persisted = fact
+            .proof
+            .artifact_version
+            .expect("persisted version in Company fact");
+        assert_eq!(
+            ArtifactContentPort::read_artifact(inner.as_ref(), &persisted.as_ref())
+                .await
+                .expect("committed historical bytes"),
+            b"verified immutable bytes\n",
+            "{fault:?}"
+        );
+        assert_eq!(
+            retried.output["state"]["artifacts"][&artifact_id]["typed_version"],
+            json!(persisted),
+            "{fault:?}"
         );
     }
 }
