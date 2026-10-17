@@ -1,8 +1,8 @@
 use kiana_domain::{
     AutomationAuthority, AutomationCommand, AutomationProof, AutomationState, CoreResponse,
     ExecutionStatus, PermissionProfile, RequestContext, RequestId, RoleSpec, RuntimeReceiptRef,
-    SessionId, WorkflowDefinition, WorkflowIncident, WorkflowNode, WorkflowNodeKind,
-    WorkflowNodeStatus,
+    SessionId, WorkflowDefinition, WorkflowEffect, WorkflowIncident, WorkflowInstanceStatus,
+    WorkflowNode, WorkflowNodeKind, WorkflowNodeStatus,
 };
 use kiana_workflow::plan_command;
 use serde_json::json;
@@ -48,7 +48,10 @@ fn definition() -> WorkflowDefinition {
     }
 }
 
-fn reserved_state(a: &AutomationAuthority) -> AutomationState {
+/// Fold the committed reservation facts (definition, start, advance) and return the
+/// planner's optional dispatch intent. The intent is a request for Core, never an
+/// executed effect.
+fn committed_reservation(a: &AutomationAuthority) -> (AutomationState, Option<WorkflowEffect>) {
     let mut state = AutomationState::default();
     let (next, _) = plan_command(
         &state,
@@ -73,7 +76,7 @@ fn reserved_state(a: &AutomationAuthority) -> AutomationState {
     )
     .unwrap();
     state = next;
-    let (next, effect) = plan_command(
+    plan_command(
         &state,
         &AutomationCommand::Advance {
             instance_id: "instance-1".to_owned(),
@@ -81,7 +84,11 @@ fn reserved_state(a: &AutomationAuthority) -> AutomationState {
         a,
         &AutomationProof::default(),
     )
-    .unwrap();
+    .unwrap()
+}
+
+fn reserved_state(a: &AutomationAuthority) -> AutomationState {
+    let (next, effect) = committed_reservation(a);
     assert!(effect.is_some());
     next
 }
@@ -155,4 +162,65 @@ fn unknown_runtime_requires_bound_incident_and_receipt() {
         .unwrap_err(),
         "workflow_incident_required"
     );
+}
+
+#[test]
+fn workflow_replay_does_not_execute_effect() {
+    let a = authority();
+    let (state, effect) = committed_reservation(&a);
+    let dispatch = effect.expect("advance returns a dispatch intent, not an executed effect");
+    let WorkflowEffect::Dispatch {
+        instance_id,
+        node_id,
+        execution_id,
+        ..
+    } = &dispatch
+    else {
+        panic!("agent task advance must return a dispatch intent");
+    };
+    assert_eq!(instance_id, "instance-1");
+    assert_eq!(node_id, "run");
+    assert_eq!(*execution_id, a.execution_id);
+
+    // The planner only reserved the node: it never fabricates a runtime receipt,
+    // incident, output or terminal state before Core observes the effect.
+    let instance = &state.instances["instance-1"];
+    assert!(!instance.status.terminal());
+    let node = &instance.nodes["run"];
+    assert_eq!(node.status, WorkflowNodeStatus::Reserved);
+    assert!(node.runtime_receipt.is_none());
+    assert!(node.incident_id.is_none());
+    assert!(!node.output_recorded);
+    assert!(state.incidents.is_empty());
+
+    // Replaying the same committed facts is deterministic and returns the same intent.
+    let (replayed, replayed_effect) = committed_reservation(&a);
+    assert_eq!(state, replayed);
+    assert_eq!(replayed_effect, Some(dispatch));
+
+    // A repeated Advance against the committed reservation cannot dispatch a second effect.
+    let duplicate = plan_command(
+        &state,
+        &AutomationCommand::Advance {
+            instance_id: "instance-1".to_owned(),
+        },
+        &a,
+        &AutomationProof::default(),
+    );
+    assert_eq!(duplicate.unwrap_err(), "workflow_execution_in_flight");
+
+    // The pure planner has no execution surface at all.
+    let source = include_str!("../src/durable.rs");
+    for marker in [
+        "KianaHarness",
+        "CapabilityBroker",
+        "tokio::spawn",
+        "std::process::Command",
+    ] {
+        assert!(
+            !source.contains(marker),
+            "workflow planner must not execute effects: {marker}"
+        );
+    }
+    assert!(source.contains("WorkflowEffect::Dispatch"));
 }

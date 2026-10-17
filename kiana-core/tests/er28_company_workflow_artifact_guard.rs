@@ -45,6 +45,12 @@ fn er28_keeps_runtime_receipts_incidents_and_business_closeout_separate() {
         "review_runtime_receipt_required",
         "delivery_runtime_receipt_required",
         "closing_runtime_receipt_required",
+        "business_closing_required_acceptance_missing",
+        "business_closing_runtime_evidence_missing",
+        "business_closing_unresolved_effects",
+        "business_evidence_unverified",
+        "runtime_bundle_valid",
+        "BusinessDeliveryStatus::Confirmed",
         "CompanyBusinessAction::Closeout",
         "evidence_refs",
     ] {
@@ -78,4 +84,60 @@ fn er28_keeps_runtime_receipts_incidents_and_business_closeout_separate() {
     assert!(automation.contains("record_workflow_observation"));
     assert!(!workflow.contains("KianaHarness::new"));
     assert!(!workflow.contains("CapabilityBroker::new"));
+}
+
+#[test]
+fn er28_behavioural_fixtures_are_wired_into_the_ci_shards() {
+    let domain_fixture = include_str!("../../kiana-domain/tests/er28_runtime_evidence.rs");
+    let workflow_fixture = include_str!("../../kiana-workflow/tests/er28_workflow_observation.rs");
+    let shards = include_str!("../../scripts/ci/test-shards.json");
+
+    for marker in [
+        "company_success_cannot_be_inferred_from_run_completed",
+        "closing_without_evidence_is_denied",
+        "er28_builder_review_acceptance_delivery_close_refs_rebuild_from_events_and_artifacts",
+        "RuntimeReceiptRef::new",
+        "RuntimeEvidenceBundle::new",
+        "business_closing_required_acceptance_missing",
+        "business_closing_runtime_evidence_missing",
+        "business_closing_unresolved_effects",
+        "business_evidence_unverified",
+        "business_accepted",
+        "BusinessDeliveryStatus::Confirmed",
+        "transition(",
+    ] {
+        assert!(
+            domain_fixture.contains(marker),
+            "ER-28 domain fixture marker missing: {marker}"
+        );
+    }
+    assert!(!domain_fixture.contains("#[ignore"));
+
+    for marker in [
+        "workflow_replay_does_not_execute_effect",
+        "workflow_execution_in_flight",
+        "WorkflowEffect::Dispatch",
+        "WorkflowNodeStatus::Reserved",
+        "runtime_receipt.is_none()",
+        "tokio::spawn",
+    ] {
+        assert!(
+            workflow_fixture.contains(marker),
+            "ER-28 workflow fixture marker missing: {marker}"
+        );
+    }
+    assert!(!workflow_fixture.contains("#[ignore"));
+
+    // The unified CI gate runs the domain/core ER-28 targets through their shards and
+    // auto-discovers every kiana-workflow test target (targets: null).
+    assert!(shards.contains("\"er28_runtime_evidence\""));
+    assert!(shards.contains("\"er28_company_workflow_artifact_guard\""));
+    let start = shards
+        .find("\"kiana-workflow\": {")
+        .expect("kiana-workflow shard entry");
+    let entry = &shards[start..(start + 160).min(shards.len())];
+    assert!(
+        entry.contains("\"targets\": null"),
+        "kiana-workflow shard must auto-discover test targets"
+    );
 }
