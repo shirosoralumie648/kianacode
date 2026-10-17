@@ -32,6 +32,8 @@ reason digest、actor、排序后的 invocation targets、run stream expected ve
 | `cancellation_fact_requires_durable_stop_evidence_for_cancelled` | stopping/unknown 可表达；cancelled 缺 stop confirmation 拒绝；targets canonical |
 | `cancellation_fact_is_strict_and_digest_bound` | unknown field、取消请求标记篡改和 reason digest 违反 strict contract 时拒绝 |
 | `cp15_persists_cancel_before_signal_and_closes_queued_invocations` | source guard 固定 CAS→signal 顺序、command conflict/terminal guard、审批/排队 NotExecuted、terminal/result-unknown boundary |
+| `cp_cancel_approval_dispatch_race_has_one_legal_outcome` | 同一 run 上 cancel 与 approval/dispatch 两种提交顺序各只有一个合法终态：cancel 先赢则零派发、单一 `run.cancelled`、pending invocation 为 `not_executed`，迟到的 approve 返回 Blocked；dispatch 先赢则 broker 恰好执行一次、单一非取消终态、无 `run.cancelling`，随后 cancel 幂等读回既有终态且事件流不变 |
+| `cp_every_queued_invocation_gets_a_terminal_result` | 一个 model step 排队三个写操作时，取消后每个 invocation 都拿到 `not_executed` 终态 `run.tool_result`（`c1`/`c2`/`c3` 各一条，零 `capability.completed`），且 run 只有一个 `run.cancelled` 终态 |
 
 ## 3. Proof ceiling and handoff
 

@@ -23,7 +23,11 @@ jobs:
         run: cargo test -p kiana-domain --test cp15_cancellation --locked -- --test-threads=1
       - name: Run CP-15 source guard
         run: cargo test -p kiana-core --test cp15_cancellation_guard --locked -- --test-threads=1
+      - name: Run CP-15 cancel race and queued terminal fixtures
+        run: cargo test -p kiana-core --test cp15_cancellation_race --locked -- --test-threads=1
       - name: Compile CP-15 domain target
         run: cargo test -p kiana-domain --test cp15_cancellation --no-run --locked
       - name: Compile CP-15 Core guard target
         run: cargo test -p kiana-core --test cp15_cancellation_guard --no-run --locked
+      - name: Compile CP-15 cancel race target
+        run: cargo test -p kiana-core --test cp15_cancellation_race --no-run --locked
