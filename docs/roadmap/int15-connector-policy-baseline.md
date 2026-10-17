@@ -34,11 +34,45 @@ Malformed payload digests remain denied. The INT-15 domain target is green at 6/
 existing R3 final-payload/one-shot fixture and the bare/prefixed boundary fixture; the Core source
 guard is green at 1/1.
 
+## 2026-10-17 completion slice (CI-only)
+
+The 2026-10-17 slice closes the hole the earlier session left in `kiana-core/tests/
+int15_connector_policy_guard.rs`: that guard already `include_str!`-ed a daemon behaviour fixture
+and a manual lane that did not exist, so the guard target could not even compile.
+
+- `kiana-daemon/tests/int15_connector_policy.rs` drives the production
+  `DaemonHost → ControlPlane → Broker → EventStore` path over a hash-pinned `local_fixture`
+  binding (one server-owned operation per risk class) and the existing approval journal.
+  `read_only_risk_is_allowed_and_denials_never_dispatch` proves R0/R1 read-only invokes complete
+  without any approval, that R2 without a server-issued data grant is denied
+  (`connector_data_grant_required`), that a wire-supplied `data_grant`/`connector_approval`
+  argument is refused as `connector_arguments_invalid`, and that the R4 `delete_account` operation
+  is denied (`connector_r4_default_denied`); every denial leaves the `connector.invoked` and
+  `execution.result_committed` counters, the binding revision and the connector stream unchanged.
+  `final_payload_approval_is_one_shot_and_payload_bound` proves R3 stages
+  `connector_final_payload_approval_required` with zero effect, that a different final payload
+  yields a different approval identity and request hash, that a drifted request hash or nonce is
+  refused (`approval_request_hash_mismatch` / `approval_nonce_mismatch`) with zero effect, that
+  only the exact staged final payload dispatches once with a receipt digest equal to
+  `connector_payload_sha256(payload)`, that re-deciding the consumed approval is refused
+  (`approval_not_active`) without a second dispatch, and that repeating the payload needs a fresh
+  approval.
+- `.github/workflows/int15-connector-policy.yml` is the manual `workflow_dispatch` lane for the
+  domain/policy/daemon fixtures plus the Core source guard and the four target compilations.
+- Automatic coverage stays on the unified `ci.yml` shards: `kiana-domain-s3/4`
+  (`int15_connector_policy`), `kiana-core-s4/6` (`int15_connector_policy_guard`) and the whole-crate
+  `kiana-policy` / `kiana-daemon` shards (`targets: null` auto-discovery). `scripts/ci/
+  test-shards.json` is unchanged.
+
+No `Cargo.toml` / `Cargo.lock` / `package.json` change, no new dependency and no second execution
+loop. Local tests, build, check, clippy and smoke commands were not run; only `cargo fmt --all`
+was executed and CI is not awaited.
+
 ## CI-only evidence
 
-GitHub Actions runs the domain/policy fixtures, Core source guard, formatting and workspace test
-target compilation. Local Cargo tests, build, check, clippy and smoke commands are intentionally
-not run and CI is not awaited.
+GitHub Actions runs the domain/policy/daemon fixtures, Core source guard, formatting and workspace
+test target compilation. Local Cargo tests, build, check, clippy and smoke commands are
+intentionally not run and CI is not awaited.
 
 ## Evidence boundary and limitations
 
