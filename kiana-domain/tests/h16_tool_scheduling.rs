@@ -68,12 +68,21 @@ fn dispatch_width_intersects_group_and_environment_limits() {
     let reads = vec![read_call("one"), read_call("two"), read_call("three")];
     let plan = plan_tool_batch(&reads).unwrap();
     let read_group = &plan.groups[0];
-    assert_eq!(read_group.dispatch_width(ToolBatchParallelismCap::new(2, 2, 2)), 2);
-    assert_eq!(read_group.dispatch_width(ToolBatchParallelismCap::new(8, 8, 8)), 4);
+    assert_eq!(
+        read_group.dispatch_width(ToolBatchParallelismCap::new(2, 2, 2)),
+        2
+    );
+    assert_eq!(
+        read_group.dispatch_width(ToolBatchParallelismCap::new(8, 8, 8)),
+        4
+    );
 
     let mixed = vec![read_call("one"), write_call("write"), read_call("two")];
     let mixed = plan_tool_batch(&mixed).unwrap();
-    assert_eq!(mixed.groups[1].dispatch_width(ToolBatchParallelismCap::new(8, 8, 8)), 1);
+    assert_eq!(
+        mixed.groups[1].dispatch_width(ToolBatchParallelismCap::new(8, 8, 8)),
+        1
+    );
 }
 
 #[test]
@@ -81,7 +90,12 @@ fn dispatch_width_intersects_group_and_environment_limits() {
 ///
 /// 这是“按 ordinal 形成模型历史”的纯数据前提；实际历史由 Runner 的批次执行器回填。
 fn dispatch_units_preserve_source_order_across_barriers() {
-    let calls = vec![read_call("a"), read_call("b"), write_call("write"), read_call("c")];
+    let calls = vec![
+        read_call("a"),
+        read_call("b"),
+        write_call("write"),
+        read_call("c"),
+    ];
     let plan = plan_tool_batch(&calls).unwrap();
     let units = plan.dispatch_units().unwrap();
     assert_eq!(units.len(), 4);

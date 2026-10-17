@@ -31,8 +31,15 @@ fn write_barrier_never_overlaps_prior_reads() {
             "H16 barrier marker missing: {marker}"
         );
     }
-    for marker in ["dispatch_width", "join_oldest", "ToolBatchAdmission::NotExecuted"] {
-        assert!(scheduler.contains(marker), "H16 scheduler marker missing: {marker}");
+    for marker in [
+        "dispatch_width",
+        "join_oldest",
+        "ToolBatchAdmission::NotExecuted",
+    ] {
+        assert!(
+            scheduler.contains(marker),
+            "H16 scheduler marker missing: {marker}"
+        );
     }
     assert!(scheduling.contains("exclusive call always drains the preceding group"));
     assert!(scheduling.contains("ToolSchedulingMode::Exclusive"));
@@ -101,18 +108,31 @@ fn h16_behavioural_fixtures_are_wired_and_deny_first() {
         "independent_reads_overlap_but_history_is_source_ordered",
         "concurrency_one_matches_the_serial_batch_contract",
     ] {
-        assert!(fixtures.contains(name), "H16 runner fixture missing: {name}");
+        assert!(
+            fixtures.contains(name),
+            "H16 runner fixture missing: {name}"
+        );
     }
     for name in [
         "parallelism_cap_is_the_intersection_of_run_deployment_and_role",
         "dispatch_width_intersects_group_and_environment_limits",
         "dispatch_units_preserve_source_order_across_barriers",
     ] {
-        assert!(domain_fixtures.contains(name), "H16 domain fixture missing: {name}");
+        assert!(
+            domain_fixtures.contains(name),
+            "H16 domain fixture missing: {name}"
+        );
     }
 
-    for target in ["h16_tool_scheduling", "h16_parallel_barriers", "h16_bounded_parallel"] {
-        assert!(workflow.contains(target), "H16 workflow target missing: {target}");
+    for target in [
+        "h16_tool_scheduling",
+        "h16_parallel_barriers",
+        "h16_bounded_parallel",
+    ] {
+        assert!(
+            workflow.contains(target),
+            "H16 workflow target missing: {target}"
+        );
     }
     assert!(workflow.contains("--test ${{ matrix.target }}"));
 

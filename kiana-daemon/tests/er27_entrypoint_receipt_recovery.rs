@@ -95,7 +95,9 @@ impl RunnerPort for ZeroCallRunner {
 
     async fn restore(&self, _run_id: RunId, _checkpoint: Value) -> Result<(), PortError> {
         self.restores.fetch_add(1, Ordering::SeqCst);
-        Err(PortError::Unavailable("read_only_must_not_restore".to_owned()))
+        Err(PortError::Unavailable(
+            "read_only_must_not_restore".to_owned(),
+        ))
     }
 }
 
@@ -329,7 +331,10 @@ async fn er27_recovery_commands_agree_and_stay_read_only() {
         let envelope = RequestEnvelope::resume_run(metadata(project, entrypoint), Some(run_id));
         let resumed = host.handle(envelope).await;
         assert_eq!(resumed.status, ExecutionStatus::ResultUnknown);
-        assert_eq!(resumed.output["reason"], json!("run_resume_terminal_completed"));
+        assert_eq!(
+            resumed.output["reason"],
+            json!("run_resume_terminal_completed")
+        );
         reasons.push(resumed.error.clone());
 
         // cancel on a terminal run is an idempotent read of the known terminal state.
