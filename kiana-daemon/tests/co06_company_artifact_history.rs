@@ -1514,3 +1514,259 @@ async fn artifact_workspace_delta_shows_original_versus_current_source() {
         .await;
     assert!(unknown.is_err(), "{unknown:?}");
 }
+
+async fn company_artifact_fact(events: &dyn EventStorePort, artifact_id: &str) -> CompanyEvent {
+    events
+        .read_all()
+        .await
+        .expect("canonical EventLog read")
+        .into_iter()
+        .filter(|event| event.kind == "company.ArtifactRegistered")
+        .filter_map(|event| serde_json::from_value::<CompanyEvent>(event.data).ok())
+        .find(|event| {
+            event
+                .proof
+                .artifact
+                .as_ref()
+                .is_some_and(|artifact| artifact.artifact_id == artifact_id)
+        })
+        .expect("registered artifact fact")
+}
+
+/// A readable reference is not evidence by itself. It must belong to this project's authorized
+/// work, still match the admitted snapshot when it is a legacy text reference, and stay
+/// dereferenceable through the injected store. Every denial is checked against the canonical
+/// Company revision so a refused citation can never look like a committed one.
+#[tokio::test]
+async fn company_evidence_rejects_foreign_run_changed_content_and_missing_blob() {
+    let fixture = Fixture::new();
+    let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+    let store = Arc::new(fixture_artifact_store(&fixture).await);
+    let core = company_control_plane(events.clone(), store.clone());
+    let context = fixture.context("reviewer-session", &RoleSpec::reviewer());
+
+    // A committed immutable reference the store materializes.
+    let immutable_id = ArtifactId::new().to_string();
+    let immutable_path = fixture.root.join("admitted-evidence.txt");
+    let admitted = b"admitted evidence snapshot\n";
+    fs::write(&immutable_path, admitted).expect("immutable source");
+    let immutable = fixture
+        .register_artifact(
+            &core,
+            0,
+            "register-admitted-evidence",
+            &immutable_id,
+            "admitted-evidence.txt",
+        )
+        .await;
+    assert_eq!(
+        immutable.status,
+        ExecutionStatus::Completed,
+        "{immutable:?}"
+    );
+
+    // A legacy text-only reference, which follows the workspace instead of a stored version.
+    let legacy_path = fixture.root.join("legacy-evidence.txt");
+    fs::write(&legacy_path, b"legacy admitted snapshot\n").expect("legacy source");
+    let legacy = fixture
+        .register_artifact(
+            &core,
+            1,
+            "register-legacy-evidence",
+            "legacy-evidence",
+            "legacy-evidence.txt",
+        )
+        .await;
+    assert_eq!(legacy.status, ExecutionStatus::Completed, "{legacy:?}");
+    assert_eq!(company_fact_count(events.as_ref()).await, 2);
+
+    // A real EventLog fact for a run this project never authorized: it is readable and carries a
+    // run id, but it is not evidence this workspace owns.
+    let foreign_event = kiana_domain::RuntimeEvent::new(
+        kiana_domain::RequestId::new(),
+        1,
+        "run.observed",
+        json!({"run_id": kiana_domain::RunId::new().to_string()}),
+    )
+    .expect("foreign run event");
+    events
+        .append(foreign_event.clone())
+        .await
+        .expect("foreign run event append");
+
+    // (1) Foreign run reference.
+    let facts_before_foreign = company_fact_count(events.as_ref()).await;
+    let foreign = fixture
+        .command(
+            &core,
+            "reviewer-session",
+            RoleSpec::reviewer(),
+            2,
+            "review-foreign-run-evidence",
+            CompanyCommand::ReviewPacket {
+                packet_id: "unreserved-packet".to_owned(),
+                review_id: "foreign-run-review".to_owned(),
+                criterion_results: Default::default(),
+                evidence_refs: vec![format!("event:{}", foreign_event.event_id)],
+            },
+        )
+        .await
+        .expect("foreign run denial response");
+    assert_eq!(foreign.status, ExecutionStatus::Blocked, "{foreign:?}");
+    assert_eq!(
+        foreign.error.as_deref(),
+        Some("company_evidence_owner_mismatch"),
+        "{foreign:?}"
+    );
+    assert_eq!(
+        company_fact_count(events.as_ref()).await,
+        facts_before_foreign,
+        "a foreign run reference must not append a Company fact"
+    );
+
+    // (2) Unregistered artifact reference.
+    let facts_before_unregistered = company_fact_count(events.as_ref()).await;
+    let unregistered = fixture
+        .command(
+            &core,
+            "reviewer-session",
+            RoleSpec::reviewer(),
+            2,
+            "review-unregistered-artifact",
+            CompanyCommand::ReviewPacket {
+                packet_id: "unreserved-packet".to_owned(),
+                review_id: "unregistered-review".to_owned(),
+                criterion_results: Default::default(),
+                evidence_refs: vec!["artifact:absent-evidence".to_owned()],
+            },
+        )
+        .await
+        .expect("unregistered artifact denial response");
+    assert_eq!(
+        unregistered.status,
+        ExecutionStatus::Blocked,
+        "{unregistered:?}"
+    );
+    assert_eq!(
+        unregistered.error.as_deref(),
+        Some("company_artifact_not_registered"),
+        "{unregistered:?}"
+    );
+    assert_eq!(
+        company_fact_count(events.as_ref()).await,
+        facts_before_unregistered,
+        "an unregistered artifact reference must not append a Company fact"
+    );
+
+    // (3) Changed content: a legacy text reference follows the workspace, so a rewritten source is
+    // no longer the admitted snapshot.
+    fs::write(&legacy_path, b"rewritten legacy snapshot\n").expect("legacy workspace edit");
+    let facts_before_changed = company_fact_count(events.as_ref()).await;
+    let changed = fixture
+        .command(
+            &core,
+            "reviewer-session",
+            RoleSpec::reviewer(),
+            2,
+            "review-changed-legacy-evidence",
+            CompanyCommand::ReviewPacket {
+                packet_id: "unreserved-packet".to_owned(),
+                review_id: "changed-content-review".to_owned(),
+                criterion_results: Default::default(),
+                evidence_refs: vec!["artifact:legacy-evidence".to_owned()],
+            },
+        )
+        .await
+        .expect("changed content denial response");
+    assert_eq!(changed.status, ExecutionStatus::Blocked, "{changed:?}");
+    assert_eq!(
+        changed.error.as_deref(),
+        Some("company_artifact_changed"),
+        "{changed:?}"
+    );
+    assert_eq!(
+        company_fact_count(events.as_ref()).await,
+        facts_before_changed,
+        "a changed legacy reference must not append a Company fact"
+    );
+
+    // (4) Missing blob: the immutable reference must stay dereferenceable through the store.
+    let blob = fixture.artifact_blob_path();
+    let stored = fs::read(&blob).expect("stored historical artifact");
+    assert_eq!(stored.as_slice(), admitted.as_slice());
+    fs::write(&immutable_path, b"rewritten workspace evidence\n").expect("workspace edit");
+    fs::remove_file(&blob).expect("remove committed blob for the deny fixture");
+    let facts_before_missing = company_fact_count(events.as_ref()).await;
+    let missing_blob = fixture
+        .command(
+            &core,
+            "reviewer-session",
+            RoleSpec::reviewer(),
+            2,
+            "review-missing-historical-blob",
+            CompanyCommand::ReviewPacket {
+                packet_id: "unreserved-packet".to_owned(),
+                review_id: "missing-blob-review".to_owned(),
+                criterion_results: Default::default(),
+                evidence_refs: vec![format!("artifact:{immutable_id}")],
+            },
+        )
+        .await
+        .expect_err("a missing committed blob must fail closed");
+    assert!(
+        missing_blob.to_string().contains("artifact_blob_missing"),
+        "{missing_blob}"
+    );
+    assert_eq!(
+        company_fact_count(events.as_ref()).await,
+        facts_before_missing,
+        "a missing committed blob must not append a Company fact"
+    );
+
+    // Exit condition: the admitted original is still reviewable and the projection shows that the
+    // workspace moved on, even though the derived store copy is gone. The committed fact is the
+    // source here, and the projection discloses which source served the original.
+    let delta = core
+        .artifact_workspace_delta(&context, &immutable_id)
+        .await
+        .expect("fact-backed original read-back");
+    assert_eq!(
+        delta.current_state,
+        ArtifactWorkspaceDeltaState::Changed,
+        "{delta:?}"
+    );
+    assert_eq!(delta.historical_size_bytes, admitted.len() as u64);
+    assert!(
+        delta
+            .limitations
+            .contains(&"historical_source_committed_fact".to_owned()),
+        "{delta:?}"
+    );
+    let admitted_fact = company_artifact_fact(events.as_ref(), &immutable_id).await;
+    assert_eq!(
+        admitted_fact
+            .proof
+            .artifact
+            .as_ref()
+            .map(|artifact| artifact.text.as_bytes()),
+        Some(admitted.as_slice())
+    );
+
+    // Restoring the verified blob returns the projection to the immutable store copy.
+    fs::write(&blob, &stored).expect("restore committed blob");
+    let restored = core
+        .artifact_workspace_delta(&context, &immutable_id)
+        .await
+        .expect("store-backed original read-back");
+    assert_eq!(
+        restored.current_state,
+        ArtifactWorkspaceDeltaState::Changed,
+        "{restored:?}"
+    );
+    assert!(
+        !restored
+            .limitations
+            .contains(&"historical_source_committed_fact".to_owned()),
+        "{restored:?}"
+    );
+}

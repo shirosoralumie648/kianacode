@@ -30,6 +30,21 @@ limitations: 本地未编译未运行测试，编译/运行正确性依赖 GitHu
 reviewer: root integration agent；CP-13 静态复核
 ```
 
+### 2026-10-17 CO-06 翻 ✅（fact 兜底历史原件与命名拒绝矩阵，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 065（🔄 → ✅）；docs/roadmap/companyos.md CO-06 卡（标题 → ✅，当前缺口更新）；docs/roadmap/artifact-evidence-baseline.md §20；kiana-core/src/company.rs（artifact_workspace_delta 回读顺序 + fact_backed_original）；kiana-core/tests/co06_company_artifact_wiring_guard.rs（+1 guard）；kiana-daemon/tests/co06_company_artifact_history.rs（+company_evidence_rejects_foreign_run_changed_content_and_missing_blob + company_artifact_fact helper）
+worktree_status: 行 065 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具与共享文档的单点回填；无 Cargo.toml/Cargo.lock/package.json 变化，未改 scripts/ci/test-shards.json（沿用既有 shard 与 co06-artifact-evidence.yml）；未新增执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与 `bash scripts/ci/validate-doc-references.sh`（732 documents，通过）
+cwd·environment: worktree /workspace/kianacode-worktrees/CO-06，分支 step/co-06-20261017-3（基线 master b6cf2ef30290）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: core `co06_company_artifact_wiring_guard` 新增 artifact_original_readback_prefers_the_store_and_verifies_the_fact_fallback（切片内断言 `store.read_artifact(&reference).await` < `historical_source_committed_fact` 标记 < `Self::fact_backed_original(&artifact, &reference)`，且 fact 兜底 helper 必须调用 `validate_artifact_reference_content`）；daemon `co06_company_artifact_history` 新增 company_evidence_rejects_foreign_run_changed_content_and_missing_blob（真实 ControlPlane/CompanyProof 链：追加一条本项目从未授权 run 的可读 RuntimeEvent 后引用它 → company_evidence_owner_mismatch；`artifact:absent-evidence` → company_artifact_not_registered；legacy 文本引用被改写 → company_artifact_changed；已提交 immutable 引用 blob 被删 → artifact_blob_missing 且为 fail-closed error，四种拒绝各断言 canonical Company fact count 不变；随后移除 blob 时 `artifact_workspace_delta` 报 Changed + limitations 含 `historical_source_committed_fact` + historical_size_bytes=批准原件长度，并断言已提交 fact 快照仍等于批准原件；恢复已验证 blob 后该标记消失）；既有 fixture/guard 不改
+exit_code: 本地未运行；CI 回执未等待
+status_change: 卡片命名的先拒绝夹具（company_evidence_rejects_foreign_run_changed_content_and_missing_blob）与再成功夹具（artifact_version_remains_reviewable_after_workspace_file_changes）均在树内且接入既有 CO-06 CI 目标，row 065 提升 ✅（CI pending）；历史原件在 derived store copy 丢失/损坏/未注入 store 时改用已提交 Company fact 的有界快照，且必须先重新对 typed reference 做 content-hash 校验才回读，投影 discloses 来源（`historical_source_committed_fact`），绝不读可变工作区；拒绝路径不追加状态型 Company fact
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行测试，编译/运行正确性依赖 GitHub Actions；fact 兜底只在 store 读失败时生效，不替代真正的单事务跨 store 原子提交（仅可恢复 outbox 协议，崩溃/掉电语义未证明）；orphan retention 仅 policy-gated plan/apply（跨进程 orphan deletion/GC、journal compaction 未做）；UI 差异渲染属 UI-22；durable/live/physical proof 未获
+reviewer: root integration agent；CO-06 fact 兜底回读、guard 顺序与命名拒绝矩阵静态复核
+```
+
 ### 2026-10-17 SC-10 翻 ✅（approver scope 与一次性消费回执，CI-only 口径）
 
 ```text
