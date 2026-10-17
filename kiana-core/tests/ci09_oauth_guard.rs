@@ -35,6 +35,7 @@ fn oauth_workload_identity_lifecycle_is_provider_owned_and_fail_closed() {
         "refresh_notify",
         "refresh_cooldown_until",
         "GenerationConflict",
+        "invalidate_if_current",
         "RefreshFailure::Transient",
         "RefreshFailure::Permanent",
         "RefreshFailure::Revoked",
