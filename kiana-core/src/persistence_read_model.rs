@@ -2,10 +2,10 @@
 
 use crate::receipts::{receipt_from_events, try_filter_run_events};
 use crate::{
-    project_invocations, project_run_state, InvocationProjection, RunOutcome, RunPhase,
-    RunProjectionError, RunState,
+    project_capability_attempts, project_invocations, project_run_state, InvocationProjection,
+    RunOutcome, RunPhase, RunProjectionError, RunState,
 };
-use kiana_domain::{EventId, RequestContext, RunId, RuntimeEvent};
+use kiana_domain::{CapabilityAttemptRecord, EventId, RequestContext, RunId, RuntimeEvent};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -51,6 +51,10 @@ pub struct PersistenceReadModel {
     pub source_event_ids: Vec<EventId>,
     pub run: ProjectedRunState,
     pub invocations: Vec<InvocationProjection>,
+    /// Committed capability/effect attempts keyed by `(request_id, attempt)`, folded from the same
+    /// facts. Every record stays bound to this run; a result fact without its attempt facts makes
+    /// the whole projection fail instead of inventing an attempt.
+    pub attempts: Vec<CapabilityAttemptRecord>,
     pub receipt: Value,
 }
 
@@ -71,6 +75,13 @@ impl PersistenceReadModel {
             .collect::<HashSet<_>>();
         if unique.len() != self.source_event_ids.len() {
             return Err("persistence_read_model_event_duplicate".to_owned());
+        }
+        if self
+            .attempts
+            .iter()
+            .any(|attempt| attempt.run_id != Some(self.run_id))
+        {
+            return Err("persistence_read_model_attempt_scope_invalid".to_owned());
         }
         if self.receipt.get("run_id") != Some(&json!(self.run_id)) {
             return Err("persistence_read_model_receipt_run_mismatch".to_owned());
@@ -135,6 +146,8 @@ pub fn project_persistence_read_model(
         .into();
     let invocations = project_invocations(run_id, &run_events)
         .map_err(|error| format!("persistence_read_model_invocation:{error}"))?;
+    let attempts = project_capability_attempts(run_id, &run_events)
+        .map_err(|error| format!("persistence_read_model_attempt:{error}"))?;
     let mut receipt = receipt_from_events(context, run_id, "read-only", Value::Null, &run_events);
     if let Some(object) = receipt.as_object_mut() {
         object.insert("source_cursor".to_owned(), json!(source_cursor));
@@ -149,6 +162,7 @@ pub fn project_persistence_read_model(
         source_event_ids,
         run,
         invocations,
+        attempts,
         receipt,
     };
     model.validate()?;
