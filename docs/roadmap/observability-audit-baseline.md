@@ -231,7 +231,7 @@
 | OA-17 | Query cursor/snapshot/paging and slow-query boundary | `source`；`EventLogCursorSnapshot`（committed/durable/retained cursor + digest）经 `EventStorePort::cursor_snapshot` 在 memory/jsonl/装饰器落地，core 拒绝越界、撤销前缀、projection lag、snapshot ahead 与超限扫描，响应携带只读 snapshot 与有界 `AuditQueryScan`，reconnect/多客户端/伪造快照夹具已接线；尚无 durable query index/retention 前缀真实裁剪、跨入口 reconnect parity（OA-24）、wall-clock 慢查询 telemetry 或 multi-entry cursor store |
 | OA-18 | Audit export/manifest/delivery evidence | `source`；server-scoped redacted JSONL/JSON/CSV materializer、query/source/projection/artifact manifest hashes、purpose/recipient/retention guards 和 Unknown delivery receipt 已实现；尚无 durable ArtifactStore/export file、external delivery connector/confirmation 或 export audit fact |
 | OA-19 | Alert/Incident rules, dedupe and Recovery association | `source`；committed metrics/facts 规则 fingerprint 去重、bounded Alert/Incident snapshot、source cursor/event refs、固定 reconciliation-safe recovery plan 已实现；尚无 durable incident checkpoint/event, operator workflow, queue/exporter live state or automatic reconciliation |
-| OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map 和 daemon policy integrity/readout 已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
+| OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map、daemon policy integrity/readout，以及逐目标删除结算面（`holds_payload`/`settled`/`settle`/`require_payload_coverage`/`require_complete` 与 `data_governance_project_scope_mismatch`/`data_governance_project_root_missing` 项目范围裁决）已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
 | OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Health/Span comparison、bounded divergence locator、projection digests、unknown/schema/gap/duplicate guards 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
 | OA-22 | Crash/fault injection | `source`；deterministic replay-only eight-point FaultMatrix/Case safety contract、seed/source binding、unknown/rejected fencing and duplicate/false-success invariants 已实现；尚无 real crash/process fault hooks, EventStore/Broker/Provider/projector/export/shutdown injection, durable recovery or cross-process resource proof |
 | OA-23 | Provider-independent eval suite | `source`；versioned EvalCaseSpec/Result/Suite、normalized event/Audit/Metric/Span/Run/Replay evidence、secret/forbidden-effect/missing-evidence/status/replay/cost guards、promote only all-pass 已实现；尚无 real provider eval, Promptfoo runner, durable eval artifact, external receipt or automatic promotion/rollback |
@@ -724,6 +724,27 @@ retained audit metadata、pending/committed revocation propagation、cursor gap/
 和 raw payload absence；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该切片仍是
 source governance projection，不等价于 durable policy/snapshot store、跨进程 deletion scheduler、legal hold、
 Artifact/Memory/Index/Telemetry 实际 purge、external retention 或 live deletion proof。
+
+### OA-20 completion slice（2026-10-17, CI-only）
+
+删除传播现在有逐目标结算面：`DataPropagationTarget::holds_payload()` 把 receipt/artifact/memory/index/cache/
+checkpoint/export 识别为载荷 store（`event_projection` 是被封存源事实、`audit` 只保留元数据），
+`DataPropagationReceipt::settled()` 拒绝把 `Unknown` 伪装成已完成回执，`DataPropagationPlan::settle()` 只接受
+绑定同一 project/previous·next epoch/source cursor/tombstone digest 的回执（
+`data_propagation_receipt_binding_mismatch`/`data_propagation_receipt_not_settled`），被拒绝的回执不改动任何槽位或
+plan digest。`unresolved_payload_targets()`/`require_payload_coverage()`/`require_complete()` 让「只清理
+UI/cache」稳定失败（`data_propagation_payload_coverage_incomplete`/`data_propagation_targets_unresolved`）。
+
+项目范围由服务端裁决：`project_data_governance_snapshot()` 对 `data.revocation_requested`/
+`workspace.restore_requested`/`workspace.restored` 与治理结果的 `project_root` 要求与快照项目规范化一致
+（外来 `data_governance_project_scope_mismatch`、缺归属 `data_governance_project_root_missing`），
+`ControlPlane::data_governance_snapshot()` 在全局账本上剔除其他项目的事实、保留畸形事实交给投影失败关闭，
+修掉原注释自认的跨项目污染缺口。夹具覆盖 cache-only 拒绝、回执绑定漂移、raw payload/spool 解码拒绝、
+审计元数据不构成读取许可、逐 store 结算的成功列与同一已提交事实的重启稳定重建；manual lane 为
+`.github/workflows/oa20-data-governance.yml`，自动覆盖登记在 `kiana-core-s5/6` 与 `kiana-domain-s3/4` 分片。
+
+限制不变：没有 durable policy/snapshot checkpoint、实际 purge scheduler、exporter/spool 端到端清扫、
+legal hold 外部裁定或跨进程 deletion 证据；proof ceiling 仍是 `source`（CI 回执未等待）。
 
 ## 27. OA-21 叠加说明
 
