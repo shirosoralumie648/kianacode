@@ -1,0 +1,31 @@
+name: "EXT-27 · Extension visibility projection"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ext27-extension-visibility:
+    name: "EXT-27 · Extension visibility projection"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-domain ext27_visibility
+        run: cargo test -p kiana-domain --test ext27_visibility --locked -- --test-threads=1
+      - name: Run kiana-core ext27 visibility guard
+        run: cargo test -p kiana-core --test ext27_visibility_guard --locked -- --test-threads=1
+      - name: Compile kiana-daemon library tests
+        run: cargo test -p kiana-daemon --lib --locked --no-run
+      - name: Run kiana-daemon ext27 visibility fixtures
+        run: cargo test -p kiana-daemon --lib ext27_visibility --locked -- --test-threads=1
+      - name: Run kiana-entrypoints ext27 cross-surface fixture
+        run: cargo test -p kiana-entrypoints --test ext27_extension_visibility --locked -- --test-threads=1

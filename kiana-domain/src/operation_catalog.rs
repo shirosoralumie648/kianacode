@@ -8,6 +8,10 @@ pub enum DynamicRiskRule {
     SandboxMode,
     WorkspaceTransactionAction,
     ListOrInspectExternal,
+    /// EXT-27: the read-only visibility actions of the shared `extension.manage` surface.
+    /// `list`, `search` and `inspect` read the same trust-filtered projection; every other
+    /// action changes local extension state and stays an external effect.
+    ExtensionVisibilityAction,
     ListExternal,
     ConnectorInvocation,
 }
@@ -378,7 +382,7 @@ define_operation_catalog! {
     "extension.manage" => {
         capability: CapabilityKind::Filesystem;
         minimum_risk: RiskLevel::ReadOnly;
-        risk_rule: DynamicRiskRule::ListOrInspectExternal;
+        risk_rule: DynamicRiskRule::ExtensionVisibilityAction;
         operator_only: false;
         resources: &["action", "project_root"];
         effect: "operator_management";

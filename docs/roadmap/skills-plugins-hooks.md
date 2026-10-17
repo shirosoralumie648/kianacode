@@ -372,6 +372,8 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 当前 source slice 与 CI-only 证据见 [`ext27-extension-visibility-baseline.md`](ext27-extension-visibility-baseline.md)。CLI、Workbench、Web、Desktop 的 list/search/inspect/activate/revoke 读取同一个 `ExtensionVisibilitySnapshot`；投影只展示用户有权看到的摘要、状态、来源和风险，不展示未信任正文、secret、隐藏路径或内部 command。结果带 snapshot id 和 generation，`require_generation` 拒绝跨代 UI 缓存；动作只是 intent，仍须返回 ControlPlane/Broker 重检。与 CAP-30 对接时，工具仍须经过受控工具集合和 Broker。
 
+完成切片（2026-10-17，CI-only，卡保持 🔄）：补上本卡「Entry projection」门的行为夹具与 read-only 分类修复——`normalize_extension_command` 把 `search` 与 `list`/`inspect` 一起判为 `RiskLevel::ReadOnly`（此前 search 会被当成变更，缺 `extension_mutation_fields_required` 而拒绝）；新增 `kiana-entrypoints/tests/ext27_extension_visibility.rs`（真实 `DaemonHost` + 共享 adapter：未知信任项目 `Blocked`/`project_untrusted` 且不回显任何项目素材；受信项目里 Skill 正文/定位符/secret 不可搜索、摘要脱敏；CLI/Workbench/Web/Desktop 读到同一 `snapshot_id`/`generation`/`snapshot_digest`/entries；素材变化后 `require_generation` 双向拒绝旧缓存）与 daemon 侧 `ext27_visibility_*` 库夹具（未知信任降级为 stale 且无 activate、角色漂移不投影、越界 query 拒绝、跨 registry generation 的缓存身份拒绝）；`.github/workflows/ext27-extension-visibility.yml` 恢复 manual lane；本地不运行测试，proof-level 维持 `source`。
+
 <a id="step-ext-28"></a>
 
 

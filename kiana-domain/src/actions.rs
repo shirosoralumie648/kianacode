@@ -229,6 +229,18 @@ pub fn capability_action_minimum_risk(
                 RiskLevel::ExternalSideEffect
             }
         }
+        // EXT-27：`search` 与 `list`/`inspect` 一样只读同一条 trust-filtered 可见性投影，
+        // 不能被当成 external effect 而拒绝；其余 action 仍改本地扩展状态。
+        DynamicRiskRule::ExtensionVisibilityAction => {
+            if matches!(
+                arguments["action"].as_str(),
+                Some("list" | "search" | "inspect")
+            ) {
+                RiskLevel::ReadOnly
+            } else {
+                RiskLevel::ExternalSideEffect
+            }
+        }
         DynamicRiskRule::ListExternal => {
             if arguments["action"] == "list" {
                 RiskLevel::ReadOnly
