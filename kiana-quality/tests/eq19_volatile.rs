@@ -91,7 +91,7 @@ fn undeclared_volatile_value_is_not_silently_normalized() {
     // Every volatile-looking value must fail closed unless a rule declares its path.
     let cases = [
         (
-            json!({"arguments": "550e8400-e29b-41d4-a716-446655440000"}),
+            json!("550e8400-e29b-41d4-a716-446655440000"),
             VolatileKind::Uuid,
             "events[0].data.arguments",
         ),
