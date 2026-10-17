@@ -1,4 +1,5 @@
 use kiana_daemon::eval_runtime::{EvalFaultDisposition, EvalFaultKind, EvalFaultPlan};
+use kiana_domain::EvalVerdict;
 
 #[test]
 fn fault_plan_preserves_unknown_and_stop_evidence() {
@@ -13,6 +14,18 @@ fn fault_plan_preserves_unknown_and_stop_evidence() {
     assert!(!evidence.stop_confirmed);
     assert!(evidence.requires_reconciliation);
     assert_eq!(evidence.terminal_code, "cancel_race_unknown");
+    // An unconfirmed started effect can never be reported as a passing evaluation.
+    evidence.validate().unwrap();
+    assert!(evidence.blocks_eval_pass());
+    assert_eq!(
+        evidence.apply_fault_invariant(EvalVerdict::Pass),
+        EvalVerdict::Blocked
+    );
+    // Non-passing verdicts are preserved unchanged; only `Pass` is downgraded.
+    assert_eq!(
+        evidence.apply_fault_invariant(EvalVerdict::Fail),
+        EvalVerdict::Fail
+    );
 
     let mut stopped = EvalFaultPlan::new(EvalFaultKind::CancelRace);
     stopped.stop_confirmed = true;
@@ -23,6 +36,12 @@ fn fault_plan_preserves_unknown_and_stop_evidence() {
     );
     assert!(evidence.effect_known);
     assert!(!evidence.requires_reconciliation);
+    // A cancel that is confirmed before any effect is a known outcome and clears the gate.
+    assert!(!evidence.blocks_eval_pass());
+    assert_eq!(
+        evidence.apply_fault_invariant(EvalVerdict::Pass),
+        EvalVerdict::Pass
+    );
 }
 
 #[test]
@@ -87,4 +106,38 @@ fn fault_plan_rejects_tamper_and_unsafe_combinations() {
     let mut lease = EvalFaultPlan::new(EvalFaultKind::StaleLease);
     lease.plan_digest = lease.digest();
     assert_eq!(lease.validate().unwrap_err(), "eval_fault_lease_not_stale");
+}
+
+#[test]
+fn fault_evidence_rejects_digest_or_disposition_tamper() {
+    let evidence = EvalFaultPlan::new(EvalFaultKind::ResultUnknown)
+        .apply()
+        .unwrap();
+    evidence.validate().unwrap();
+    assert!(evidence.requires_reconciliation);
+    assert!(evidence.blocks_eval_pass());
+
+    // A rewritten evidence digest is rejected before it can be trusted.
+    let mut tampered_digest = evidence.clone();
+    tampered_digest.evidence_digest = "sha256:tampered".to_owned();
+    assert_eq!(
+        tampered_digest.validate().unwrap_err(),
+        "eval_fault_evidence_invalid"
+    );
+
+    // Rewriting the disposition without re-sealing the digest is caught by the same binding.
+    let mut tampered_disposition = evidence.clone();
+    tampered_disposition.disposition = EvalFaultDisposition::Denied;
+    assert_eq!(
+        tampered_disposition.validate().unwrap_err(),
+        "eval_fault_evidence_invalid"
+    );
+
+    // A missing plan digest is not a valid fault evidence record.
+    let mut missing_plan = evidence.clone();
+    missing_plan.plan_digest = String::new();
+    assert_eq!(
+        missing_plan.validate().unwrap_err(),
+        "eval_fault_evidence_invalid"
+    );
 }

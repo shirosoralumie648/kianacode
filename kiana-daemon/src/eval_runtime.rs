@@ -1068,7 +1068,52 @@ impl EvalFaultPlan {
             evidence_digest: String::new(),
         };
         evidence.evidence_digest = json_digest(&evidence_without_digest(&evidence));
+        evidence.validate()?;
         Ok(evidence)
+    }
+}
+
+impl EvalFaultEvidence {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVAL_FAULT_PLAN_SCHEMA
+            || !valid_sha256_digest(&self.plan_digest)
+            || !valid_sha256_digest(&self.evidence_digest)
+            || !bounded_label(&self.terminal_code)
+            || self.evidence_digest != json_digest(&evidence_without_digest(self))
+        {
+            return Err("eval_fault_evidence_invalid".to_owned());
+        }
+        match self.disposition {
+            EvalFaultDisposition::UnknownReconcile => {
+                if self.effect_known || !self.requires_reconciliation {
+                    return Err("eval_fault_evidence_disposition_inconsistent".to_owned());
+                }
+            }
+            EvalFaultDisposition::Denied | EvalFaultDisposition::CancelledNotStarted => {
+                if !self.effect_known || self.requires_reconciliation {
+                    return Err("eval_fault_evidence_disposition_inconsistent".to_owned());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// A fault whose effect outcome is not known, or that still needs reconciliation, can never
+    /// contribute to a passing evaluation. Only a fully known outcome clears this gate.
+    pub fn blocks_eval_pass(&self) -> bool {
+        self.requires_reconciliation || !self.effect_known
+    }
+
+    /// Fail-closed bridge to the domain evaluation verdict: a candidate `Pass` is preserved only
+    /// when this fault produced a known outcome that needs no reconciliation. An unknown or
+    /// unconfirmed effect downgrades `Pass` to `Blocked`, so an unreconciled fault can never be
+    /// reported as an evaluation pass.
+    pub fn apply_fault_invariant(&self, verdict: EvalVerdict) -> EvalVerdict {
+        if self.blocks_eval_pass() && verdict == EvalVerdict::Pass {
+            EvalVerdict::Blocked
+        } else {
+            verdict
+        }
     }
 }
 
