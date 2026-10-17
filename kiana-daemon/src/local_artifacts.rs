@@ -6,17 +6,25 @@
 
 use crate::local_packages::{failed, sha256, LocalDir};
 use async_trait::async_trait;
-use kiana_domain::{ArtifactRef, ArtifactVersion, DataPropagationReceipt, MAX_ARTIFACT_BYTES};
+use kiana_domain::{
+    ArtifactPublicationIntent, ArtifactPublicationState, ArtifactRef, ArtifactVersion,
+    DataPropagationReceipt, EventId, MAX_ARTIFACT_BYTES,
+};
 use kiana_ports::{ArtifactContentPort, ArtifactStorePort, PortError};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 const MANIFEST_SCHEMA: &str = "kiana.local-artifact-manifest.v1";
 const STAGE_SCHEMA: &str = "kiana.local-artifact-stage.v1";
 const COMMIT_SCHEMA: &str = "kiana.local-artifact-commit.v1";
+/// Append-only publication journal. It is a recovery sidecar, not a fact source: the EventLog
+/// remains the only authority for whether a Company command committed.
+const PUBLICATION_JOURNAL: &str = "publications.log";
 const MAX_MANIFEST_BYTES: usize = 32 * 1024;
 const MAX_MARKER_BYTES: usize = 4096;
+const MAX_JOURNAL_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -54,6 +62,33 @@ impl LocalArtifactStore {
         Ok(Self {
             root: Arc::new(opened),
         })
+    }
+
+    /// Latest publication-journal record for a logical Company command, if any. Read-only; the
+    /// journal never authorizes a fact or a blob mutation.
+    pub async fn publication_intent(
+        &self,
+        command_id: &str,
+    ) -> Result<Option<ArtifactPublicationIntent>, PortError> {
+        let command_id = command_id.to_owned();
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .read_journal()
+            .map(|intents| {
+                intents
+                    .into_iter()
+                    .find(|intent| intent.command_id == command_id)
+            })
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_publication_journal_join_failed:{error}"
+            ))
+        })?
     }
 
     fn validate_content(version: &ArtifactVersion, content: &[u8]) -> Result<(), PortError> {
@@ -197,6 +232,124 @@ impl LocalArtifactStore {
         )?;
         Self::validate_content(&manifest.version, &bytes)?;
         Ok((manifest.version, bytes))
+    }
+
+    /// Read the append-only publication journal and reduce it to the latest record per command id.
+    /// A journal that outgrows the bounded read window is reported as full instead of being read
+    /// partially, so a restart cannot act on a truncated record set.
+    fn read_journal(&self) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        let bytes = match self
+            .root
+            .read_optional(PUBLICATION_JOURNAL, MAX_JOURNAL_BYTES)
+        {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => return Ok(Vec::new()),
+            Err(PortError::Failed(reason)) if reason == "package_size_exceeded" => {
+                return Err(PortError::Conflict(
+                    "artifact_publication_journal_full".to_owned(),
+                ))
+            }
+            Err(error) => return Err(error),
+        };
+        let mut latest: BTreeMap<String, ArtifactPublicationIntent> = BTreeMap::new();
+        for line in bytes.split(|byte| *byte == b'\n') {
+            if line.is_empty() {
+                continue;
+            }
+            let intent: ArtifactPublicationIntent =
+                Self::decode(line, "artifact_publication_journal_invalid")?;
+            intent
+                .validate()
+                .map_err(|error| failed(format!("artifact_publication_journal_invalid:{error}")))?;
+            latest.insert(intent.command_id.clone(), intent);
+        }
+        Ok(latest.into_values().collect())
+    }
+
+    fn append_publication_record(
+        &self,
+        intent: &ArtifactPublicationIntent,
+    ) -> Result<(), PortError> {
+        intent
+            .validate()
+            .map_err(|error| failed(format!("artifact_publication_invalid:{error}")))?;
+        let mut line = Self::encode(intent, "artifact_publication_encode_failed")?;
+        line.push(b'\n');
+        let current = match self
+            .root
+            .read_optional(PUBLICATION_JOURNAL, MAX_JOURNAL_BYTES)
+        {
+            Ok(Some(bytes)) => bytes.len(),
+            Ok(None) => 0,
+            Err(PortError::Failed(reason)) if reason == "package_size_exceeded" => {
+                MAX_JOURNAL_BYTES + 1
+            }
+            Err(error) => return Err(error),
+        };
+        if current + line.len() > MAX_JOURNAL_BYTES {
+            return Err(PortError::Conflict(
+                "artifact_publication_journal_full".to_owned(),
+            ));
+        }
+        self.root.append(PUBLICATION_JOURNAL, &line)
+    }
+
+    fn record_publication_intent_sync(
+        &self,
+        intent: &ArtifactPublicationIntent,
+    ) -> Result<(), PortError> {
+        if !intent.is_pending() {
+            return Err(PortError::Conflict(
+                "artifact_publication_intent_not_pending".to_owned(),
+            ));
+        }
+        self.append_publication_record(intent)
+    }
+
+    fn resolve_publication_intent_sync(
+        &self,
+        command_id: &str,
+        state: ArtifactPublicationState,
+        event_id: Option<EventId>,
+        resolved_at_unix_ms: u64,
+    ) -> Result<ArtifactPublicationIntent, PortError> {
+        if state == ArtifactPublicationState::Pending {
+            return Err(PortError::Conflict(
+                "artifact_publication_state_invalid".to_owned(),
+            ));
+        }
+        let latest = self
+            .read_journal()?
+            .into_iter()
+            .find(|intent| intent.command_id == command_id)
+            .ok_or_else(|| {
+                PortError::Unavailable("artifact_publication_intent_missing".to_owned())
+            })?;
+        if !latest.is_pending() {
+            if latest.state != state || latest.resolved_event_id != event_id {
+                return Err(PortError::Conflict(
+                    "artifact_publication_already_resolved".to_owned(),
+                ));
+            }
+            return Ok(latest);
+        }
+        let resolved = latest
+            .resolved(state, event_id, resolved_at_unix_ms)
+            .map_err(failed)?;
+        self.append_publication_record(&resolved)?;
+        Ok(resolved)
+    }
+
+    fn pending_publication_intents_sync(
+        &self,
+    ) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        let mut pending: Vec<ArtifactPublicationIntent> = self
+            .read_journal()?
+            .into_iter()
+            .filter(ArtifactPublicationIntent::is_pending)
+            .collect();
+        pending.sort_by(|left, right| left.command_id.cmp(&right.command_id));
+        Ok(pending)
     }
 
     fn stage_version_sync(
@@ -433,6 +586,72 @@ impl ArtifactStorePort for LocalArtifactStore {
         Err(PortError::Unavailable(
             "artifact_invalidation_unsupported".to_owned(),
         ))
+    }
+
+    async fn record_publication_intent(
+        &self,
+        intent: &ArtifactPublicationIntent,
+    ) -> Result<(), PortError> {
+        let intent = intent.clone();
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .record_publication_intent_sync(&intent)
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_publication_journal_join_failed:{error}"
+            ))
+        })?
+    }
+
+    async fn resolve_publication_intent(
+        &self,
+        command_id: &str,
+        state: ArtifactPublicationState,
+        event_id: Option<EventId>,
+        resolved_at_unix_ms: u64,
+    ) -> Result<ArtifactPublicationIntent, PortError> {
+        let command_id = command_id.to_owned();
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .resolve_publication_intent_sync(
+                &command_id,
+                state,
+                event_id,
+                resolved_at_unix_ms,
+            )
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_publication_journal_join_failed:{error}"
+            ))
+        })?
+    }
+
+    async fn pending_publication_intents(
+        &self,
+    ) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .pending_publication_intents_sync()
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_publication_journal_join_failed:{error}"
+            ))
+        })?
     }
 }
 

@@ -400,3 +400,45 @@ proof-level_change: deny-before-publication behavior is locally verified; no dur
 limitations: no cross-store atomic commit protocol, crash/power-loss recovery, orphan reconciliation/GC, retention/deletion, historical/current UI comparison, cross-process guarantee or complete Company projector/upcast proof is claimed
 reviewer: root integration agent with read-only CO-06 atomicity audit; focused artifact publication reviewer
 ```
+
+## 19. Write-ahead publication window, orphan reconciliation and workspace delta (2026-10-17)
+
+True single-transaction cross-store atomicity is not available: the immutable blob lives in the
+artifact store and the citing fact lives in the canonical EventLog, and no shared transaction spans
+both. This slice makes the window explicit and recoverable instead of pretending it is atomic.
+
+`ArtifactStorePort` gains three default methods, all returning `Unavailable` so every existing
+adapter compiles unchanged: `record_publication_intent`, `resolve_publication_intent` and
+`pending_publication_intents`. `LocalArtifactStore` implements them over a new append-only
+`publications.log` at the store root (`LocalDir::append`, `O_CREAT|O_APPEND|O_NOFOLLOW`, fsync of
+file and directory). Reads reduce the log to the latest record per logical command id and report
+`artifact_publication_journal_full` past a bounded 1 MiB window rather than acting on a truncated
+record set. The journal is a recovery sidecar only; it is never an authority or a fact source.
+
+`ControlPlane::handle_command` now writes a pending `ArtifactPublicationIntent` after the blob is
+staged/committed and before the Company fact append, then records the terminal `Committed` marker
+after the fact commits. If the fact append result is uncertain, the intent stays pending and the
+command still returns `result_unknown:company_artifact_event_commit_unconfirmed`.
+`ControlPlane::reconcile_artifact_publications` reads pending intents and classifies each against
+the EventLog: fact + readable blob → `Published` (resolve `Committed`); readable blob without a fact
+→ `Unpublished` (an orphan, resolved `Abandoned`, blob left byte-identical); anything else →
+`Unverifiable` and left pending. Reconciliation never appends a Company fact, widens authority, or
+deletes/rewrites blob bytes.
+
+`ControlPlane::artifact_workspace_delta` provides the server-side original-versus-current
+projection: it re-reads the immutable reference through the injected store, reads the current source
+through the confined reader, and reports `Unchanged`/`Changed`/`Missing`/`Unavailable` with a bounded
+deterministic line summary (`bounded_line_delta`). Browser rendering of the delta is UI-22's scope.
+
+```text
+source_snapshot: current dirty worktree; kiana-domain/src/artifact_publication.rs (new); kiana-domain/src/lib.rs; kiana-ports/src/lib.rs; kiana-daemon/src/local_artifacts.rs; kiana-daemon/src/local_packages.rs; kiana-core/src/company.rs; kiana-core/src/artifacts.rs; kiana-domain/tests/co06_artifact.rs; kiana-ports/tests/co06_artifact_port.rs; kiana-core/tests/co06_company_artifact_wiring_guard.rs; kiana-daemon/tests/co06_company_artifact_history.rs
+worktree_status: CO-06 roadmap row 065 remains 🔄 / feature_status=partial / proof_level=source; new publication-journal, reconciliation and workspace-delta source slices; no manifest/lockfile or test-shard change (tests ship in existing shards)
+command_argv: CI-only；本地未运行 cargo/test/smoke；使用 rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13, edition 2021) 对全部改动文件执行 `--check`（clean）；静态核对端口默认方法、错误码映射与 guard 锚点
+cwd·environment: repository root Linux/bash; GitHub Actions ubuntu-latest is the runtime test authority (receipt not awaited)
+fixture·cassette: domain `co06_artifact` +3 (intent binding/terminal rules; reconciliation classification + event-id drop; workspace-delta deny matrix); ports `co06_artifact_port` +1 (JournallessStore inherits fail-closed `Unavailable` defaults); core `co06_company_artifact_wiring_guard` +3 (intent-before-fact order; reconciliation never appends a fact; delta stays read-only); daemon `co06_company_artifact_history` +2 (`artifact_publication_reconciles_orphan_blob_and_recovers_after_restart`: append_before_failure=false leaves blob+no fact, restart recovers exactly one pending intent, reconciliation reports Unpublished, appends no fact and leaves blob bytes intact; `artifact_workspace_delta_shows_original_versus_current_source`: Unchanged/Changed/Missing/unknown-id denial)
+exit_code: local format `--check` 0; no local runtime exit code; CI receipt not awaited
+status_change: cross-store window is now recorded and recoverable, and orphan/workspace-delta contracts exist in source; whole CO-06 remains partial and row 065 stays 🔄
+proof-level_change: source only; no local_behavior, durable, live or physical promotion
+limitations: not a real single-transaction cross-store commit (crash/power-loss semantics unproven); no retention/deletion/GC of orphan blobs; journal is a bounded append-only sidecar without compaction; workspace delta line counts are a bounded multiset summary, not a patch; product UI rendering is UI-22; cross-process and durable guarantees unproven
+reviewer: root integration agent; CO-06 static review of the publication window, reconciliation classification and read-only projection
+```

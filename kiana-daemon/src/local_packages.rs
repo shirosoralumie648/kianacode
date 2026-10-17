@@ -269,6 +269,42 @@ mod unix {
                 .map_err(|e| failed(format!("result_unknown:package_directory_sync_failed:{e}")))
         }
 
+        /// Append bytes to a regular file, creating it when absent. Used by append-only recovery
+        /// journals: every record is durable before the call returns, and the directory entry is
+        /// synced so a restart can read the full prefix. Existing content is never rewritten.
+        pub(crate) fn append(&self, name: &str, bytes: &[u8]) -> Result<(), PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let name = cstring(name.as_ref())?;
+            let fd = unsafe {
+                libc::openat(
+                    self.0.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_WRONLY
+                        | libc::O_CREAT
+                        | libc::O_APPEND
+                        | libc::O_CLOEXEC
+                        | libc::O_NOFOLLOW
+                        | libc::O_NONBLOCK,
+                    0o600,
+                )
+            };
+            if fd < 0 {
+                return Err(failed(format!(
+                    "package_append_open_failed:{}",
+                    std::io::Error::last_os_error()
+                )));
+            }
+            let mut file = unsafe { File::from_raw_fd(fd) };
+            file.write_all(bytes)
+                .and_then(|()| file.sync_all())
+                .map_err(|e| failed(format!("package_append_failed:{e}")))?;
+            self.0
+                .sync_all()
+                .map_err(|e| failed(format!("result_unknown:package_append_sync_failed:{e}")))
+        }
+
         /// Publish an immutable cache entry only after all bytes are durable. Existing
         /// entries must match exactly; crash leftovers cannot become active registry state.
         pub(crate) fn publish(&self, name: &str, bytes: &[u8]) -> Result<(), PortError> {
@@ -435,6 +471,9 @@ impl LocalDir {
         Err(std::io::ErrorKind::Unsupported.into())
     }
     pub(crate) fn remove_owned_file(&self, _: &str, _: &File) -> Result<(), PortError> {
+        Err(failed("local_package_platform_unsupported"))
+    }
+    pub(crate) fn append(&self, _: &str, _: &[u8]) -> Result<(), PortError> {
         Err(failed("local_package_platform_unsupported"))
     }
     pub(crate) fn publish(&self, _: &str, _: &[u8]) -> Result<(), PortError> {

@@ -1363,6 +1363,56 @@ fn linux_artifact_cstring(value: &std::ffi::OsStr) -> std::io::Result<CString> {
         )
     })
 }
+/// Deterministic, bounded line-level summary of the difference between two text snapshots.
+///
+/// This is a display statistic, not a patch and not a minimal edit script: equal line multisets
+/// report zero on both sides. Input is capped so a large snapshot cannot make the projection
+/// unbounded, and the result is stable for identical inputs.
+pub(crate) fn bounded_line_delta(historical: &str, current: &str) -> (u64, u64) {
+    const MAX_DELTA_LINES: usize = 8192;
+    let mut counts: std::collections::BTreeMap<&str, i64> = std::collections::BTreeMap::new();
+    for line in historical.lines().take(MAX_DELTA_LINES) {
+        *counts.entry(line).or_default() -= 1;
+    }
+    for line in current.lines().take(MAX_DELTA_LINES) {
+        *counts.entry(line).or_default() += 1;
+    }
+    let mut added = 0u64;
+    let mut removed = 0u64;
+    for count in counts.values() {
+        if *count > 0 {
+            added += *count as u64;
+        } else {
+            removed += (-*count) as u64;
+        }
+    }
+    (added, removed)
+}
+
+/// Whether a workspace-relative source still exists as a regular file.
+///
+/// This only distinguishes "absent" from "present but unreadable" for a display projection. It
+/// never returns content, and content reads always go through `read_project_artifact` with its
+/// confined, O_NOFOLLOW checks.
+pub(crate) fn project_artifact_exists(root: &Path, relative: &Path) -> Result<bool, &'static str> {
+    if relative.as_os_str().is_empty()
+        || relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err("company_artifact_path_invalid");
+    }
+    match fs::symlink_metadata(root.join(relative)) {
+        Ok(metadata) => Ok(metadata.file_type().is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(_) => Err("company_artifact_stat_failed"),
+    }
+}
+
 #[cfg(all(test, target_os = "linux"))]
 mod artifact_path_tests {
     use super::{prepare_project_artifact_linux, write_project_artifact};

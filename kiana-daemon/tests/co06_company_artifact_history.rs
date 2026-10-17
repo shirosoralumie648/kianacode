@@ -3,7 +3,8 @@ use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, CoreError};
 use kiana_daemon::LocalArtifactStore;
 use kiana_domain::{
-    ApprovalChallenge, ApprovalId, ArtifactId, CommandIntent, CompanyBudgetPolicy, CompanyCommand,
+    ApprovalChallenge, ApprovalId, ArtifactId, ArtifactPublicationVerdict,
+    ArtifactWorkspaceDeltaState, CommandIntent, CompanyBudgetPolicy, CompanyCommand,
     CompanyCommandRequest, CompanyEvent, ExecutionStatus, MetricDirection, Objective,
     ObjectiveStatus, PendingApproval, PermissionProfile, Project, ProjectBudget, ProjectId,
     ProjectStatus, Quota, RequestContext, RoleSpec, RuntimeBudget, COMPANY_COMMAND,
@@ -168,7 +169,7 @@ impl Fixture {
         let scope = fs::read_dir(&self.artifact_store_path)
             .expect("artifact store root")
             .map(|entry| entry.expect("artifact scope").path())
-            .next()
+            .find(|path| path.is_dir())
             .expect("artifact scope directory");
         let artifact = fs::read_dir(scope)
             .expect("artifact scope")
@@ -1110,4 +1111,190 @@ async fn fixture_artifact_store(fixture: &Fixture) -> LocalArtifactStore {
     LocalArtifactStore::open(fixture.artifact_store_path.clone())
         .await
         .expect("artifact store")
+}
+
+#[tokio::test]
+async fn artifact_publication_reconciles_orphan_blob_and_recovers_after_restart() {
+    let fixture = Fixture::new();
+    let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+    let store = Arc::new(fixture_artifact_store(&fixture).await);
+    let fault = Arc::new(ArtifactFactFault {
+        inner: events.clone(),
+        armed: std::sync::atomic::AtomicBool::new(true),
+        append_before_failure: false,
+    });
+    let core = company_control_plane(fault, store.clone());
+    let artifact_id = ArtifactId::new().to_string();
+    fs::write(fixture.root.join("orphan.txt"), b"orphan committed bytes\n").expect("orphan source");
+    let command = CompanyCommand::RegisterArtifact {
+        artifact_id: artifact_id.clone(),
+        relative_path: "orphan.txt".to_owned(),
+    };
+
+    // The blob commits while the fact acknowledgement is lost: a real pending window, not a
+    // synthetic one. Nothing may be cited from it until it is reconciled.
+    let first = fixture
+        .command(
+            &core,
+            "builder-session",
+            RoleSpec::builder(),
+            0,
+            "orphan-artifact-fact",
+            command,
+        )
+        .await;
+    assert!(
+        first.is_err(),
+        "unconfirmed fact must not return completed: {first:?}"
+    );
+    assert!(first
+        .unwrap_err()
+        .to_string()
+        .contains("company_artifact_event_commit_unconfirmed"));
+    assert_eq!(company_fact_count(events.as_ref()).await, 0);
+
+    // A restart must recover the unresolved window from the durable journal alone.
+    drop(core);
+    drop(store);
+    drop(fault);
+    drop(events);
+    let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("reopened EventLog"));
+    let store = Arc::new(fixture_artifact_store(&fixture).await);
+    let core = company_control_plane(events.clone(), store.clone());
+
+    let pending = store
+        .pending_publication_intents()
+        .await
+        .expect("reopened publication journal");
+    assert_eq!(pending.len(), 1, "the orphan window must survive a restart");
+    let reference = pending[0].artifact.clone();
+    assert_eq!(pending[0].artifact.artifact_id.to_string(), artifact_id);
+    assert_eq!(
+        ArtifactContentPort::read_artifact(store.as_ref(), &reference)
+            .await
+            .expect("orphan blob survives the restart"),
+        b"orphan committed bytes\n".as_slice()
+    );
+    let before = fs::read(fixture.artifact_blob_path()).expect("orphan blob bytes");
+
+    let report = core
+        .reconcile_artifact_publications()
+        .await
+        .expect("orphan reconciliation");
+    assert_eq!(report.len(), 1, "{report:?}");
+    assert_eq!(
+        report[0].verdict,
+        ArtifactPublicationVerdict::Unpublished,
+        "{report:?}"
+    );
+    assert!(!report[0].fact_committed);
+    assert!(report[0].blob_readable);
+
+    // Reconciliation never appends a fact and never rewrites or deletes blob bytes.
+    assert_eq!(company_fact_count(events.as_ref()).await, 0);
+    assert_eq!(
+        fs::read(fixture.artifact_blob_path()).expect("orphan blob after reconciliation"),
+        before,
+    );
+    // The window is terminal now, so it is no longer pending; the blob stays readable.
+    assert!(store
+        .pending_publication_intents()
+        .await
+        .expect("journal after reconciliation")
+        .is_empty());
+    assert_eq!(
+        ArtifactContentPort::read_artifact(store.as_ref(), &reference)
+            .await
+            .expect("abandoned blob remains reviewable"),
+        b"orphan committed bytes\n".as_slice()
+    );
+}
+
+#[tokio::test]
+async fn artifact_workspace_delta_shows_original_versus_current_source() {
+    let fixture = Fixture::new();
+    let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+    let store = Arc::new(fixture_artifact_store(&fixture).await);
+    let core = company_control_plane(events.clone(), store.clone());
+    let artifact_id = ArtifactId::new().to_string();
+    let path = fixture.root.join("delta.txt");
+    let original = b"alpha\nbeta\ngamma\n";
+    fs::write(&path, original).expect("historical source");
+    let registered = fixture
+        .register_artifact(&core, 0, "register-delta", &artifact_id, "delta.txt")
+        .await;
+    assert_eq!(
+        registered.status,
+        ExecutionStatus::Completed,
+        "{registered:?}"
+    );
+    let context = fixture.context("builder-session", &RoleSpec::builder());
+
+    // Unchanged: the workspace still hashes to the committed reference.
+    let unchanged = core
+        .artifact_workspace_delta(&context, &artifact_id)
+        .await
+        .expect("unchanged workspace delta");
+    assert_eq!(
+        unchanged.current_state,
+        ArtifactWorkspaceDeltaState::Unchanged,
+        "{unchanged:?}"
+    );
+    assert_eq!(unchanged.historical_size_bytes, original.len() as u64);
+    assert_eq!((unchanged.added_lines, unchanged.removed_lines), (0, 0));
+
+    // Changed: the workspace moves on while the committed reference stays fixed.
+    let current = b"alpha\nBETA\ngamma\ndelta\n";
+    fs::write(&path, current).expect("workspace edit");
+    let changed = core
+        .artifact_workspace_delta(&context, &artifact_id)
+        .await
+        .expect("changed workspace delta");
+    assert_eq!(
+        changed.current_state,
+        ArtifactWorkspaceDeltaState::Changed,
+        "{changed:?}"
+    );
+    assert_eq!(
+        changed.current_content_hash.as_deref(),
+        Some(kiana_domain::journal_sha256(current).as_str()),
+    );
+    assert_eq!(changed.current_size_bytes, Some(current.len() as u64));
+    assert!(
+        changed.added_lines > 0 && changed.removed_lines > 0,
+        "{changed:?}"
+    );
+    assert_eq!(changed.historical_size_bytes, original.len() as u64);
+    // The projection is display-only: the committed bytes are still byte-identical.
+    let fact = registered_company_event(events.as_ref()).await;
+    let reference = fact
+        .proof
+        .artifact_version
+        .expect("persisted version in Company fact")
+        .as_ref();
+    let historical = ArtifactContentPort::read_artifact(store.as_ref(), &reference)
+        .await
+        .expect("historical bytes unchanged by the projection");
+    assert_eq!(historical.as_slice(), original.as_slice());
+
+    // Missing: an absent source is reported as absent, never as content.
+    fs::remove_file(&path).expect("remove workspace source");
+    let missing = core
+        .artifact_workspace_delta(&context, &artifact_id)
+        .await
+        .expect("missing workspace delta");
+    assert_eq!(
+        missing.current_state,
+        ArtifactWorkspaceDeltaState::Missing,
+        "{missing:?}"
+    );
+    assert!(missing.current_content_hash.is_none());
+    assert!(missing.current_size_bytes.is_none());
+    assert_eq!((missing.added_lines, missing.removed_lines), (0, 0));
+
+    // An unregistered artifact id is denied instead of being projected from nothing.
+    let unknown = core
+        .artifact_workspace_delta(&context, "artifact-unknown")
+        .await;
+    assert!(unknown.is_err(), "{unknown:?}");
 }

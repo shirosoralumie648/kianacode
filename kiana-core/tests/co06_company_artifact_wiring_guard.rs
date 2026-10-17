@@ -89,3 +89,66 @@ fn artifact_publication_verifies_staged_manifest_and_readback_before_fact() {
     );
     assert!(persist.contains(".read_artifact(&persisted.as_ref())"));
 }
+
+#[test]
+fn artifact_publication_window_is_recorded_before_the_fact_and_resolved_after() {
+    let source = include_str!("../src/company.rs");
+    let persist = source
+        .find("self.persist_company_artifact(&mut proof).await")
+        .expect("artifact persistence boundary");
+    let record = source
+        .find(".record_artifact_publication_intent(&command_id")
+        .expect("publication intent boundary");
+    let commit = source
+        .find("self.commit_company(&context, event).await")
+        .expect("Company EventLog commit boundary");
+    let resolve = source
+        .find("self.resolve_artifact_publication_intent(")
+        .expect("publication resolution boundary");
+    assert!(
+        persist < record && record < commit && commit < resolve,
+        "the publication intent must be durable before the fact append and resolved after it"
+    );
+}
+
+#[test]
+fn artifact_publication_reconciliation_classifies_without_appending_a_fact() {
+    let source = include_str!("../src/company.rs");
+    let start = source
+        .find("pub async fn reconcile_artifact_publications")
+        .expect("reconciliation boundary");
+    let rest = &source[start..];
+    let end = rest
+        .find("pub async fn artifact_workspace_delta")
+        .expect("workspace delta boundary");
+    let reconciliation = &rest[..end];
+    assert!(reconciliation.contains("pending_publication_intents().await"));
+    assert!(reconciliation.contains("terminal_state()"));
+    assert!(reconciliation.contains("resolve_publication_intent("));
+    assert!(
+        !reconciliation.contains("commit_company")
+            && !reconciliation.contains("append_event")
+            && !reconciliation.contains("commit_protected_event"),
+        "reconciliation must never append a Company fact"
+    );
+}
+
+#[test]
+fn artifact_workspace_delta_is_a_confined_read_only_projection() {
+    let source = include_str!("../src/company.rs");
+    let start = source
+        .find("pub async fn artifact_workspace_delta")
+        .expect("workspace delta boundary");
+    let rest = &source[start..];
+    let end = rest.find("fn company_context(").expect("next boundary");
+    let delta = &rest[..end];
+    assert!(delta.contains("read_company_artifact(context, &relative)"));
+    assert!(delta.contains("project_artifact_exists("));
+    assert!(delta.contains("validate_artifact_reference_content"));
+    assert!(
+        !delta.contains("write_project_artifact")
+            && !delta.contains("spawn_from_packet")
+            && !delta.contains("handle_command"),
+        "the workspace delta must stay a read-only projection"
+    );
+}
