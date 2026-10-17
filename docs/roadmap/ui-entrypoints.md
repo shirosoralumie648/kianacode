@@ -521,7 +521,7 @@ durable/live/physical 证据仍开放。
 
 
 
-#### UI-13 · Workbench 时间线与结果渲染　🔄
+#### UI-13 · Workbench 时间线与结果渲染　✅
 
 - 依赖：UI-06/08/12。代码：`workbench_chat.rs`、`stream_render.rs` 及 presenter。
 - 步骤：将 Delta/Terminal/Usage/ToolCall/Approval/Artifact/Error 映射为稳定 Item；实现折叠、展开、加载、未知和限制标记；过滤 ANSI/OSC 和不可信 markdown。
@@ -535,6 +535,36 @@ gap、terminal 后事件、foreign run 和超限内容均 fail-closed 或显式�
 序列与常见 secret 值在纯文本边界处理，Workbench 只把展示投影映射为兼容 ChatMessage，不
 新增执行或授权路径。deny-first fixture、source guard 和 GitHub-only workflow 已接入；见
 [UI-13 baseline](ui13-workbench-render-baseline.md)。证明等级为 `source`，CI 结果未等待。
+
+2026-10-17 收口切片补齐上一轮遗留的缺口（专属 lane 被 08552ada workflow fan-in 删除；
+「按到达时间覆盖事实 / tool result 伪装 assistant / 错误被清屏 / 无限 diff / 二进制 MIME」
+只有隐含覆盖）：`kiana-entrypoints/src/workbench_render.rs` 新增 `TimelineDisplayRole` +
+`TimelineItemKind::display_role()` 作为所有入口唯一的展示角色权威（只有 Delta/Terminal 是
+assistant，Artifact 是 changed，Usage/ToolCall/Approval/Error/Unknown/Gap/Limit 一律
+system；`workbench_chat` 不再自己 match item kind）；声明式 fixture
+[`kiana-entrypoints/tests/fixtures/ui13-render-snapshot.json`](../../kiana-entrypoints/tests/fixtures/ui13-render-snapshot.json)
+升级为 `kiana.ui13-render-snapshot.v1`（预算 512 items / 512 KiB / 32 KiB item / 16 KiB
+JSON / 16 KiB diff / 64 artifacts per response；五个先拒绝场景：到达顺序不覆盖错误、二进制
+MIME 不内联、带标签的 text diff、terminal 围栏、gap 阻塞；13 个夹具名、required/denied/
+limitations 列表）；Artifact 投影新增 binary MIME / `encoding: base64`/`hex` / 未声明载荷的
+显式标记（绝不解码、内联或回显字节），text/diff 走独立 `MAX_TIMELINE_DIFF_BYTES` 截断且
+保留 `id`/`path` 标签；`apply_event`（legacy adapter 路径）与 `apply` 一样保留 gap/terminal
+围栏；`kiana-entrypoints/tests/ui13_workbench_render.rs` 5 → 13 条先拒绝优先夹具（新增
+`arrival_order_and_replays_never_overwrite_the_recorded_error`、
+`tool_results_usage_approvals_and_errors_are_never_assistant_text`、
+`binary_and_unspecified_artifact_payloads_are_never_inlined`、
+`text_diff_artifacts_are_labelled_and_truncated_by_the_declared_policy`、
+`terminal_fences_every_late_event_kind`、
+`gap_marker_blocks_both_typed_and_legacy_delivery_until_reset`、
+`hostile_stream_keeps_items_and_bytes_bounded`、`untrusted_markdown_is_rendered_as_inert_plain_text`），
+既有断言一条未放宽；`kiana-entrypoints/tests/ui13_workbench_render_guard.rs` 新增第二条
+守卫 `ui13_completion_slice_stays_wired_to_the_fixture_lane_and_shard`（预算↔源码常量、
+13 个夹具名↔真实测试、scenario↔夹具、required↔baseline、denied↔源码、
+protocol-propagated 码↔`kiana-protocol`、append-only 负断言、
+`display_role` 单一权威、手动 lane 逐字命令与 `kiana-entrypoints` 整 crate 分片）；
+重建手动 `.github/workflows/ui13-workbench-render.yml`（`workflow_dispatch`-only、
+`permissions: contents: read`、fetch/fmt 门 + 两个 target + `--no-run`），自动覆盖仍是统一
+`ci.yml` 的 `kiana-entrypoints` 整 crate 分片（`scripts/ci/test-shards.json` 未改）。
 
 <a id="step-ui-14"></a>
 
