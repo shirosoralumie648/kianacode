@@ -77,7 +77,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
 | `P4-J7-26` | 事件、脱敏与关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ModelCall→attempt→provider→Invocation→Receipt 可追溯且不泄密 | 🔄 |
 | `P4-J7-27` | 持久 history 与恢复 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 新进程显式恢复不重发已完成工具；缺 replay 材料拒绝 | ✅ |
-| `P4-J7-28` | 三界面配置和诊断 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | 同一目录/状态/错误；迟到终态与重连无需重新执行 | 🔄 |
+| `P4-J7-28` | 三界面配置和诊断 | `P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22` | 同一目录/状态/错误；迟到终态与重连无需重新执行 | ✅ |
 | `P4-J7-29` | 离线协议一致性矩阵 | `P4-J7-20`、`P4-J7-21`、`P4-J7-22`、`P4-J7-25`、`P4-J7-27` | 每个支持的协议/能力通过相同合同及其特有故障用例 | 🔄 |
 | `P4-J7-30` | 产品链与四表面回归 | `P4-J7-28`、`P4-J7-29`、`P0-M1-01` | 模型→受控工具→事件→Receipt；CLI/TTY/Web/Desktop 终态一致 | 🔄 |
 | `P4-J7-31` | 逐连接 live 验收与发布证据 | `P4-J7-30` | 原生/兼容/本地分别有真实证据；未验证能力如实列出 | ⏳ |
@@ -468,7 +468,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-28 模型选择、诊断与事件投影　🔄
+#### P4-J7-28 模型选择、诊断与事件投影　✅
 
 - **依赖**：`P4-J7-10`、`P4-J7-11`、`P4-J7-25`、`P4-J7-26`、`P4-J7-02`、`P4-J7-03`、`P2-M2-01`、`P2-M5-01`、`CP-22`。
 - **改动位置**：protocol/client 的配置/目录/诊断 DTO、daemon 投影；CLI/Workbench/Web，Desktop 复用 Web。
@@ -477,9 +477,19 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`three_surfaces_show_same_provider_diagnostics`、`late_subscriber_observes_terminal_from_receipt`、`no_stream_collects_without_second_model_request`。
 - **退出 / 证据**：用户看到可行动错误，不暴露协议调试细节；保持现有默认流式行为，额外上游设置有明确来源与实效。
 
-  当前 source slice 与 CI-only 验收见 [`p4-j7-28-provider-diagnostics-baseline.md`](p4-j7-28-provider-diagnostics-baseline.md)。
-  `ProviderDiagnosticsSnapshot`、non-zero/contiguous epoch-bound cursor、explicit connection-test admission 和 terminal receipt replay
-  已登记；真实三界面 transport、durable projector、live provider effect 仍保留在后续步骤。
+  2026-10-17 完成切片（CI-only，本地未运行测试/build/check/clippy/smoke）：`ProviderSurfaceProjection`
+  让 CLI/Workbench/Web/Desktop 共用同一 snapshot/actionable error/cursor/terminal（Desktop 复用 Web）；
+  `ProviderSettingsView::read_only` 不产生连接测试，显式 `ProviderConnectionTestRequest` 必须携带
+  catalog/config digest、authority/config epoch 与 gateway admission digest 才能形成 plan；
+  `admit_provider_upstream_effect` 对离线 catalog/Fake smoke 返回无副作用、对 live catalog/smoke/
+  connection test 要求同一显式准入；`ProviderUiAction` 以 run/epoch/sequence 拒绝陈旧动作；
+  `ProviderStreamDisplay` 只折叠已观测帧且 `request_attempts` 上限为 1；client reconnect 清空 gap、
+  不重发模型请求。验收夹具：`three_surfaces_show_same_provider_diagnostics`、
+  `model_settings_view_does_not_trigger_inference`、`stale_provider_ui_action_cannot_mutate_active_run`、
+  `web_reconnect_never_retries_model_request`、`late_subscriber_observes_terminal_from_receipt`、
+  `no_stream_collects_without_second_model_request`。真实浏览器/TTY/Desktop 渲染、daemon 侧 gateway
+  dispatch 接线、durable projector 与 live provider effect 仍归后续产品链步骤（proof 上限 source，
+  CI 回执未等待）。
 
 <a id="step-p4-j7-29"></a>
 
