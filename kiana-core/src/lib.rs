@@ -385,8 +385,10 @@ pub use notification_policy::{
     NOTIFICATION_POLICY_PLANNER_SCHEMA,
 };
 pub use notification_priority::{
-    classify_notification, compare_notification_priority, NotificationPriority,
-    NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_SCHEMA,
+    classify_notification, compare_notification_priority, notification_due_state,
+    notification_priority_digest, NotificationDueState, NotificationPriority,
+    NotificationPriorityError, NotificationUrgency, NOTIFICATION_PRIORITY_FORBIDDEN_DETAIL_HINTS,
+    NOTIFICATION_PRIORITY_SCHEMA,
 };
 pub use notification_projector::NotificationProjection;
 pub use notification_projector::{
@@ -407,10 +409,13 @@ pub use notification_resolver::{
     NOTIFICATION_RESOLUTION_SCHEMA,
 };
 pub use notification_store::{
-    NotificationListRequest, NotificationPage, NotificationPageItem,
-    NotificationProjectionMutation, NotificationStore, NotificationStoreError,
-    NOTIFICATION_MUTATION_SCHEMA, NOTIFICATION_PAGE_SCHEMA, NOTIFICATION_STORE_MAX_PAGE_SIZE,
-    NOTIFICATION_STORE_SCHEMA,
+    compare_notification_digest_folds, NotificationDigestFold, NotificationDigestMember,
+    NotificationInboxCounts, NotificationInboxSummary, NotificationListRequest, NotificationPage,
+    NotificationPageItem, NotificationProjectionMutation, NotificationStore,
+    NotificationStoreError, NOTIFICATION_DIGEST_FOLD_SCHEMA, NOTIFICATION_INBOX_SUMMARY_SCHEMA,
+    NOTIFICATION_MUTATION_SCHEMA, NOTIFICATION_PAGE_SCHEMA,
+    NOTIFICATION_STORE_MAX_DIGEST_FOLD_MEMBERS, NOTIFICATION_STORE_MAX_PAGE_SIZE,
+    NOTIFICATION_STORE_MAX_SNOOZE_MS, NOTIFICATION_STORE_SCHEMA,
 };
 pub use operator_evidence::{project_operator_evidence, OperatorEvidenceError};
 pub use ops_diagnostics::{evaluate_ops_diagnostics, evaluate_ops_mode, validate_ops_diagnostics};
