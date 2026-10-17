@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 NM-05 翻 ✅（recipient/scope/subscription resolver 与 Principal/Assignment/ProjectTrust/authority epoch，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 205（🔄 → ✅，CI pending）与 §3 变更日志；kiana-core/src/notification_resolver.rs（重写：+NotificationResolver/NotificationClientClaims/NotificationEntryPoint/ResolvedNotification/ResolvedNotificationTarget/NOTIFICATION_RESOLUTION_SCHEMA 与 canonical_scope/canonical_channels/scope_is_subset/channels_subset helper，保留原 resolve_notification_subscriptions）；kiana-core/src/lib.rs（re-export 新符号）；kiana-core/tests/nm05_notification_resolver.rs（+6 命名夹具）；kiana-core/tests/nm05_notification_resolver_guard.rs（+SecurityAuthoritySnapshot/require_trusted_for_effect/epoch/role/scope-widening/NotificationEntryPoint marker）；.github/workflows/nm05-notification-resolver.yml 为已合并的布线，未改
+worktree_status: 行 205 🔄 → ✅（CI pending）；只改本 Step 相关源码/测试与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点回填；无 Cargo.toml/Cargo.lock/package.json 变化；resolver 为纯内存值层（不 dispatch、不调 broker、不构造 wire 身份），未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与手工 rustfmt 风格对齐（含 fn_call_width=60 的换行判断）；.github/workflows/nm05-notification-resolver.yml 运行 `cargo test -p kiana-core --test nm05_notification_resolver --locked -- --test-threads=1`、`cargo test -p kiana-core --test nm05_notification_resolver_guard --locked -- --test-threads=1`、`cargo fmt --all --check` 与 target-scoped `--no-run`
+cwd·environment: worktree /workspace/kianacode-worktrees/NM-05，分支 step/nm-05-20261017-1（基线 master 1b83c4ac1796）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: core `nm05_notification_resolver` 在既有 2 个 RequestContext 夹具（`resolver_uses_server_actor_project_and_subscription_scope`/`resolver_rejects_untrusted_or_client_scope_mismatch`）之外新增 6 个——`resolver_derives_recipient_and_rejects_client_widening`（服务端 recipient/project 从 `SecurityAuthoritySnapshot` 派生；客户端 owner/project/recipient/role/filter/channel 扩权分别以 `notification_owner_widening`/`notification_project_widening`/`notification_recipient_widening`/`notification_role_self_report`/`notification_filter_widening`/`notification_channel_widening` 拒绝且无投递，等于服务端的 claim 被接受）；`resolver_entrypoints_share_visible_set`（同一主体经 Cli/Workbench/Web 得到相等 `ResolvedNotification`，2 订阅→2 target）；`resolver_rejects_untrusted_expired_epoch_and_cross_project`（未信任 `AUTH_PROJECT_UNTRUSTED`；server epoch 0/回退/超前→`notification_epoch_invalid`/`notification_epoch_rollback`/`notification_epoch_stale`；越过 assignment window→`notification_authority_expired`；跨项目/错误 recipient→`notification_project_not_authorized`/`notification_recipient_not_authorized`）；`resolver_subscription_narrows_and_rebuilds_on_revision`（subset 通过；超服务端上限 `notification_subscription_scope_widening`；revoked/expired/stale-revision 订阅被排除→`notification_recipient_subscription_not_found`；同输入重建相等，旧 revision 撤销后仅新 revision 可见）；`resolver_requires_in_app_channel_in_server_maximum`（无 InApp 的最大通道集 `resolver_in_app_channel_required`；in-app-only 最大集被接受）；guard 固定上述 marker 并继续禁止第二事实源（无 CapabilityBroker/KianaHarness/reqwest/tokio::spawn/owner_id）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: NM-05 卡「先拒绝」（客户端 owner/project/recipient/filter 扩权、跨项目、revoked/expired epoch、未信任项目、role 自报全拒绝且无投递）与「成功」（同一主体三入口得到相同可见集合、订阅只能收窄服务端最大 scope、revision/expiry 可重建）在源码层与夹具层齐备；行 205 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；resolver 为纯内存值层，订阅列表与 server max scope/channels 由调用方提供，未接入 durable subscription store、ProjectTrust 读取或 daemon/CLI/Web/Workbench 入口装配（三入口 parity 为进程内同一纯函数，不代表 adapter 已接线）；未证明 durable delivery 或 outbox；持久订阅/交付 worker/去重属 NM-06+；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；NM-05 recipient/scope/subscription resolver 静态复核
+```
+
 ### 2026-10-17 EQ-14 翻 ✅（证据采集与 flush fail-closed 不变量，CI-only 口径）
 
 ```text
