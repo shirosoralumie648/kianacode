@@ -6,9 +6,19 @@ contract; this command checks their ids, hashes, frozen shapes, examples, redact
 Rust structs they are bound to, the compatibility matrix and the negative fixtures, then compares
 the generated Rust catalog with the lock.  ``--write`` is the only mutating mode.
 
+The gate also covers the assets themselves: every ``*.schema.json`` in the registry, every example
+and every negative fixture must be locked (or bound by the compatibility matrix), so a new file
+cannot sit outside the version contract unnoticed.  ``deprecated_fields`` is bound to the schema's
+own ``"deprecated": true`` markers instead of being trusted as a free-form list.
+
 The frozen shape of every contract is *not* refreshed by ``--write``: a shape change inside the
 same version is a breaking change and must be reviewed by hand together with a version bump, so the
 gate keeps failing until a human updates the recorded shape.
+
+``--emitted <path>`` closes the cross-language round trip: it validates the report produced by
+``cargo run -p kiana-client --example ui09_schema_emit`` (Rust decoded the locked examples and
+re-encoded them) against the canonical JSON Schema, so a schema change that Rust no longer emits
+fails here even when the checked-in example still matches.
 """
 
 from __future__ import annotations
@@ -65,6 +75,14 @@ CONTRACT_FIELDS = {
     "unknown_field_example",
     "schema_sha256",
 }
+DEPRECATED_FIELD_KEYS = {
+    "field",
+    "since",
+    "remove_in",
+    "replacement",
+}  # replacement is optional
+EMITTED_REPORT_SCHEMA = "kiana.ui09-emitted.v1"
+EMITTED_MAX_BYTES = 4 * 1024 * 1024
 MATRIX_FIELDS = {
     "$schema",
     "$id",
@@ -239,6 +257,56 @@ def shape_inventory(schema: dict[str, Any]) -> dict[str, Any]:
             name: property_descriptor(properties[name]) for name in sorted(properties)
         },
     }
+
+
+def expected_deprecated_fields(schema: dict[str, Any]) -> list[str]:
+    """The property names the schema itself marks `"deprecated": true`."""
+    properties = schema.get("properties", {})
+    return sorted(
+        name
+        for name, spec in properties.items()
+        if isinstance(spec, dict) and spec.get("deprecated") is True
+    )
+
+
+def validate_deprecated_fields(
+    contract: dict[str, Any], schema: dict[str, Any]
+) -> None:
+    """`deprecated_fields` is bound to the schema markers, so it cannot drift or be forgotten.
+
+    Every entry must be a reviewed record naming the field, the version that deprecated it and the
+    version that removes it; a deprecated marker in the schema without a lock record (or the
+    reverse) fails, so the list is never a free-form comment.
+    """
+    declared = contract["deprecated_fields"]
+    if not isinstance(declared, list):
+        raise ContractError(f"contract_deprecated_fields_invalid:{contract['id']}")
+    names: list[str] = []
+    for entry in declared:
+        if not isinstance(entry, dict) or not {"field", "since", "remove_in"} <= set(
+            entry
+        ):
+            raise ContractError(
+                f"contract_deprecated_field_unreviewed:{contract['id']}:"
+                "expected field/since/remove_in"
+            )
+        if not set(entry) <= DEPRECATED_FIELD_KEYS:
+            raise ContractError(
+                f"contract_deprecated_field_unreviewed:{contract['id']}:"
+                f"unknown keys {sorted(set(entry) - DEPRECATED_FIELD_KEYS)}"
+            )
+        for key in ("field", "since", "remove_in"):
+            if not isinstance(entry[key], str) or not entry[key]:
+                raise ContractError(
+                    f"contract_deprecated_field_unreviewed:{contract['id']}:{key}"
+                )
+        names.append(entry["field"])
+    expected = expected_deprecated_fields(schema)
+    if sorted(names) != expected:
+        raise ContractError(
+            f"contract_deprecated_fields_unbound:{contract['id']}:"
+            f"lock={sorted(names)}:schema={expected}"
+        )
 
 
 def rust_struct(rust_source: str, rust_type: str) -> tuple[str, list[dict[str, Any]]]:
@@ -423,10 +491,6 @@ def validate_lock(lock: dict[str, Any], validator: Any) -> list[dict[str, Any]]:
             raise ContractError(f"contract_unknown_policy_invalid:{contract['id']}")
         if not isinstance(contract["max_bytes"], int) or contract["max_bytes"] <= 0:
             raise ContractError(f"contract_max_bytes_invalid:{contract['id']}")
-        if contract["deprecated_fields"] != []:
-            raise ContractError(
-                f"contract_deprecated_fields_unreviewed:{contract['id']}"
-            )
         schema_path = SCHEMA_ROOT / safe_relative(
             contract["schema_file"], "schema_file"
         )
@@ -450,6 +514,7 @@ def validate_lock(lock: dict[str, Any], validator: Any) -> list[dict[str, Any]]:
                 f"schema_shape_drift:{contract['id']}: a same-version shape change requires a "
                 "reviewed lock update and a new schema version"
             )
+        validate_deprecated_fields(contract, schema)
         digest = canonical_digest(schema)
         if contract["schema_sha256"] != digest:
             raise ContractError(f"schema_hash_stale:{contract['id']}")
@@ -587,6 +652,85 @@ def validate_matrix(
     validate_negative_cases(matrix, contracts, validator)
 
 
+def validate_asset_coverage(lock: dict[str, Any], matrix: dict[str, Any]) -> None:
+    """Every registry asset must be locked, and no lock entry may point at a missing file.
+
+    A new ``*.schema.json`` that sits outside the lock is exactly the "generated file was not
+    updated" failure mode: the version contract would not cover it.  The same rule applies to
+    example and negative fixtures, so an unreferenced fixture cannot look like evidence.
+    """
+    locked_schemas = {
+        safe_relative(contract["schema_file"], "schema_file").name
+        for contract in lock["contracts"]
+    }
+    on_disk_schemas = {path.name for path in SCHEMA_ROOT.glob("*.schema.json")}
+    if locked_schemas != on_disk_schemas:
+        raise ContractError(
+            f"unlocked_schema_file:"
+            f"{sorted(on_disk_schemas - locked_schemas)}:"
+            f"missing={sorted(locked_schemas - on_disk_schemas)}"
+        )
+
+    referenced_examples = {
+        safe_relative(contract["valid_example"], "valid_example").name
+        for contract in lock["contracts"]
+    } | {
+        safe_relative(contract["unknown_field_example"], "unknown_field_example").name
+        for contract in lock["contracts"]
+    }
+    referenced_negative = {
+        safe_relative(case["fixture"], "negative_case_fixture").name
+        for case in matrix["negative_cases"]
+        if isinstance(case, dict) and isinstance(case.get("fixture"), str)
+    }
+    on_disk_examples = {path.name for path in (SCHEMA_ROOT / "examples").glob("*.json")}
+    on_disk_negative = {path.name for path in (SCHEMA_ROOT / "negative").glob("*.json")}
+    unreferenced_examples = sorted(on_disk_examples - referenced_examples)
+    unreferenced_negative = sorted(on_disk_negative - referenced_negative)
+    if unreferenced_examples:
+        raise ContractError(f"unreferenced_example_fixture:{unreferenced_examples}")
+    if unreferenced_negative:
+        raise ContractError(f"unreferenced_negative_fixture:{unreferenced_negative}")
+
+
+def validate_emitted_report(
+    emitted_path: Path,
+    contracts: list[dict[str, Any]],
+    validator: Any,
+) -> None:
+    """Validate the Rust-emitted payloads against the canonical JSON Schema.
+
+    The report is produced by `cargo run -p kiana-client --example ui09_schema_emit`; it must carry
+    exactly the locked ids, and each emitted payload must satisfy the schema its id is locked to.
+    """
+    if not emitted_path.is_file():
+        raise ContractError(f"emitted_report_missing:{emitted_path}")
+    scan_fixture(emitted_path, EMITTED_MAX_BYTES)
+    emitted = read_json(emitted_path)
+    if not isinstance(emitted, dict) or emitted.get("schema") != EMITTED_REPORT_SCHEMA:
+        raise ContractError("emitted_report_invalid")
+    values = emitted.get("contracts")
+    if not isinstance(values, dict):
+        raise ContractError("emitted_report_contracts_invalid")
+    locked = {contract["id"]: contract for contract in contracts}
+    if set(values) != set(locked):
+        raise ContractError(
+            f"emitted_contract_set_mismatch:"
+            f"missing={sorted(set(locked) - set(values))}:"
+            f"extra={sorted(set(values) - set(locked))}"
+        )
+    for identifier in sorted(values):
+        contract = locked[identifier]
+        schema = read_json(
+            SCHEMA_ROOT / safe_relative(contract["schema_file"], "schema_file")
+        )
+        errors = validator.validate(
+            schema, values[identifier], schema, f"$emitted.{identifier}"
+        )
+        if errors:
+            raise ContractError(f"emitted_schema_mismatch:{identifier}:{errors[0]}")
+
+
 def update_hashes(lock: dict[str, Any]) -> None:
     for contract in lock["contracts"]:
         schema = read_json(
@@ -596,7 +740,7 @@ def update_hashes(lock: dict[str, Any]) -> None:
     lock["contracts"] = sorted(lock["contracts"], key=lambda item: item["id"])
 
 
-def run(write: bool) -> None:
+def run(write: bool, emitted: Path | None) -> None:
     lock = read_json(LOCK_PATH)
     if not isinstance(lock, dict):
         raise ContractError("lock_root_invalid")
@@ -618,8 +762,14 @@ def run(write: bool) -> None:
         {contract["id"]: contract for contract in contracts},
         validator,
     )
+    validate_asset_coverage(lock, matrix)
+    emitted_note = ""
+    if emitted is not None:
+        validate_emitted_report(emitted, contracts, validator)
+        emitted_note = "; emitted payloads satisfy the canonical schema"
     print(
         f"UI-09 schema lock valid: {len(contracts)} contracts; generated catalog is current"
+        f"{emitted_note}"
     )
 
 
@@ -628,9 +778,15 @@ def main() -> int:
     parser.add_argument(
         "--write", action="store_true", help="refresh hashes and generated Rust catalog"
     )
+    parser.add_argument(
+        "--emitted",
+        type=Path,
+        default=None,
+        help="validate a `ui09_schema_emit` report against the canonical JSON Schema",
+    )
     args = parser.parse_args()
     try:
-        run(args.write)
+        run(args.write, args.emitted)
     except ContractError as exc:
         print(f"UI-09 schema validation failed: {exc}", file=sys.stderr)
         return 1
