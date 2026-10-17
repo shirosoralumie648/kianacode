@@ -500,7 +500,8 @@ pub use trace_export::{
     OTLP_MAPPING_LIMITATIONS, OTLP_MAPPING_SCHEMA,
 };
 pub use turn_outcome::{annotate_output, propose_turn_outcome, TURN_OUTCOME_CORE_SCHEMA};
-pub use ui_actions::UiActionAuthoritySnapshot;
+// UI-04 的 authority snapshot 现在由 Domain 合同拥有（记录本身要持久化它），Core 保持同一公开路径。
+pub use kiana_domain::UiActionAuthoritySnapshot;
 pub use workflow_queue::{
     project_workflow_queue_ready, validate_workflow_queue_dispatch,
     validate_workflow_queue_transaction, workflow_queue_requires_recovery, WorkflowQueueReadyView,

@@ -99,6 +99,7 @@ mod shell_plan;
 mod startup_coordinator;
 mod storage;
 mod supervisor_adapters;
+mod ui_action;
 mod workflow_ingress;
 mod workflow_service;
 mod workspace_checkpoints;
@@ -167,8 +168,8 @@ use kiana_ports::{
     QueuedObservabilityItem, RunnerPort, WorkflowQueueStore,
 };
 use kiana_protocol::{
-    RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
-    UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
+    RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiActionV1,
+    UiCursor, UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
 };
 use kiana_provider::{ProviderGateway, WorkspaceConfigTrust};
 use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, RuntimeConfig};
@@ -198,6 +199,7 @@ pub use storage::{
     LOCAL_STORAGE_INSTANCE_ID,
 };
 pub use supervisor_adapters::NarrowSupervisorAdapter;
+pub use ui_action::command_from_surface_intent;
 pub use workflow_ingress::WorkflowEventVerifier;
 pub use workflow_service::{
     WorkflowQueueService, WorkflowQueueShutdownReport, WORKFLOW_SERVICE_CHANNEL_CAPACITY,
@@ -1235,6 +1237,18 @@ impl DaemonHost {
         self.run_stream.claim_ui_action(action)
     }
 
+    /// UI-04: translate a versioned surface intent into the Domain command for this daemon's
+    /// authenticated principal.  Owner comes from the daemon principal and scope/permit come from
+    /// the server-owned authority snapshot; a surface can never widen its own authority here.
+    pub fn ui_action_command(
+        &self,
+        intent: &UiActionV1,
+        authority: &kiana_core::UiActionAuthoritySnapshot,
+    ) -> Result<UiActionCommand, PortError> {
+        ui_action::command_from_surface_intent(intent, &self.principal.actor_id, authority)
+            .map_err(PortError::Failed)
+    }
+
     /// Persist a UI action admission through the ControlPlane journal.  The legacy cursor claim
     /// above remains a cheap display precondition; it never replaces this durable authority.
     pub async fn admit_ui_action(
@@ -1283,12 +1297,17 @@ impl DaemonHost {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
+    /// Reconcile a lost ACK using the original idempotency key and this daemon's principal.
+    ///
+    /// The caller must also present the scope digest of the surface it is reconciling; a record
+    /// that belongs to another owner/scope is refused instead of being returned.
     pub async fn query_original_ui_action(
         &self,
         idempotency_key: &str,
+        scope_digest: &str,
     ) -> Result<Option<UiActionRecord>, PortError> {
         self.core
-            .query_original_ui_action(idempotency_key)
+            .query_original_ui_action_for(idempotency_key, &self.principal.actor_id, scope_digest)
             .await
             .map_err(|error| PortError::Failed(error.to_string()))
     }

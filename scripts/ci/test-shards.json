@@ -715,6 +715,7 @@
    "swarm_recovery_guard",
    "swarm_routing_guard",
    "ui04_action_authority",
+   "ui04_action_cas_behavior",
    "ui04_action_journal_guard",
    "ui05_snapshot_projector_guard",
    "ui06_feed_replay_guard",

@@ -17,6 +17,11 @@
 //! 本文件不执行 UI effect、不打开事务存储、不发放 permit，也不认证调用者提供的摘要。Accepted 只表示
 //! 命令满足给定快照条件；Applied 需要上游提供 receipt digest；Unknown 表示效果结果无法确认，必须保留
 //! 原 command/idempotency key 对账，不能生成新 key 重做。
+//!
+//! `UiActionJournal::accept` 只接受一个可信的 [`UiActionAuthoritySnapshot`]。admission 时把该快照的
+//! epoch/cursor/revision/owner/scope/permit 基础写进 [`UiActionRecord`] 并纳入 record digest，因此查询
+//! 到的记录同时说明"是谁在什么授权基础上准入的"。permit 是服务端授权基础，不进入 command digest：
+//! 同一个 command 在重发时可以携带重新签发的 permit，而不会因此变成另一个命令身份。
 
 use crate::{json_digest, RequestId, SchemaVersion};
 use serde::{Deserialize, Serialize};
@@ -55,6 +60,13 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 检查摘要形状是否为 `sha256:` 加 64 个十六进制字符，但不区分字段名。
+///
+/// 【调用者】authority snapshot 判断 scope 摘要；该处只暴露一个合并后的"快照非法"原因。
+fn is_digest(value: &str) -> bool {
+    digest(value, "ui_action_digest").is_ok()
+}
+
 /// 去掉 json_digest 使用的 `sha256:` 展示前缀，保留摘要十六进制部分。
 /// 调用方应先验证格式；本 helper 对缺少前缀的任意字符串会原样复制。
 fn bare_digest(value: &str) -> String {
@@ -82,6 +94,82 @@ impl UiActionState {
     }
 }
 
+/// 客户端在丢失响应后重投同一个 action 的策略，由服务端从已持久事实导出。
+///
+/// 【系统位置】surface 只展示和遵守该结论；它不自行发明重试策略，也没有"换个新 ID 自动重做"这一档。
+/// 【为什么没有 SafeRetry 档】原 ID 重投是否安全仍由服务端按 idempotency key 重新判定，客户端无权
+/// 据此提前复用新身份；因此这里只有"按原键查询"和"不要再驱动这条命令"两种结论。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiActionResubmitPolicy {
+    /// 结果尚未确认：只能按原 command/idempotency key 查询，禁止换新 key 或新 command ID 自动重做。
+    QueryOriginal,
+    /// 已有明确终态：不再自动重投。Applied 读取关联 receipt；Rejected 展示结构化拒绝原因。
+    /// 新的用户意图必须用新的 command ID 与新的 idempotency key 表示，不能复用本条命令身份。
+    DoNotRetry,
+}
+
+/// Core admission 时使用的服务端 authority 快照。
+///
+/// 【系统位置】由 Core 从可信的服务端事实构造（instance/authority epoch、事件 cursor、目标 revision、
+/// 已认证 owner、scope 摘要、permit），不是客户端请求字段。
+/// 【下游】[`UiActionJournal::accept`] 用它对照 command 的 expected 值，并把实际准入基础写进
+/// [`UiActionRecord`]，使查询结果能说明本次准入依据。
+/// 【cancelled 为什么在这里】取消中的目标必须拒绝新命令；该判定来自服务端状态，不能由客户端声明。
+/// 【边界】本结构只做形状校验；它不验证 permit 是否真的被某个签发者签发、owner 是否等于当前主体，
+/// 也不代表任何外部 effect 已被允许执行。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiActionAuthoritySnapshot {
+    /// 服务端当前 authority epoch。
+    pub authority_epoch: String,
+    /// 服务端当前源状态 cursor。
+    pub cursor: u64,
+    /// 服务端当前目标修订版；None 表示目标没有修订概念。
+    #[serde(default)]
+    pub target_revision: Option<u64>,
+    /// 服务端已认证的 owner 标识。
+    pub owner_id: String,
+    /// 服务端计算的目标/操作 scope 摘要。
+    pub scope_digest: String,
+    /// 服务端为本次准入持有的 permit 摘要；缺失表示没有可核验的授权基础。
+    #[serde(default)]
+    pub permit_digest: Option<String>,
+    /// 目标是否处于取消中；为真时新命令必须拒绝。
+    #[serde(default)]
+    pub cancelled: bool,
+}
+
+impl UiActionAuthoritySnapshot {
+    /// 检查必填字段有界、revision 非零、scope/permit 摘要形状正确。
+    ///
+    /// 【失败】返回 `ui_action_authority_snapshot_invalid` 或 `ui_action_permit_digest_invalid`；
+    /// 调用方不得把校验失败解释成"按空快照继续"。
+    /// 【边界】形状校验不等于授权判定：permit 内容与 owner 的匹配仍由调用方/上游负责。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.authority_epoch.trim().is_empty()
+            || self.authority_epoch.len() > 256
+            || self.target_revision == Some(0)
+            || self.owner_id.trim().is_empty()
+            || self.owner_id.len() > 256
+            || !is_digest(&self.scope_digest)
+        {
+            return Err("ui_action_authority_snapshot_invalid".to_owned());
+        }
+        if let Some(permit) = self.permit_digest.as_deref() {
+            digest(permit, "ui_action_permit_digest")?;
+        }
+        Ok(())
+    }
+
+    /// 返回被准入记录采用的服务端 permit 摘要；缺失时按合同拒绝。
+    fn required_permit(&self) -> Result<String, String> {
+        self.permit_digest
+            .clone()
+            .ok_or_else(|| "ui_action_permit_required".to_owned())
+    }
+}
+
 /// Surface adapter 生成并提交的一次 UI 操作请求身份。
 ///
 /// 【系统位置】入口把用户动作编码成该 DTO；Core 将它与 authority snapshot、已有幂等记录和 EventStore
@@ -89,8 +177,9 @@ impl UiActionState {
 /// 【下游】`UiActionJournal::accept()` 检查字段后生成 Accepted record；后续 apply/reject/unknown 必须
 /// 引用同一 command digest 和 idempotency key。
 /// 【重要边界】DTO 自带 digest 只是内容一致性标签；scope/owner/epoch/cursor 是客户端声明的 expected 值，
-/// 仍须由 ControlPlane 与服务端当前权威事实比较。当前合同没有 permit_digest 字段，不能把 command digest
-/// 解释成包含 permit 的授权证明。
+/// 仍须由 ControlPlane 与服务端当前权威事实比较。command 身份**不包含** permit：permit 是服务端授权
+/// 基础，admission 时写入 record，这样同一个命令在重发时可以携带重新签发的 permit，而不会变成另一个
+/// 命令身份。因此 command digest 不是授权证明，也不能解释成"已获得执行许可"。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UiActionCommand {
@@ -247,6 +336,15 @@ pub struct UiActionRecord {
     pub owner_id: String,
     /// 初始命令声明并由 Core 对照的 scope 摘要。
     pub scope_digest: String,
+    /// Admission 时服务端 authority epoch（不是客户端 expected 值）。
+    pub authority_epoch: String,
+    /// Admission 时服务端源状态 cursor。
+    pub authority_cursor: u64,
+    /// Admission 时服务端目标 revision。
+    #[serde(default)]
+    pub authority_revision: Option<u64>,
+    /// Admission 时使用的服务端 permit 摘要；查询结果据此说明授权基础。
+    pub permit_digest: String,
     /// 当前记录状态；从 Accepted 迁移到唯一一种终态。
     pub state: UiActionState,
     /// Core 接受命令时记录的 Unix 毫秒时间。
@@ -267,13 +365,21 @@ pub struct UiActionRecord {
 }
 
 impl UiActionRecord {
-    /// 从通过 Core admission 的 command 建立初始 Accepted record。
+    /// 从通过 Core admission 的 command 与服务端 authority 快照建立初始 Accepted record。
     ///
     /// 【调用者】只由同文件 `UiActionJournal::accept()` 调用。
-    /// 【输入/输出】command 的身份字段加当前接受时间；得到 effect_count=0、无 receipt、无 applied time
-    /// 的 Accepted 记录，并马上填好 record digest。
+    /// 【输入/输出】command 的身份字段、准入时使用的 [`UiActionAuthoritySnapshot`] 和当前接受时间；
+    /// 得到 effect_count=0、无 receipt、无 applied time 的 Accepted 记录，并马上填好 record digest。
+    /// 快照的 epoch/cursor/revision/permit 一并写入记录，形成"在什么授权基础上准入"的事实。
+    /// 【失败】快照缺少 permit、或构造出的 record 不满足合同（例如 authority 字段越界）时返回稳定错误，
+    /// 不会返回半填好的记录。
     /// 【副作用】仅构造内存值；Durable 事件由 Core 另行提交。
-    fn from_command(command: &UiActionCommand, now_unix_ms: u64) -> Self {
+    fn from_command(
+        command: &UiActionCommand,
+        authority: &UiActionAuthoritySnapshot,
+        now_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let permit_digest = authority.required_permit()?;
         let mut record = Self {
             schema: UI_ACTION_RECORD_SCHEMA.to_owned(),
             version: UI_ACTION_JOURNAL_VERSION,
@@ -284,6 +390,10 @@ impl UiActionRecord {
             target_id: command.target_id.clone(),
             owner_id: command.owner_id.clone(),
             scope_digest: command.scope_digest.clone(),
+            authority_epoch: authority.authority_epoch.clone(),
+            authority_cursor: authority.cursor,
+            authority_revision: authority.target_revision,
+            permit_digest,
             state: UiActionState::Accepted,
             accepted_at_unix_ms: now_unix_ms,
             applied_at_unix_ms: None,
@@ -293,7 +403,8 @@ impl UiActionRecord {
             record_digest: String::new(),
         };
         record.record_digest = record.digest();
-        record
+        record.validate()?;
+        Ok(record)
     }
 
     /// 验证 record 的 schema、摘要外形和 state/receipt/effect 组合关系。
@@ -316,9 +427,15 @@ impl UiActionRecord {
             return Err("ui_action_record_header_invalid".to_owned());
         }
         required(&self.idempotency_key, "ui_action_idempotency_key", 256)?;
+        required(&self.owner_id, "ui_action_owner", 256)?;
+        required(&self.authority_epoch, "ui_action_authority_epoch", 256)?;
+        if self.authority_revision == Some(0) {
+            return Err("ui_action_authority_revision_invalid".to_owned());
+        }
         digest(&self.command_digest, "ui_action_command_digest")?;
         digest(&self.payload_digest, "ui_action_payload_digest")?;
         digest(&self.scope_digest, "ui_action_scope_digest")?;
+        digest(&self.permit_digest, "ui_action_permit_digest")?;
         digest(&self.record_digest, "ui_action_record_digest")?;
         match (&self.state, &self.receipt_digest) {
             (UiActionState::Applied, Some(receipt_digest)) => {
@@ -355,6 +472,8 @@ impl UiActionRecord {
     }
 
     /// 对完整 record 状态生成内容摘要；`record_digest` 自身不参与输入。
+    /// admission 时使用的服务端 authority 基础（epoch/cursor/revision/permit）也参与摘要，
+    /// 因此后来篡改“在什么授权基础上准入”同样会被 `record_digest` 检出。
     fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -366,6 +485,10 @@ impl UiActionRecord {
             "target_id": self.target_id,
             "owner_id": self.owner_id,
             "scope_digest": self.scope_digest,
+            "authority_epoch": self.authority_epoch,
+            "authority_cursor": self.authority_cursor,
+            "authority_revision": self.authority_revision,
+            "permit_digest": self.permit_digest,
             "state": self.state,
             "accepted_at_unix_ms": self.accepted_at_unix_ms,
             "applied_at_unix_ms": self.applied_at_unix_ms,
@@ -373,6 +496,21 @@ impl UiActionRecord {
             "effect_count": self.effect_count,
             "receipt_digest": self.receipt_digest,
         }))
+    }
+
+    /// 返回该记录对应的重投策略；surface 必须遵守，不得自行发明重试方式。
+    ///
+    /// 【调用者】查询/展示路径在把记录交回界面之前调用。
+    /// 【输出】Accepted/Unknown 仍未有确定结果，返回 [`UiActionResubmitPolicy::QueryOriginal`]；
+    /// Applied/Rejected 已是明确终态，返回 [`UiActionResubmitPolicy::DoNotRetry`]。
+    /// 【边界】本结论不授权任何新 command ID 或新 idempotency key 的重做——那需要新的用户意图。
+    pub fn resubmit_policy(&self) -> UiActionResubmitPolicy {
+        match self.state {
+            UiActionState::Applied | UiActionState::Rejected => UiActionResubmitPolicy::DoNotRetry,
+            UiActionState::Accepted | UiActionState::Unknown => {
+                UiActionResubmitPolicy::QueryOriginal
+            }
+        }
     }
 
     /// 给 Core 查询持久记录使用的公开 validator 转发方法。
@@ -442,61 +580,62 @@ impl UiActionJournal {
 
     /// 接受一次 UI action，或按完全相同的幂等身份返回已有记录。
     ///
-    /// 【调用者】Core `admit_ui_action()` 在 authority/permit 检查及读取原 action stream 后调用；
-    /// Core 当前为单个 key 创建新 journal，所以持久化仍由 Core 完成。
-    /// 【输入】command、服务端 authority epoch/cursor/revision/owner/scope 快照和当前 Unix 毫秒时间。
+    /// 【调用者】Core `admit_ui_action()` 在读取原 action stream 后调用；Core 当前为单个 key 创建新
+    /// journal，所以持久化仍由 Core 完成。
+    /// 【输入】command、服务端 [`UiActionAuthoritySnapshot`] 和当前 Unix 毫秒时间。
     /// 【输出】`(record, replayed)`：首次成功返回 Accepted 与 `false`；相同 key+digest 重放返回原记录与
-    /// `true`，不增加 effect_count。
-    /// 【失败】同 key 不同 digest、owner/scope 不同、deadline 已过、epoch/cursor/revision 过期时返回明确错误。
-    /// Core 把拒绝变成 command error；只有成功的新记录才继续写 accepted aggregate event。
-    /// 【容易误改】幂等分支在 epoch/cursor/revision/deadline 新鲜度检查之前执行：已存在的原命令即使
-    /// 当前快照已变化或期限已过，也应返回原结果供对账，不能把它当成第二次新操作。
-    /// 【边界】当前 journal 只以 idempotency_key 作唯一索引，不拒绝不同 key 复用 command_id；
-    /// owner/scope/epoch 等输入本身必须由 Core 从可信 snapshot 提供，本 reducer 不查询权威来源。
+    /// `true`，不增加 effect_count。新记录的 authority 基础全部来自传入快照。
+    /// 【失败】同 key 不同 digest、owner/scope 不同、缺少 permit、取消中、deadline 已过、epoch/cursor/
+    /// revision 过期时返回明确错误。Core 把拒绝变成 command error；只有成功的新记录才继续写 accepted
+    /// aggregate event。
+    /// 【容易误改】幂等分支在 permit/cancelled/epoch/cursor/revision/deadline 检查之前执行：已存在的原
+    /// 命令即使当前快照缺少 permit、已取消或期限已过，也应返回原结果供对账，不能把它当成第二次新操作。
+    /// 【边界】当前 journal 只以 idempotency_key 作唯一索引，不拒绝不同 key 复用 command_id；那类身份
+    /// 冲突由 Core 在提交前用 command receipt 另行发现。本 reducer 不查询权威来源，快照必须可信。
     pub fn accept(
         &mut self,
         command: &UiActionCommand,
-        authority_epoch: &str,
-        current_cursor: u64,
-        current_revision: Option<u64>,
-        owner_id: &str,
-        scope_digest: &str,
+        authority: &UiActionAuthoritySnapshot,
         now_unix_ms: u64,
     ) -> Result<(UiActionRecord, bool), String> {
         command.validate()?;
+        authority.validate()?;
         if let Some(original) = self.records.get(&command.idempotency_key) {
             if original.command_digest != command.command_digest {
                 return Err("ui_action_idempotency_digest_mismatch".to_owned());
             }
-            if original.owner_id != command.owner_id || original.owner_id != owner_id {
+            if original.owner_id != command.owner_id || original.owner_id != authority.owner_id {
                 return Err("ui_action_owner_mismatch".to_owned());
             }
             if original.scope_digest != command.scope_digest
-                || original.scope_digest != scope_digest
+                || original.scope_digest != authority.scope_digest
             {
                 return Err("ui_action_scope_mismatch".to_owned());
             }
             return Ok((original.clone(), true));
         }
+        if authority.cancelled {
+            return Err("ui_action_cancelled".to_owned());
+        }
         if now_unix_ms > command.deadline_unix_ms {
             return Err("ui_action_deadline_expired".to_owned());
         }
-        if command.expected_epoch != authority_epoch {
+        if command.expected_epoch != authority.authority_epoch {
             return Err("ui_action_stale_epoch".to_owned());
         }
-        if command.expected_cursor != current_cursor {
+        if command.expected_cursor != authority.cursor {
             return Err("ui_action_stale_cursor".to_owned());
         }
-        if command.expected_revision != current_revision {
+        if command.expected_revision != authority.target_revision {
             return Err("ui_action_stale_revision".to_owned());
         }
-        if command.owner_id != owner_id {
+        if command.owner_id != authority.owner_id {
             return Err("ui_action_owner_mismatch".to_owned());
         }
-        if command.scope_digest != scope_digest {
+        if command.scope_digest != authority.scope_digest {
             return Err("ui_action_scope_mismatch".to_owned());
         }
-        let record = UiActionRecord::from_command(command, now_unix_ms);
+        let record = UiActionRecord::from_command(command, authority, now_unix_ms)?;
         self.records
             .insert(command.idempotency_key.clone(), record.clone());
         Ok((record, false))
