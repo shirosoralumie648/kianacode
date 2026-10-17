@@ -53,6 +53,7 @@ fn company_objects_expose_invariants() {
         expected_value: "value".to_owned(),
         rough_cost: "small".to_owned(),
         risk_summary: "low".to_owned(),
+        information_gaps: Some(Vec::new()),
         decision: None,
         project_id: None,
         status: InitiativeStatus::Intake,

@@ -577,6 +577,19 @@ async fn run_project_to_acceptance_request(host: &DaemonHost, root: &Path) -> Pr
         "sponsor-session",
         RoleSpec::sponsor(),
         &mut revision,
+        "record-direct-intake",
+        CompanyCommand::RecordDirectIntake {
+            project_id: project_id.clone(),
+            reason: "cp23 fixture records the skipped Initiative lane explicitly".to_owned(),
+        },
+    )
+    .await;
+    committed(
+        host,
+        root,
+        "sponsor-session",
+        RoleSpec::sponsor(),
+        &mut revision,
         "approve-project",
         CompanyCommand::ApproveProject {
             project_id: project_id.clone(),

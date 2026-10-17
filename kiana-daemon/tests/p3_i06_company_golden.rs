@@ -256,6 +256,19 @@ async fn fake_model_coding_project_produces_closing_receipt() {
         "sponsor-session",
         RoleSpec::sponsor(),
         &mut revision,
+        "record-direct-intake",
+        CompanyCommand::RecordDirectIntake {
+            project_id: project_id.clone(),
+            reason: "golden fixture records the skipped Initiative lane explicitly".to_owned(),
+        },
+    )
+    .await;
+    company_command(
+        &host,
+        &root,
+        "sponsor-session",
+        RoleSpec::sponsor(),
+        &mut revision,
         "approve-project",
         CompanyCommand::ApproveProject {
             project_id: project_id.clone(),

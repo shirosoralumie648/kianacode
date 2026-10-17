@@ -13,6 +13,11 @@ pub const COMPANY_STATE_SCHEMA: &str = "kiana.company-state.v1";
 pub const COMPANY_COMMAND: &str = "company.command.v1";
 pub const COMPANY_SNAPSHOT: &str = "company.snapshot.v1";
 pub const COMPANY_GOVERNANCE: &str = "company.governance.v1";
+/// Maximum declared Initiative information gaps and the per-entry byte budget (CO-09).
+pub const MAX_INITIATIVE_INFORMATION_GAPS: usize = 32;
+pub const MAX_INITIATIVE_INFORMATION_GAP_BYTES: usize = 2_048;
+/// Direct project intake has to state why the Initiative lane was skipped (CO-09).
+pub const MAX_DIRECT_INTAKE_REASON_BYTES: usize = 2_048;
 
 pub type CompanyResult<T> = Result<T, &'static str>;
 fn one() -> u64 {
@@ -202,6 +207,10 @@ pub struct Initiative {
     pub expected_value: String,
     pub rough_cost: String,
     pub risk_summary: String,
+    /// What the intake still does not know. `None` means the gaps were never assessed; a decision
+    /// to approve requires an explicit (possibly empty) assessment. Legacy proposals may omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub information_gaps: Option<Vec<String>>,
     #[serde(default)]
     pub decision: Option<String>,
     #[serde(default)]
@@ -226,8 +235,61 @@ impl Initiative {
         ] {
             required(v)?;
         }
+        if let Some(gaps) = self.information_gaps.as_ref() {
+            if gaps.len() > MAX_INITIATIVE_INFORMATION_GAPS {
+                return Err("initiative_information_gaps_invalid");
+            }
+            let mut distinct = gaps.clone();
+            distinct.sort();
+            distinct.dedup();
+            if distinct.len() != gaps.len()
+                || gaps.iter().any(|gap| {
+                    gap.trim().is_empty() || gap.len() > MAX_INITIATIVE_INFORMATION_GAP_BYTES
+                })
+            {
+                return Err("initiative_information_gaps_invalid");
+            }
+        }
         list(&self.objective_refs)
     }
+}
+/// One explicit record that a project was created directly instead of being converted from an
+/// Initiative. The entry keeps the objective ancestry so a direct intake cannot silently drop the
+/// goal relationship, and it never carries runtime authority.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DirectProjectIntake {
+    pub project_id: String,
+    pub organization_id: String,
+    pub objective_refs: Vec<String>,
+    pub reason: String,
+    pub recorded_by: String,
+    pub recorded_at: u64,
+    #[serde(default = "one")]
+    pub version: u64,
+}
+impl DirectProjectIntake {
+    pub fn validate(&self) -> CompanyResult<()> {
+        required(&self.project_id)?;
+        required(&self.organization_id)?;
+        required(&self.reason)?;
+        required(&self.recorded_by)?;
+        ensure(
+            self.reason.len() <= MAX_DIRECT_INTAKE_REASON_BYTES
+                && self.recorded_at > 0
+                && self.version > 0,
+            "direct_intake_invalid",
+        )?;
+        list(&self.objective_refs)
+    }
+}
+/// CO-09 intake provenance for one project: either the Initiative that converted into it or the
+/// explicit direct-intake record that states why the Initiative lane was skipped.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "origin", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ProjectIntakeProvenance {
+    Initiative { initiative_id: String },
+    Direct { reason: String },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -686,6 +748,12 @@ pub enum CompanyCommand {
     ProposeProject {
         project: Project,
     },
+    /// CO-09: record the explicit reason a project skipped the Initiative intake lane, together
+    /// with the objective ancestry it must keep.
+    RecordDirectIntake {
+        project_id: String,
+        reason: String,
+    },
     StartChartering {
         project_id: String,
     },
@@ -860,6 +928,7 @@ impl CompanyCommand {
             Self::SubmitInitiative { .. } => "InitiativeSubmitted",
             Self::AdvanceInitiative { .. } => "InitiativeTransitioned",
             Self::ProposeProject { .. } => "ProjectProposed",
+            Self::RecordDirectIntake { .. } => "DirectProjectIntakeRecorded",
             Self::StartChartering { .. } => "ProjectCharteringStarted",
             Self::ApproveProject { .. } => "ProjectApproved",
             Self::RejectProject { .. } => "ProjectRejected",
@@ -936,6 +1005,7 @@ impl CompanyCommand {
             | Self::PauseProject { .. }
             | Self::ResumeProject { .. }
             | Self::RequestChange { .. } => &["sponsor", "pm"],
+            Self::RecordDirectIntake { .. } => &["sponsor", "pm"],
             Self::RequestCancelProject { .. }
             | Self::ConfirmCancelProject { .. }
             | Self::FailProject { .. }
@@ -1045,6 +1115,9 @@ pub struct CompanyState {
     pub revision: u64,
     pub objectives: BTreeMap<String, Objective>,
     pub initiatives: BTreeMap<String, Initiative>,
+    /// CO-09 explicit records for projects that skipped the Initiative intake lane.
+    #[serde(default)]
+    pub direct_intakes: BTreeMap<String, DirectProjectIntake>,
     pub projects: BTreeMap<String, Project>,
     pub milestones: BTreeMap<String, Milestone>,
     pub packets: BTreeMap<String, CompanyPacket>,
@@ -1506,6 +1579,45 @@ impl CompanyState {
     fn project(&self, id: &str) -> CompanyResult<&Project> {
         self.projects.get(id).ok_or("company_project_not_found")
     }
+    /// CO-09 intake provenance projection. Returns the Initiative that converted into this project
+    /// or the explicit direct-intake record; a project with neither cannot reach go/no-go.
+    pub fn project_intake_provenance(
+        &self,
+        project_id: &str,
+    ) -> CompanyResult<ProjectIntakeProvenance> {
+        let project = self.project(project_id)?;
+        if let Some(initiative) = self.initiatives.values().find(|initiative| {
+            initiative.status == InitiativeStatus::ConvertedToProject
+                && initiative.project_id.as_deref() == Some(project_id)
+        }) {
+            ensure(
+                initiative.organization_id == project.organization_id
+                    && initiative
+                        .objective_refs
+                        .iter()
+                        .all(|reference| project.objective_refs.contains(reference)),
+                "project_intake_objective_ancestry_mismatch",
+            )?;
+            return Ok(ProjectIntakeProvenance::Initiative {
+                initiative_id: initiative.initiative_id.clone(),
+            });
+        }
+        if let Some(intake) = self.direct_intakes.get(project_id) {
+            intake.validate()?;
+            let mut recorded_refs = intake.objective_refs.clone();
+            recorded_refs.sort();
+            let mut project_refs = project.objective_refs.clone();
+            project_refs.sort();
+            ensure(
+                intake.organization_id == project.organization_id && recorded_refs == project_refs,
+                "project_intake_objective_ancestry_mismatch",
+            )?;
+            return Ok(ProjectIntakeProvenance::Direct {
+                reason: intake.reason.clone(),
+            });
+        }
+        Err("project_intake_provenance_required")
+    }
     fn require_project_writable(&self, id: &str) -> CompanyResult<()> {
         ensure(
             matches!(
@@ -1602,6 +1714,17 @@ impl CompanyState {
                 objective_id,
                 approve,
             } => {
+                let organization_owner = self
+                    .business
+                    .organizations
+                    .get(
+                        self.objectives
+                            .get(objective_id)
+                            .ok_or("objective_not_found")?
+                            .organization_id
+                            .as_str(),
+                    )
+                    .map(|organization| organization.owner_principal_id.clone());
                 let o = self
                     .objectives
                     .get_mut(objective_id)
@@ -1611,6 +1734,12 @@ impl CompanyState {
                     "objective_owner_mismatch",
                 )?;
                 if *approve {
+                    // A registered organization is owned by one principal; only that principal may
+                    // activate objectives attributed to it. Unregistered organizations stay on the
+                    // legacy path so replayed histories keep their original decision semantics.
+                    if let Some(owner) = organization_owner.as_deref() {
+                        ensure(owner == a.actor_id, "objective_organization_owner_mismatch")?;
+                    }
                     ensure(
                         o.measurement_method
                             .as_deref()
@@ -1673,7 +1802,8 @@ impl CompanyState {
                 let current = self
                     .initiatives
                     .get(initiative_id)
-                    .ok_or("initiative_not_found")?;
+                    .ok_or("initiative_not_found")?
+                    .clone();
                 if matches!(
                     status,
                     InitiativeStatus::Approved
@@ -1698,10 +1828,35 @@ impl CompanyState {
                         }),
                         "initiative_objective_approval_required",
                     )?;
+                    // The gap assessment is part of the intake contract: a sponsor may decide to
+                    // proceed with no known gaps, but the intake must have assessed them.
+                    ensure(
+                        current.information_gaps.is_some(),
+                        "initiative_information_gaps_required",
+                    )?;
                 }
                 if *status == InitiativeStatus::ConvertedToProject {
-                    let project =
-                        self.project(project_id.as_deref().ok_or("initiative_project_required")?)?;
+                    // Conversion re-checks both halves of the card's denial: the referenced
+                    // objectives must still be approved (active, same organization) and the
+                    // sponsor decision must have been recorded, not forged by a later actor.
+                    ensure(
+                        current.objective_refs.iter().all(|objective_id| {
+                            self.objectives.get(objective_id).is_some_and(|objective| {
+                                objective.organization_id == current.organization_id
+                                    && objective.status == ObjectiveStatus::Active
+                            })
+                        }),
+                        "initiative_objective_approval_required",
+                    )?;
+                    ensure(
+                        current
+                            .decision
+                            .as_deref()
+                            .is_some_and(|decision| !decision.trim().is_empty()),
+                        "initiative_decision_required",
+                    )?;
+                    let project_id = project_id.as_deref().ok_or("initiative_project_required")?;
+                    let project = self.project(project_id)?;
                     ensure(
                         project.organization_id == current.organization_id
                             && current
@@ -1709,6 +1864,27 @@ impl CompanyState {
                                 .iter()
                                 .all(|objective_id| project.objective_refs.contains(objective_id)),
                         "initiative_project_objective_ancestry_mismatch",
+                    )?;
+                    if current.status == InitiativeStatus::ConvertedToProject {
+                        // Repeating the same conversion returns the original result instead of
+                        // creating a second project link. Only the aggregate revision advances.
+                        ensure(
+                            current.project_id.as_deref() == Some(project_id),
+                            "initiative_already_converted",
+                        )?;
+                        return Ok(());
+                    }
+                    ensure(
+                        current.status == InitiativeStatus::Approved,
+                        "initiative_conversion_requires_approval",
+                    )?;
+                    ensure(
+                        !self.initiatives.values().any(|other| {
+                            other.initiative_id != *initiative_id
+                                && other.status == InitiativeStatus::ConvertedToProject
+                                && other.project_id.as_deref() == Some(project_id)
+                        }),
+                        "initiative_project_already_linked",
                     )?;
                 }
                 let i = self
@@ -1768,6 +1944,46 @@ impl CompanyState {
                     self.charter_digests
                         .insert(project.project_id.clone(), digest);
                 }
+            }
+            CompanyCommand::RecordDirectIntake { project_id, reason } => {
+                if reason.trim().is_empty() || reason.len() > MAX_DIRECT_INTAKE_REASON_BYTES {
+                    return Err("direct_intake_reason_invalid");
+                }
+                let project = self.project(project_id)?.clone();
+                ensure(
+                    matches!(
+                        project.status,
+                        ProjectStatus::Proposed | ProjectStatus::Chartering
+                    ),
+                    "direct_intake_project_not_pending",
+                )?;
+                ensure(
+                    !project.objective_refs.is_empty(),
+                    "direct_intake_objective_required",
+                )?;
+                ensure(
+                    !self.initiatives.values().any(|initiative| {
+                        initiative.status == InitiativeStatus::ConvertedToProject
+                            && initiative.project_id.as_deref() == Some(project_id.as_str())
+                    }),
+                    "direct_intake_initiative_ancestry_conflict",
+                )?;
+                if let Some(existing) = self.direct_intakes.get(project_id) {
+                    ensure(existing.reason == *reason, "direct_intake_conflict")?;
+                    return Ok(());
+                }
+                self.direct_intakes.insert(
+                    project_id.clone(),
+                    DirectProjectIntake {
+                        project_id: project_id.clone(),
+                        organization_id: project.organization_id.clone(),
+                        objective_refs: project.objective_refs.clone(),
+                        reason: reason.clone(),
+                        recorded_by: a.actor_id.clone(),
+                        recorded_at: a.now_ms,
+                        version: 1,
+                    },
+                );
             }
             CompanyCommand::StartChartering { project_id } => {
                 let project = self.project(project_id)?.clone();

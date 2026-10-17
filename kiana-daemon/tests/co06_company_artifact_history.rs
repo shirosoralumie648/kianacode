@@ -605,12 +605,27 @@ async fn artifact_version_remains_reviewable_after_workspace_file_changes() {
     );
 
     fs::write(&artifact_blob, &stored_bytes).expect("restore verified historical artifact");
-    let approved = fixture
+    let intake = fixture
         .command(
             &core,
             sponsor_session,
             RoleSpec::sponsor(),
             6,
+            "record-direct-intake-before-historical-approval",
+            CompanyCommand::RecordDirectIntake {
+                project_id: "project-co06".to_owned(),
+                reason: "co06 fixture records the skipped Initiative lane explicitly".to_owned(),
+            },
+        )
+        .await
+        .expect("direct intake command");
+    assert_eq!(intake.status, ExecutionStatus::Completed, "{intake:?}");
+    let approved = fixture
+        .command(
+            &core,
+            sponsor_session,
+            RoleSpec::sponsor(),
+            7,
             "approve-project-from-historical-charter",
             CompanyCommand::ApproveProject {
                 project_id: "project-co06".to_owned(),

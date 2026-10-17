@@ -1,0 +1,31 @@
+name: CO-09 company Objective and Initiative intake
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  company-intake:
+    name: Company intake, conversion and direct-intake guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run CO-09 domain intake fixtures
+        run: cargo test -p kiana-domain --test co09_objective_initiative --locked -- --test-threads=1
+      - name: Run CO-09 core intake source guard
+        run: cargo test -p kiana-core --test co09_company_intake_guard --locked -- --test-threads=1
+      - name: Compile CO-09 domain intake target
+        run: cargo test -p kiana-domain --test co09_objective_initiative --no-run --locked
+      - name: Compile CO-09 core intake guard target
+        run: cargo test -p kiana-core --test co09_company_intake_guard --no-run --locked
