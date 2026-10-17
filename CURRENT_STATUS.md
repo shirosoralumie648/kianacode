@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 CAP-05 翻 ✅（consume CAS 提交→OS spawn 崩溃窗口分类，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 143（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/capability.md#step-cap-05（卡片标题 ✅ + 先拒绝/成功回归/完成产物条目与实际测试名对齐 + 2026-10-17 收口说明）；docs/roadmap/capability-permit-baseline.md §8（新增证据块，§1 头部 feature_status 更新为 implemented）；kiana-core/tests/cap05_permit.rs（+CommitFault::CommittedAckLost、+2 fixture、guard +4 marker）
+worktree_status: 行 143 🔄 → ✅（CI pending）；只改本 Step 相关测试/夹具与共享文档（roadmap 该行/变更日志、CURRENT_STATUS）单点回填；无 kiana-core/src 产品源码改动、无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与阅读源码/夹具；.github/workflows/cap05-permit.yml 运行 `cargo test -p kiana-core --test cap05_permit --locked -- --test-threads=1`（test target 自动涵盖新用例，未新增步骤）
+cwd·environment: worktree /workspace/kianacode-worktrees/CAP-05，分支 step/cap-05-20261017-1（基线 master 1fcc03dfbac3）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: Core `cap05_permit` 新增 2 个 deny-first fixture——`consumed_permit_with_lost_commit_ack_is_classified_effect_possibly_started`（`CommitFault::CommittedAckLost` 真实提交 consume CAS 后返回 `CommitOutcome::Unknown`：Broker 返回 `result_unknown:control_commit_unconfirmed`、handler 零调用、stream kinds = [execution.prepared, invocation.dispatching, invocation.executing]、`classify_dispatch_stream` = `DispatchCrashClass::EffectPossiblyStarted` 且 `handler_may_have_started()` 为真、非终态、不补写 Unknown、consume 命令回执仍 durable）与 `replayed_dispatch_after_lost_commit_ack_never_enters_handler_again`（重放以 `execution_permit_already_consumed` 拒绝、零第二 handler、恰一次 commit、流与分类不变）；source guard `cap05_dispatch_has_no_authorization_or_epoch_bypass` 增加 `DispatchCrashClass`/`classify_dispatch_stream`/`handler_may_have_started`/`classify_dispatch_execution` marker；既有 15 个 fixture 不变，未新增 verifier/消费注册表
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CAP-05 卡完成产物「提交与 OS spawn 之间的崩溃窗口在恢复时明确标成不确定，不宣称 exactly-once 外部效果」在源码层与 fixture 层覆盖；Broker 侧先拒绝（非空未知授权串/空串不派发、并发一次消费、提交失败/未知/读集竞争零效果、旧 epoch 与畸形 read-set 拒绝）与成功回归（合法调用只进 handler 一次）此前已覆盖，本切片补上崩溃窗口分类；行 143 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；`CommittedAckLost` 是进程内 `MemoryEventLog` 装饰器，只证明「commit 边界提交后 ack 丢失」的分类语义，未证明 JSONL 掉电/部分写、fsync 时序、跨进程 contention 或 durable 恢复；无 ControlPlane 完整 prepare/审批/预算/租约统一事务（CP-13）、environment plan 绑定与 OS 实际 spawn（CAP-07/CAP-10+）、provider/connector 外部 exactly-once 或 physical/live proof；崩溃分类只描述提交边界，不代表现实副作用状态；已完成 Invocation 读取原结果与同 identity/不同摘要冲突分别由 H13、ER-09 承接，非本卡新增
+reviewer: root integration agent；CAP-05 Broker permit 与崩溃窗口静态复核
+```
+
 ### 2026-10-17 ER-13 翻 ✅（result delivery 的 crash window 与跨进程重启恢复，CI-only 口径）
 
 ```text

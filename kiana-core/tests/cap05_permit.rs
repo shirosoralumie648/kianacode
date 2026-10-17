@@ -333,6 +333,10 @@ enum CommitFault {
     None,
     Failed,
     Unknown,
+    /// The CAS reaches the durable log and commits, but its acknowledgement is lost on the way
+    /// back to the caller. This is exactly the window between a committed permit consumption and
+    /// the OS spawn: the facts exist, so recovery must treat the effect as possibly started.
+    CommittedAckLost,
     AuthorityChangedBeforeCas,
     ConcurrentCas,
 }
@@ -378,6 +382,18 @@ impl EventStorePort for FaultJournal {
                     command_id: batch.command_id,
                     reason: "cap05_commit_unconfirmed".to_owned(),
                 })
+            }
+            CommitFault::CommittedAckLost => {
+                let command_id = batch.command_id;
+                let committed = self.inner.commit_transition(batch).await?;
+                assert!(
+                    matches!(committed, CommitOutcome::Committed { .. }),
+                    "the permit consumption CAS must actually commit before its ack is lost"
+                );
+                return Ok(CommitOutcome::Unknown {
+                    command_id,
+                    reason: "cap05_commit_ack_lost".to_owned(),
+                });
             }
             CommitFault::ConcurrentCas => {
                 self.barrier.wait().await;
@@ -720,6 +736,92 @@ async fn broker_commit_failure_unknown_ack_and_read_set_race_have_zero_effects()
     }
 }
 
+/// The permit-consumption CAS may reach the durable log and commit while its acknowledgement is
+/// lost before the handler is entered. The stream then holds dispatching/executing without any
+/// terminal fact, which is the documented "committed but not yet spawned" crash window. Recovery
+/// must classify it as an effect that may have started, never as "nothing happened", and it must
+/// not be silently promoted to a terminal success by a replay.
+#[tokio::test]
+async fn consumed_permit_with_lost_commit_ack_is_classified_effect_possibly_started() {
+    let journal = Arc::new(FaultJournal::new(CommitFault::CommittedAckLost));
+    let (verifier, events, authorized, permit) =
+        prepared_verifier_in(journal.clone(), true, |_| {}).await;
+    let (broker, calls) = broker_with_counter(verifier, events.clone());
+    let error = broker.execute(authorized).await.unwrap_err();
+    assert_eq!(
+        error,
+        PortError::Failed("result_unknown:control_commit_unconfirmed".to_owned()),
+        "a lost consumption ack must stay Unknown, never a plain failure"
+    );
+    assert_eq!(journal.commits.load(Ordering::SeqCst), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let records = events
+        .read_stream("execution_permit", &permit.execution_id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(
+        records
+            .iter()
+            .map(|record| record.kind.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "execution.prepared",
+            "invocation.dispatching",
+            "invocation.executing"
+        ]
+    );
+    let class = kiana_domain::classify_dispatch_stream(&records);
+    assert_eq!(class, kiana_domain::DispatchCrashClass::EffectPossiblyStarted);
+    assert!(class.handler_may_have_started());
+    assert!(!class.is_terminal());
+    assert!(!class.requires_unknown_terminal());
+    // The consume command receipt is durable even though its acknowledgement was lost, so the
+    // lost window can be matched back to the committed transition instead of being re-executed.
+    let consume =
+        kiana_domain::derived_request_id("permit.consume", &permit.execution_id.to_string());
+    assert!(events.read_command(&consume).await.unwrap().is_some());
+}
+
+/// A replay after the lost-ack commit must read the already-consumed permit and refuse, with zero
+/// further handler calls and an unchanged stream. This is what keeps the uncertain window from
+/// turning into a second execution attempt.
+#[tokio::test]
+async fn replayed_dispatch_after_lost_commit_ack_never_enters_handler_again() {
+    let journal = Arc::new(FaultJournal::new(CommitFault::CommittedAckLost));
+    let (verifier, events, authorized, permit) =
+        prepared_verifier_in(journal.clone(), true, |_| {}).await;
+    let (broker, calls) = broker_with_counter(verifier, events.clone());
+    let _ = broker.execute(authorized.clone()).await.unwrap_err();
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(journal.commits.load(Ordering::SeqCst), 1);
+    let committed = events
+        .read_stream("execution_permit", &permit.execution_id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(
+        kiana_domain::classify_dispatch_stream(&committed),
+        kiana_domain::DispatchCrashClass::EffectPossiblyStarted
+    );
+    let error = broker.execute(authorized).await.unwrap_err();
+    assert_eq!(
+        error,
+        PortError::Failed("execution_permit_already_consumed".to_owned())
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(journal.commits.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        events
+            .read_stream("execution_permit", &permit.execution_id.to_string())
+            .await
+            .unwrap(),
+        committed
+    );
+    assert_eq!(
+        kiana_domain::classify_dispatch_stream(&committed),
+        kiana_domain::DispatchCrashClass::EffectPossiblyStarted
+    );
+}
+
 #[tokio::test]
 async fn broker_cancel_before_consume_starts_no_handler_and_writes_no_execution_facts() {
     let journal = Arc::new(FaultJournal::new(CommitFault::None));
@@ -1018,6 +1120,10 @@ fn cap05_dispatch_has_no_authorization_or_epoch_bypass() {
         "events: vec![dispatching, executing]",
         "commit_confirmed",
         "ExecutionPermitVerifierPort",
+        "DispatchCrashClass",
+        "classify_dispatch_stream",
+        "handler_may_have_started",
+        "classify_dispatch_execution",
     ] {
         assert!(
             dispatch.contains(marker)

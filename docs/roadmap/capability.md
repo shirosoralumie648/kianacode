@@ -298,7 +298,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 | `CAP-02` | 类型化输入、schema、canonical digest | `P1-H-02`、`P0-A-01b` | `CAP-01` | 🔄 |
 | `CAP-03` | 完整 ExecutionScope 与资源解析 | `P1-H-03`、`P0-K1-01` | `CAP-02` | ✅ |
 | `CAP-04` | 状态、outcome 与稳定错误映射 | `P0-A-02`、`P0-B-01` | `CAP-02` | ✅ |
-| `CAP-05` | 可核验许可与单次 dispatch | `P0-G-04`、`P1-H-01` | `CAP-03`、`CAP-04` | ⏳ |
+| `CAP-05` | 可核验许可与单次 dispatch | `P0-G-04`、`P1-H-01` | `CAP-03`、`CAP-04` | ✅ |
 | `CAP-06` | 审批绑定最终计划与重校验 | `P0-F-01`、`P0-F-02` | `CAP-05` | ⏳ |
 | `CAP-07` | EnvironmentPort 与 backend probe | `P1-H-03` | `CAP-03`、`CAP-04` | ⏳ |
 | `CAP-08` | 基于文件身份的共享 PathResolver | `P1-H-03` | `CAP-07` | ⏳ |
@@ -420,7 +420,7 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 
 
 
-#### CAP-05 — 核验授权事实，原子领取一次执行　🔄
+#### CAP-05 — 核验授权事实，原子领取一次执行　✅
 
 当前 source slice 与 CI-only 证据见 [`capability-permit-baseline.md`](capability-permit-baseline.md)。
 
@@ -430,11 +430,19 @@ MCP 的 binary/config/schema/trust 在调用前固定；tool annotations、serve
 后产生的 `invocation.dispatching` v2、`invocation.executing` v3 放入同一个 consume CAS；post-fix
 GitHub fixtures 尚未返回，不能据 source 改动宣称 CAP-05 或 CM-02 行为已通过。
 
+2026-10-17 收口（CI-only 口径）：Broker 侧「核验授权事实 + 单次原子领取 + 拒绝路径」在
+`kiana-core/tests/cap05_permit.rs` 覆盖；本轮补上此前缺的完成产物夹具——**提交与 OS spawn
+之间崩溃窗口**：consume CAS 已真实提交但 ack 丢失时，handler 调用数为 0，stream 停在
+`prepared/dispatching/executing`，恢复分类为 `DispatchCrashClass::EffectPossiblyStarted`（可能已开始、
+非终态、不补写 Unknown 终结），重放以 `execution_permit_already_consumed` 拒绝且流不变。ControlPlane
+完整 prepare/预算/租约统一事务、掉电/跨进程恢复、外部 exactly-once、environment plan 绑定仍由
+CP-13/CAP-07/CAP-10+ 继续。
+
 - **落点：** core/capabilities、recovery、approvals，broker/dispatch，ports，EventStore CAS。
 - **步骤：** 复用 CP-13 对 `claim_invocation` 的扩展及 `DispatchPermit`，按 §20.5 区分签发与一次 start 消费；不新增独立事件存储或 HashSet。permit 绑定 principal、输入、scope、catalog/binding、environment plan、epoch 和 expiry。正常调用、审批续跑、operator/extension 入口共用同一派发函数。
-- **先拒绝：** `nonempty_but_unknown_authorization_id_never_dispatches`、`concurrent_dispatch_consumes_one_permit`、`dispatch_fact_append_failure_has_zero_effects`、`old_epoch_permit_is_rejected`。
-- **成功/回归：** 合法调用只进 handler 一次；相同已完成 Invocation 读取原结果；相同 identity/不同摘要返回冲突。注入 CAS 超时/竞争检查，不用进程内 HashSet 代替持久条件。
-- **完成产物：** Broker 接受一个可构造 Rust 类型不再等于接受授权；记录提交与 OS spawn 之间的崩溃窗口在恢复时明确标成不确定，不宣称 exactly-once 外部效果。
+- **先拒绝：** `broker_unknown_authorization_has_zero_handler_calls_and_no_execution_facts` / `opaque_or_empty_authorization_never_reaches_dispatch`（非空未知授权串与空/opaque 串都不派发）、`concurrent_dispatch_consumes_one_permit`、`broker_commit_failure_unknown_ack_and_read_set_race_have_zero_effects`（dispatch fact 追加失败/未知/读集竞争零效果）、`broker_stale_authority_and_malformed_read_sets_have_zero_handlers`（旧 epoch 与畸形 read-set 拒绝）。
+- **成功/回归：** `broker_success_enters_handler_once_after_atomic_commit_and_replay_adds_no_facts`（合法调用只进 handler 一次）；`consumed_permit_with_lost_commit_ack_is_classified_effect_possibly_started` 与 `replayed_dispatch_after_lost_commit_ack_never_enters_handler_again`（提交与 OS spawn 之间的崩溃窗口标成不确定、不二次执行）；已完成 Invocation 复用原结果与同 identity/不同摘要冲突分别由 H13 `persisted_outcome_is_reused_without_reexecuting_tool`、ER-09 `invocation_action_digest_conflict` 承接；`broker_concurrent_cas_contenders_reach_one_handler` 在真实 CAS 边界注入竞争，不用进程内 HashSet 记消费状态。
+- **完成产物：** Broker 接受一个可构造 Rust 类型不再等于接受授权（构造 `AuthorizedCapabilityRequest` 只检查非空 ID，仍必须经 verifier 消费已提交 `execution.prepared`）；提交与 OS spawn 之间的崩溃窗口在恢复时由 `classify_dispatch_stream`/`classify_dispatch_execution` 明确标成 `EffectPossiblyStarted`，只读分类、不宣称外部 exactly-once。
 
 <a id="step-cap-06"></a>
 
