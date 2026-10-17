@@ -4,23 +4,21 @@
 //! and project digests, and this module selects a same-scope trust record before any loader may
 //! read a project-local resource. Unknown, conflicting and untrusted roots are deny decisions.
 //!
-//! # ⚠ 当前状态：尚未接入生产路径
+//! # ⚠ 当前状态：判定已进入生产信任闸门，但资源加载器尚未接线
 //!
-//! 这一点必须先说清楚，否则下面的说明会给人错误印象。
+//! 截至 2026-10-17（SC-25 完成切片），实际状态是三段拼起来的：
 //!
-//! 本文件定义的 [`ProjectTrustResolution`] / [`ProjectTrustRoot`] 目前
-//! **只出现在本文件自己的单元测试和 `kiana-policy/tests/` 下的两个测试文件里**，
-//! 没有任何生产代码路径调用它。
+//! - `kiana-daemon` 的默认信任权威 `StoredProjectTrustAuthority` 已把持久化的项目信任记录
+//!   映射成 [`ProjectTrustResolution`]；daemon 的布尔信任闸门（`project_trusted`）与
+//!   `DaemonHost::project_trust_load_audit` / `authorize_project_trust_load` 都经它判定。
+//! - [`ProjectTrustPlan`] 与加载前审计 [`ProjectTrustLoadAudit`] 目前只被本文件的单元测试和
+//!   `kiana-policy/tests/` 的夹具直接调用，尚无生产调用者把它写进事件账本。
+//! - skill/plugin/hook/MCP **加载器**仍走 `kiana-skills` 自己的信任类型（`SourceTrust`），
+//!   尚未改为在读取资源前调用 `authorize_loading` —— 这段接线属于 SC-27。
 //!
-//! 实际生效的信任判定走的是另一条路：
-//! `kiana-daemon` 通过 `kiana-skills` 自己的信任类型（`SourceTrust`）来加载资源，
-//! 并不经过本文件的 `ProjectTrustResolution`。
-//!
-//! 所以本文件现在是一份**已实现、仓内有测试覆盖、但未接入生产加载路径**的策略值类型。
-//! 源码和测试只能说明这套判定逻辑存在，不能说明当前加载器实际使用了它。
-//!
-//! 这不改变下面那些设计说明的价值 —— 读懂它有助于理解信任模型的整体设计，
-//! 也为将来接线提供参考。但不要以为"现在加载 skill 会走这里"。
+//! 所以本文件是"已实现、判定层已进入 daemon 信任闸门、但资源加载前调用面尚未扩展"的策略值类型。
+//! 源码和测试能说明判定逻辑存在且被 daemon 使用；不能说明当前每个加载器都走这里。
+//! 这不改变下面那些设计说明的价值 —— 读懂它有助于理解信任模型的整体设计。
 //!
 //! # 这个文件在系统里的位置（设计意图）
 //!
@@ -91,12 +89,16 @@
 use kiana_domain::{json_digest, SchemaVersion};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// 信任根记录的 schema 标识符。
 pub const PROJECT_TRUST_ROOT_SCHEMA: &str = "kiana.project-trust-root.v1";
 /// 信任判定结果的 schema 标识符。
 pub const PROJECT_TRUST_RESOLUTION_SCHEMA: &str = "kiana.project-trust-resolution.v1";
+/// 跨 scope 信任计划的 schema 标识符。
+pub const PROJECT_TRUST_PLAN_SCHEMA: &str = "kiana.project-trust-plan.v1";
+/// 加载前审计记录的 schema 标识符。
+pub const PROJECT_TRUST_LOAD_AUDIT_SCHEMA: &str = "kiana.project-trust-load-audit.v1";
 /// 信任策略版本。
 pub const PROJECT_TRUST_POLICY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 /// 一次判定最多能带多少个候选信任根。
@@ -167,17 +169,34 @@ pub enum ProjectTrustScope {
 }
 
 impl ProjectTrustScope {
-    /// 返回该来源层级对应的数值，供 `resolve()` 的排序键使用。
+    /// 返回该来源层级的固定优先级数值。
     ///
-    /// `resolve()` 会先筛选 `scope == requested_scope`，所以一次判定里的候选 scope 都相同；
-    /// 当前排序中的 priority 键不会区分这些候选。实际排序结果由 revision 和 root_digest 决定。
-    /// 不要把这个数值误读为跨用户级、项目级信任的覆盖规则。
+    /// 数值越大层级越具体：`Project`(30) → `KianaHome`(20) → `User`(10)。
+    ///
+    /// 【它用在哪里】
+    /// - `resolve()` 内作为确定性排序键的一部分；
+    /// - [`ProjectTrustPlan::resolve`] 用它给出稳定的逐层检查/报告顺序
+    ///   （见 [`ProjectTrustScope::precedence_order`]）。
+    ///
+    /// 【不要把它误读为跨层覆盖规则】
+    /// 优先级只决定报告顺序，**不决定谁能放行谁**。一次加载的结论只由匹配资源根的
+    /// 那一层给出：低层（用户级）的 Trusted **不能**放行高层（项目级）资源，
+    /// 高层的 Untrusted 也不会连带否决另一层自己的资源。
+    /// 这就是"路径伪造 trust"要拒绝的形状。
     pub const fn priority(self) -> u8 {
         match self {
             Self::User => 10,
             Self::KianaHome => 20,
             Self::Project => 30,
         }
+    }
+
+    /// 按优先级降序返回三个 scope 的固定检查顺序：`Project` → `KianaHome` → `User`。
+    ///
+    /// [`ProjectTrustPlan::resolve`] 按这个顺序逐层求值，使"哪一层给出的结论"在计划与
+    /// 审计记录里的位置稳定可复现；顺序本身不授予任何跨层权限。
+    pub const fn precedence_order() -> [ProjectTrustScope; 3] {
+        [Self::Project, Self::KianaHome, Self::User]
     }
 }
 
@@ -339,7 +358,8 @@ impl ProjectTrustRoot {
 /// 【作用】
 /// 不只是给出一个 Allow/Deny，
 /// 还携带候选、选择结果、结论和原因，供调用方检查或记录。
-/// 当前仓内未发现生产调用者，因此不能说它已经进入事件账本或形成可复盘的运行记录。
+/// 生产调用者是 daemon 的默认信任权威（`StoredProjectTrustAuthority` 把它映射自持久化记录）；
+/// 但它尚未写进事件账本，因此不能把它的存在当作"可复盘的运行记录"。
 ///
 /// 【为什么 `selected_scope` 和 `selected_root_digest` 是 `Option`】
 /// 因为**拒绝时可能根本没有选中任何一条**
@@ -609,6 +629,353 @@ impl ProjectTrustResolution {
             "selected_root_digest": self.selected_root_digest,
             "decision": self.decision,
             "reason": self.reason,
+        }))
+    }
+
+    /// 产出一条**加载前审计**记录，供加载器在读取资源之前落账。
+    ///
+    /// 【作用】
+    /// 把这次判定的结论（scope、拒绝原因、选中摘要、判定摘要）与本次要加载的资源根摘要
+    /// 绑成一条自校验的记录。Allow 和 Deny 都会产出审计——"拒绝"同样是需要留下证据的决定。
+    ///
+    /// 【⚠ 审计不是许可】
+    /// 记录存在不等于允许加载。加载器必须用 [`ProjectTrustResolution::authorize_loading`]
+    /// 拿许可，或者自己检查 `decision`；不要拿审计记录的存在当放行依据。
+    ///
+    /// 【失败情况】
+    /// - 这个判定对象自身不自洽 → 返回其校验错误；
+    /// - `resource_root_digest` 不是合法摘要格式（例如直接把路径填进来）→
+    ///   `project_trust_resource_digest_invalid`；
+    /// - `audit_ref` 为空/超长/含 NUL → `project_trust_audit_ref_invalid`。
+    pub fn load_audit(
+        &self,
+        resource_root_digest: impl Into<String>,
+        audit_ref: impl Into<String>,
+    ) -> Result<ProjectTrustLoadAudit, String> {
+        self.validate()?;
+        let resource_root_digest = resource_root_digest.into();
+        valid_digest(&resource_root_digest, "project_trust_resource_digest")?;
+        let audit_ref = audit_ref.into();
+        nonempty(&audit_ref, "project_trust_audit_ref", 256)?;
+        let mut audit = ProjectTrustLoadAudit {
+            schema: PROJECT_TRUST_LOAD_AUDIT_SCHEMA.to_owned(),
+            version: PROJECT_TRUST_POLICY_VERSION,
+            project_root_digest: self.project_root_digest.clone(),
+            resource_root_digest,
+            requested_scope: self.requested_scope,
+            selected_scope: self.selected_scope,
+            selected_root_digest: self.selected_root_digest.clone(),
+            decision: self.decision,
+            reason: self.reason.clone(),
+            resolution_digest: self.resolution_digest.clone(),
+            audit_ref,
+            audit_digest: String::new(),
+        };
+        audit.audit_digest = audit.digest();
+        audit.validate()?;
+        Ok(audit)
+    }
+
+    /// 为一次资源加载**发放许可**：允许时返回审计记录，拒绝时返回稳定原因码。
+    ///
+    /// 【调用时机】
+    /// 在任何加载器打开项目本地的 skill、plugin、hook 或 MCP 配置之前。
+    /// 拒绝时返回值就是策略原因（如 `project_trust_root_missing`），调用方不要把它改写成
+    /// 通用 I/O 错误，也不要在拒绝后继续读取资源。
+    pub fn authorize_loading(
+        &self,
+        resource_root_digest: impl Into<String>,
+        audit_ref: impl Into<String>,
+    ) -> Result<ProjectTrustLoadAudit, String> {
+        let audit = self.load_audit(resource_root_digest, audit_ref)?;
+        if !self.allows_loading() {
+            return Err(self.reason.clone());
+        }
+        Ok(audit)
+    }
+}
+
+/// 单个 scope 的判定摘要，属于 [`ProjectTrustPlan`]。
+///
+/// 【字段】
+/// - `scope` / `priority`：这是哪一层、它在本计划里的固定排序值；
+/// - `decision` / `reason`：该层自己的结论与稳定原因码；
+/// - `selected_root_digest`：该层命中记录的根摘要（没有命中时为 `None`）；
+/// - `resolution_digest`：对应 [`ProjectTrustResolution::resolution_digest`]。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectTrustScopeDecision {
+    pub scope: ProjectTrustScope,
+    pub priority: u8,
+    pub decision: ProjectTrustDecision,
+    pub reason: String,
+    pub selected_root_digest: Option<String>,
+    pub resolution_digest: String,
+}
+
+impl ProjectTrustScopeDecision {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.priority != self.scope.priority() {
+            return Err("project_trust_scope_priority_invalid".to_owned());
+        }
+        nonempty(&self.reason, "project_trust_reason", 128)?;
+        if self.decision == ProjectTrustDecision::Allow && self.selected_root_digest.is_none() {
+            return Err("project_trust_allow_selection_missing".to_owned());
+        }
+        if self.decision == ProjectTrustDecision::Deny && self.reason == "project_trust_allowed" {
+            return Err("project_trust_deny_reason_invalid".to_owned());
+        }
+        if let Some(root_digest) = &self.selected_root_digest {
+            valid_digest(root_digest, "project_trust_selected_digest")?;
+        }
+        valid_digest(&self.resolution_digest, "project_trust_resolution_digest")?;
+        Ok(())
+    }
+}
+
+/// 一次跨 scope 的信任计划。
+///
+/// 【作用】
+/// 对同一个项目分别求值 user、KIANA_HOME、project 三层的信任记录，并按 scope 优先级
+/// （`Project` → `KianaHome` → `User`）给出稳定的逐层结论，供审计与排查使用。
+///
+/// 【⚠ 只有请求层能放行】
+/// `decision` / `reason` 恒等于 `requested_scope` 那一层的结论。其它层哪怕是 Trusted，
+/// 也不会让请求层从 Deny 变成 Allow——三层是三个命名空间：
+/// 用户级信任放行用户级资源，项目级信任放行项目本地资源。
+/// 如果把三层合并成"任一层可信即放行"，一个被克隆的仓库只要让用户级目录里留下一条记录，
+/// 就能借道项目级加载——这正是"路径伪造 trust"要拒绝的形状。
+///
+/// 【为什么不是三份 `resolve()` 的简单集合】
+/// 计划把"整体结论来自哪一层"写成不变量并在 `validate()` 里复核（见
+/// `project_trust_plan_requested_scope_mismatch`），所以反序列化或手工拼出来的计划
+/// 不能把某层的 Allow 冒充成整体 Allow。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectTrustPlan {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub project_root_digest: String,
+    /// 本次要加载的资源根所属 scope；只有这一层的 Allow 能放行加载。
+    pub requested_scope: ProjectTrustScope,
+    /// 逐层判定，恒按 `Project` → `KianaHome` → `User` 顺序。
+    pub scope_decisions: Vec<ProjectTrustScopeDecision>,
+    pub decision: ProjectTrustDecision,
+    pub reason: String,
+    pub plan_digest: String,
+}
+
+impl ProjectTrustPlan {
+    /// 对同一项目逐层求值三个 scope，产出跨层计划。
+    ///
+    /// 【核心流程】
+    /// 1. 校验项目摘要、根数量上限，并按 scope 把候选记录分组；
+    /// 2. 按 [`ProjectTrustScope::precedence_order`] 逐层调用
+    ///    [`ProjectTrustResolution::resolve`]——每层只看到自己的记录，因此
+    ///    "跨层越权"和"同层缺失/未知/冲突"都由同一套规则 fail-closed；
+    /// 3. 整体结论取 `requested_scope` 那一层；任何一层判定不自洽都返回错误。
+    ///
+    /// 【失败情况】
+    /// 项目摘要格式非法、候选超过 [`MAX_PROJECT_TRUST_ROOTS`]、任一记录或任一层的
+    /// 判定不自洽时返回对应的稳定错误码，不会产出部分计划。
+    pub fn resolve(
+        project_root_digest: impl Into<String>,
+        requested_scope: ProjectTrustScope,
+        roots: Vec<ProjectTrustRoot>,
+    ) -> Result<Self, String> {
+        let project_root_digest = project_root_digest.into();
+        valid_digest(&project_root_digest, "project_trust_project_digest")?;
+        if roots.len() > MAX_PROJECT_TRUST_ROOTS {
+            return Err("project_trust_root_limit".to_owned());
+        }
+        let mut per_scope: BTreeMap<ProjectTrustScope, Vec<ProjectTrustRoot>> = BTreeMap::new();
+        for root in roots {
+            per_scope.entry(root.scope).or_default().push(root);
+        }
+        let mut scope_decisions = Vec::with_capacity(ProjectTrustScope::precedence_order().len());
+        let mut requested: Option<ProjectTrustScopeDecision> = None;
+        for scope in ProjectTrustScope::precedence_order() {
+            let scope_roots = per_scope.remove(&scope).unwrap_or_default();
+            let resolution =
+                ProjectTrustResolution::resolve(project_root_digest.clone(), scope, scope_roots)?;
+            let decision = ProjectTrustScopeDecision {
+                scope,
+                priority: scope.priority(),
+                decision: resolution.decision,
+                reason: resolution.reason.clone(),
+                selected_root_digest: resolution.selected_root_digest.clone(),
+                resolution_digest: resolution.resolution_digest.clone(),
+            };
+            decision.validate()?;
+            if scope == requested_scope {
+                requested = Some(decision.clone());
+            }
+            scope_decisions.push(decision);
+        }
+        let requested = requested.ok_or_else(|| "project_trust_scope_invalid".to_owned())?;
+        let mut plan = Self {
+            schema: PROJECT_TRUST_PLAN_SCHEMA.to_owned(),
+            version: PROJECT_TRUST_POLICY_VERSION,
+            project_root_digest,
+            requested_scope,
+            scope_decisions,
+            decision: requested.decision,
+            reason: requested.reason,
+            plan_digest: String::new(),
+        };
+        plan.plan_digest = plan.digest();
+        plan.validate()?;
+        Ok(plan)
+    }
+
+    /// 这次计划是否允许加载请求层的资源。
+    ///
+    /// 【作用】
+    /// 等价于 `decision == Allow`，且只在整体结论来自 `requested_scope` 时成立。
+    pub fn allows_loading(&self) -> bool {
+        self.decision == ProjectTrustDecision::Allow
+    }
+
+    /// 校验计划的结构、逐层顺序与"整体结论来自请求层"这一不变量。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROJECT_TRUST_PLAN_SCHEMA
+            || !self
+                .version
+                .is_compatible_with(&PROJECT_TRUST_POLICY_VERSION)
+        {
+            return Err("project_trust_plan_header_invalid".to_owned());
+        }
+        valid_digest(&self.project_root_digest, "project_trust_project_digest")?;
+        let expected = ProjectTrustScope::precedence_order();
+        if self.scope_decisions.len() != expected.len() {
+            return Err("project_trust_plan_scope_invalid".to_owned());
+        }
+        for (index, scope) in expected.iter().enumerate() {
+            let decision = &self.scope_decisions[index];
+            if decision.scope != *scope {
+                return Err("project_trust_plan_scope_invalid".to_owned());
+            }
+            decision.validate()?;
+        }
+        let requested = self
+            .scope_decisions
+            .iter()
+            .find(|decision| decision.scope == self.requested_scope)
+            .ok_or_else(|| "project_trust_plan_scope_invalid".to_owned())?;
+        if requested.decision != self.decision || requested.reason != self.reason {
+            return Err("project_trust_plan_requested_scope_mismatch".to_owned());
+        }
+        valid_digest(&self.plan_digest, "project_trust_plan_digest")?;
+        if self.plan_digest != self.digest() {
+            return Err("project_trust_plan_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 计算计划的摘要；逐层判定与整体结论全部参与，任何字段变化都会改变摘要。
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "project_root_digest": self.project_root_digest,
+            "requested_scope": self.requested_scope,
+            "scope_decisions": self.scope_decisions,
+            "decision": self.decision,
+            "reason": self.reason,
+        }))
+    }
+}
+
+/// 一次资源加载的**加载前审计**记录。
+///
+/// 【作用】
+/// 在加载器读取项目本地资源之前，把这次信任判定的完整依据留成一条自校验、可序列化的记录：
+/// 项目摘要、资源根摘要、请求/选中 scope、结论与稳定原因码、判定摘要，以及脱敏的审计引用。
+///
+/// 【⚠ Allow 与 Deny 都会产出记录】
+/// 审计记录的存在不代表允许加载；它只是"决定已作出"的证据。
+/// 放行必须来自 [`ProjectTrustResolution::authorize_loading`] 或显式检查 `decision`。
+/// Allow 记录还要求 `selected_scope == Some(requested_scope)`——只有请求层自己的命中
+/// 才能对应一次放行。
+///
+/// 【⚠ 它不证明的事】
+/// 这不是签名或来源认证：能同时重算并替换摘要的一方仍可构造另一份自洽记录。
+/// 它也不重新执行判定，只描述调用方交出的那一次已校验判定。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectTrustLoadAudit {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub project_root_digest: String,
+    pub resource_root_digest: String,
+    pub requested_scope: ProjectTrustScope,
+    pub selected_scope: Option<ProjectTrustScope>,
+    pub selected_root_digest: Option<String>,
+    pub decision: ProjectTrustDecision,
+    pub reason: String,
+    pub resolution_digest: String,
+    /// Stable redacted audit reference; never a raw path or trust-file payload.
+    pub audit_ref: String,
+    pub audit_digest: String,
+}
+
+impl ProjectTrustLoadAudit {
+    /// 校验审计记录的结构、作用域与摘要自洽。
+    ///
+    /// 【核心检查】
+    /// 头部与摘要格式；Allow 必须有选中 scope/root 且选中 scope 恒等于请求 scope；
+    /// Deny 不得使用 `project_trust_allowed`；审计摘要与重算值一致。
+    ///
+    /// 【⚠ 边界】
+    /// 这是结构与自洽性检查，不是授权来源认证，也不重跑完整决策；
+    /// 反序列化得到或手工构造的记录必须先显式通过本方法，才能当作"决定已记录"的凭据。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROJECT_TRUST_LOAD_AUDIT_SCHEMA
+            || !self
+                .version
+                .is_compatible_with(&PROJECT_TRUST_POLICY_VERSION)
+        {
+            return Err("project_trust_load_audit_header_invalid".to_owned());
+        }
+        valid_digest(&self.project_root_digest, "project_trust_project_digest")?;
+        valid_digest(&self.resource_root_digest, "project_trust_resource_digest")?;
+        nonempty(&self.reason, "project_trust_reason", 128)?;
+        nonempty(&self.audit_ref, "project_trust_audit_ref", 256)?;
+        if self.decision == ProjectTrustDecision::Allow {
+            if self.selected_scope != Some(self.requested_scope)
+                || self.selected_root_digest.is_none()
+            {
+                return Err("project_trust_allow_selection_missing".to_owned());
+            }
+        }
+        if self.decision == ProjectTrustDecision::Deny && self.reason == "project_trust_allowed" {
+            return Err("project_trust_deny_reason_invalid".to_owned());
+        }
+        if let Some(root_digest) = &self.selected_root_digest {
+            valid_digest(root_digest, "project_trust_selected_digest")?;
+        }
+        valid_digest(&self.resolution_digest, "project_trust_resolution_digest")?;
+        valid_digest(&self.audit_digest, "project_trust_audit_digest")?;
+        if self.audit_digest != self.digest() {
+            return Err("project_trust_audit_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 计算审计记录的摘要；`audit_digest` 自身不参与计算。
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "project_root_digest": self.project_root_digest,
+            "resource_root_digest": self.resource_root_digest,
+            "requested_scope": self.requested_scope,
+            "selected_scope": self.selected_scope,
+            "selected_root_digest": self.selected_root_digest,
+            "decision": self.decision,
+            "reason": self.reason,
+            "resolution_digest": self.resolution_digest,
+            "audit_ref": self.audit_ref,
         }))
     }
 }

@@ -1,0 +1,57 @@
+name: SC-25 project trust roots and load audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  project-trust:
+    name: SC-25 policy and daemon wiring fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-25 policy fixtures
+        run: cargo test -p kiana-policy --test sc25_project_trust --locked -- --test-threads=1
+      - name: Run SC-25 policy source guard
+        run: cargo test -p kiana-policy --test sc25_project_trust_guard --locked -- --test-threads=1
+      - name: Run SC-25 daemon wiring fixtures
+        run: cargo test -p kiana-daemon --test sc25_project_trust_wiring --locked -- --test-threads=1
+      - name: Run named deny-first policy fixtures individually
+        run: |
+          for fixture in \
+            scope_precedence_order_is_fixed_and_not_a_permission_grant \
+            lower_scope_trust_cannot_unlock_project_resources \
+            project_scope_trust_cannot_unlock_user_scoped_resources \
+            tampered_plan_cannot_relabel_a_scope_decision_as_the_overall_decision \
+            raw_paths_zero_revisions_empty_audits_and_foreign_projects_are_denied \
+            project_trust_root_limit_is_enforced_before_any_resolution \
+            load_audit_records_allow_and_deny_and_authorize_matches_the_decision \
+            load_audit_rejects_raw_resource_paths_and_tampering
+          do
+            cargo test -p kiana-policy --test sc25_project_trust "$fixture" --locked -- --exact --test-threads=1
+          done
+      - name: Run named deny-first daemon fixtures individually
+        run: |
+          for fixture in \
+            stored_authority_deny_first_reasons_and_bool_compatibility \
+            daemon_gate_denies_before_allow_and_keeps_policy_reasons \
+            daemon_gate_refuses_to_fallback_when_the_authority_has_no_policy_resolution \
+            sc25_daemon_wiring_and_lane_are_pinned
+          do
+            cargo test -p kiana-daemon --test sc25_project_trust_wiring "$fixture" --locked -- --exact --test-threads=1
+          done
+      - name: Compile SC-25 policy target
+        run: cargo test -p kiana-policy --test sc25_project_trust --no-run --locked
+      - name: Compile SC-25 policy guard target
+        run: cargo test -p kiana-policy --test sc25_project_trust_guard --no-run --locked
+      - name: Compile SC-25 daemon wiring target
+        run: cargo test -p kiana-daemon --test sc25_project_trust_wiring --no-run --locked

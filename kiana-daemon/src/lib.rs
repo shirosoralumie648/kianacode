@@ -157,7 +157,10 @@ use kiana_domain::{
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
-use kiana_policy::DefaultPolicyEngine;
+use kiana_policy::{
+    DefaultPolicyEngine, ProjectTrustDecision, ProjectTrustLoadAudit, ProjectTrustResolution,
+    ProjectTrustRoot, ProjectTrustScope, ProjectTrustState,
+};
 use kiana_ports::{
     AssignmentDirectoryPort, InMemoryAssignmentDirectory, ObservabilityQueue,
     ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats, PortError,
@@ -454,6 +457,15 @@ pub struct DaemonHost {
     extensions: Option<Arc<extensions::ExtensionRegistry>>,
 }
 
+/// daemon 信任存储适配器的审计引用；稳定、脱敏，**不是**真实路径。
+pub const PROJECT_TRUST_AUDIT_REF: &str = "daemon.project_trust_store.v2";
+
+/// `kiana-types` v2 信任记录映射到 policy 记录时使用的**固定修订号**。
+///
+/// 存储层没有逐次修订的历史（一条布尔记录就是最终决定），所以这里固定为 1：策略层只要求
+/// `revision != 0`，状态变化本身会改变记录摘要。不要把这个值当成"信任被修改过一次"的历史证据。
+pub const PROJECT_TRUST_RECORD_REVISION: u64 = 1;
+
 /// 「这个项目目录可不可信」的**权威接口（authority）**。
 ///
 /// 【为什么需要这个 trait】
@@ -464,22 +476,108 @@ pub struct DaemonHost {
 /// 【为什么要求 `Send + Sync`】
 /// 因为宿主可能被多线程共享，实现里会持有内部状态。缺了这两个 bound，注入就只能在单线程用，
 /// 测试价值会大打折扣。
+///
+/// 【SC-25：策略层判定与加载前审计】
+/// - [`project_trust_resolution`](ProjectTrustAuthority::project_trust_resolution) 让实现交出
+///   policy 层的 `ProjectTrustResolution`（scope、候选、稳定 deny reason）；
+/// - [`project_trust_load_audit`](ProjectTrustAuthority::project_trust_load_audit) 在其上绑定
+///   「本次要加载的资源根摘要」，产出加载前审计（Allow/Deny 都产出）。
+///
+/// 两者默认返回 `Ok(None)`：只实现旧 `project_trusted` 的注入权威（测试/兼容）不必跟着改。
+/// 生产默认实现 [`StoredProjectTrustAuthority`] 覆盖 `project_trust_resolution`，
+/// 让现有布尔闸门也走同一条 policy 判定路径。
 pub trait ProjectTrustAuthority: Send + Sync {
     fn project_trusted(&self, project_root: &Path) -> Result<bool, String>;
+
+    /// 返回 policy 层判定；默认 `Ok(None)` 表示该权威不提供策略判定。
+    fn project_trust_resolution(
+        &self,
+        _project_root: &Path,
+    ) -> Result<Option<ProjectTrustResolution>, String> {
+        Ok(None)
+    }
+
+    /// 产出加载前审计记录；默认委托给 [`ProjectTrustAuthority::project_trust_resolution`]。
+    ///
+    /// 【为什么 `Ok(None)` 不是伪造一条 Deny 审计】
+    /// `None` 的含义是"该权威根本没有策略层判定"，由调用方 fail-closed
+    /// （DaemonHost 映射为 `project_trust_policy_unavailable`），而不是伪造一条记录。
+    fn project_trust_load_audit(
+        &self,
+        project_root: &Path,
+        resource_root_digest: &str,
+    ) -> Result<Option<ProjectTrustLoadAudit>, String> {
+        let Some(resolution) = self.project_trust_resolution(project_root)? else {
+            return Ok(None);
+        };
+        resolution
+            .load_audit(resource_root_digest, PROJECT_TRUST_AUDIT_REF)
+            .map(Some)
+    }
 }
 
-/// 默认的信任权威实现：**真的去读项目目录里的信任配置**。
+/// 默认的信任权威实现：**真的去读项目目录里的信任配置**，并经 policy 层判定。
 ///
 /// 【为什么是 unit struct（没有任何字段）】
-/// 它是无状态的——判断逻辑全在 `kiana_types::read_project_trust` 里。这样做的好处是
+/// 它是无状态的——读取逻辑在 `kiana_types`，判定规则在 `kiana-policy`。这样做的好处是
 /// 任何人都能随手 `StoredProjectTrustAuthority` 造一个出来，不需要构造参数、不会忘记初始化。
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StoredProjectTrustAuthority;
 
+impl StoredProjectTrustAuthority {
+    /// 把 `kiana-types` v2 信任记录解析成 policy 层判定。
+    ///
+    /// 【步骤】
+    /// 1. `kiana_types::project_trust_root` 找到项目权威根（含 git 根归一化）；
+    /// 2. 根的规范化路径摘要同时作为 `project_root_digest` 与 `root_digest`——
+    ///    存储层是"整个项目一份记录"，没有更细的资源根粒度；
+    /// 3. `kiana_types::read_project_trust` 读记录：`Trusted`/`Untrusted` 生成候选，
+    ///    记录缺失则候选为空；
+    /// 4. 经 `ProjectTrustRoot::new` + `ProjectTrustResolution::resolve` 产出判定：
+    ///    只有 `Trusted` 得到 `Allow`；缺失、`Untrusted` 与防未来的 `Unknown` 都 fail-closed
+    ///    （分别带 `project_trust_root_missing` / `project_trust_untrusted` / `project_trust_unknown`）。
+    ///
+    /// ⚠ 读记录失败（IO/解析/待写标记）返回 `Err`，与"记录缺失"（合法地不可信）区分：
+    /// 前者是 `project_trust_unavailable`，后者是稳定的策略拒绝。
+    pub fn resolve_project_trust(
+        &self,
+        project_root: &Path,
+    ) -> Result<ProjectTrustResolution, String> {
+        let root = kiana_types::project_trust_root(project_root);
+        let root_digest = kiana_domain::json_digest(&serde_json::json!({
+            "project_root": root.to_string_lossy(),
+        }));
+        let state = match kiana_types::read_project_trust(project_root)? {
+            Some(kiana_types::ProjectTrust::Trusted) => Some(ProjectTrustState::Trusted),
+            Some(kiana_types::ProjectTrust::Untrusted) => Some(ProjectTrustState::Untrusted),
+            Some(kiana_types::ProjectTrust::Unknown) => Some(ProjectTrustState::Unknown),
+            None => None,
+        };
+        let roots = match state {
+            Some(state) => vec![ProjectTrustRoot::new(
+                ProjectTrustScope::Project,
+                root_digest.clone(),
+                root_digest.clone(),
+                PROJECT_TRUST_RECORD_REVISION,
+                state,
+                PROJECT_TRUST_AUDIT_REF,
+            )?],
+            None => Vec::new(),
+        };
+        ProjectTrustResolution::resolve(root_digest, ProjectTrustScope::Project, roots)
+    }
+}
+
 impl ProjectTrustAuthority for StoredProjectTrustAuthority {
     fn project_trusted(&self, project_root: &Path) -> Result<bool, String> {
-        kiana_types::read_project_trust(project_root)
-            .map(|trust| trust.is_some_and(kiana_types::ProjectTrust::as_bool))
+        Ok(self.resolve_project_trust(project_root)?.allows_loading())
+    }
+
+    fn project_trust_resolution(
+        &self,
+        project_root: &Path,
+    ) -> Result<Option<ProjectTrustResolution>, String> {
+        self.resolve_project_trust(project_root).map(Some)
     }
 }
 
@@ -924,6 +1022,57 @@ impl DaemonHost {
             .map_err(|_| PortError::Failed("project_trust_unavailable".to_owned()))?;
         ProjectTrustSnapshot::from_project(&project, trusted, "daemon.project_authority", revision)
             .map_err(PortError::Failed)
+    }
+
+    /// 加载前信任闸门（审计视图）：对项目本地资源产出 policy 层判定对应的审计记录。
+    ///
+    /// 【与生产默认权威的关系】
+    /// [`StoredProjectTrustAuthority`] 把磁盘上的项目信任记录映射成
+    /// `ProjectTrustScope::Project` 的 [`ProjectTrustResolution`]；本方法把该判定与
+    /// 「本次要加载的资源根摘要」绑成一条自校验的 [`ProjectTrustLoadAudit`]：
+    /// 项目摘要、资源根摘要、请求/命中 scope、决定与稳定原因码、判定/审计摘要。
+    /// **Allow 和 Deny 都会产出记录**——拒绝同样是需要留痕的决定。
+    ///
+    /// 【fail-closed 的两处】
+    /// 1. 权威没有策略层判定（注入的测试/兼容实现未实现 `project_trust_resolution`）→
+    ///    `project_trust_policy_unavailable`，不退回布尔开关；
+    /// 2. 读记录失败 → `project_trust_unavailable`。
+    ///
+    /// 【为什么资源摘要在这里算】
+    /// 规范根摘要属于 daemon 的文件系统权威（与 `project_identity` 使用同一 `canonical_root`）；
+    /// authority 只负责把摘要交给策略层。
+    pub fn project_trust_load_audit(
+        &self,
+        project_root: &str,
+    ) -> Result<ProjectTrustLoadAudit, PortError> {
+        let identity = self.project_identity(project_root)?;
+        let resource_root_digest = kiana_domain::json_digest(&serde_json::json!({
+            "resource_root": identity.canonical_root,
+        }));
+        let audit = self
+            .project_authority
+            .project_trust_load_audit(Path::new(project_root), &resource_root_digest)
+            .map_err(|_| PortError::Failed("project_trust_unavailable".to_owned()))?
+            .ok_or_else(|| PortError::Failed("project_trust_policy_unavailable".to_owned()))?;
+        audit.validate().map_err(PortError::Failed)?;
+        Ok(audit)
+    }
+
+    /// 加载前信任闸门（放行视图）：只有策略判定 Allow 才返回审计记录。
+    ///
+    /// 【拒绝形状】
+    /// Deny 时返回 audit 里的稳定策略原因码（如 `project_trust_root_missing`、
+    /// `project_trust_untrusted`），而不是本方法自己拼的错误——调用方据此区分「缺失」与
+    /// 「明确不可信」，也不要把它改写成通用 I/O 错误后继续读取资源。
+    pub fn authorize_project_trust_load(
+        &self,
+        project_root: &str,
+    ) -> Result<ProjectTrustLoadAudit, PortError> {
+        let audit = self.project_trust_load_audit(project_root)?;
+        if audit.decision != ProjectTrustDecision::Allow {
+            return Err(PortError::Failed(audit.reason));
+        }
+        Ok(audit)
     }
 
     /// Compose the project-scoped provider gateway at the daemon composition root.
