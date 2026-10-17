@@ -43,7 +43,8 @@ use std::sync::Arc;
 pub use telemetry::{safe_prepared_metadata, MODEL_ATTEMPT_TELEMETRY_SCHEMA};
 pub use usage::normalize_model_reply;
 pub use usage_adapters::{
-    normalize_provider_usage, MAX_PROVIDER_USAGE_TOKENS, PROVIDER_USAGE_ADAPTER_SCHEMA,
+    normalize_provider_usage, provider_usage_containment, MAX_PROVIDER_USAGE_TOKENS,
+    PROVIDER_USAGE_ADAPTER_SCHEMA,
 };
 
 /// 持有已解析 provider 连接和容量状态的网关。
