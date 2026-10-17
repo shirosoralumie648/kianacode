@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 SC-07 翻 ✅（可查询 authority 来源/revision 与项目隔离拒绝矩阵，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 118（🔄 → ✅）；kiana-core/src/security_authority.rs（+SecurityAuthorityProvenance/SECURITY_AUTHORITY_PROVENANCE_SCHEMA）；kiana-core/src/lib.rs（re-export）；kiana-daemon/src/lib.rs（+authority_snapshot_for_assignment、authority_provenance、ASSIGNMENT_DIRECTORY_SOURCE）；kiana-core/tests/sc07_authority_snapshot.rs、kiana-core/tests/sc07_authority_guard.rs、kiana-daemon/tests/sc07_assignment_enforcement.rs；.github/workflows/sc07-authority.yml；docs/roadmap/security-authority-baseline.md §7
+worktree_status: 行 118 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/workflow 与共享文档单行回填；无 Cargo.toml/Cargo.lock/package.json 变化；未新增执行循环、未改五个模型工具面
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与 bash scripts/ci/validate-doc-references.sh（732 documents，通过）；bash scripts/ci/validate-workflows.sh 因镜像无 ruby 跳过（依赖其内嵌合同时为既有环境限制）
+cwd·environment: worktree /workspace/kianacode-worktrees/SC-07，分支 step/sc-07-20261017-1（基线 master c0c031ce8e1b）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: Core `sc07_authority_snapshot` 新增 authority_provenance_exposes_server_sources_and_revisions（从已验证 snapshot 投影 trust/role/department 来源与 revision，round-trip 通过，tampered role_revision/空 role_source 拒绝）；Core `sc07_authority_guard` 增加 provenance 与 daemon helper marker（authority_snapshot_for_assignment/authority_provenance/ASSIGNMENT_DIRECTORY_SOURCE），并保持 project identity 检查先于 trust/department/authority；daemon `sc07_assignment_enforcement` 新增 authority_provenance_reports_server_sources_and_revisions（来源/revision 可查询、foreign organization 返回 assignment_expired_or_missing）与 assignment_for_another_project_is_rejected_without_effect（项目隔离：A 项目 assignment 不授权 B 项目，零模型派发/零副作用），既有 missing/role-drift/revoked/wire-trust 伪造/match 夹具不变
+exit_code: 本地未运行；CI 回执未等待（sc07-authority.yml 增加 daemon fixture run 与 --no-run compile 步；统一 ci.yml kiana-daemon shard 亦覆盖该 target）
+status_change: SC-07 卡退出条件（trust/role 来源与 revision 可查询 + 项目隔离拒绝矩阵）在源码层覆盖且 fixtures 接入 CI，row 118 提升 ✅（CI pending）/ feature_status=implemented（opt-in enforcement + 只读 provenance）；默认兼容路径与 org provisioning/默认未指派语义作为显式待决项保留
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行测试，仅静态审阅，编译/运行正确性依赖 GitHub Actions；AssignmentDirectory 仍为内存适配器，ProjectTrustAuthority 仍读取本地 trust，无 durable CAS/跨进程 revocation 或 refresh；默认 host 仍是本地兼容角色路径（opt-in 才消费服务端 assignment）；OrganizationId/assignment provisioning、默认未指派与多角色请求语义未决定；external/live/physical proof 未获
+reviewer: root integration agent；SC-07 静态复核
+```
+
 ### 2026-10-17 OA-03 翻 ✅（统一有界信号编码与运行时 sink/stream 接线，CI-only 口径）
 
 ```text
