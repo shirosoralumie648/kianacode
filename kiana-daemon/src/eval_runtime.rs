@@ -617,6 +617,25 @@ impl EvalBoundaryEvidence {
         self.network_syscalls == 0 && self.secret_patterns.is_empty()
     }
 
+    /// Unsafe boundary evidence — any observed network syscall or allow-listed secret-pattern
+    /// match — can never contribute to a passing evaluation, regardless of how the enclosing
+    /// capture is finalized.
+    pub fn blocks_eval_pass(&self) -> bool {
+        !self.is_safe()
+    }
+
+    /// Fail-closed bridge to the domain evaluation verdict: a candidate `Pass` is preserved only
+    /// when this evidence carries no network activity and no secret-pattern match. Unsafe evidence
+    /// downgrades `Pass` to `Blocked`, so an outbound network call or a detected secret pattern can
+    /// never be reported as an evaluation pass.
+    pub fn apply_boundary_invariant(&self, verdict: EvalVerdict) -> EvalVerdict {
+        if self.blocks_eval_pass() && verdict == EvalVerdict::Pass {
+            EvalVerdict::Blocked
+        } else {
+            verdict
+        }
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,

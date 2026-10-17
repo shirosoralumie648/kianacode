@@ -13,10 +13,21 @@ stable `safety_violation` rather than allowing a flushed capture to look safe. N
 filesystem diff, network socket or environment secret is read by this adapter; a later CI harness
 may provide sanitized observations through the value boundary.
 
+## Fail-closed verdict bridge
+
+`EvalBoundaryEvidence::blocks_eval_pass` is true whenever the evidence recorded any network syscall
+or any allow-listed secret pattern, and `EvalBoundaryEvidence::apply_boundary_invariant` mirrors the
+capture-level bridge: it downgrades a candidate `EvalVerdict::Pass` to `Blocked` while leaving other
+verdicts unchanged. Combined with `EvalCaptureStatus::blocks_eval_pass` (only `Flushed` clears it),
+unsafe boundary evidence can never be reported as a passing evaluation. Every observed fact is
+digest-bound; a rewritten `evidence_digest`, a mutated network count, an unsorted/duplicate or
+unknown secret pattern code, and a path escape all fail closed before the evidence is trusted.
+
 ## Evidence and limits
 
 - `kiana-daemon/tests/eq16_boundary_evidence.rs` covers scrubbed process/file/network/secret
-  evidence, unsafe capture blocking, relative-path validation and unknown-pattern rejection.
+  evidence, the fail-closed verdict bridge, unsafe capture blocking, relative-path validation,
+  unknown-pattern rejection and digest/network/pattern tamper rejection.
 - `kiana-core/tests/eq16_boundary_evidence_guard.rs` protects the no-syscall/no-secret/no-runner
   boundary. GitHub Actions runs the fixtures; local tests are intentionally not executed.
 

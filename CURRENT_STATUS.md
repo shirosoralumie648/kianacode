@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 EQ-16 翻 ✅（scrubbed boundary evidence 与 fail-closed 不变量，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 188（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/evaluation-boundary-evidence-baseline.md（新增 fail-closed verdict bridge 段）；kiana-daemon/src/eval_runtime.rs（+EvalBoundaryEvidence::blocks_eval_pass/apply_boundary_invariant）；kiana-daemon/tests/eq16_boundary_evidence.rs（命名夹具增桥接断言与 raw-secret 拒绝、+boundary_evidence_rejects_digest_or_pattern_tamper）；kiana-core/tests/eq16_boundary_evidence_guard.rs（+is_safe/blocks_eval_pass/apply_boundary_invariant/EvalVerdict::Blocked/eval_boundary_evidence_header_invalid/eval_boundary_secret_pattern_unknown marker）；.github/workflows/eq16-boundary-evidence.yml 为已合并的布线，未改
+worktree_status: 行 188 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/git diff）与手工 rustfmt 风格对齐；.github/workflows/eq16-boundary-evidence.yml 运行 `cargo test -p kiana-daemon --test eq16_boundary_evidence --locked -- --test-threads=1`、`cargo test -p kiana-core --test eq16_boundary_evidence_guard --locked -- --test-threads=1`、`cargo fmt --all --check` 与 target-scoped `--no-run`（同一 test target 自动涵盖新用例，未新增步骤/目标）
+cwd·environment: worktree /workspace/kianacode-worktrees/EQ-16，分支 step/eq-16-20261017-1（基线 master 951e970b8791）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon `eq16_boundary_evidence` 命名夹具 `eval_evidence_has_no_unredacted_secret` 在既有 scrubbed process/file/network/secret 覆盖上补齐 fail-closed 桥接——安全证据 `is_safe`/`!blocks_eval_pass` 且 `apply_boundary_invariant(Pass)=Pass`；网络 syscall 或 `api_key` pattern 命中时 `!is_safe`/`blocks_eval_pass` 且 `apply_boundary_invariant(Pass)=Blocked`，`Fail` 保持不变；序列化仅含 pattern code 不含 `raw-secret`，raw secret(`sk-live-abcdef`) 作为未知 pattern 以 `eval_boundary_secret_pattern_unknown` 拒绝；capture 层 `SafetyViolation`/`safety_violation` 经 `EvalCaptureStatus::blocks_eval_pass`/`apply_flush_invariant` 同样降级为 `Blocked`；新增 `boundary_evidence_rejects_digest_or_pattern_tamper`（重写 evidence_digest、篡改 network 计数以 `eval_boundary_evidence_header_invalid` 拒绝，pattern 乱序/重复以 `eval_boundary_secret_pattern_order` 拒绝）；既有 path escape/unknown pattern 拒绝与成功路径不变；core `eq16_boundary_evidence_guard` 增补 fail-closed bridge marker 并继续禁止第二事实源（无 std::process::Command/std::process::id/read_proc/TcpStream/reqwest/tokio::spawn/KianaHarness/CapabilityBroker/secret_value/raw_secret）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: EQ-16 卡「对进程树、文件 diff、网络 syscall、secret pattern 做 eval-only evidence capture」的 scrubbed 采集在源码层与夹具层齐备；本切片补齐验收 fail-closed 不变量——任何网络活动或 allow-listed secret pattern 命中经类型化桥接把候选 `EvalVerdict::Pass` 降级为 `Blocked`，且摘要/网络计数/pattern 篡改与 path escape 在信任前 fail-closed，因此该 capture 永远不会把未脱敏 secret 或出网行为报告为评估 pass；行 188 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；`EvalBoundaryEvidence` 的观测仍是调用方提供的 sanitized 值而非真实 syscall，未读取真实进程表/文件系统/socket/环境，也未持久化 evidence manifest、未接入真实 DaemonHost target 或质量门（属后续 EQ/PD）；`apply_boundary_invariant` 只对 boundary evidence 自身的安全性 fail-closed，不替代后续 evaluator 的失败/证据判断；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；EQ-16 evaluation boundary evidence/fail-closed bridge 静态复核
+```
+
 ### 2026-10-17 EQ-15 翻 ✅（fault plan 与 fail-closed 不变量，CI-only 口径）
 
 ```text
