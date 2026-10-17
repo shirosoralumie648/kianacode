@@ -61,6 +61,14 @@ fn retrieval() -> (ContextPlan, kiana_domain::RetrievalResult) {
             text: "登录 auth_token src/main.rs 2026-09-20".to_owned(),
             source_digest: digest("main"),
             permission_scope_digest: scope.clone(),
+            provenance: kiana_domain::RetrievalItemProvenance::new(
+                "fixture:src/main.rs",
+                "revision:1",
+                9,
+                kiana_domain::Freshness::Current,
+                kiana_domain::EvidenceStatus::Attributed,
+            )
+            .unwrap(),
             allowed: true,
             created_at_ms: 10,
             dense_vector: None,
@@ -70,6 +78,14 @@ fn retrieval() -> (ContextPlan, kiana_domain::RetrievalResult) {
             text: "English README with login guidance".to_owned(),
             source_digest: digest("readme"),
             permission_scope_digest: scope,
+            provenance: kiana_domain::RetrievalItemProvenance::new(
+                "fixture:README.md",
+                "revision:1",
+                9,
+                kiana_domain::Freshness::Current,
+                kiana_domain::EvidenceStatus::Attributed,
+            )
+            .unwrap(),
             allowed: true,
             created_at_ms: 11,
             dense_vector: None,

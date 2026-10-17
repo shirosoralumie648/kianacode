@@ -11,6 +11,9 @@
 > 2026-10-17（CM-12）重新钉扎：unified retrieval 落地后 `memory_retrieval.rs` 把排名委托给 Domain
 > `rank_retrieval()`，重钉该行 SHA-256；同时补钉 `harness_memory.rs`（`0cc42418` 对 H17/CAP-19 daemon
 > 源码套 rustfmt 后遗留的过期钉扎，非 CM-12 行为改动）。下表其余哈希未变。
+> 2026-10-17（CM-14）重新钉扎：检索结果 provenance/health 落地后 `memory_retrieval.rs`（候选来源证据、
+> 结果 health、显式重试边界）与 `harness_memory.rs`（快照标签与 `retrieval_health` 输出、同一次检索
+> 共用时间基准）重新钉扎两行 SHA-256，并与验收测试期望同步；下表其余哈希未变。
 
 ## 1. 快照
 
@@ -28,8 +31,8 @@
 | repo map | `kiana-query/src/repo_map.rs` | `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
 | context 命令（core） | `kiana-core/src/context_query.rs` | `e4865d44418b195f5fabe8a24d1d9f846f356b87acd2a5bbcdd0215c911282e9` |
 | context handler（daemon） | `kiana-daemon/src/context_query.rs` | `f862a66b00ef8db99ac4c010c65bbc42cbc689944a5e546f87da67fe7025b6f7` |
-| memory handler | `kiana-daemon/src/harness_memory.rs` | `f0e9e6cba39d029b4d005408c68184b6d864765a3248063415e8c3308ddae34c` |
-| memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `48bd7ae6184853b2e0def1a07cdc1f465640ab7a2e9c3eb068d8fd5cbb325a97` |
+| memory handler | `kiana-daemon/src/harness_memory.rs` | `80c3f2b729ce51d760862622271790dda469149f0f53fb45544419ae4e715cb5` |
+| memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `06dfbbab7f45cc94826279876e3d97a008fb42b00f154855e8bd2b0ff68a36f9` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
 | 上下文压缩 | `kiana-runner/src/compact.rs` | `6e3c08972ca24ac02334fafada0f689c5302eb6bc0b8ad6291acbb18cef063f6` |

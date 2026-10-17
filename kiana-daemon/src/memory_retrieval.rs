@@ -6,9 +6,13 @@
 //! 投影成 `RetrievalItem`，连同可选 dense 向量交给 `kiana_query::UnifiedRetrievalPort`（Domain
 //! `rank_retrieval()` 的唯一实现）排名，再把 `RetrievalResult` 映射回既有 JSON hit 形状。本模块继续负责
 //! dense 模型加载、fail-closed 校验、降级原因和兼容输出字段。
+//! 2026-10-17（CM-14）：每个候选带上 `RetrievalItemProvenance`（source ref/revision/快照 generation/
+//! freshness/evidence），命中的 `RetrievalEvidence` 与结果 `RetrievalHealth` 一起出现在 tool 输出里；
+//! embedding 不可用等确定性降级会写成 Degraded + 原因且不可重试。
 use kiana_domain::{
-    memory_tokens, retrieval_scope_digest, MemoryRecord, RetrievalItem, RetrievalProfile,
-    RetrievalRequest,
+    memory_tokens, retrieval_scope_digest, EvidenceStatus, Freshness, MemoryOrigin, MemoryRecord,
+    RetrievalHealth, RetrievalItem, RetrievalItemProvenance, RetrievalProfile, RetrievalRequest,
+    RetrievalRetryPolicy,
 };
 use kiana_ports::{PortError, RetrievalPort};
 use kiana_query::UnifiedRetrievalPort;
@@ -177,6 +181,63 @@ fn text_digest(text: &str) -> String {
     format!("sha256:{:x}", Sha256::digest(text.as_bytes()))
 }
 
+/// 本次排名的快照标签：数据治理 epoch 与 freshness 判定时间。
+///
+/// 【作用】让同一次检索的所有候选共享一个非零 generation 标签（`data_epoch`），并使用同一个时间基准
+/// 判定记录 validity 窗口，避免逐条读取时钟造成同一次结果内部不一致。
+/// 【边界】`data_epoch` 来自调用方的 data policy，不是索引 generation；`now_ms` 只用于派生只读
+/// freshness 标签，不做新鲜度探测。
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RetrievalSnapshotContext {
+    pub data_epoch: u64,
+    pub now_ms: u64,
+}
+
+/// 一次 memory 检索的命中投影与健康状态。
+///
+/// `hits` 是既有的 JSON hit 形状（新增 `retrieval_evidence`），`health` 是 Domain `RetrievalHealth`：
+/// Ready/Degraded/Denied/Unavailable 加原因与显式重试边界，供 tool 输出与调用者判断是否值得重试。
+pub(crate) struct RankedRecords {
+    pub hits: Vec<Value>,
+    pub health: RetrievalHealth,
+}
+
+/// 由 memory 记录派生候选来源证据。
+///
+/// 【规则】`source_ref` 用 `memory:{layer}:{collection}:{id}`；`source_revision` 用记录 revision 计数标签；
+/// `generation` 取调用方的快照 data epoch（同一次检索所有候选一致，不是每条记录各自的 revision）；
+/// `freshness` 由 validity 窗口与快照时间派生（`valid_to_ms <= now_ms` → Stale，其余 → Current）；
+/// `evidence` 只区分 Attributed/Unverifiable（origin 未知或 source 为空 → Unverifiable），从不声称
+/// Verified。
+/// 【失败】记录带非法 generation（epoch 为 0）或畸形来源标签时返回 `PortError::Failed`，整次检索
+/// fail-closed。
+/// 【边界】这些是只读派生标签：不重新读来源、不重新授权、不做新鲜度探测。
+fn record_provenance(
+    record: &MemoryRecord,
+    context: RetrievalSnapshotContext,
+) -> Result<RetrievalItemProvenance, PortError> {
+    let freshness = match record.validity.valid_to_ms {
+        Some(valid_to) if valid_to <= context.now_ms => Freshness::Stale,
+        _ => Freshness::Current,
+    };
+    let evidence = if record.origin == MemoryOrigin::Unknown || record.source.trim().is_empty() {
+        EvidenceStatus::Unverifiable
+    } else {
+        EvidenceStatus::Attributed
+    };
+    RetrievalItemProvenance::new(
+        format!(
+            "memory:{}:{}:{}",
+            record.layer, record.collection, record.id
+        ),
+        format!("revision:{}", record.revision),
+        context.data_epoch,
+        freshness,
+        evidence,
+    )
+    .map_err(|error| fail(format!("memory_retrieval_provenance_invalid:{error}")))
+}
+
 /// 对已授权候选快照执行统一检索排名，并把结果映射回 memory tool 的 JSON hit 形状。
 ///
 /// 【作用】把记录正文投影成稀疏文档，把可选 dense 向量（由 `KIANA_MEMORY_EMBEDDING_MANIFEST` 指定的
@@ -185,21 +246,24 @@ fn text_digest(text: &str) -> String {
 /// exact/BM25-CJK → 可选 dense → RRF60 → MMR 的确定性排名。
 /// 【调用者】`harness_memory::search_records_scoped`；该调用者必须先完成 collection/role 授权、投影 fence
 /// 与 supersede 过滤，本函数只排名传入的候选。
-/// 【输入/输出】已筛选的 `MemoryRecord`、查询文本和上限；成功返回与旧实现同形状的 hit（id/layer/
-/// collection/revision 等来自 `MemoryRecord::hit()`，另加 score、matched_terms、score_components、
-/// embedding_model_*、degraded/degraded_reason 和统一算法标签）。
+/// 【输入/输出】已筛选的 `MemoryRecord`、查询文本、上限与快照标签（data epoch/时间）；成功返回与旧实现
+/// 同形状的 hit（id/layer/collection/revision 等来自 `MemoryRecord::hit()`，另加 score、matched_terms、
+/// score_components、`retrieval_evidence`、embedding_model_*、degraded/degraded_reason 和统一算法标签）
+/// 以及带原因与重试边界的 `RetrievalHealth`。
 /// 【失败】模型文件/manifest 非法、记录无法投影成合法检索条目、请求或上限越界时返回 `PortError::Failed`；
 /// 畸形记录让整次检索失败，而不是静默丢弃。
 /// 【降级】未配置 manifest（`embedding_not_configured`）、模型文件缺失（`embedding_model_missing`）或查询
 /// 词全部不在模型词表（`embedding_query_out_of_vocabulary`）时只走稀疏通道，并把原因写入每个 hit 与
-/// `degraded=true`；请求要求 dense 但没有任何有效条目向量时采用统一算法报出的降级原因。
+/// health（Degraded + 原因，确定性降级不可重试）；请求要求 dense 但没有任何有效条目向量时采用统一算法
+/// 报出的降级原因。
 /// 【边界】`scope` 摘要由候选快照标签派生，只用于把 request/item 绑定到同一次快照，不是权限判断；本函数
 /// 不读取授权状态、不写 EventLog、不执行工具，也不证明排名质量或外部向量模型的语义正确性。
 pub(crate) fn rank_records(
     records: &[MemoryRecord],
     query: &str,
     limit: usize,
-) -> Result<Vec<Value>, PortError> {
+    context: RetrievalSnapshotContext,
+) -> Result<RankedRecords, PortError> {
     let (model, mut degraded_reason) = load_model()?;
     let query_tokens = tokenize(query);
     let query_vector = model.as_ref().and_then(|model| model.embed(&query_tokens));
@@ -220,18 +284,21 @@ pub(crate) fn rank_records(
     let permission_scope_digest = retrieval_scope_digest(scope_labels.iter().map(String::as_str));
     let items = records
         .iter()
-        .map(|record| RetrievalItem {
-            id: record.id.clone(),
-            text: record.text.clone(),
-            source_digest: text_digest(&record.text),
-            permission_scope_digest: permission_scope_digest.clone(),
-            allowed: true,
-            created_at_ms: record.created_at_ms,
-            dense_vector: model
-                .as_ref()
-                .and_then(|model| model.embed(&tokenize(&record.text))),
+        .map(|record| {
+            Ok(RetrievalItem {
+                id: record.id.clone(),
+                text: record.text.clone(),
+                source_digest: text_digest(&record.text),
+                permission_scope_digest: permission_scope_digest.clone(),
+                provenance: record_provenance(record, context)?,
+                allowed: true,
+                created_at_ms: record.created_at_ms,
+                dense_vector: model
+                    .as_ref()
+                    .and_then(|model| model.embed(&tokenize(&record.text))),
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, PortError>>()?;
     let request = RetrievalRequest::new(query, permission_scope_digest, query_vector)
         .map_err(|error| fail(format!("memory_retrieval_request_invalid:{error}")))?;
     let port = UnifiedRetrievalPort::new(RetrievalProfile::unified())
@@ -240,6 +307,17 @@ pub(crate) fn rank_records(
         .retrieve(&request, &items, limit)
         .map_err(|error| fail(format!("memory_retrieval_failed:{error}")))?;
     let reason = degraded_reason.or_else(|| result.degraded_reasons.first().cloned());
+    // health：本模块已知的通道降级优先于统一算法自身的降级原因；两者都是确定性配置事实，因此不可重试。
+    let health = match &reason {
+        Some(reason) => RetrievalHealth::degraded_channel(
+            reason.clone(),
+            RetrievalRetryPolicy::Deterministic,
+            result.source_generation,
+            result.hits.len() as u32,
+        )
+        .map_err(|error| fail(format!("memory_retrieval_health_invalid:{error}")))?,
+        None => result.health.clone(),
+    };
     let mut by_id = BTreeMap::new();
     for (index, record) in records.iter().enumerate() {
         by_id.entry(record.id.as_str()).or_insert(index);
@@ -260,6 +338,8 @@ pub(crate) fn rank_records(
             "rrf": hit.rrf_score,
             "mmr": hit.mmr_score
         });
+        // CM-14：命中级来源证据（source ref/revision/generation/freshness/evidence/rank components）。
+        output["retrieval_evidence"] = json!(hit.provenance);
         output["embedding_model_id"] = json!(model.as_ref().map(|model| &model.id));
         output["embedding_model_sha256"] = json!(model.as_ref().map(|model| &model.sha256));
         output["degraded"] = json!(reason.is_some());
@@ -267,7 +347,10 @@ pub(crate) fn rank_records(
         output["retrieval_algorithm"] = json!(result.algorithm_version);
         results.push(output);
     }
-    Ok(results)
+    Ok(RankedRecords {
+        hits: results,
+        health,
+    })
 }
 
 #[cfg(test)]
@@ -287,6 +370,13 @@ mod tests {
         fn set(value: impl AsRef<std::ffi::OsStr>) -> Self {
             let previous = std::env::var_os("KIANA_MEMORY_EMBEDDING_MANIFEST");
             std::env::set_var("KIANA_MEMORY_EMBEDDING_MANIFEST", value);
+            Self { previous }
+        }
+
+        /// CM-14：模拟“未配置 embedding manifest”的确定性降级路径。
+        fn unset() -> Self {
+            let previous = std::env::var_os("KIANA_MEMORY_EMBEDDING_MANIFEST");
+            std::env::remove_var("KIANA_MEMORY_EMBEDDING_MANIFEST");
             Self { previous }
         }
     }
@@ -309,6 +399,14 @@ mod tests {
             text: text.to_owned(),
             created_at_ms,
             ..MemoryRecord::default()
+        }
+    }
+
+    /// 固定的快照标签：非零 data epoch + 足够大的 now，让 fixture 不依赖真实时钟。
+    fn snapshot() -> RetrievalSnapshotContext {
+        RetrievalSnapshotContext {
+            data_epoch: 9,
+            now_ms: 1_000,
         }
     }
 
@@ -359,9 +457,13 @@ mod tests {
             record("related", "部署记录保留审计证据", 1),
             record("unrelated", "只讨论界面颜色", 3),
         ];
-        let first = rank_records(&records, "部署策略", 3).expect("first hybrid ranking");
-        let second = rank_records(&records, "部署策略", 3).expect("second hybrid ranking");
-        assert_eq!(first, second);
+        let first =
+            rank_records(&records, "部署策略", 3, snapshot()).expect("first hybrid ranking");
+        let second =
+            rank_records(&records, "部署策略", 3, snapshot()).expect("second hybrid ranking");
+        assert_eq!(first.hits, second.hits);
+        assert_eq!(first.health, second.health);
+        let first = first.hits;
         assert_eq!(first[0]["id"], "matching");
         assert_eq!(
             first[0]["embedding_model_id"],
@@ -379,12 +481,95 @@ mod tests {
             first[0]["retrieval_algorithm"],
             UnifiedRetrievalPort::default().profile().algorithm_version
         );
+        // CM-14：每个命中都带来源证据，generation 取本次快照的 data epoch。
+        for hit in &first {
+            let evidence = &hit["retrieval_evidence"];
+            assert_eq!(evidence["generation"], 9);
+            assert!(evidence["source_ref"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("memory:project:project:fixture:")));
+            assert!(evidence["source_revision"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("revision:")));
+            assert_eq!(evidence["freshness"], "current");
+            assert_eq!(evidence["evidence"], "unverifiable");
+            assert!(evidence["rank_components"]["rrf"].is_number());
+        }
         // 两条命中都来自同一 profile；退化原因在没有 manifest 时由本模块补写，这里是 dense 正常路径。
         assert_eq!(first.len(), 2);
         assert!(first[1]["score_components"]["dense_rank"].is_u64());
 
         drop(_env);
         fs::remove_dir_all(root).expect("remove fixture directory");
+    }
+
+    #[test]
+    /// CM-14：embedding 通道失败必须可见（Degraded + 原因）且不悄悄变成可重试成功；同一次调用里
+    /// 稀疏命中仍然返回，来源证据保持不变。
+    fn embedding_failure_is_visible_and_retryable_only_when_safe() {
+        let _lock = ENVIRONMENT_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _env = EnvGuard::unset();
+        let records = vec![
+            record("alpha", "部署策略需要收据", 3),
+            record("beta", "部署记录保留审计证据", 2),
+            record("gamma", "只讨论界面颜色", 1),
+        ];
+        let ranked = rank_records(&records, "部署策略", 3, snapshot()).expect("degraded ranking");
+        // 失败可见：状态是 Degraded 且带具体原因，而不是 Ready 空结果或整次调用失败。
+        assert_eq!(
+            ranked.health.status,
+            kiana_domain::RetrievalHealthStatus::Degraded
+        );
+        assert_eq!(
+            ranked.health.reason.as_deref(),
+            Some("embedding_not_configured")
+        );
+        // 确定性配置降级不可重试；`retryable` 与 `retry_safe` 只能同时为真或同时为假。
+        assert!(!ranked.health.retryable);
+        assert!(!ranked.health.retry_safe);
+        // 稀疏命中仍然返回，并继续携带来源证据。
+        assert_eq!(ranked.hits.len(), 2);
+        for hit in &ranked.hits {
+            assert_eq!(hit["degraded"], true);
+            assert_eq!(hit["degraded_reason"], "embedding_not_configured");
+            assert_eq!(hit["retrieval_evidence"]["generation"], 9);
+            let components = hit["retrieval_evidence"]["rank_components"]
+                .as_object()
+                .expect("rank components object");
+            // 没有 dense 通道时，命中证据必须缺少 dense 分量，而不是伪造 0 分。
+            assert!(!components.contains_key("dense"));
+        }
+        // 拒绝路径：Domain 合同不允许 retryable 而没有 retry_safe，也不允许 Denied 可重试。
+        assert!(RetrievalHealth::new(
+            kiana_domain::RetrievalHealthStatus::Degraded,
+            Some("embedding_not_configured".to_owned()),
+            true,
+            false,
+            9,
+            2,
+        )
+        .is_err());
+        assert!(RetrievalHealth::new(
+            kiana_domain::RetrievalHealthStatus::Denied,
+            Some("acl_scope_denied_all_candidates".to_owned()),
+            true,
+            true,
+            9,
+            0,
+        )
+        .is_err());
+        // 只有显式声明瞬时故障的调用方才拿到可安全重试的 health。
+        let safe = RetrievalHealth::degraded_channel(
+            "embedding_channel_transient_unavailable",
+            RetrievalRetryPolicy::Safe,
+            9,
+            2,
+        )
+        .expect("safe retry health");
+        assert!(safe.retryable && safe.retry_safe);
     }
 
     #[test]
@@ -435,7 +620,9 @@ mod tests {
             record("beta", "部署记录保留审计证据", 2),
             record("gamma", "只讨论界面颜色", 1),
         ];
-        let hits = rank_records(&records, "部署策略", 3).expect("memory tool ranking");
+        let hits = rank_records(&records, "部署策略", 3, snapshot())
+            .expect("memory tool ranking")
+            .hits;
 
         // 用同一模型和同一批记录重建 port 的输入，证明两条路径共享同一排名结果。
         let (model, _) = load_model().expect("reload pinned model");
@@ -457,6 +644,8 @@ mod tests {
                 text: record.text.clone(),
                 source_digest: text_digest(&record.text),
                 permission_scope_digest: scope.clone(),
+                // CM-14：两条路径必须用同一函数派生同一种来源证据，才能逐条比对命中证据。
+                provenance: record_provenance(record, snapshot()).expect("parity provenance"),
                 allowed: true,
                 created_at_ms: record.created_at_ms,
                 dense_vector: model.embed(&tokenize(&record.text)),
@@ -483,6 +672,8 @@ mod tests {
             assert_eq!(hit["score_components"]["rrf"], json!(port_hit.rrf_score));
             assert_eq!(hit["score_components"]["mmr"], json!(port_hit.mmr_score));
             assert_eq!(hit["score_components"]["bm25"], json!(port_hit.bm25_score));
+            // CM-14：tool 输出的来源证据必须与 port 结果逐字段一致（同一快照标签）。
+            assert_eq!(hit["retrieval_evidence"], json!(port_hit.provenance));
             assert_eq!(
                 hit["degraded"],
                 json!(!expected.degraded_reasons.is_empty())
