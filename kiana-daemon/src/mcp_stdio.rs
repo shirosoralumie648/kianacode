@@ -18,6 +18,7 @@ const TOTAL_BYTES: usize = 4 * 1024 * 1024;
 const FRAME_COUNT: usize = 2048;
 const CALL_TIMEOUT: Duration = Duration::from_secs(15);
 
+#[derive(Debug)]
 pub(crate) struct ConfinedMcpClient {
     child: Child,
     process_group: Option<u32>,
