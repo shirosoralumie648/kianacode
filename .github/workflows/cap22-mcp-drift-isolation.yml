@@ -19,13 +19,43 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
+      - name: Install the confined MCP fixture runtime and toolchain
+        run: |
+          # The CAP-22 behavioural fixtures spawn the real bwrap boundary and a Python
+          # standard-library stdio MCP server. Both must be present: a missing runtime is a
+          # fail-closed fixture failure, never a fallback to unsandboxed execution.
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          python3 --version
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run MCP lifecycle fixtures
+        run: >-
+          cargo test -p kiana-daemon --lib harness_mcp::tests:: --locked -- --test-threads=1
+      - name: Run CAP-22 deny-first behavioural fixtures
+        run: |
+          for fixture in \
+            mcp_output_schema_failure_after_call_is_not_safe_retry \
+            mcp_schema_drift_invalidates_pending_approval \
+            mcp_pool_never_crosses_owner_or_scope \
+            mcp_explicit_revoke_and_config_change_fence_prepared_authorization; do
+            cargo test -p kiana-daemon --lib "harness_mcp::tests::$fixture" --locked -- --exact --test-threads=1
+          done
+      - name: Run CAP-22 bounded-result regression fixtures
+        run: |
+          for fixture in \
+            mcp_legal_results_errors_and_resource_links_stay_bounded \
+            mcp_result_validator_bounds_structured_content_and_content_types; do
+            cargo test -p kiana-daemon --lib "harness_mcp::tests::$fixture" --locked -- --exact --test-threads=1
+          done
+      - name: Run MCP lifecycle target
         run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
       - name: Run CAP-22 source guard
         run: cargo test -p kiana-core --test cap22_mcp_drift_isolation_guard --locked -- --test-threads=1
-      - name: Compile MCP lifecycle target
-        run: cargo test -p kiana-daemon --test p1_j4_01_mcp --no-run --locked
+      - name: Compile daemon library and MCP target
+        run: cargo test -p kiana-daemon --lib --no-run --locked
+      - run: cargo test -p kiana-daemon --test p1_j4_01_mcp --no-run --locked
       - name: Compile CAP-22 source guard target
         run: cargo test -p kiana-core --test cap22_mcp_drift_isolation_guard --no-run --locked

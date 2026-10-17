@@ -3224,4 +3224,1114 @@ main()
         let _ = std::fs::remove_dir_all(root);
         let _ = std::fs::remove_dir_all(staging);
     }
+
+    // -----------------------------------------------------------------------------------
+    // CAP-22 behavioural fixtures: MCP result/schema drift and per-invocation isolation.
+    //
+    // These fixtures drive the real `McpRegistry::prepare` + `McpHandler::run` path and the
+    // same bwrap-confined, per-invocation stdio transport the product uses, against a
+    // stdlib-only Python server (`CAP22_MCP_SERVER`) whose catalog generation is written to
+    // `cap22-catalog.json` and whose behaviour is selected by `sys.argv[2]`. They are
+    // deny-first: an invalid structured result after a sent call stays Unknown and is not
+    // reissued; catalog drift invalidates a pending authorization before any process starts;
+    // a discovery key and prepared scope never cross owner or server, and two owners run in
+    // two simultaneous confined processes instead of one pooled session; config/env/binary
+    // drift and untrusted projects are refused before dispatch. The regression fixtures then
+    // cover legal structured/`isError`/resource-link results and the result validator's own
+    // bounds. A missing `bwrap`/`python3` fails the fixture instead of degrading to an
+    // unsandboxed call; the CAP-22 workflow installs and verifies both.
+    // -----------------------------------------------------------------------------------
+
+    /// Minimal stdio MCP server used by the CAP-22 fixtures. It speaks single-line JSON-RPC
+    /// over stdin/stdout using only the Python standard library, takes a per-fixture marker as
+    /// `sys.argv[1]` (the host scans for surviving descendants) and selects one behaviour from
+    /// `sys.argv[2]`. `cap22-catalog.json` in the working directory selects catalog generation
+    /// 1 or 2, so re-discovery can commit a drifted catalog under the same discovery key. The
+    /// `cap22-trace.jsonl` journal is written relative to the working directory: the read-only
+    /// boundary rejects it, while the writable fixture scope records what the confined server
+    /// actually received.
+    #[cfg(target_os = "linux")]
+    const CAP22_MCP_SERVER: &str = r##"#!/usr/bin/python3
+import json
+import sys
+import time
+
+MARKER = sys.argv[1] if len(sys.argv) > 1 else "cap22"
+MODE = sys.argv[2] if len(sys.argv) > 2 else "normal"
+
+
+def catalog_generation():
+    try:
+        with open("cap22-catalog.json", "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        generation = payload.get("generation", 1)
+    except (OSError, ValueError):
+        generation = 1
+    return generation if generation in (1, 2) else 1
+
+
+GENERATION = catalog_generation()
+SUFFIX = "|v" + str(GENERATION)
+
+ECHO_TOOL = {
+    "name": "echo",
+    "description": "Echo v1" if GENERATION == 1 else "Echo v2",
+    "inputSchema": {
+        "type": "object",
+        "properties": (
+            {"message": {"type": "string", "minLength": 1}}
+            if GENERATION == 1
+            else {"message": {"type": "string", "minLength": 1}, "note": {"type": "string"}}
+        ),
+        "required": ["message"],
+        "additionalProperties": False,
+    },
+}
+STRUCTURED_TOOL = {
+    "name": "structured",
+    "description": "Return structured content",
+    "inputSchema": {
+        "type": "object",
+        "properties": {"message": {"type": "string"}},
+        "additionalProperties": False,
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {"value": {"type": "string"}},
+        "required": ["value"],
+        "additionalProperties": False,
+    },
+}
+ERROR_TOOL = {
+    "name": "error_tool",
+    "description": "Report a tool business failure",
+    "inputSchema": {
+        "type": "object",
+        "properties": {"message": {"type": "string"}},
+        "additionalProperties": False,
+    },
+}
+LINK_TOOL = {
+    "name": "link_tool",
+    "description": "Return a resource link without fetching it",
+    "inputSchema": {
+        "type": "object",
+        "properties": {"message": {"type": "string"}},
+        "additionalProperties": False,
+    },
+}
+# Deliberately unsorted: the client sorts the catalog, the server does not.
+TOOLS = [LINK_TOOL, ERROR_TOOL, STRUCTURED_TOOL, ECHO_TOOL]
+
+
+def trace(method):
+    try:
+        with open("cap22-trace.jsonl", "a", encoding="utf-8") as handle:
+            handle.write(str(method) + "\n")
+            handle.flush()
+    except OSError:
+        pass
+
+
+def send(payload):
+    sys.stdout.write(json.dumps(payload) + "\n")
+    sys.stdout.flush()
+
+
+def read_message():
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            return None
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            return json.loads(line)
+        except ValueError:
+            continue
+
+
+def initialize(message):
+    send({
+        "jsonrpc": "2.0",
+        "id": message["id"],
+        "result": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "cap22-fixture", "version": "1.0.0"},
+        },
+    })
+
+
+def tools_call(message):
+    params = message.get("params") or {}
+    name = params.get("name")
+    arguments = params.get("arguments") or {}
+    if MODE == "slow_call":
+        time.sleep(1.0)
+    if name == "error_tool":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {
+            "content": [{"type": "text", "text": "execution_failed:cap22"}],
+            "isError": True,
+        }})
+        return
+    if name == "link_tool":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {
+            "content": [{"type": "resource_link", "uri": "cap22://note/1", "name": "cap22-note"}],
+        }})
+        return
+    if name == "structured":
+        if MODE == "structured_missing":
+            send({"jsonrpc": "2.0", "id": message["id"], "result": {
+                "content": [{"type": "text", "text": "ok"}],
+            }})
+        elif MODE == "structured_wrong":
+            send({"jsonrpc": "2.0", "id": message["id"], "result": {
+                "content": [{"type": "text", "text": "ok"}],
+                "structuredContent": {"value": 7},
+            }})
+        elif MODE == "bad_content":
+            send({"jsonrpc": "2.0", "id": message["id"], "result": {
+                "content": [{"type": "image", "data": "not base64!!", "mimeType": "image/png"}],
+            }})
+        else:
+            send({"jsonrpc": "2.0", "id": message["id"], "result": {
+                "content": [{"type": "text", "text": "ok"}],
+                "structuredContent": {"value": "ok"},
+            }})
+        return
+    text = str(arguments.get("message", "")) + SUFFIX
+    send({"jsonrpc": "2.0", "id": message["id"], "result": {
+        "content": [{"type": "text", "text": text}],
+    }})
+
+
+def main():
+    while True:
+        message = read_message()
+        if message is None:
+            break
+        method = message.get("method")
+        if method == "initialize":
+            initialize(message)
+        elif method == "notifications/initialized":
+            continue
+        elif method == "tools/list":
+            trace("tools/list")
+            send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": TOOLS}})
+        elif method == "tools/call":
+            trace("tools/call")
+            tools_call(message)
+        elif method is not None and message.get("id") is not None:
+            send({"jsonrpc": "2.0", "id": message.get("id"),
+                  "error": {"code": -32601, "message": "unsupported"}})
+
+
+main()
+"##;
+
+    #[cfg(target_os = "linux")]
+    fn cap22_server(root: &Path) -> PathBuf {
+        let path = root.join("cap22_mcp_server.py");
+        std::fs::write(&path, CAP22_MCP_SERVER).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path.canonicalize().unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap22_config(command: &Path, name: &str, marker: &str, mode: &str) -> McpServerConfig {
+        McpServerConfig {
+            name: name.to_owned(),
+            transport: TransportType::Stdio,
+            url: None,
+            command: Some(command.to_string_lossy().into_owned()),
+            args: Some(vec![marker.to_owned(), mode.to_owned()]),
+            env: None,
+            headers: None,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap22_context(actor: &str, root: &Path) -> RequestContext {
+        let mut context = RequestContext::local("cap22", root.to_string_lossy().into_owned());
+        context.project_trusted = true;
+        context.actor_id = Some(actor.to_owned());
+        context
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap22_catalog(root: &Path, generation: u32) {
+        std::fs::write(
+            root.join("cap22-catalog.json"),
+            json!({ "generation": generation }).to_string(),
+        )
+        .unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap22_call_request(
+        server: &str,
+        tool: &str,
+        root: &Path,
+        context: &RequestContext,
+        sandbox: &str,
+        arguments: Value,
+    ) -> CapabilityRequest {
+        cap21_request(
+            MCP_OPERATION,
+            root,
+            context,
+            json!({
+                "server": server,
+                "tool": tool,
+                "arguments": arguments,
+                "sandbox": sandbox,
+                "timeout_ms": 30_000,
+            }),
+        )
+    }
+
+    /// Commit a discovery snapshot through the real `McpRegistry::prepare` + `McpHandler::run`
+    /// path so later fixture calls are backed by an operator-authorized catalog.
+    #[cfg(target_os = "linux")]
+    async fn cap22_discover(
+        registry: &Arc<McpRegistry>,
+        handler: &McpHandler,
+        context: &RequestContext,
+        root: &Path,
+        server: &str,
+        cancellation: watch::Receiver<bool>,
+    ) -> CapabilityResult {
+        let request = cap21_request(
+            "mcp.discover",
+            root,
+            context,
+            json!({ "server": server, "operator_authorized": true }),
+        );
+        let prepared = registry
+            .prepare(context, &request)
+            .await
+            .unwrap_or_else(|error| panic!("discovery preparation for {server}: {error}"));
+        handler
+            .run(cap20_authorized(prepared), cancellation)
+            .await
+            .unwrap_or_else(|error| panic!("discovery run for {server}: {error}"))
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap22_adapter(result: &CapabilityResult) -> kiana_domain::AdapterResult {
+        kiana_domain::AdapterResult::from_json(&result.output["adapter_result"])
+            .expect("the adapter envelope is valid")
+    }
+
+    /// An invalid structured result received after a call was sent is not a safe retry: it stays
+    /// Unknown, keeps its reconciliation evidence and reaches the server exactly once.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_output_schema_failure_after_call_is_not_safe_retry() {
+        for mode in ["structured_missing", "structured_wrong", "bad_content"] {
+            let root = cap21_temp_root();
+            let script = cap22_server(&root);
+            cap22_catalog(&root, 1);
+            let marker = cap21_marker(&format!("result-{mode}"));
+            let config = cap22_config(&script, "cap22-fixture", &marker, mode);
+            let registry = cap20_registry(vec![config]);
+            let context = cap22_context("cap22-owner", &root);
+            let handler = McpHandler {
+                registry: registry.clone(),
+            };
+            let (_sender, cancellation) = watch::channel(false);
+
+            let discovered = cap22_discover(
+                &registry,
+                &handler,
+                &context,
+                &root,
+                "cap22-fixture",
+                cancellation.clone(),
+            )
+            .await;
+            assert!(
+                discovered.success,
+                "{mode}: discovery commits before the call: {:?}",
+                discovered.output
+            );
+
+            let call = cap22_call_request(
+                "cap22-fixture",
+                "structured",
+                &root,
+                &context,
+                "workspace-write",
+                json!({}),
+            );
+            let prepared = registry
+                .prepare(&context, &call)
+                .await
+                .unwrap_or_else(|error| panic!("{mode}: call preparation: {error}"));
+            let result = handler
+                .run(cap20_authorized(prepared), cancellation)
+                .await
+                .unwrap_or_else(|error| panic!("{mode}: a received but invalid result is classified, not an I/O error: {error}"));
+
+            assert!(!result.success, "{mode}: {:?}", result.output);
+            assert_eq!(
+                result.failure_code(),
+                Some(kiana_domain::CapabilityErrorCode::ResultUnknown),
+                "{mode}: an invalid result after a sent call stays Unknown: {:?}",
+                result.output
+            );
+            assert_eq!(
+                result.output["error"],
+                json!("result_unknown:mcp_call_unconfirmed")
+            );
+            assert_eq!(result.output["not_executed"], json!(false));
+            assert_eq!(result.output["stop_confirmed"], json!(true));
+            assert_eq!(result.output["cancelled"], json!(false));
+            let envelope = cap22_adapter(&result);
+            assert_eq!(envelope.adapter, AdapterResultKind::Mcp);
+            assert_eq!(envelope.commit, AdapterCommitState::Unknown);
+            assert_eq!(
+                envelope.effect,
+                kiana_domain::CapabilityEffectState::Unknown
+            );
+            assert!(envelope.reconciliation_required);
+
+            // The private workspace is retained for reconciliation instead of being published.
+            let publication = &result.output["workspace"];
+            assert_eq!(publication["retained"], json!(true));
+            assert_eq!(publication["reason"], json!("mcp_call_unconfirmed"));
+            let staging = PathBuf::from(
+                publication["workspace"]
+                    .as_str()
+                    .expect("the retained staging root is reported"),
+            );
+            let record = std::fs::read_to_string(staging.join("reconciliation.json"))
+                .expect("reconciliation record");
+            assert!(record.contains("mcp_call_unconfirmed"), "{record}");
+
+            // Exactly one business call reached the server: an invalid result is never reissued.
+            let trace =
+                std::fs::read_to_string(staging.join("workspace").join("cap22-trace.jsonl"))
+                    .expect("fixture trace");
+            assert_eq!(
+                trace.lines().filter(|line| *line == "tools/call").count(),
+                1,
+                "{mode}: a sent call with an invalid result must not be replayed: {trace}"
+            );
+
+            cap21_assert_no_survivor(&marker, mode).await;
+            let _ = std::fs::remove_dir_all(root);
+            let _ = std::fs::remove_dir_all(staging);
+        }
+    }
+
+    /// Catalog drift commits a new discovery version under the same discovery key and invalidates
+    /// every pending authorization prepared against the old catalog, before any process starts.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_schema_drift_invalidates_pending_approval() {
+        let root = cap21_temp_root();
+        let script = cap22_server(&root);
+        cap22_catalog(&root, 1);
+        let marker = cap21_marker("catalog");
+        let config = cap22_config(&script, "cap22-catalog", &marker, "normal");
+        let registry = cap20_registry(vec![config]);
+        let context = cap22_context("cap22-owner", &root);
+        let handler = McpHandler {
+            registry: registry.clone(),
+        };
+        let (_sender, cancellation) = watch::channel(false);
+
+        let discovered = cap22_discover(
+            &registry,
+            &handler,
+            &context,
+            &root,
+            "cap22-catalog",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(discovered.success);
+        let call_v1 = cap22_call_request(
+            "cap22-catalog",
+            "echo",
+            &root,
+            &context,
+            "read-only",
+            json!({ "message": "cap22-catalog" }),
+        );
+        let prepared_v1 = registry
+            .prepare(&context, &call_v1)
+            .await
+            .expect("v1 call preparation binds the committed catalog");
+        let key_v1 = prepared_v1.arguments["mcp_snapshot"]["discovery_key"]
+            .as_str()
+            .expect("discovery key")
+            .to_owned();
+        let digest_v1 = prepared_v1.arguments["mcp_snapshot"]["catalog_digest"].clone();
+        let action_v1 = kiana_domain::capability_action_digest(&prepared_v1);
+        assert_eq!(
+            prepared_v1.arguments["mcp_snapshot"]["discovery_version"],
+            json!(1)
+        );
+
+        // The catalog drifts: the same server and scope must re-discover, not reuse the tool.
+        cap22_catalog(&root, 2);
+        let rediscovered = cap22_discover(
+            &registry,
+            &handler,
+            &context,
+            &root,
+            "cap22-catalog",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(rediscovered.success);
+        let call_v2 = cap22_call_request(
+            "cap22-catalog",
+            "echo",
+            &root,
+            &context,
+            "read-only",
+            json!({ "message": "cap22-catalog" }),
+        );
+        let prepared_v2 = registry
+            .prepare(&context, &call_v2)
+            .await
+            .expect("v2 call preparation binds the drifted catalog");
+        assert_eq!(
+            prepared_v2.arguments["mcp_snapshot"]["discovery_key"],
+            json!(key_v1),
+            "the discovery stream is still keyed to the same owner/server/config"
+        );
+        assert_ne!(
+            prepared_v2.arguments["mcp_snapshot"]["catalog_digest"], digest_v1,
+            "catalog drift changes the digest"
+        );
+        assert_eq!(
+            prepared_v2.arguments["mcp_snapshot"]["discovery_version"],
+            json!(2)
+        );
+        assert_ne!(
+            prepared_v2.arguments["mcp_snapshot"]["tool"],
+            prepared_v1.arguments["mcp_snapshot"]["tool"],
+            "the pinned tool metadata changed with the catalog"
+        );
+        assert_ne!(
+            kiana_domain::capability_action_digest(&prepared_v2),
+            action_v1,
+            "a drifted catalog is a different action, so pending authorization does not carry over"
+        );
+
+        // The stale authorization is refused before any process starts.
+        let stale = handler
+            .run(cap20_authorized(prepared_v1.clone()), cancellation.clone())
+            .await;
+        assert!(
+            matches!(&stale, Err(PortError::Failed(code)) if code == "mcp_catalog_changed"),
+            "the stale v1 authorization must be refused: {stale:?}"
+        );
+        assert!(
+            cap21_marker_pids(&marker).is_empty(),
+            "a stale catalog is refused before connect"
+        );
+
+        let committed = handler
+            .run(cap20_authorized(prepared_v2), cancellation.clone())
+            .await
+            .expect("the refreshed authorization runs against the drifted catalog");
+        assert!(committed.success, "{:?}", committed.output);
+        assert_eq!(
+            committed.output["result"]["content"][0]["text"],
+            "cap22-catalog|v2"
+        );
+
+        // Restoring the old catalog commits a new discovery version: the old authorization stays
+        // invalidated even though its catalog digest matches again.
+        cap22_catalog(&root, 1);
+        let restored = cap22_discover(
+            &registry,
+            &handler,
+            &context,
+            &root,
+            "cap22-catalog",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(restored.success);
+        let stale_again = handler
+            .run(cap20_authorized(prepared_v1.clone()), cancellation.clone())
+            .await;
+        assert!(
+            matches!(&stale_again, Err(PortError::Failed(code)) if code == "mcp_catalog_changed"),
+            "a re-discovered stream invalidates older authorizations: {stale_again:?}"
+        );
+        let call_v3 = cap22_call_request(
+            "cap22-catalog",
+            "echo",
+            &root,
+            &context,
+            "read-only",
+            json!({ "message": "cap22-catalog" }),
+        );
+        let prepared_v3 = registry
+            .prepare(&context, &call_v3)
+            .await
+            .expect("v3 call preparation binds the restored catalog");
+        assert_eq!(
+            prepared_v3.arguments["mcp_snapshot"]["discovery_version"],
+            json!(3)
+        );
+        let replayed = handler
+            .run(cap20_authorized(prepared_v3), cancellation.clone())
+            .await
+            .expect("the refreshed authorization runs against the restored catalog");
+        assert!(replayed.success, "{:?}", replayed.output);
+        assert_eq!(
+            replayed.output["result"]["content"][0]["text"],
+            "cap22-catalog|v1"
+        );
+
+        cap21_assert_no_survivor(&marker, "catalog drift").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Owner and scope are part of the discovery key: two owners never share a discovery stream,
+    /// a tampered scope is refused before dispatch, and concurrent invocations each own a
+    /// separate confined process (`per_invocation`, no pooled reuse).
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_pool_never_crosses_owner_or_scope() {
+        let root = cap21_temp_root();
+        let script = cap22_server(&root);
+        cap22_catalog(&root, 1);
+        let alpha_marker = cap21_marker("alpha");
+        let beta_marker = cap21_marker("beta");
+        let alpha = cap22_config(&script, "cap22-alpha", &alpha_marker, "slow_call");
+        let beta = cap22_config(&script, "cap22-beta", &beta_marker, "slow_call");
+        let registry = cap20_registry(vec![alpha, beta]);
+        let owner_a = cap22_context("cap22-owner-a", &root);
+        let owner_b = cap22_context("cap22-owner-b", &root);
+        let handler = Arc::new(McpHandler {
+            registry: registry.clone(),
+        });
+        let (_sender, cancellation) = watch::channel(false);
+
+        // Owner A discovers and prepares a call to alpha.
+        let discovered_a = cap22_discover(
+            &registry,
+            handler.as_ref(),
+            &owner_a,
+            &root,
+            "cap22-alpha",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(discovered_a.success);
+        let call_a = cap22_call_request(
+            "cap22-alpha",
+            "echo",
+            &root,
+            &owner_a,
+            "read-only",
+            json!({ "message": "owner-a" }),
+        );
+        let prepared_a = registry
+            .prepare(&owner_a, &call_a)
+            .await
+            .expect("owner A binds its own discovery snapshot");
+        let key_a = prepared_a.arguments["mcp_snapshot"]["discovery_key"]
+            .as_str()
+            .expect("discovery key")
+            .to_owned();
+
+        // Owner B cannot reuse A's discovery: the key binds the owner scope, so B must discover.
+        let call_b_alpha = cap22_call_request(
+            "cap22-alpha",
+            "echo",
+            &root,
+            &owner_b,
+            "read-only",
+            json!({ "message": "owner-b" }),
+        );
+        let refused = registry.prepare(&owner_b, &call_b_alpha).await;
+        assert!(
+            matches!(&refused, Err(PortError::Failed(code)) if code == "mcp_discovery_required:use_operator_mcp.discover"),
+            "another owner cannot ride on A's discovery: {refused:?}"
+        );
+        let discovery_b_alpha = cap21_request(
+            "mcp.discover",
+            &root,
+            &owner_b,
+            json!({ "server": "cap22-alpha", "operator_authorized": true }),
+        );
+        let prepared_b_alpha = registry
+            .prepare(&owner_b, &discovery_b_alpha)
+            .await
+            .expect("owner B prepares its own discovery");
+        assert_ne!(
+            prepared_b_alpha.arguments["mcp_snapshot"]["discovery_key"],
+            json!(key_a),
+            "the discovery key binds the owner scope"
+        );
+        assert_eq!(
+            prepared_b_alpha.arguments["mcp_snapshot"]["scope"]["actor_id"],
+            json!("cap22-owner-b")
+        );
+
+        // Any scope field altered after preparation is refused before dispatch.
+        for field in ["actor_id", "role_id", "department_id", "project_root"] {
+            let mut tampered = prepared_a.clone();
+            tampered.arguments[field] = json!("cap22-tampered");
+            let denied = handler
+                .run(cap20_authorized(tampered), cancellation.clone())
+                .await;
+            assert!(
+                matches!(&denied, Err(PortError::Failed(code)) if code == "mcp_snapshot_scope_changed"),
+                "{field}: a prepared scope is not reusable for another identity: {denied:?}"
+            );
+        }
+
+        // Owner B discovers and prepares its own call to beta; the keys differ by owner/server.
+        let discovered_b = cap22_discover(
+            &registry,
+            handler.as_ref(),
+            &owner_b,
+            &root,
+            "cap22-beta",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(discovered_b.success);
+        let call_b = cap22_call_request(
+            "cap22-beta",
+            "echo",
+            &root,
+            &owner_b,
+            "read-only",
+            json!({ "message": "owner-b" }),
+        );
+        let prepared_b = registry
+            .prepare(&owner_b, &call_b)
+            .await
+            .expect("owner B binds its own beta discovery snapshot");
+        let key_b = prepared_b.arguments["mcp_snapshot"]["discovery_key"]
+            .as_str()
+            .expect("discovery key")
+            .to_owned();
+        assert_ne!(key_b, key_a, "different owner/server must not share a key");
+
+        // Both owners invoke at the same time: each invocation owns its confined process.
+        let run_a = tokio::spawn({
+            let handler = handler.clone();
+            let cancellation = cancellation.clone();
+            async move {
+                handler
+                    .run(cap20_authorized(prepared_a), cancellation)
+                    .await
+            }
+        });
+        let run_b = tokio::spawn({
+            let handler = handler.clone();
+            let cancellation = cancellation.clone();
+            async move {
+                handler
+                    .run(cap20_authorized(prepared_b), cancellation)
+                    .await
+            }
+        });
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+        let mut overlapped = false;
+        while tokio::time::Instant::now() < deadline {
+            if !cap21_marker_pids(&alpha_marker).is_empty()
+                && !cap21_marker_pids(&beta_marker).is_empty()
+            {
+                overlapped = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            overlapped,
+            "two owners must run in two simultaneous confined processes, not one pooled session"
+        );
+        let result_a = run_a
+            .await
+            .expect("join alpha")
+            .expect("alpha invocation runs");
+        let result_b = run_b
+            .await
+            .expect("join beta")
+            .expect("beta invocation runs");
+        for (result, owner, text) in [
+            (&result_a, "owner-a", "owner-a|v1"),
+            (&result_b, "owner-b", "owner-b|v1"),
+        ] {
+            assert!(result.success, "{owner}: {:?}", result.output);
+            assert_eq!(
+                result.output["process_scope"], "per_invocation",
+                "{owner}: each invocation owns its process"
+            );
+            assert_eq!(result.output["containment"], "bwrap", "{owner}");
+            assert_eq!(
+                result.output["result"]["content"][0]["text"], text,
+                "{owner}: each owner receives its own result"
+            );
+        }
+        cap21_assert_no_survivor(&alpha_marker, "alpha call").await;
+        cap21_assert_no_survivor(&beta_marker, "beta call").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Legal results stay bounded: a matching structured result keeps the schema binding, an
+    /// `isError` result is a tool business failure rather than invalid data, and a resource link
+    /// remains a reference.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_legal_results_errors_and_resource_links_stay_bounded() {
+        let root = cap21_temp_root();
+        let script = cap22_server(&root);
+        cap22_catalog(&root, 1);
+        let marker = cap21_marker("legal");
+        let config = cap22_config(&script, "cap22-legal", &marker, "normal");
+        let registry = cap20_registry(vec![config]);
+        let context = cap22_context("cap22-owner", &root);
+        let handler = McpHandler {
+            registry: registry.clone(),
+        };
+        let (_sender, cancellation) = watch::channel(false);
+
+        let discovered = cap22_discover(
+            &registry,
+            &handler,
+            &context,
+            &root,
+            "cap22-legal",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(discovered.success);
+        let tools = discovered.output["tools"]
+            .as_array()
+            .expect("the discovery catalog is a list");
+        let names: Vec<&str> = tools
+            .iter()
+            .filter_map(|tool| tool["name"].as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["echo", "error_tool", "link_tool", "structured"],
+            "the catalog is sorted by the client: {:?}",
+            discovered.output["tools"]
+        );
+
+        let structured_call = cap22_call_request(
+            "cap22-legal",
+            "structured",
+            &root,
+            &context,
+            "read-only",
+            json!({}),
+        );
+        let prepared = registry
+            .prepare(&context, &structured_call)
+            .await
+            .expect("structured call preparation");
+        let structured = handler
+            .run(cap20_authorized(prepared), cancellation.clone())
+            .await
+            .expect("a legal structured result is a successful call");
+        assert!(structured.success, "{:?}", structured.output);
+        assert_eq!(
+            structured.output["result"]["structuredContent"],
+            json!({ "value": "ok" })
+        );
+        assert_eq!(structured.output["untrusted_data"], json!(true));
+        assert_eq!(structured.output["resource_links_fetched"], json!(false));
+        let output_hash = structured.output["output_schema_hash"]
+            .as_str()
+            .expect("a structured tool binds its output schema");
+        assert!(output_hash.starts_with("sha256:"), "{output_hash}");
+        assert_eq!(output_hash.len(), 71, "{output_hash}");
+        assert!(output_hash[7..]
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit()));
+        let envelope = cap22_adapter(&structured);
+        assert_eq!(envelope.commit, AdapterCommitState::Committed);
+        assert_eq!(
+            envelope.effect,
+            kiana_domain::CapabilityEffectState::Succeeded
+        );
+        assert!(!envelope.reconciliation_required);
+
+        // `isError` is a tool business failure: committed, failed effect, no reconciliation.
+        let error_call = cap22_call_request(
+            "cap22-legal",
+            "error_tool",
+            &root,
+            &context,
+            "read-only",
+            json!({}),
+        );
+        let prepared = registry
+            .prepare(&context, &error_call)
+            .await
+            .expect("error_tool call preparation");
+        let failed = handler
+            .run(cap20_authorized(prepared), cancellation.clone())
+            .await
+            .expect("an isError result is a classified tool failure, not a transport error");
+        assert!(!failed.success);
+        assert_eq!(
+            failed.failure_code(),
+            Some(kiana_domain::CapabilityErrorCode::ExecutionFailed)
+        );
+        assert_eq!(
+            failed.output["error"],
+            json!("execution_failed:mcp_tool_is_error")
+        );
+        let envelope = cap22_adapter(&failed);
+        assert_eq!(envelope.commit, AdapterCommitState::Committed);
+        assert_eq!(envelope.effect, kiana_domain::CapabilityEffectState::Failed);
+        assert!(!envelope.reconciliation_required);
+
+        // A resource link is a reference: it is returned without any implicit fetch.
+        let link_call = cap22_call_request(
+            "cap22-legal",
+            "link_tool",
+            &root,
+            &context,
+            "read-only",
+            json!({}),
+        );
+        let prepared = registry
+            .prepare(&context, &link_call)
+            .await
+            .expect("link_tool call preparation");
+        let linked = handler
+            .run(cap20_authorized(prepared), cancellation.clone())
+            .await
+            .expect("a resource link result is a successful call");
+        assert!(linked.success, "{:?}", linked.output);
+        assert_eq!(
+            linked.output["result"]["content"][0]["type"],
+            "resource_link"
+        );
+        assert_eq!(
+            linked.output["result"]["content"][0]["uri"],
+            "cap22://note/1"
+        );
+        assert_eq!(linked.output["resource_links_fetched"], json!(false));
+        assert!(
+            linked.output["result"]["content"][0]
+                .get("resource")
+                .is_none(),
+            "a resource link must not embed fetched content"
+        );
+
+        cap21_assert_no_survivor(&marker, "legal results").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Untrusted projects, changed env references and swapped binaries all fence a prepared
+    /// authorization before dispatch; re-using the snapshot requires a fresh discovery.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_explicit_revoke_and_config_change_fence_prepared_authorization() {
+        let root = cap21_temp_root();
+        let script = cap22_server(&root);
+        cap22_catalog(&root, 1);
+        let marker = cap21_marker("revoke");
+        let config = cap22_config(&script, "cap22-revoke", &marker, "normal");
+        let registry = cap20_registry(vec![config.clone()]);
+        let handler = McpHandler {
+            registry: registry.clone(),
+        };
+        let (_sender, cancellation) = watch::channel(false);
+
+        // An untrusted project cannot even prepare a discovery: no process may start.
+        let mut untrusted = cap22_context("cap22-owner", &root);
+        untrusted.project_trusted = false;
+        let discovery_request = cap21_request(
+            "mcp.discover",
+            &root,
+            &untrusted,
+            json!({ "server": "cap22-revoke", "operator_authorized": true }),
+        );
+        let refused = registry.prepare(&untrusted, &discovery_request).await;
+        assert!(
+            matches!(&refused, Err(PortError::Failed(code)) if code == "mcp_project_untrusted"),
+            "an untrusted project is refused before any process: {refused:?}"
+        );
+        assert!(
+            cap21_marker_pids(&marker).is_empty(),
+            "an untrusted project never reaches a process"
+        );
+
+        let context = cap22_context("cap22-owner", &root);
+        let discovered = cap22_discover(
+            &registry,
+            &handler,
+            &context,
+            &root,
+            "cap22-revoke",
+            cancellation.clone(),
+        )
+        .await;
+        assert!(discovered.success);
+        let call = cap22_call_request(
+            "cap22-revoke",
+            "echo",
+            &root,
+            &context,
+            "read-only",
+            json!({ "message": "cap22-revoke" }),
+        );
+        let prepared_old = registry
+            .prepare(&context, &call)
+            .await
+            .expect("call preparation binds the committed snapshot");
+
+        // An added explicit env reference changes the config hash: the old authorization and the
+        // old discovery key are both fenced.
+        let mut changed_config = config.clone();
+        changed_config.env = Some(HashMap::from([
+            ("LANG".to_owned(), "C.UTF-8".to_owned()),
+            ("TZ".to_owned(), "UTC".to_owned()),
+        ]));
+        let registry_changed = cap20_registry(vec![changed_config]);
+        let handler_changed = McpHandler {
+            registry: registry_changed.clone(),
+        };
+        let changed = handler_changed
+            .run(cap20_authorized(prepared_old.clone()), cancellation.clone())
+            .await;
+        assert!(
+            matches!(&changed, Err(PortError::Failed(code)) if code == "mcp_config_changed"),
+            "an env reference change fences the prepared authorization: {changed:?}"
+        );
+        let refused = registry_changed.prepare(&context, &call).await;
+        assert!(
+            matches!(&refused, Err(PortError::Failed(code)) if code == "mcp_discovery_required:use_operator_mcp.discover"),
+            "a changed configuration has no committed discovery: {refused:?}"
+        );
+
+        // The pinned binary changed after preparation: the snapshot executable is fenced and a
+        // new call preparation requires a fresh discovery.
+        std::fs::write(&script, format!("{}\n# cap22 drift\n", CAP22_MCP_SERVER)).unwrap();
+        let stale = handler
+            .run(cap20_authorized(prepared_old.clone()), cancellation.clone())
+            .await;
+        assert!(
+            matches!(&stale, Err(PortError::Failed(code)) if code == "mcp_config_changed"),
+            "a swapped binary fences the prepared authorization: {stale:?}"
+        );
+        let refused = registry.prepare(&context, &call).await;
+        assert!(
+            matches!(&refused, Err(PortError::Failed(code)) if code == "mcp_config_drift_requires_discovery"),
+            "a swapped binary requires a fresh discovery: {refused:?}"
+        );
+
+        cap21_assert_no_survivor(&marker, "config drift").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// The result validator itself bounds structured content, content types/encodings and the
+    /// content list, while legal structured and `isError` results stay legal.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mcp_result_validator_bounds_structured_content_and_content_types() {
+        let structured_tool = json!({
+            "name": "structured",
+            "inputSchema": { "type": "object", "properties": {} },
+            "outputSchema": {
+                "type": "object",
+                "properties": { "value": { "type": "string" } },
+                "required": ["value"],
+                "additionalProperties": false,
+            },
+        });
+        let echo_tool = json!({
+            "name": "echo",
+            "inputSchema": { "type": "object", "properties": {} },
+        });
+
+        let missing = validate_call_result(
+            &json!({ "content": [{ "type": "text", "text": "ok" }] }),
+            &structured_tool,
+        );
+        assert!(
+            matches!(&missing, Err(PortError::Failed(code)) if code == "mcp_structured_content_required"),
+            "{missing:?}"
+        );
+
+        let mismatch = validate_call_result(
+            &json!({
+                "content": [{ "type": "text", "text": "ok" }],
+                "structuredContent": { "value": 7 },
+            }),
+            &structured_tool,
+        );
+        assert!(
+            matches!(&mismatch, Err(PortError::Failed(code)) if code == "mcp_output_schema_mismatch"),
+            "{mismatch:?}"
+        );
+
+        for (result, context) in [
+            (
+                json!({ "content": [{ "type": "image", "data": "not base64!!", "mimeType": "image/png" }] }),
+                "an image payload must be valid base64",
+            ),
+            (
+                json!({ "content": [{ "type": "video", "data": "AAAA" }] }),
+                "an unknown content type is refused",
+            ),
+            (
+                json!({ "content": [{ "type": "resource_link", "uri": "no-scheme", "name": "n" }] }),
+                "a resource link needs an absolute URI",
+            ),
+        ] {
+            let invalid = validate_call_result(&result, &echo_tool);
+            assert!(
+                matches!(&invalid, Err(PortError::Failed(code)) if code == "mcp_content_invalid"),
+                "{context}: {invalid:?}"
+            );
+        }
+
+        let items: Vec<Value> = (0..129)
+            .map(|index| json!({ "type": "text", "text": format!("item-{index}") }))
+            .collect();
+        let flood = validate_call_result(&json!({ "content": items }), &echo_tool);
+        assert!(
+            matches!(&flood, Err(PortError::Failed(code)) if code == "mcp_content_limit"),
+            "{flood:?}"
+        );
+
+        let business_failure = validate_call_result(
+            &json!({
+                "content": [{ "type": "text", "text": "failed" }],
+                "isError": true,
+            }),
+            &echo_tool,
+        );
+        assert!(
+            business_failure.is_ok(),
+            "isError is a tool business failure, not an invalid result: {business_failure:?}"
+        );
+
+        let valid = validate_call_result(
+            &json!({
+                "content": [{ "type": "text", "text": "ok" }],
+                "structuredContent": { "value": "ok" },
+            }),
+            &structured_tool,
+        );
+        assert!(
+            valid.is_ok(),
+            "a schema-matching structured result stays legal: {valid:?}"
+        );
+    }
 }
