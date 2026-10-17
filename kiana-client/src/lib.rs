@@ -55,8 +55,10 @@ pub use cli_contract::{
     CLI_SESSION_LATEST,
 };
 pub use cli_presenter::{
-    present_cli_output, CliExitCode, CliLocale, CliPresentation, CliPresenterOptions, CliSignal,
-    CLI_DEFAULT_TTY_BYTES, CLI_MAX_DIAGNOSTIC_BYTES,
+    exit_code_after_write, present_cli_output, write_cli_presentation, CliExitCode, CliLocale,
+    CliPagerPlan, CliPresentation, CliPresenterOptions, CliSignal, CliStreamFault,
+    CLI_DEFAULT_PAGE_BYTES, CLI_DEFAULT_TTY_BYTES, CLI_EXIT_CODE_TABLE, CLI_MAX_DIAGNOSTIC_BYTES,
+    CLI_MAX_PAGER_FOOTER_BYTES, CLI_MAX_PAGE_COUNT, CLI_MIN_PAGE_BYTES, CLI_PAGER_FOOTER_PREFIX,
 };
 pub use conformance::{
     compare_conformance, ConformanceError, ConformanceReport, ConformanceTrace,
