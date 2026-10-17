@@ -37,6 +37,13 @@ request fields, function result steps, lifecycle events, status values and usage
 - `gemini_requires_action_is_not_run_completion` covers function call accumulation, a
   nonterminal `requires_action` status update, and terminal-only delivery of the validated call.
 - `gemini_incomplete_function_arguments_never_dispatch` covers malformed partial function JSON.
+- `gemini_thought_steps_require_protected_replay` locks the step ⑤ hook: a `thought` /
+  `thought_summary` step is refused with `provider_private_replay_not_configured` in both the
+  streaming and non-streaming decoders instead of being dropped or resent as public text.
+- `gemini_hosted_or_unknown_steps_never_execute_locally` refuses hosted (`google_search`,
+  `code_execution`) and unknown step types with `provider_private_or_hosted_item_unsupported`
+  (stream) / `provider_content_block_unsupported` (body) rather than treating them as local
+  function calls.
 - `gemini_steps_cannot_follow_terminal_status_update` denies new steps after a terminal
   `requires_action`/`completed` status update.
 - `gemini_requires_action_status_must_match_function_steps` denies a function-required terminal
@@ -69,3 +76,27 @@ the dedicated fixture and source-guard jobs execute. No live Gemini endpoint, bi
 storage, or provider-side effect is claimed. The API
 reference describes optional interaction/step usage fields; missing usage remains unknown rather
 than being fabricated as zero. Cost-vector mapping remains P4-J7-24/BQ-10.
+
+## 2026-10-17 completion slice (CI-only)
+
+The card's exit conditions are covered at the source level and the closing slice adds:
+
+- `gemini_thought_steps_require_protected_replay` and
+  `gemini_hosted_or_unknown_steps_never_execute_locally` close the remaining fail-closed gap around
+  step ⑤: private thought material and hosted/unknown steps are refused in both the streaming and
+  non-streaming decoders, and neither path can silently drop or locally execute them.
+- The statelessness claim is now asserted rather than only documented:
+  `gemini_stateless_function_result_round_trip` pins the ordered three-step local history and
+  asserts that the wire body carries neither `previous_interaction_id` nor `interaction_id`.
+- The Core source guard additionally binds `kiana-provider/src/config.rs` so the implemented API
+  version stays pinned to the `https://generativelanguage.googleapis.com/v1beta` +
+  `interactions` endpoint for the `gemini` / `gemini-interactions` aliases, and asserts that no
+  Gemini path in request/response/config mentions `generateContent`.
+- The dedicated manual workflow now runs the `cargo fmt --all --check` step its evidence text had
+  already been claiming.
+
+Status: roadmap §1.1 row 396 `🔄` → `✅` (CI pending) with proof_level `source`. The unified
+`ci.yml` shards remain the automatic lane (`kiana-provider` whole-crate plus the
+`kiana-core-s5/6` shard that lists `p4_j7_19_gemini_interactions_guard`); the dedicated workflow is
+dispatch-only by the 2026-09-27 fan-out consolidation rule. No GitHub receipt had been observed
+when this slice was written, so nothing above is `local_behavior`, `durable`, `live` or `physical`.

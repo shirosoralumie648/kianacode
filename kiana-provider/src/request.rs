@@ -825,6 +825,13 @@ mod gemini_interactions_tests {
             body["input"][2]["result"][0]["text"],
             request.messages[2].text
         );
+        // Stateless: every turn resends the complete ordered local history. No server-side
+        // interaction handle is accepted as a substitute for local history, so a missing local
+        // function step cannot be papered over by provider state.
+        assert_eq!(body["input"][0]["type"], "user_input");
+        assert_eq!(body["input"].as_array().map(Vec::len), Some(3));
+        assert!(body.get("previous_interaction_id").is_none());
+        assert!(body.get("interaction_id").is_none());
     }
 }
 

@@ -2120,6 +2120,86 @@ mod tests {
     }
 
     #[test]
+    fn gemini_thought_steps_require_protected_replay() {
+        // Step ⑤ of the card keeps a hook for private replay material. Until the protected
+        // artifact adapter exists, a thought step must fail closed instead of being dropped or
+        // resent as public text.
+        let prepared = gemini_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"event_type":"interaction.created","interaction":{"id":"interaction-7","status":"in_progress"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        assert_eq!(
+            accumulator
+                .push(
+                    r#"{"event_type":"step.start","index":0,"step":{"type":"thought","signature":"sig-1","content":[{"type":"text","text":"private chain"}]}}"#,
+                    &mut sink(&mut deltas),
+                )
+                .unwrap_err()
+                .code,
+            "provider_private_replay_not_configured"
+        );
+        assert!(deltas.is_empty());
+        for step in [json!({"type":"thought"}), json!({"type":"thought_summary"})] {
+            assert_eq!(
+                decode(
+                    json!({"id":"interaction-7","status":"completed","steps":[step]}),
+                    &prepared,
+                )
+                .unwrap_err()
+                .code,
+                "provider_private_replay_not_configured"
+            );
+        }
+    }
+
+    #[test]
+    fn gemini_hosted_or_unknown_steps_never_execute_locally() {
+        // Only local function declarations are declared; a hosted tool or an unknown step type
+        // must be refused instead of being treated as a local function call.
+        let prepared = gemini_prepared();
+        let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
+        let mut deltas = Vec::new();
+        accumulator
+            .push(
+                r#"{"event_type":"interaction.created","interaction":{"id":"interaction-8","status":"in_progress"}}"#,
+                &mut sink(&mut deltas),
+            )
+            .unwrap();
+        for frame in [
+            r#"{"event_type":"step.start","index":0,"step":{"type":"google_search","id":"search-1"}}"#,
+            r#"{"event_type":"step.start","index":0,"step":{"type":"code_execution","id":"exec-1"}}"#,
+        ] {
+            assert_eq!(
+                accumulator
+                    .push(frame, &mut sink(&mut deltas))
+                    .unwrap_err()
+                    .code,
+                "provider_private_or_hosted_item_unsupported"
+            );
+        }
+        assert!(deltas.is_empty());
+        for step in [
+            json!({"type":"google_search"}),
+            json!({"type":"code_execution"}),
+        ] {
+            assert_eq!(
+                decode(
+                    json!({"id":"interaction-8","status":"completed","steps":[step]}),
+                    &prepared,
+                )
+                .unwrap_err()
+                .code,
+                "provider_content_block_unsupported"
+            );
+        }
+    }
+
+    #[test]
     fn gemini_steps_cannot_follow_terminal_status_update() {
         let mut accumulator = Accumulator::new(ModelProtocol::GeminiInteractions);
         let mut deltas = Vec::new();
