@@ -843,6 +843,14 @@ pub fn validate_connector_effect_boundary(
         return Ok(());
     }
     let Some(reservation_value) = request.request.arguments.get("connector_reservation") else {
+        // An orphan permit must never be silently ignored: without the server-owned reservation
+        // the envelope has no authority, so it is refused instead of falling back to the legacy
+        // compatibility path. ControlPlane emits reservation and permit together.
+        if request.request.arguments.get("connector_permit").is_some() {
+            return Err(PortError::Conflict(
+                "connector_reservation_required".to_owned(),
+            ));
+        }
         return Ok(());
     };
     let permit_value = request

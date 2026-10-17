@@ -1,0 +1,49 @@
+name: "INT-16 connector reservation baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int16-connector-reservation:
+    name: "INT-16 connector reservation baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Domain CAS model: canonical command digest, reservation lease, one-shot permit and the
+      # replay/CAS/receipt deny matrix (same key different digest, revision race, uncommitted
+      # reservation, stale permit, receipt conflicts).
+      - name: Run domain connector reservation fixtures
+        run: cargo test -p kiana-domain --test int16_connector_reservation --locked -- --test-threads=1
+      # Broker effect boundary: an uncommitted, stale, tampered or orphaned reservation/permit
+      # envelope leaves the recording connector handler at zero calls; a committed reservation
+      # reaches the handler exactly once with its command digest.
+      - name: Run Broker connector reservation fixtures
+        run: cargo test -p kiana-capability-broker --test int16_connector_reservation --locked -- --test-threads=1
+      # Daemon spine: DaemonHost → ControlPlane → Broker → EventStore with a hash-pinned
+      # local_fixture binding; command-digest conflict and replay over the real connector stream.
+      - name: Run daemon connector reservation behaviour fixtures
+        run: cargo test -p kiana-daemon --test int16_connector_reservation --locked -- --test-threads=1
+      - name: Run core connector reservation source guard
+        run: cargo test -p kiana-core --test int16_connector_reservation_guard --locked -- --test-threads=1
+
+      - name: Compile domain connector reservation target
+        run: cargo test -p kiana-domain --test int16_connector_reservation --no-run --locked
+      - name: Compile Broker connector reservation target
+        run: cargo test -p kiana-capability-broker --test int16_connector_reservation --no-run --locked
+      - name: Compile daemon connector reservation target
+        run: cargo test -p kiana-daemon --test int16_connector_reservation --no-run --locked
+      - name: Compile core connector reservation guard target
+        run: cargo test -p kiana-core --test int16_connector_reservation_guard --no-run --locked
