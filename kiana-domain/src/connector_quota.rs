@@ -212,6 +212,17 @@ impl ConnectorQuotaLimit {
             && requested.budget_micros <= self.max_budget_micros.saturating_sub(used.budget_micros)
             && requested.concurrency <= self.max_concurrency.saturating_sub(used.concurrency)
     }
+
+    /// Absolute policy ceiling without live usage. The ledger applies the same limit with the
+    /// window's current usage subtracted; the effect boundary re-applies the ceiling so an
+    /// internally consistent but over-limit reservation (for example forged over-concurrency)
+    /// still cannot reach the adapter.
+    fn admits_without_usage(&self, requested: &ConnectorQuotaDimensions) -> bool {
+        requested.requests <= self.max_requests
+            && requested.tokens <= self.max_tokens
+            && requested.budget_micros <= self.max_budget_micros
+            && requested.concurrency <= self.max_concurrency
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -742,6 +753,32 @@ impl ConnectorQuotaSettlement {
         Ok(())
     }
 
+    /// Identity-level fence for read models that keep only the latest CAS snapshot of a
+    /// reservation. A settlement is bound to the reservation id, command digest, issue time and
+    /// requested upper bounds, while a later state transition (for example release after
+    /// settlement) legitimately advances the reservation snapshot digest. This never replaces
+    /// [`Self::validate_against`], which additionally requires the exact snapshot digest at
+    /// settlement time and stays the write-path fence.
+    pub fn validate_identity_against(
+        &self,
+        reservation: &ConnectorQuotaReservation,
+    ) -> Result<(), String> {
+        self.validate()?;
+        if self.reservation_id != reservation.reservation_id
+            || self.command_digest != reservation.command_digest
+            || self.settled_at_unix_ms < reservation.issued_at_unix_ms
+            || self
+                .charged_tokens
+                .is_some_and(|value| value > reservation.requested.tokens)
+            || self
+                .charged_budget_micros
+                .is_some_and(|value| value > reservation.requested.budget_micros)
+        {
+            return Err("connector_quota_settlement_reservation_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -1080,6 +1117,18 @@ pub fn connector_quota_effect_admission(
         || claim.reservation_digest != reservation.reservation_digest
     {
         return Err("connector_quota_claim_fence_mismatch".to_owned());
+    }
+    // Over-limit dimensions fail closed at the effect boundary too: reserve time already refuses
+    // them with the same stable codes, and a reservation whose requested concurrency, requests,
+    // tokens or budget exceed the policy's own ceiling must never dispatch.
+    for (scope, limit) in [
+        (ConnectorQuotaScope::Connector, &policy.connector),
+        (ConnectorQuotaScope::Account, &policy.account),
+        (ConnectorQuotaScope::Project, &policy.project),
+    ] {
+        if !limit.admits_without_usage(&reservation.requested) {
+            return Err(format!("connector_quota_{}_limit_exceeded", scope.as_str()));
+        }
     }
     Ok(())
 }
