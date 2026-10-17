@@ -4,12 +4,22 @@
 //! module owns the bounded tenant/project/source/nonce/payload shape and the digest chain. No
 //! ingress value is a capability request or an instruction to call a connector.
 
-use crate::json_digest;
+use crate::{
+    binding_digest, connector_credential_audience, json_digest, valid_extension_identifier,
+    ConnectorBindingSnapshot,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
 pub const CONNECTOR_INGRESS_SCHEMA: &str = "kiana.connector-ingress.v1";
+pub const CONNECTOR_INGRESS_INTENT_SCHEMA: &str = "kiana.connector-ingress-intent.v1";
+/// Purpose carried by a connector invocation derived from an ingress occurrence. It matches the
+/// connector credential purpose so the downstream credential can never be replaced by the
+/// inbound token that authenticated the webhook.
+pub const CONNECTOR_INGRESS_INTENT_PURPOSE: &str = "connector.invoke";
+pub const CONNECTOR_INGRESS_INTENT_MAX_IDEMPOTENCY_BYTES: usize = 128;
+pub const CONNECTOR_INGRESS_INTENT_MAX_AUDIENCE_BYTES: usize = 320;
 pub const CONNECTOR_INGRESS_POLICY_SCHEMA: &str = "kiana.connector-ingress-policy.v1";
 pub const CONNECTOR_INGRESS_OCCURRENCE_SCHEMA: &str = "kiana.connector-ingress-occurrence.v1";
 pub const CONNECTOR_INGRESS_PAYLOAD_MAX_BYTES: usize = 64 * 1024;
@@ -379,6 +389,197 @@ impl ConnectorIngressOccurrence {
             "ingress_digest": self.ingress_digest,
             "signature_digest": self.signature_digest,
             "policy_digest": self.policy_digest,
+        }))
+    }
+}
+
+/// Typed connector invocation derived from a *verified* ingress occurrence.
+///
+/// This is the only bridge from an untrusted webhook/A2A event into the connector execution
+/// spine. It is deliberately not a capability request: it stamps the server-owned account,
+/// connector audience and purpose, keeps `broker_calls` at zero, and still has to re-enter
+/// `ControlPlane` authorization. The inbound token that authenticated the ingress must never
+/// become the downstream connector credential, so the ingress audience and the downstream
+/// connector audience are required to be different and the audit link is the occurrence digest.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorIngressIntent {
+    pub schema: String,
+    pub protocol: ConnectorIngressProtocol,
+    pub source_id: String,
+    pub tenant_id: String,
+    pub project_id: String,
+    pub event_id: String,
+    pub event_kind: String,
+    pub occurrence_digest: String,
+    /// Audience of the token that authenticated the ingress source; not a connector credential.
+    pub ingress_audience: String,
+    pub connector_id: String,
+    pub connector_version: String,
+    pub binding_id: String,
+    pub binding_revision: u64,
+    pub binding_digest: String,
+    pub account_id: String,
+    pub operation: String,
+    pub purpose: String,
+    /// Server-derived connector account audience used by the separate downstream credential.
+    pub downstream_audience: String,
+    pub idempotency_key_digest: String,
+    pub payload_digest: String,
+    pub intent_digest: String,
+    /// Always zero. A non-zero value would mean the ingress bridge dispatched an effect.
+    pub broker_calls: u32,
+}
+
+impl ConnectorIngressIntent {
+    /// Bind a verified occurrence to one connector account/operation. All deny rules run before
+    /// the intent digest is produced, so a rejected intent never leaves a partial value.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_verified_occurrence(
+        occurrence: &ConnectorIngressOccurrence,
+        binding: &ConnectorBindingSnapshot,
+        expected_project_id: &str,
+        expected_ingress_audience: &str,
+        ingress_audience: &str,
+        operation: &str,
+        idempotency_key: &str,
+    ) -> Result<Self, String> {
+        occurrence.validate()?;
+        binding.validate().map_err(str::to_owned)?;
+        // Account scope and binding status are enforced by the existing connector contract.
+        binding.operation(operation).map_err(str::to_owned)?;
+        if expected_project_id.trim().is_empty() || occurrence.project_id != expected_project_id {
+            return Err("connector_ingress_project_denied".to_owned());
+        }
+        bounded(
+            expected_ingress_audience,
+            "connector_ingress_audience",
+            CONNECTOR_INGRESS_INTENT_MAX_AUDIENCE_BYTES,
+        )?;
+        bounded(
+            ingress_audience,
+            "connector_ingress_audience",
+            CONNECTOR_INGRESS_INTENT_MAX_AUDIENCE_BYTES,
+        )?;
+        if ingress_audience != expected_ingress_audience {
+            return Err("connector_intent_ingress_audience_mismatch".to_owned());
+        }
+        let connector_id = &binding.definition.connector_id;
+        let connector_version = &binding.definition.version;
+        let downstream_audience = connector_credential_audience(connector_id, connector_version);
+        // Token separation: reusing the inbound token for the downstream connector would be a
+        // passthrough. A distinct audience forces a separate connector credential lease.
+        if ingress_audience == downstream_audience {
+            return Err("connector_intent_token_passthrough_denied".to_owned());
+        }
+        if idempotency_key.trim().is_empty()
+            || idempotency_key.len() > CONNECTOR_INGRESS_INTENT_MAX_IDEMPOTENCY_BYTES
+            || idempotency_key.chars().any(char::is_control)
+        {
+            return Err("connector_intent_idempotency_key_invalid".to_owned());
+        }
+        let idempotency_key_digest =
+            json_digest(&serde_json::json!({"idempotency_key": idempotency_key}));
+        let mut intent = Self {
+            schema: CONNECTOR_INGRESS_INTENT_SCHEMA.to_owned(),
+            protocol: occurrence.protocol,
+            source_id: occurrence.source_id.clone(),
+            tenant_id: occurrence.tenant_id.clone(),
+            project_id: occurrence.project_id.clone(),
+            event_id: occurrence.event_id.clone(),
+            event_kind: occurrence.event_kind.clone(),
+            occurrence_digest: occurrence.occurrence_digest.clone(),
+            ingress_audience: ingress_audience.to_owned(),
+            connector_id: binding.definition.connector_id.clone(),
+            connector_version: binding.definition.version.clone(),
+            binding_id: binding.binding.binding_id.clone(),
+            binding_revision: binding.revision,
+            binding_digest: binding_digest(binding),
+            account_id: binding.binding.account_id.clone(),
+            operation: operation.to_owned(),
+            purpose: CONNECTOR_INGRESS_INTENT_PURPOSE.to_owned(),
+            downstream_audience,
+            idempotency_key_digest,
+            payload_digest: occurrence.payload_digest.clone(),
+            intent_digest: String::new(),
+            broker_calls: 0,
+        };
+        intent.intent_digest = intent.digest();
+        intent.validate()?;
+        Ok(intent)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        let downstream_audience =
+            connector_credential_audience(&self.connector_id, &self.connector_version);
+        if self.schema != CONNECTOR_INGRESS_INTENT_SCHEMA
+            || self.purpose != CONNECTOR_INGRESS_INTENT_PURPOSE
+            || self.downstream_audience != downstream_audience
+            || self.ingress_audience == self.downstream_audience
+            || self.broker_calls != 0
+            || self.binding_revision == 0
+            || !valid_extension_identifier(&self.operation)
+            || !valid_digest(&self.occurrence_digest)
+            || !valid_digest(&self.binding_digest)
+            || !valid_digest(&self.idempotency_key_digest)
+            || !valid_digest(&self.payload_digest)
+            || !valid_digest(&self.intent_digest)
+            || self.intent_digest != self.digest()
+        {
+            return Err("connector_ingress_intent_invalid".to_owned());
+        }
+        for (value, field, max) in [
+            (&self.source_id, "connector_ingress_source", 128),
+            (&self.tenant_id, "connector_ingress_tenant", 256),
+            (&self.project_id, "connector_ingress_project", 256),
+            (&self.event_id, "connector_ingress_event", 256),
+            (&self.event_kind, "connector_ingress_kind", 128),
+            (
+                &self.ingress_audience,
+                "connector_ingress_audience",
+                CONNECTOR_INGRESS_INTENT_MAX_AUDIENCE_BYTES,
+            ),
+            (&self.connector_id, "connector_id", 128),
+            (&self.connector_version, "connector_version", 128),
+            (&self.binding_id, "connector_binding_id", 128),
+            (&self.account_id, "connector_account_id", 128),
+            (
+                &self.downstream_audience,
+                "connector_audience",
+                CONNECTOR_INGRESS_INTENT_MAX_AUDIENCE_BYTES,
+            ),
+        ] {
+            bounded(value, field, max)?;
+        }
+        Ok(())
+    }
+
+    pub fn occurrence_key(&self) -> String {
+        format!("connector-ingress:{}:{}", self.source_id, self.event_id)
+    }
+
+    fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "protocol": self.protocol,
+            "source_id": self.source_id,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+            "event_id": self.event_id,
+            "event_kind": self.event_kind,
+            "occurrence_digest": self.occurrence_digest,
+            "ingress_audience": self.ingress_audience,
+            "connector_id": self.connector_id,
+            "connector_version": self.connector_version,
+            "binding_id": self.binding_id,
+            "binding_revision": self.binding_revision,
+            "binding_digest": self.binding_digest,
+            "account_id": self.account_id,
+            "operation": self.operation,
+            "purpose": self.purpose,
+            "downstream_audience": self.downstream_audience,
+            "idempotency_key_digest": self.idempotency_key_digest,
+            "payload_digest": self.payload_digest,
         }))
     }
 }
