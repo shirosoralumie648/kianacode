@@ -8,7 +8,7 @@
 //! 脚本和 fake provider 可证明本地行为，不代表已验证 live provider 或 UI token
 //! streaming。`reference/` 仅供审计对照，不是 workspace 成员或运行时依赖。
 //!
-//! ## 12 个私有模块
+//! ## 13 个私有模块
 //!
 //! 模块路径保持私有；下方 `pub use` 集中导出类型、函数和常量。内部可以调整文件组织，
 //! 但导出签名、协议字段和可观察行为仍需保持兼容。
@@ -19,6 +19,7 @@
 //! | `tools` | 五个固定工具名及参数到能力请求的翻译；不执行工具 |
 //! | `harness` | 模型循环、运行表、取消、Continue 与 checkpoint |
 //! | `state_driver` | 纯状态转移及意图输出；不做 I/O |
+//! | `step_context` | 每步编译 ContextPlan 并冻结 ResolvedStepContext；不发请求、不执行工具、不授予权限 |
 //! | `inbox` | 按 next-turn/next-step 分队列的输入接收与认领 |
 //! | `compact` | 根据预算压缩历史，并保留完整的近期消息组 |
 //! | `stream_normalizer` | 每个 attempt 的增量累积与最终输出验证 |
@@ -51,6 +52,7 @@ mod progress;
 mod protocol_runner;
 mod retry;
 mod state_driver;
+mod step_context;
 mod stream_normalizer;
 mod tool_batch_scheduler;
 mod tools;
@@ -114,6 +116,17 @@ pub use state_driver::{
     transition, DriverError, DriverInput, DriverIntent, DriverTerminal, DriverTransition,
     HarnessPhase, RunDriver, RunFrame, TurnFrame, DEFAULT_MAILBOX_CAPACITY, RUN_FRAME_SCHEMA,
     TURN_FRAME_SCHEMA,
+};
+
+// ■ 单步不可变上下文
+// harness 在每条模型请求前用同一份 bundle、消息快照与 wire 预算编译 ContextPlan 并冻结为
+// ResolvedStepContext；路由/目录/workspace/data 漂移在预留预算前拒绝发送（fail closed）。
+// 解释对象记录摘要与剔除原因，不包含消息全文；module 不发请求、不执行工具，也不授予权限，
+// 其中 scope 是 runner 侧占位值（真实授权仍在 ControlPlane）。
+pub use step_context::{
+    compile_step_context, derive_data_binding, derive_workspace_binding,
+    recheck_step_context_bindings, StepContextExplanation, StepContextInputs, StepContextOmission,
+    STEP_CONTEXT_EXPLANATION_SCHEMA, STEP_CONTEXT_MAX_MESSAGE_CANDIDATES,
 };
 
 // ■ 流式归一化
