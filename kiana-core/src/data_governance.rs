@@ -318,6 +318,37 @@ pub fn seal_governance_events(
     )
 }
 
+/// 判断一条治理事实是否属于当前项目。
+///
+/// 【为什么必须单独判断】
+/// EventStore 交出的是全局事件账本，而治理快照只属于一个项目。命名了别的项目根的撤销/
+/// 恢复事实如果被静默套用，就构成一次跨项目的数据治理越权（retention 绕过 scope）。
+///
+/// 【返回值】
+/// - `Ok(true)`：不是项目作用域事件（其他种类的事实由各自投影处理），或声明的根与
+///   `project_ref` 规范化后相同；
+/// - `Ok(false)`：声明的根属于另一个项目（调用方必须拒绝把它套用到本项目）；
+/// - `Err(...)`：项目作用域事件缺少可用的 `project_root`（`data_governance_project_root_missing`）。
+///
+/// 本函数是纯判断，不读取存储、不修改事件、不产生副作用。
+fn governance_fact_matches_project(
+    event: &RuntimeEvent,
+    project_ref: &str,
+) -> Result<bool, String> {
+    if !matches!(
+        event.kind.as_str(),
+        "data.revocation_requested" | "workspace.restore_requested" | "workspace.restored"
+    ) {
+        return Ok(true);
+    }
+    let root = event.data["project_root"]
+        .as_str()
+        .filter(|root| !root.trim().is_empty())
+        .ok_or_else(|| "data_governance_project_root_missing".to_owned())?;
+    Ok(ControlPlane::canonical_project_root(root)
+        == ControlPlane::canonical_project_root(project_ref))
+}
+
 /// 将数据策略与已提交的失效事件投射成当前治理状态快照。
 ///
 /// 【作用与位置】
@@ -331,10 +362,13 @@ pub fn seal_governance_events(
 /// 应是**当前项目范围内**、按连续游标顺序排列的事件；`project_ref` 和服务端策略由
 /// 上层调用者提供，`now_ms` 用于领域策略判断保留期限是否已过。
 ///
-/// ⚠ 注意：本函数会读取输入序列中的所有撤销/恢复事实，但不会根据 `project_ref` 检查
-/// 每条事件的 `project_root`。因此，传入前必须由调用方完成项目范围过滤；全局事件流
-/// 中另一个项目的失效事实可能影响当前快照。当前 `ControlPlane` 包装方法会直接读取
-/// 整个 EventStore，因此使用该包装方法时尤其需要注意这个作用域边界。
+/// 【项目范围如何裁决】
+/// 命名了项目根的治理事实（`data.revocation_requested`、`workspace.restore_requested`、
+/// `workspace.restored`，以及治理结果里的 `project_root`）必须与 `project_ref` 规范化后
+/// 相同：缺少项目归属返回 `data_governance_project_root_missing`，属于别的项目返回
+/// `data_governance_project_scope_mismatch`。撤销、恢复和 retention 都不能跨项目生效；
+/// 调用者若持有全局账本，应先由服务端按项目选择事实（`ControlPlane::data_governance_snapshot`
+/// 已经这样做），而不是把整本账本交给本函数。
 ///
 /// 【核心流程】
 /// 1. 拒绝空历史、零起点、过多事件、重复事件 ID 和游标跳号；
@@ -390,6 +424,11 @@ pub fn project_data_governance_snapshot(
                 return Err("data_governance_source_cursor_gap".to_owned());
             }
         }
+        // 全局账本中的治理事实必须属于本项目：命名了别的项目根、或缺少项目归属的撤销/
+        // 恢复事实都不能被静默套用到当前快照（retention 绕过 scope 一律失败关闭）。
+        if !governance_fact_matches_project(event, project_ref)? {
+            return Err("data_governance_project_scope_mismatch".to_owned());
+        }
         // 撤销或恢复请求意味着相关数据可能已经失效，但实际治理结果还未确认。
         // 在看到明确的治理结果事件前，下面会把 payload 标为 Unknown，而不是假定成功
         // 删除，也不是继续宣称它可用。
@@ -411,6 +450,19 @@ pub fn project_data_governance_snapshot(
             if output.get("schema").and_then(Value::as_str)
                 == Some("kiana.data-governance-result.v1")
             {
+                // 治理结果同样只能作用于它自己声明的项目；结果里的项目根与快照项目不一致
+                // 时不能把它的 revoked_sources 套用到当前项目。
+                if let Some(result_project) = output
+                    .get("project_root")
+                    .and_then(Value::as_str)
+                    .filter(|root| !root.trim().is_empty())
+                {
+                    if ControlPlane::canonical_project_root(result_project)
+                        != ControlPlane::canonical_project_root(project_ref)
+                    {
+                        return Err("data_governance_project_scope_mismatch".to_owned());
+                    }
+                }
                 // 只有读到带预期 schema 的结果才清除 pending 标记；同时仅从结果的
                 // policy.revoked_sources 收集被明确确认撤销的来源。
                 pending_invalidation = false;
@@ -1067,19 +1119,21 @@ impl ControlPlane {
     /// 本方法不会自行从任意路径加载项目配置。
     ///
     /// 【数据流】
-    /// 先通过 `read_all_events()` 读取完整事件日志（EventLog），再交给纯函数
-    /// `project_data_governance_snapshot()` 校验游标并叠加撤销事实，最终返回带摘要的
-    /// 治理快照。策略由调用者提供，不能通过快照接口修改。
+    /// 先通过 `read_all_events()` 读取完整事件日志（EventLog），再按服务端项目范围选择
+    /// 其中属于本项目的治理事实，最后交给纯函数 `project_data_governance_snapshot()` 校验
+    /// 游标并叠加撤销事实，返回带摘要的治理快照。策略由调用者提供，不能通过快照接口
+    /// 修改。
     ///
-    /// ⚠ 当前实现把完整事件日志直接传入快照投影，没有按 `project_ref` 过滤事件；而
-    /// 投影函数会应用传入序列中的所有项目失效事实。若全局事件中不同项目使用相同的
-    /// 相对来源路径，或任一项目存在尚未完成的失效请求，可能串入其他项目的状态。
-    /// 这是待审查的实现问题，本注释任务不改变其行为。
+    /// 【为什么在包装方法里做范围选择】
+    /// 账本是全局的而快照只属于一个项目：别的项目的撤销/恢复事实不能影响本项目的 payload
+    /// 与派生存储状态。这里按规范化项目根剔除其他项目的事实；缺少或畸形项目归属的事实
+    /// 会被保留，交给投影函数失败关闭（`data_governance_project_root_missing` /
+    /// `data_governance_project_scope_mismatch`），而不是被静默丢弃。
     ///
     /// 【失败情况与副作用】
     /// EventStore 不支持全量读取时返回 `data_governance_read_all_unsupported`；存储错误、
-    /// 事件不连续或快照校验失败也都会作为 `CoreError` 返回。此方法只读，不会清理文件、
-    /// 改变策略、重试或取消运行。
+    /// 事件不连续、项目范围冲突或快照校验失败也都会作为 `CoreError` 返回。此方法只读，
+    /// 不会清理文件、改变策略、重试或取消运行。
     pub async fn data_governance_snapshot(
         &self,
         policy: &DataPolicy,
@@ -1089,6 +1143,10 @@ impl ControlPlane {
         let events = self.read_all_events().await?.ok_or_else(|| {
             PortError::Unavailable("data_governance_read_all_unsupported".to_owned())
         })?;
+        let events = events
+            .into_iter()
+            .filter(|event| governance_fact_matches_project(event, project_ref).unwrap_or(true))
+            .collect::<Vec<_>>();
         project_data_governance_snapshot(policy, project_ref, &events, now_ms)
             .map_err(|error| PortError::Failed(error).into())
     }

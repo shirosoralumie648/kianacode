@@ -449,6 +449,25 @@ impl DataPropagationTarget {
             Self::Export => "export",
         }
     }
+
+    /// Whether the target is a derived store that holds governed payload bytes.
+    ///
+    /// `EventProjection` holds sealed source facts and `Audit` rows are metadata-only by design;
+    /// every other target is a copy (receipt/artifact/memory/index/cache/checkpoint/export) of the
+    /// governed payload. A cleanup that only touched disposable UI or cache copies therefore
+    /// cannot satisfy [`DataPropagationPlan::require_payload_coverage`].
+    pub const fn holds_payload(self) -> bool {
+        matches!(
+            self,
+            Self::Receipt
+                | Self::Artifact
+                | Self::Memory
+                | Self::Index
+                | Self::Cache
+                | Self::Checkpoint
+                | Self::Export
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -498,6 +517,40 @@ impl DataPropagationReceipt {
             receipt_digest: None,
             observed_at_ms,
         }
+    }
+
+    /// Construct the receipt an adapter returns after it actually handled one target.
+    ///
+    /// `Unknown` is not a settled outcome: it means "no evidence yet", so this constructor refuses
+    /// it through [`DataPropagationReceipt::validate`] even when a digest is supplied. Only a
+    /// concrete `Invalidated`/`PreservedMetadata` claim can replace a plan slot.
+    #[allow(clippy::too_many_arguments)]
+    pub fn settled(
+        target: DataPropagationTarget,
+        project_ref: impl Into<String>,
+        previous_epoch: u64,
+        data_epoch: u64,
+        source_cursor: EventCursor,
+        tombstone_digest: impl Into<String>,
+        state: DataPropagationState,
+        receipt_digest: impl Into<String>,
+        observed_at_ms: u64,
+    ) -> Result<Self, String> {
+        let receipt = Self {
+            schema: DATA_PROPAGATION_RECEIPT_SCHEMA.to_owned(),
+            version: DATA_PROPAGATION_VERSION,
+            target,
+            state,
+            project_ref: project_ref.into(),
+            previous_epoch,
+            data_epoch,
+            source_cursor,
+            tombstone_digest: tombstone_digest.into(),
+            receipt_digest: Some(receipt_digest.into()),
+            observed_at_ms,
+        };
+        receipt.validate()?;
+        Ok(receipt)
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -647,6 +700,71 @@ impl DataPropagationPlan {
             .filter(|receipt| receipt.state == DataPropagationState::Unknown)
             .map(|receipt| receipt.target)
             .collect()
+    }
+
+    /// Apply one adapter-supplied receipt to its own target slot.
+    ///
+    /// The receipt must bind the exact plan boundary (project, previous/next epoch, source cursor
+    /// and tombstone digest) and claim a settled state. A receipt for another project, another
+    /// epoch or another tombstone is refused before any slot changes, so a forged, replayed or
+    /// stale receipt cannot mark a store as purged. On success the plan digest is recomputed and
+    /// the whole plan is re-validated.
+    pub fn settle(&mut self, receipt: &DataPropagationReceipt) -> Result<(), String> {
+        self.validate()?;
+        receipt.validate()?;
+        if receipt.state == DataPropagationState::Unknown {
+            return Err("data_propagation_receipt_not_settled".to_owned());
+        }
+        if receipt.project_ref != self.project_ref
+            || receipt.previous_epoch != self.previous_epoch
+            || receipt.data_epoch != self.data_epoch
+            || receipt.source_cursor != self.source_cursor
+            || receipt.tombstone_digest != self.tombstone_digest
+        {
+            return Err("data_propagation_receipt_binding_mismatch".to_owned());
+        }
+        let slot = self
+            .targets
+            .iter_mut()
+            .find(|slot| slot.target == receipt.target)
+            .ok_or_else(|| "data_propagation_target_unlisted".to_owned())?;
+        *slot = receipt.clone();
+        self.plan_digest = self.digest();
+        self.validate()
+    }
+
+    /// Payload-bearing targets that still have no settled receipt.
+    pub fn unresolved_payload_targets(&self) -> Vec<DataPropagationTarget> {
+        self.targets
+            .iter()
+            .filter(|receipt| {
+                receipt.target.holds_payload() && receipt.state == DataPropagationState::Unknown
+            })
+            .map(|receipt| receipt.target)
+            .collect()
+    }
+
+    /// Every store that holds governed payload must be settled before a caller may claim that a
+    /// revocation/deletion/expiry reached the stored bytes.
+    ///
+    /// Cleaning only a disposable cache (or only a UI projection, which is not a propagation
+    /// target at all) leaves at least one payload target unresolved and fails closed here.
+    pub fn require_payload_coverage(&self) -> Result<(), String> {
+        if self.unresolved_payload_targets().is_empty() {
+            Ok(())
+        } else {
+            Err("data_propagation_payload_coverage_incomplete".to_owned())
+        }
+    }
+
+    /// Full coverage: no target may remain `Unknown`, including the sealed source projection and
+    /// the metadata-only audit target.
+    pub fn require_complete(&self) -> Result<(), String> {
+        if self.unresolved_targets().is_empty() {
+            Ok(())
+        } else {
+            Err("data_propagation_targets_unresolved".to_owned())
+        }
     }
 
     pub fn digest(&self) -> String {
