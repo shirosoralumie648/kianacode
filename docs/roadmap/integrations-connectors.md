@@ -46,6 +46,23 @@ ConnectorDefinition + AccountBinding + OperationContract
   (approved bind, read-only invoke, same-key replay, hash-pinned manual reconciliation, and
   replaced-bytes / missing / unregistered-operation denials with zero dispatch); the manual
   `int08-local-fixture.yml` lane carries the targets and no local build/test was run.
+- INT-11 source slice now owns the pure, server-owned HTTPS endpoint contract and the narrow
+  `ConnectorHttpsTransport` port. A policy pins one exact `https://host:port` origin with an exact
+  egress-host allowlist, an optional public resolved-address pin and an explicit proxy allowlist;
+  URL userinfo, non-HTTPS schemes, endpoint query/fragment credentials, origin drift, unlisted
+  hosts, loopback/private/link-local/metadata/documentation/reserved addresses, ambient proxies and
+  cross-origin redirects fail closed before any transport call. The checked wrapper re-validates
+  capabilities, permit/lease binding, endpoint, DNS observation, proxy and redirect chain, and the
+  default implementation is unsupported. GitHub Actions remains the test authority.
+  The 2026-10-17 completion slice expands the domain fixtures to the full deny matrix (policy
+  bounds/unknown fields, sorted/deduplicated DNS observations with digest binding, every SSRF
+  address class, literal-IP matching, exact host allowlist, redirect/proxy pinning and stable
+  redaction-safe error codes) and the ports fixtures to default-deny capabilities plus an 11-row
+  request deny matrix where the fake transport dispatch count stays zero, a bounded same-origin
+  redirect success path, explicit-proxy support checks and post-dispatch receipt binding; the Core
+  guard pins the fixture obligations, the single dispatch site ordering and lane commands, and the
+  manual `int11-https-connector.yml` lane carries `cargo fetch --locked`, the fmt gate, three test
+  targets and three `--no-run` compile steps. No local build/test was run.
 - INT-19 source slice now owns a digest-bound `ConnectorDispatchLifecycle` and commits
   `prepared → dispatching → observed → result_committed` (or terminal `unknown`) through a narrow
   connector journal. The local fixture adapter and effect observer are separate objects; replayed
@@ -362,7 +379,7 @@ Connector 输入、输出和缓存都要带 `DataClass`、`Purpose`、owner proj
 | <a id="step-int-08"></a>`INT-08` | local_fixture schema、hash、payload matching、deterministic receipts | INT-04/07 | fixture 越界/替换/重复 payload、未知 operation、external_effect=true（夹具：`fixture_schema_bounds_and_unknown_fields_fail_closed`、`fixture_replacement_and_hash_spelling_are_pinned`、`fixture_identity_replacement_and_unknown_operation_are_refused_before_any_effect`） | fixture bind/invoke/replay/reconcile 与现有实现一致（`fixture_bind_invoke_replay_and_reconcile_are_deterministic`、`fixture_receipts_are_byte_stable_for_every_outcome`；手动 lane `int08-local-fixture.yml`，CI pending） |
 | <a id="step-int-09"></a>`INT-09` | read-only health/probe 和状态分类；daemon/query/UI | INT-05/07/08 | destructive probe、scope error 被标为 credential invalid、非 JSON error 删除凭据 | verified/connectivity-only/invalid/scope/unreachable 可区分且脱敏 |
 | <a id="step-int-10"></a>`INT-10` | stdio MCP connector adapter 与 capability handshake | INT-07/09 | HTTP/remote MCP 绕过 unsupported、server tool schema 直接授予 scope、session 泄漏 | stdio startup/timeout/disconnect/conditional tool 可回收和审计 |
-| <a id="step-int-11"></a>`INT-11` | HTTPS endpoint、TLS、redirect、proxy、DNS/SSRF/egress allowlist | INT-06/07 | URL userinfo、非 HTTPS、跨 origin redirect、内网地址、代理泄漏均 0 dispatch | fake HTTPS transport 只连 pinned origin，错误有结构化分类；[baseline](int11-https-connector-baseline.md) |
+| <a id="step-int-11"></a>`INT-11` | HTTPS endpoint、TLS、redirect、proxy、DNS/SSRF/egress allowlist | INT-06/07 | URL userinfo、非 HTTPS、跨 origin redirect、内网地址、代理泄漏均 0 dispatch（夹具：`endpoint_rejects_userinfo_non_https_query_fragment_and_origin_drift`、`policy_bounds_and_unknown_fields_fail_closed`、`dns_observation_is_sorted_bounded_and_policy_bound`、`ssrf_and_metadata_addresses_fail_closed_for_every_class`、`literal_ip_endpoints_require_exactly_the_observed_address`、`endpoint_host_allowlist_is_exact_and_has_no_wildcards`、`proxy_selection_is_explicit_and_allowlisted`、`request_deny_matrix_never_reaches_the_transport`、`default_capabilities_and_send_deny_without_any_dispatch`、`missing_security_capability_denies_before_the_implementation_runs`） | fake HTTPS transport 只连 pinned origin，错误有结构化分类（夹具：`fake_https_transport_only_dispatches_pinned_origin`、`same_origin_redirect_chain_within_bound_dispatches_once`、`explicit_proxy_requires_an_allowlisted_origin_and_a_proxy_capable_transport`、`receipt_that_is_not_bound_to_the_permit_is_refused_after_dispatch`、`request_contract_rejects_unknown_fields_and_absent_proxy_is_not_serialized`、`error_classification_is_stable_redaction_safe_and_serde_bound`）；[baseline](int11-https-connector-baseline.md) |
 | <a id="step-int-12"></a>`INT-12` | OAuth PKCE/state/callback、account store、refresh single-flight | INT-06/11 | state/redirect mismatch、code reuse、scope downgrade、旧 refresh 覆盖新 generation | 提前刷新、CAS rotate、reauth/revoked 和锁内重读测试；[baseline](int12-oauth-account-baseline.md) |
 | <a id="step-int-13"></a>`INT-13` | secret redaction/echo sentinel 扫描；domain/daemon/event/UI tests | INT-06/08/12 | token 出现在 prompt/transcript/event/receipt/stdout/stderr/argv/env/cache | provider raw error、URL/header/JWT 形状和 fixture 结果均安全投影 |
 | <a id="step-int-14"></a>`INT-14` | `connector.manage/invoke/health/reconcile` protocol DTO 和 normalize | INT-03/05/07 | wire actor/role/risk/binding/endpoint 覆盖服务端值；未 trust/未 auth 0 Broker calls | CLI/Web/Workbench/MCP 得到同一 normalized intent · [baseline](int14-connector-protocol-baseline.md) |
