@@ -158,6 +158,7 @@ use kiana_ports::{
     ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats, PortError,
     QueuedObservabilityItem, RunnerPort, WorkflowQueueStore,
 };
+use kiana_provider::{ProviderGateway, WorkspaceConfigTrust};
 use kiana_protocol::{
     RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
     UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
@@ -912,6 +913,44 @@ impl DaemonHost {
             .map_err(|_| PortError::Failed("project_trust_unavailable".to_owned()))?;
         ProjectTrustSnapshot::from_project(&project, trusted, "daemon.project_authority", revision)
             .map_err(PortError::Failed)
+    }
+
+    /// Compose the project-scoped provider gateway at the daemon composition root.
+    ///
+    /// This is the one place the daemon turns a project-local provider overlay
+    /// (`<project_root>/.kiana/provider-config.json`) into a gateway, and it does so only through the
+    /// single [`kiana_provider::ConfigResolver`] (via `ProviderGateway::from_workspace`). Trust is the
+    /// daemon's own `project_authority` observation, never a wire bit: an untrusted
+    /// project is rejected before any file content is opened. `admitted_trust_revision` is the
+    /// revision a prior admission pinned; a mismatch against the freshly observed revision is fenced
+    /// with `config_project_trust_revision_changed` before the resolver parses the text.
+    ///
+    /// Returns `Ok(None)` when the project has no overlay, so callers keep the existing
+    /// environment/builtin path. Durable snapshot storage is not this layer's concern; the current
+    /// secret-free workspace snapshot is available from the returned gateway.
+    pub fn provider_gateway_for_project(
+        &self,
+        config: LocalModelConfig,
+        project_root: &str,
+        admitted_trust_revision: Option<&str>,
+    ) -> Result<Option<ProviderGateway>, PortError> {
+        let identity = self.project_identity(project_root)?;
+        let trusted = self
+            .project_authority
+            .project_trusted(Path::new(project_root))
+            .map_err(|_| PortError::Failed("project_trust_unavailable".to_owned()))?;
+        let revision = identity.trust_revision;
+        let admitted = admitted_trust_revision.unwrap_or(revision.as_str());
+        project_provider_config::gateway_from_project_config(
+            config,
+            Path::new(&identity.canonical_root),
+            WorkspaceConfigTrust {
+                project_trusted: trusted,
+                admitted_revision: admitted,
+                current_revision: &revision,
+            },
+        )
+        .map_err(PortError::Failed)
     }
 
     /// Acquire the one local instance lease for a workspace and write a ready record. The lease
