@@ -65,6 +65,17 @@ missing read-only classification that made `search` unusable on the product path
 Local tests/builds are not run in this session, so the proof level stays `source` and EXT-27 remains
 🔄 until the lane returns a receipt with the Entry-projection gate covered.
 
+## Close-out (2026-10-17, CI-only)
+
+A follow-up static audit on branch `step/ext-27-20261017-2` (base master `5b08a38e`, which already
+contains this completion slice via `97d840d4`) confirmed every source-level exit condition above is
+present and CI-wired: the read-only classification, both daemon `ext27_` fixtures, both entrypoint
+fixtures, the core guard and the manual-lane command list. The roadmap card and index row were
+therefore flipped to ✅ (CI pending a receipt); the unknown-trust refusal is a policy `Denied`
+(not a generic `Blocked`) with `project_untrusted`, and the four-surface parity fixture covers one
+process and one trusted/untrusted project pair. The proof level stays `source`; the limitations
+below are unchanged.
+
 ## Evidence (2026-10-17 completion slice)
 
 ```text

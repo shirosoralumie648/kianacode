@@ -179,8 +179,6 @@ async fn unknown_trust_project_has_no_projection_and_the_refusal_leaks_nothing()
     let options = fixture.options();
 
     // The exact wire route a surface uses, read raw: only the envelope proves which authority
-    // refused the projection and that no output was minted.
-    // The exact wire route a surface uses, read raw: only the envelope proves which authority
     // refused the projection and that no output was minted. A policy Deny is returned as
     // `Denied` (not `Blocked`) with the stable reason in `error`.
     let (client, metadata) =
