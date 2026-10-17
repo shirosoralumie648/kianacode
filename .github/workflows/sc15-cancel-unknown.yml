@@ -25,9 +25,13 @@ jobs:
         run: cargo test -p kiana-core --test sc15_cancel_unknown_guard --locked -- --test-threads=1
       - name: Run H08 runner cancellation guard
         run: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
+      - name: Run SC-15 runner cancel/unknown lifecycle fixtures
+        run: cargo test -p kiana-runner --test sc15_cancel_unknown --locked -- --test-threads=1
       - name: Compile SC-15 Core fact target
         run: cargo test -p kiana-core --test sc15_cancel_unknown --no-run --locked
       - name: Compile SC-15 Core guard target
         run: cargo test -p kiana-core --test sc15_cancel_unknown_guard --no-run --locked
       - name: Compile H08 runner guard target
         run: cargo test -p kiana-runner --test h08_cancellation_guard --no-run --locked
+      - name: Compile SC-15 runner lifecycle target
+        run: cargo test -p kiana-runner --test sc15_cancel_unknown --no-run --locked
