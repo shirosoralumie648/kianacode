@@ -2,9 +2,11 @@
 fn p4_j7_18_ollama_ndjson_keeps_completion_identity_and_local_scope() {
     let request = include_str!("../../kiana-provider/src/request.rs");
     let response = include_str!("../../kiana-provider/src/response.rs");
+    let transport = include_str!("../../kiana-provider/src/transport.rs");
     let config = include_str!("../../kiana-provider/src/config.rs");
     let harness = include_str!("../../kiana-runner/src/harness.rs");
     let config_fixture = include_str!("../../kiana-provider/tests/p4_j7_08_config.rs");
+    let stream_fixture = include_str!("../../kiana-provider/tests/p4_j7_18_ollama_stream.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-18-ollama-baseline.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-18-ollama.yml");
 
@@ -63,6 +65,7 @@ fn p4_j7_18_ollama_ndjson_keeps_completion_identity_and_local_scope() {
         "ollama_load_latency_is_distinct_from_generation_latency",
         "cargo test -p kiana-provider --lib",
         "cargo test -p kiana-provider --test p4_j7_08_config",
+        "cargo test -p kiana-provider --test p4_j7_18_ollama_stream",
         "cargo fmt --all --check",
     ] {
         assert!(
@@ -70,6 +73,39 @@ fn p4_j7_18_ollama_ndjson_keeps_completion_identity_and_local_scope() {
             "P4-J7-18 CI marker missing: {marker}"
         );
     }
-    assert!(!request.contains("/api/pull"));
-    assert!(!request.contains("/api/create"));
+    // The local-model experience must never manage the user's Ollama installation:
+    // no pull, create, copy, push or delete endpoint may appear in the provider.
+    for (source, name) in [
+        (request, "request.rs"),
+        (response, "response.rs"),
+        (transport, "transport.rs"),
+        (config, "config.rs"),
+    ] {
+        for endpoint in [
+            "/api/pull",
+            "/api/create",
+            "/api/delete",
+            "/api/copy",
+            "/api/push",
+        ] {
+            assert!(
+                !source.contains(endpoint),
+                "Ollama model management endpoint {endpoint} must not appear in provider {name}"
+            );
+        }
+    }
+    for marker in [
+        "ollama_ndjson_split_frames_stream_text_before_the_terminal_done_frame",
+        "ollama_ndjson_eof_without_done_never_completes_a_run",
+        "ollama_ndjson_unterminated_terminal_line_completes_within_frame_limit",
+        "ollama_ndjson_error_frame_never_completes_and_keeps_no_partial_reply",
+        "ollama_ndjson_done_true_without_done_reason_is_not_a_terminal_completion",
+        "ollama_tool_ordinals_stay_stable_across_frame_boundaries",
+        "ollama_tool_arguments_fail_closed_before_any_call_is_usable",
+    ] {
+        assert!(
+            stream_fixture.contains(marker),
+            "Ollama NDJSON framing fixture missing: {marker}"
+        );
+    }
 }
