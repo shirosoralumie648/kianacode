@@ -68,6 +68,21 @@ pub use budget::{
     HARNESS_BUDGET_SCHEMA,
 };
 
+// ■ 上下文压缩
+// 三段式流程：纯函数规划（外置大结果、去重、选择较旧完整组）→ 用准入模型生成摘要
+// （purpose=compaction、tools 为空、独立有界预算）→ 绑定服务端权威证据后校验并替换视图。
+// 失败一律保留原视图并暂停，不用本地占位摘要继续执行；解释对象只含摘要与计数。
+pub use compact::{
+    approx_token_count, build_compacted_history, build_compacted_history_with_summary,
+    build_compacted_view, compact_if_needed, explain_compaction, history_tokens,
+    is_summary_message, parse_compaction_summary, plan_compaction, summary_request_messages,
+    validate_summary_for_plan, CompactOutcome, CompactionExplanation, CompactionPlan,
+    DuplicatedResult, ExternalizedResult, COMPACTION_EXPLANATION_SCHEMA, COMPACTION_PLAN_SCHEMA,
+    COMPACT_SUMMARY_BUDGET_TOKENS, COMPACT_SUMMARY_INSTRUCTION, COMPACT_SUMMARY_MAX_TOKENS,
+    COMPACT_SUMMARY_PROMPT_MAX_TOKENS, COMPACT_USER_MESSAGE_MAX_TOKENS,
+    DEFAULT_COMPACT_TRIGGER_TOKENS, EXTERNALIZE_RESULT_TOKENS, SUMMARY_PREFIX,
+};
+
 // ■ Harness 本体
 // DaemonHost 通过 with_config 构造，Core 通过 RunnerPort 调用。
 // RuntimeConfig 控制步数、连续重复调用阈值、挂钟和压缩等参数；

@@ -4208,7 +4208,8 @@ async fn over_budget_run_records_compact_on_receipt() {
     let compact = &response.output["compact"];
     assert_eq!(compact["applied"], true, "{response:?}");
     assert!(compact["count"].as_u64().unwrap_or(0) >= 1, "{compact}");
-    assert_eq!(compact["summary_present"], true, "{compact}");
+    // 只有一个完整组：压缩只能做有界截断，不得再用本地占位摘要。
+    assert_eq!(compact["summary_present"], false, "{compact}");
     let before = compact["tokens_before"].as_u64().unwrap_or(0);
     let after = compact["tokens_after"].as_u64().unwrap_or(0);
     assert!(after < before, "before={before} after={after} {compact}");
@@ -4233,6 +4234,25 @@ async fn continue_after_compact_still_writes_golden_path() {
     let host = compacting_host(
         json!([
             {"text": "compacted first turn"},
+            {
+                // 折叠区非空 ⇒ 摘要必须由准入模型产出（purpose=compaction、tools 为空）。
+                "text": serde_json::to_string(&json!({
+                    "schema": "kiana.compact-summary.v1",
+                    "version": {"major": 1, "minor": 0},
+                    "goal": "create GOLDEN_PATH.txt",
+                    "constraints": [],
+                    "decision_refs": [],
+                    "completed_action_refs": [],
+                    "verification_refs": [],
+                    "workspace_revisions": [],
+                    "pending_work": ["create GOLDEN_PATH.txt"],
+                    "next_action": "apply the golden path patch",
+                    "source_event_start": null,
+                    "source_event_end": null,
+                    "source_message_count": 1
+                }))
+                .unwrap()
+            },
             {
                 "text": "writing",
                 "tool_calls": [{
@@ -4259,6 +4279,10 @@ async fn continue_after_compact_still_writes_golden_path() {
         .unwrap();
     assert_eq!(started.status, ExecutionStatus::Completed, "{started:?}");
     assert_eq!(started.output["compact"]["applied"], true, "{started:?}");
+    assert_eq!(
+        started.output["compact"]["summary_present"], false,
+        "只有一个完整组时压缩只做有界截断，不得发明本地摘要：{started:?}"
+    );
     assert!(
         !root.join("GOLDEN_PATH.txt").exists(),
         "first compacted turn must not write yet"
@@ -4281,6 +4305,10 @@ async fn continue_after_compact_still_writes_golden_path() {
     assert_eq!(
         continued.output["compact"]["applied"], true,
         "{continued:?}"
+    );
+    assert_eq!(
+        continued.output["compact"]["summary_present"], true,
+        "较旧完整组被折叠时必须带上准入模型产出的摘要：{continued:?}"
     );
     let written = root.join("GOLDEN_PATH.txt");
     assert!(

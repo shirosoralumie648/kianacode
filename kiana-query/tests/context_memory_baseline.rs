@@ -68,7 +68,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-runner/src/compact.rs",
-        "6e3c08972ca24ac02334fafada0f689c5302eb6bc0b8ad6291acbb18cef063f6",
+        "595f2385fe1602c0300ce14c60311532166774af4776fdce76eac107bcc293db",
     ),
     (
         "kiana-daemon/src/data_governance.rs",
