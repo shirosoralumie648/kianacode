@@ -272,6 +272,7 @@
   "crate": "kiana-core",
   "targets": [
    "cp26_decision_trace_guard",
+   "cp26_evidence_chains",
    "cp27_nonblocking_limits_guard",
    "cp28_migration_boundary_guard",
    "cp29_control_plane_authority_guard",
