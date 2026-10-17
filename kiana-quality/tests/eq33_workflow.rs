@@ -1,7 +1,8 @@
 use kiana_quality::{
-    canonical_findings, digest_findings, evaluate_workflow_swarm, EvaluatorRegistry, Finding,
-    WorkflowNodeEvidence, WorkflowNodeStatus, WorkflowSwarmEvaluator, WorkflowSwarmInput,
-    EVALUATION_RESULT_SCHEMA, WORKFLOW_SWARM_EVALUATOR_ID, WORKFLOW_SWARM_INPUT_SCHEMA,
+    canonical_findings, digest_findings, evaluate_workflow_swarm, DeterministicEvaluator,
+    EvaluatorRegistry, Finding, WorkflowNodeEvidence, WorkflowNodeStatus, WorkflowSwarmEvaluator,
+    WorkflowSwarmInput, EVALUATION_RESULT_SCHEMA, WORKFLOW_SWARM_EVALUATOR_ID,
+    WORKFLOW_SWARM_INPUT_SCHEMA,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeSet;

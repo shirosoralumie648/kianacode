@@ -107,9 +107,9 @@ pub use judge::{
     SEMANTIC_JUDGE_EVALUATOR_ID, SEMANTIC_JUDGE_INPUT_SCHEMA,
 };
 pub use metrics::{
-    evaluate_performance_cost, CostBucket, PerformanceCostEvaluator, PerformanceCostInput,
-    PerformanceMetrics, PerformanceThresholds, PERFORMANCE_COST_EVALUATOR_ID,
-    PERFORMANCE_COST_INPUT_SCHEMA,
+    evaluate_performance_cost, CostBucket, CostBucketEvidence, PerformanceCostEvaluator,
+    PerformanceCostInput, PerformanceMetrics, PerformanceThresholds, MAX_COST_BUCKETS,
+    PERFORMANCE_COST_EVALUATOR_ID, PERFORMANCE_COST_INPUT_SCHEMA,
 };
 pub use normalize::{
     DurableEvent, DurableEventSelection, NormalizationError, TraceNormalizer,
