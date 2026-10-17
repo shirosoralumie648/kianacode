@@ -280,12 +280,14 @@ pub use ui_contracts::*;
 pub use kiana_domain::{CapabilityRequest, ConversationMessage, ConversationRole};
 
 pub use kiana_domain::{
-    normalize_connector_intent, ConnectorCommand, ConnectorCommandRequest, ConnectorDataBoundary,
-    ConnectorManageAction, ConnectorNormalizedIntent, ConnectorProtocolError,
-    ConnectorProtocolErrorCode, CONNECTOR_COMMAND_SCHEMA, CONNECTOR_COMMAND_VERSION,
+    normalize_connector_intent, normalize_surface_connector_arguments, ConnectorCommand,
+    ConnectorCommandRequest, ConnectorDataBoundary, ConnectorManageAction,
+    ConnectorNormalizedIntent, ConnectorProtocolError, ConnectorProtocolErrorCode,
+    ConnectorSurfaceCommand, CONNECTOR_COMMAND_SCHEMA, CONNECTOR_COMMAND_VERSION,
     CONNECTOR_DATA_BOUNDARY_SCHEMA, CONNECTOR_NORMALIZED_INTENT_SCHEMA,
     CONNECTOR_PROTOCOL_ERROR_SCHEMA, CONNECTOR_PROTOCOL_MAX_IDEMPOTENCY_BYTES,
     CONNECTOR_PROTOCOL_MAX_PAYLOAD_BYTES, CONNECTOR_PROTOCOL_MAX_REASON_BYTES,
+    CONNECTOR_SURFACE_COMMAND_SCHEMA,
 };
 
 pub use kiana_domain::{

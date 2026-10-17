@@ -17,6 +17,9 @@ fn int14_connector_protocol_is_typed_server_normalized_and_deny_first() {
         "allow_external",
         "control_plane_route",
         "CONNECTOR_RECONCILE_OPERATION",
+        "ConnectorSurfaceCommand",
+        "CONNECTOR_SURFACE_COMMAND_SCHEMA",
+        "normalize_surface_connector_arguments",
     ] {
         assert!(
             protocol.contains(marker) || core.contains(marker) || commands.contains(marker),
