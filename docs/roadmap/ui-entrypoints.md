@@ -219,13 +219,25 @@ UiActionResult {
 
 
 
-#### UI-05 · 原子 snapshot projector 与分页　🔄
+#### UI-05 · 原子 snapshot projector 与分页　✅
 
 - 依赖：UI-01–04、Event/Receipt §23。代码：`kiana-daemon` projector/query facade。
 - 步骤：从 EventStore 单一 cursor 生成 `UiSnapshot`；为 session/run/action/artifact/receipt 提供稳定排序、分页 cursor、retention 和 limitations；保存 projector health/lag。
 - 先拒绝：非法 page cursor、越权 session、被 retention 保护的待办被淘汰、projector lag 被伪装成空列表、跨 cursor 拼接的 snapshot。
 - 成功/回归：新进程重建、重复读取、分页边界、空集合、projector 故障和恢复测试；snapshot cursor 可回放且不改变事实。
 - 完成产物：snapshot contract、projector tests、分页/保留策略和 read-model rebuild 命令。
+
+已接入 `kiana-domain/src/ui_snapshot.rs` 的原子 projector、`kiana-daemon` 的三条只读 facade
+（`ui_snapshot_page`、`ui_snapshot_projector_health`、`rebuild_ui_snapshot_projection`）与完整分页/保留/
+限制合同：`UiSnapshotPage.limitations` 由本次切片边界产生（`ui_snapshot_page_partial`、
+`ui_snapshot_retention_floor_applied`）；`UiSnapshotProjectorStatus`/`UiSnapshotProjectorHealth` 显式区分
+lag 与未知进度并给出 `lag` 数值，绝不把投影落后渲染成空列表；`UiSnapshotRebuild` 是 read-model rebuild
+命令，页与 health 来自同一 `persisted_events()` 读取且 health 必须 `UpToDate`。domain 8 条、真实
+`DaemonHost` 5 条与 core 两条守卫夹具覆盖空集合、重复读取/游标回放、分页与游标边界、health 三态、
+故障恢复和「新宿主实例重开同一账本」重建同摘要；手动 lane 为
+[`.github/workflows/ui05-snapshot-projector.yml`](../../.github/workflows/ui05-snapshot-projector.yml)，
+自动 lane 仍是统一 `ci.yml` 的 domain/core 分片与 `kiana-daemon` 整 crate 分片。源码与 GitHub-only
+验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-06"></a>
 

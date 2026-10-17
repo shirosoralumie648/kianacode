@@ -145,8 +145,9 @@ use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
-    project_ui_snapshot, AuthenticatedPrincipalRef, CapacityInput, CapacityReport, CommandIntent,
-    ComponentHealth, ComponentHealthState, CorrelationContext, CorrelationScope, CorrelationTrail,
+    project_ui_snapshot, project_ui_snapshot_health, rebuild_ui_snapshot_projection,
+    AuthenticatedPrincipalRef, CapacityInput, CapacityReport, CommandIntent, ComponentHealth,
+    ComponentHealthState, CorrelationContext, CorrelationScope, CorrelationTrail,
     CredentialRecoveryProjection, DepartmentSpec, DeploymentAdmissionDecision,
     DeploymentAdmissionInput, HealthAggregationInput, HealthAggregationReport, HealthProbeKind,
     HealthSnapshot, IdentityMigration, IncidentInput, IncidentReport, LifecycleEvidenceBundle,
@@ -154,7 +155,8 @@ use kiana_domain::{
     OrganizationId, PermissionProfile, ProjectIdentity, ProjectTrustSnapshot, ReconcileInput,
     ReconcileReport, RequestContext, ResolvedAssignment, RoleSpec, RunId, RuntimeEvent,
     ShutdownInput, ShutdownReport, StartupCoordinatorReport, StartupCoordinatorRequest,
-    UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotQuery,
+    UiActionCommand, UiActionRecord, UiSnapshotPage, UiSnapshotProjectorHealth,
+    UiSnapshotProjectorHealthQuery, UiSnapshotQuery, UiSnapshotRebuild,
 };
 use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
@@ -1325,6 +1327,40 @@ impl DaemonHost {
             .await?
             .ok_or_else(|| PortError::Failed("ui_snapshot_projection_unknown".to_owned()))?;
         project_ui_snapshot(&events, query).map_err(PortError::Failed)
+    }
+
+    /// Report the projector's source/projection cursor relationship from the same single read.
+    ///
+    /// Unlike the page projector this path must *tolerate* lag: a read model that is behind is a
+    /// health fact the UI has to display, not a page it may serve.  An unsupported or failed
+    /// source read still fails closed, so "no events" and "cannot read" stay distinguishable.
+    pub async fn ui_snapshot_projector_health(
+        &self,
+        query: &UiSnapshotProjectorHealthQuery,
+    ) -> Result<UiSnapshotProjectorHealth, PortError> {
+        query.validate().map_err(PortError::Failed)?;
+        let events = self
+            .persisted_events()
+            .await?
+            .ok_or_else(|| PortError::Failed("ui_snapshot_projection_unknown".to_owned()))?;
+        project_ui_snapshot_health(&events, query).map_err(PortError::Failed)
+    }
+
+    /// Explicit read-model rebuild: re-derive page and health from one committed EventStore read.
+    ///
+    /// This is the UI-05 rebuild command.  It keeps no projection state to reset, appends no
+    /// fact and opens no second read path; callers use it after a restart, a projection fault or
+    /// a cursor rollback to prove the read model still matches the ledger.
+    pub async fn rebuild_ui_snapshot_projection(
+        &self,
+        query: &UiSnapshotQuery,
+    ) -> Result<UiSnapshotRebuild, PortError> {
+        query.validate().map_err(PortError::Failed)?;
+        let events = self
+            .persisted_events()
+            .await?
+            .ok_or_else(|| PortError::Failed("ui_snapshot_projection_unknown".to_owned()))?;
+        rebuild_ui_snapshot_projection(&events, query).map_err(PortError::Failed)
     }
 
     /// Build a bounded notification page from the committed EventStore projection.  The
