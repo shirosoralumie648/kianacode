@@ -1,0 +1,29 @@
+name: "EXT-22 · Typed extension lifecycle binding"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ext22-extension-lifecycle:
+    name: "EXT-22 · Typed extension lifecycle binding"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Compile kiana-daemon library tests
+        run: cargo test -p kiana-daemon --lib --locked --no-run
+      - name: Run kiana-domain EXT-22 lifecycle contract
+        run: cargo test -p kiana-domain --test ext22_extension_lifecycle --locked -- --test-threads=1
+      - name: Run kiana-core EXT-22 ControlPlane guard
+        run: cargo test -p kiana-core --test ext22_extension_lifecycle_guard --locked -- --test-threads=1
+      - name: Run kiana-daemon EXT-22 lifecycle fixtures
+        run: cargo test -p kiana-daemon --lib ext22_ --locked -- --test-threads=1

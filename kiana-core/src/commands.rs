@@ -1039,7 +1039,7 @@ impl ControlPlane {
                     context.request_id,
                     2,
                     "command.rejected",
-                    json!({"reason":reason}),
+                    json!({"reason": &reason}),
                 )
                 .await?;
                 return Ok(CoreResponse::blocked(context.request_id, reason));
@@ -1060,11 +1060,11 @@ fn normalize_extension_command(
     command_name: &str,
     context: &RequestContext,
     arguments: Value,
-) -> Result<(Value, RiskLevel), &'static str> {
+) -> Result<(Value, RiskLevel), String> {
     let mut object = arguments
         .as_object()
         .cloned()
-        .ok_or("extension_arguments_invalid")?;
+        .ok_or_else(|| "extension_arguments_invalid".to_owned())?;
     if object.keys().any(|key| {
         !matches!(
             key.as_str(),
@@ -1079,13 +1079,18 @@ fn normalize_extension_command(
                 | "reason"
                 | "query"
                 | "max_results"
+                | "trust_revision"
+                | "dependency_snapshot_digest"
+                | "config_snapshot_digest"
+                | "config_snapshot"
+                | "approval_id"
         )
     }) {
-        return Err("extension_arguments_invalid");
+        return Err("extension_arguments_invalid".to_owned());
     }
     if let Some(schema) = object.get("schema").and_then(Value::as_str) {
         if schema != kiana_domain::EXTENSION_COMMAND_SCHEMA {
-            return Err("extension_command_schema_invalid");
+            return Err("extension_command_schema_invalid".to_owned());
         }
     }
     if object.get("version").is_some_and(|version| {
@@ -1093,12 +1098,12 @@ fn normalize_extension_command(
             .map(|version| !version.is_compatible_with(&kiana_domain::EXTENSION_COMMAND_VERSION))
             .unwrap_or(true)
     }) {
-        return Err("extension_command_version_invalid");
+        return Err("extension_command_version_invalid".to_owned());
     }
     let action = kiana_domain::ExtensionCommand::from_wire_name(command_name)
         .map(kiana_domain::ExtensionCommand::action)
         .or_else(|| object.get("action").and_then(Value::as_str))
-        .ok_or("extension_action_invalid")?
+        .ok_or_else(|| "extension_action_invalid".to_owned())?
         .to_owned();
     object.insert("action".to_owned(), json!(&action));
     if !matches!(
@@ -1106,6 +1111,7 @@ fn normalize_extension_command(
         "inspect"
             | "list"
             | "search"
+            | "stage"
             | "install"
             | "upgrade"
             | "enable"
@@ -1113,20 +1119,20 @@ fn normalize_extension_command(
             | "revoke"
             | "rollback"
     ) {
-        return Err("extension_action_invalid");
+        return Err("extension_action_invalid".to_owned());
     }
     let risk = if matches!(action.as_str(), "list" | "inspect") {
         RiskLevel::ReadOnly
     } else {
         RiskLevel::ExternalSideEffect
     };
-    if matches!(action.as_str(), "install" | "upgrade")
+    if matches!(action.as_str(), "stage" | "install" | "upgrade")
         && object
             .get("package_path")
             .and_then(Value::as_str)
             .is_none_or(|s| !kiana_domain::valid_extension_path(s))
     {
-        return Err("extension_package_path_must_be_project_relative");
+        return Err("extension_package_path_must_be_project_relative".to_owned());
     }
     if matches!(action.as_str(), "search")
         && object
@@ -1134,14 +1140,14 @@ fn normalize_extension_command(
             .and_then(Value::as_str)
             .is_some_and(|query| query.len() > 256 || query.contains('\0'))
     {
-        return Err("extension_visibility_query_invalid");
+        return Err("extension_visibility_query_invalid".to_owned());
     }
     if object
         .get("max_results")
         .and_then(Value::as_u64)
         .is_some_and(|value| value == 0 || value > 512)
     {
-        return Err("extension_visibility_max_results_invalid");
+        return Err("extension_visibility_max_results_invalid".to_owned());
     }
     // 扩展（extension）变更的额外闸门。
     //
@@ -1158,9 +1164,9 @@ fn normalize_extension_command(
     //   4. `reason` 非空且 <= 4096 字符
     //      —— 装一个能注入指令和能力的扩展属于高风险动作，必须留下书面理由。
     //
-    // 另外：install / upgrade / rollback 还额外要求 `package_sha256` 是合法十六进制哈希。
-    // 理由很直接——**扩展就是可执行代码**，不知道它是什么字节就执行它，
-    // 等于放弃了供应链安全。
+    // 另外：stage / install / upgrade / rollback 还额外要求 `package_sha256`
+    // 是合法十六进制哈希。理由很直接——**扩展就是可执行代码**，不知道它是什么字节
+    // 就执行它，等于放弃了供应链安全。
     //
     // ⚠ 这些校验放在这里而不是 registry 内部，是因为它们校验的是「请求形状」；
     //    「这个扩展该不该被信任」是另一回事，由 trust / provenance 机制回答。
@@ -1172,7 +1178,7 @@ fn normalize_extension_command(
                 .as_deref()
                 .is_none_or(|s| s.trim().is_empty())
         {
-            return Err("extension_operator_required");
+            return Err("extension_operator_required".to_owned());
         }
         if object
             .get("extension_id")
@@ -1191,15 +1197,17 @@ fn normalize_extension_command(
                 .and_then(Value::as_str)
                 .is_none_or(|s| s.trim().is_empty() || s.len() > 4096)
         {
-            return Err("extension_mutation_fields_required");
+            return Err("extension_mutation_fields_required".to_owned());
         }
-        if matches!(action.as_str(), "install" | "upgrade" | "rollback")
-            && object
-                .get("package_sha256")
-                .and_then(Value::as_str)
-                .is_none_or(|s| !kiana_domain::is_sha256_hex(s))
+        if matches!(
+            action.as_str(),
+            "stage" | "install" | "upgrade" | "rollback"
+        ) && object
+            .get("package_sha256")
+            .and_then(Value::as_str)
+            .is_none_or(|s| !kiana_domain::is_sha256_hex(s))
         {
-            return Err("extension_final_package_hash_required");
+            return Err("extension_final_package_hash_required".to_owned());
         }
     }
     object.insert("operator_authorized".to_owned(), json!(true));
@@ -1207,5 +1215,53 @@ fn normalize_extension_command(
     object.insert("actor_id".to_owned(), json!(context.actor_id));
     object.insert("role_id".to_owned(), json!(context.role_id));
     object.insert("department_id".to_owned(), json!(context.department_id));
+
+    // inspect → stage → install → enable 的**类型化绑定**。
+    //
+    // 上面注入的是服务端拥有的字段（operator / project / actor / role / department）：
+    // 客户端不可能自带这些键（白名单会先拒绝），因此下面重建出来的
+    // `ExtensionLifecycleMutation` 是「服务端归一化之后的请求」的摘要，
+    // 而不是客户端可以自己铸造的摘要。daemon 会重新推导同一个 mutation 并比对，
+    // 任何字段在传输途中被改写都会导致 `extension_lifecycle_mutation_digest_mismatch`。
+    //
+    // - stage / install / enable：必须携带 `trust_revision` 与
+    //   `dependency_snapshot_digest`（依赖快照，保证「依赖没变」），否则拒绝；
+    // - enable 额外要求 `approval_id` 和类型化 `config_snapshot`
+    //   （host/user/project/run 合并后的按字段来源快照，只含摘要与来源引用）；
+    //   快照必须与 mutation 指向同一个扩展、同一个注册表版本，
+    //   且 `config_snapshot_digest` 与快照自证摘要一致。
+    if matches!(action.as_str(), "stage" | "install" | "enable") {
+        let config_snapshot = object
+            .get("config_snapshot")
+            .cloned()
+            .map(serde_json::from_value::<kiana_domain::ExtensionConfigSnapshot>)
+            .transpose()
+            .map_err(|_| "extension_config_snapshot_invalid".to_owned())?;
+        if action == "enable" && config_snapshot.is_none() {
+            return Err("extension_config_snapshot_required".to_owned());
+        }
+        if action == "enable"
+            && config_snapshot.is_some()
+            && object.get("config_snapshot_digest").is_none()
+        {
+            return Err("extension_config_snapshot_digest_required".to_owned());
+        }
+        let mutation = kiana_domain::ExtensionLifecycleMutation::from_command_arguments(
+            &Value::Object(object.clone()),
+        )?;
+        if let Some(snapshot) = &config_snapshot {
+            snapshot.bind_to_mutation(&mutation)?;
+            // 用已自证、且已绑定到本次 mutation 的快照摘要覆盖入参副本，
+            // 确保 daemon 侧读到的摘要与快照本体一致。
+            object.insert(
+                "config_snapshot_digest".to_owned(),
+                json!(&snapshot.snapshot_digest),
+            );
+        }
+        object.insert(
+            "mutation_digest".to_owned(),
+            json!(&mutation.mutation_digest),
+        );
+    }
     Ok((Value::Object(object), risk))
 }
