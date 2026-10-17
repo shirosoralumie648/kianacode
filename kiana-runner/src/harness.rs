@@ -149,7 +149,8 @@ use kiana_domain::{
     derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
     CapabilityResult, InputId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
     QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StepId,
-    StepIdentity, StreamingRedactor, ToolObservation, ToolObservationStatus, TurnId,
+    StepIdentity, StreamingRedactionSink, StreamingRedactor, ToolObservation, ToolObservationStatus,
+    TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -2211,7 +2212,14 @@ impl KianaHarness {
             // 后续只能结算为已知用量或标记结果未知，避免超时后把可能已被 provider 执行的请求
             // 误记成“从未发送”。
             attempt_reservation.dispatch()?;
-            let mut redactor = StreamingRedactor::new();
+            // The transcript stream is a published signal boundary: bind the channel profile so its
+            // digest travels with the run and a stream error cannot fall back to raw model text.
+            let redactor = StreamingRedactor::new();
+            let mut redactor = StreamingRedactionSink::from_redactor(
+                redactor,
+                kiana_domain::RedactionProfile::for_channel(SecretScanChannel::Transcript),
+                SecretScanChannel::Transcript,
+            )?;
             let mut stream = ModelStreamAccumulator::new(model_attempt_id);
             let run_id = run.run_id;
             let mut observed_delta = false;
@@ -2232,7 +2240,7 @@ impl KianaHarness {
                 if text.is_empty() {
                     return Ok(());
                 }
-                let text = redactor.push(&text);
+                let text = redactor.push(&text)?;
                 if text.is_empty() {
                     return Ok(());
                 }
@@ -2361,9 +2369,12 @@ impl KianaHarness {
                     let output = stream
                         .finish(reply.output)
                         .map_err(|error| format!("model_stream_normalization_failed:{error}"))?;
-                    let tail = redactor.finish();
-                    if !tail.is_empty() {
-                        emitter.emit(RunnerEvent::Delta { run_id, text: tail })?;
+                    let tail = redactor.finish()?;
+                    if !tail.tail.is_empty() {
+                        emitter.emit(RunnerEvent::Delta {
+                            run_id,
+                            text: tail.tail,
+                        })?;
                     }
                     return Ok(output);
                 }

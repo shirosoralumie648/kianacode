@@ -277,6 +277,24 @@ impl RedactionSignal {
             Self::Export => 64 * 1024,
         }
     }
+
+    /// 选择治理某个发布通道的 profile 类别。
+    ///
+    /// Prompt/Transcript/Stdout/Stderr/Argv/Env/Cache 都是文本发布通道，使用日志档位；
+    /// Event/Receipt 是记录通道，使用审计档位。该映射只决定 `encode_bounded_*_for()` 与
+    /// `StreamingRedactionSink` 采用的字节上限和 profile 摘要，本身不会自动拦截、路由或拒绝任一通道。
+    pub const fn for_scan_channel(channel: SecretScanChannel) -> Self {
+        match channel {
+            SecretScanChannel::Prompt
+            | SecretScanChannel::Transcript
+            | SecretScanChannel::Stdout
+            | SecretScanChannel::Stderr
+            | SecretScanChannel::Argv
+            | SecretScanChannel::Env
+            | SecretScanChannel::Cache => Self::Log,
+            SecretScanChannel::Event | SecretScanChannel::Receipt => Self::Audit,
+        }
+    }
 }
 
 /// 一次有界脱敏调用使用的版本化配置。
@@ -316,6 +334,15 @@ impl RedactionProfile {
             MAX_REDACTION_DEPTH,
         )
         .expect("built-in redaction profile is valid")
+    }
+
+    /// 按发布通道创建默认配置，等价于对该通道 [`RedactionSignal::for_scan_channel`] 档位的
+    /// [`RedactionProfile::for_signal`]。
+    ///
+    /// 它让同一份边界（例如 stdout 预览、transcript 事件）在读取处和写入处都能算出一致的
+    /// `profile_digest`，便于下游在记录里定位实际使用的配置。
+    pub fn for_channel(channel: SecretScanChannel) -> Self {
+        Self::for_signal(RedactionSignal::for_scan_channel(channel))
     }
 
     /// 创建并立即校验一份配置，再计算包含策略字段的自摘要。
@@ -434,6 +461,18 @@ pub fn encode_bounded_value(
     profile: &RedactionProfile,
     value: &Value,
 ) -> Result<BoundedRedactedValue, String> {
+    encode_bounded_value_for(profile, SecretScanChannel::Event, value)
+}
+
+/// 与 [`encode_bounded_value`] 相同，但用调用方给出的通道标签做残余哨兵扫描。
+///
+/// 用于结构化的信号值进入具体通道（如 Receipt、Prompt 的 JSON 载荷）之前的统一检查：通道标签
+/// 只影响 finding 的来源标注，不改变脱敏规则；失败仍然是不返回原文的错误码。
+pub fn encode_bounded_value_for(
+    profile: &RedactionProfile,
+    channel: SecretScanChannel,
+    value: &Value,
+) -> Result<BoundedRedactedValue, String> {
     profile.validate()?;
     validate_value_shape(value, 0, profile.max_depth)?;
     let redacted = redact_value(value);
@@ -441,7 +480,7 @@ pub fn encode_bounded_value(
     if contains_unredacted_secret(&redacted) {
         return Err("redaction_secret_sentinel_detected".to_owned());
     }
-    scan_secret_value(SecretScanChannel::Event, &redacted)
+    scan_secret_value(channel, &redacted)
         .map_err(|_| "redaction_secret_sentinel_detected".to_owned())?;
     let encoded =
         serde_json::to_vec(&redacted).map_err(|_| "redaction_encode_failed".to_owned())?;
@@ -468,6 +507,19 @@ pub fn encode_bounded_text(
     profile: &RedactionProfile,
     text: &str,
 ) -> Result<BoundedRedactedText, String> {
+    encode_bounded_text_for(profile, SecretScanChannel::Transcript, text)
+}
+
+/// 与 [`encode_bounded_text`] 相同，但用调用方给出的通道标签做残余哨兵扫描。
+///
+/// 用于文本信号进入具体通道（如 Stdout/Stderr 预览、Prompt、Env 派生文本）之前的统一检查；
+/// 通道标签只影响 finding 的来源标注和调用方记录，不改变 `redact_text` 的替换规则。任何失败都
+/// 以错误码返回而不返回输入文本，调用方决定是否阻断该次发布。
+pub fn encode_bounded_text_for(
+    profile: &RedactionProfile,
+    channel: SecretScanChannel,
+    text: &str,
+) -> Result<BoundedRedactedText, String> {
     profile.validate()?;
     if text.as_bytes().contains(&0) {
         return Err("redaction_nul_forbidden".to_owned());
@@ -485,7 +537,7 @@ pub fn encode_bounded_text(
     if redact_text(&redacted) != redacted || contains_text_secret_marker(&redacted) {
         return Err("redaction_secret_sentinel_detected".to_owned());
     }
-    scan_secret_sentinels(SecretScanChannel::Transcript, &redacted)
+    scan_secret_sentinels(channel, &redacted)
         .map_err(|_| "redaction_secret_sentinel_detected".to_owned())?;
     let encoded_bytes = redacted.len();
     if encoded_bytes > profile.max_bytes || encoded_bytes > MAX_REDACTION_PROFILE_BYTES {
@@ -1726,6 +1778,146 @@ impl StreamingRedactor {
     }
 }
 
+/// 一段流式文本 `finish()` 后的尾部结果，以及治理该流的 profile 摘要和累计输出字节数。
+///
+/// `tail` 只是刷新出的尾部安全文本，不是整条流的拼接结果；调用方已经把此前每次 `push()` 的
+/// 返回值发布出去。保留 `profile_digest` 是为了让“这段流由哪份脱敏配置治理”在记录里可定位。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BoundedStreamTail {
+    /// `finish()` 刷新出的尾部安全文本。
+    pub tail: String,
+    /// 该流至今发布的 UTF-8 字节数（累计，不含被抑制的敏感值）。
+    pub emitted_bytes: usize,
+    /// 治理该流的 profile 摘要。
+    pub profile_digest: String,
+}
+
+/// 把 [`RedactionProfile`] 绑定到某个发布通道的增量脱敏 sink。
+///
+/// 【用途与数据流】模型增量、子进程输出预览等运行时 sink 持续收到文本分片；本 sink 在
+/// [`StreamingRedactor`] 的有界状态机之上校验 profile、保留发布通道标签，并在出错时进入封闭
+/// 状态而不是回退原文。`finish()` 返回的 [`BoundedStreamTail`] 携带 profile 摘要，使下游记录能
+/// 定位实际使用的脱敏配置。
+///
+/// 【边界】它与 [`StreamingRedactor`] 一样只对可识别的 marker、URL 用户信息和有限 JWT 形状脱敏，
+/// 不会逐一扫描任意未标记的随机凭证；整条流的最终事实级扫描仍由调用方在写入事件/收据/导出边界
+/// 时执行（例如 `scan_secret_value_*`）。本类型不写日志、EventLog 或网络，也不缓存完整流内容。
+#[derive(Debug)]
+pub struct StreamingRedactionSink {
+    /// 治理该流的配置；其摘要会随 `finish()` 结果一起返回。
+    profile: RedactionProfile,
+    /// 该流所属的发布通道标签，用于记录来源而不改变脱敏规则。
+    channel: SecretScanChannel,
+    /// 复用的有界流式脱敏状态机。
+    redactor: StreamingRedactor,
+    /// 至今已发布的 UTF-8 字节数。
+    emitted_bytes: usize,
+    /// 一旦发生错误契约冲突即封闭，后续调用不再接受新分片。
+    failed: bool,
+}
+
+impl StreamingRedactionSink {
+    /// 用一份已验证的 profile 和发布通道创建 sink。
+    ///
+    /// profile 校验失败时返回其稳定错误码，不会退化成无 profile 的普通脱敏。
+    pub fn new(profile: RedactionProfile, channel: SecretScanChannel) -> Result<Self, String> {
+        Self::from_redactor(StreamingRedactor::new(), profile, channel)
+    }
+
+    /// 用已有状态机创建 sink，便于调用方复用同一条流的基础脱敏状态。
+    pub fn from_redactor(
+        redactor: StreamingRedactor,
+        profile: RedactionProfile,
+        channel: SecretScanChannel,
+    ) -> Result<Self, String> {
+        profile.validate()?;
+        Ok(Self {
+            profile,
+            channel,
+            redactor,
+            emitted_bytes: 0,
+            failed: false,
+        })
+    }
+
+    /// 用该通道的内置 profile 创建 sink；内置 profile 始终有效。
+    pub fn for_channel(channel: SecretScanChannel) -> Self {
+        Self::new(RedactionProfile::for_channel(channel), channel)
+            .expect("built-in channel redaction profile is valid")
+    }
+
+    /// 返回治理该流的 profile 摘要。
+    pub fn profile_digest(&self) -> &str {
+        &self.profile.profile_digest
+    }
+
+    /// 返回该流的发布通道标签。
+    pub fn channel(&self) -> SecretScanChannel {
+        self.channel
+    }
+
+    /// 返回至今已发布的 UTF-8 字节数。
+    pub fn emitted_bytes(&self) -> usize {
+        self.emitted_bytes
+    }
+
+    /// 是否已封闭（发生过错误或状态越界）。
+    pub fn failed(&self) -> bool {
+        self.failed
+    }
+
+    /// 当前是否仍在等待一个跨分片的敏感值结束。
+    pub fn has_pending_secret(&self) -> bool {
+        self.redactor.has_pending_secret()
+    }
+
+    /// 处理一个新的文本分片并返回可以安全发布的前缀。
+    ///
+    /// 分片只经过本文件的有界状态机；状态机缓冲越界或计数溢出属于内部契约冲突，会让 sink 进入
+    /// 封闭状态并返回错误码，之后不再接受新分片，也不会把原文返回给调用方。
+    pub fn push(&mut self, chunk: &str) -> Result<String, String> {
+        if self.failed {
+            return Err("redaction_stream_failed".to_owned());
+        }
+        let text = self.redactor.push(chunk);
+        if self.redactor.buffered_len() > STREAM_REDACTION_BUFFER_LIMIT {
+            self.failed = true;
+            return Err("redaction_stream_state_unbounded".to_owned());
+        }
+        match self.emitted_bytes.checked_add(text.len()) {
+            Some(total) => self.emitted_bytes = total,
+            None => {
+                self.failed = true;
+                return Err("redaction_stream_bytes_overflow".to_owned());
+            }
+        }
+        Ok(text)
+    }
+
+    /// 结束流并返回尾部安全文本、累计字节数和 profile 摘要。
+    ///
+    /// 已封闭的 sink 返回 `redaction_stream_failed`，不重放缓存内容；重复调用会返回空的
+    /// `tail`（底层状态机只刷新一次）。
+    pub fn finish(&mut self) -> Result<BoundedStreamTail, String> {
+        if self.failed {
+            return Err("redaction_stream_failed".to_owned());
+        }
+        let tail = self.redactor.finish();
+        match self.emitted_bytes.checked_add(tail.len()) {
+            Some(total) => self.emitted_bytes = total,
+            None => {
+                self.failed = true;
+                return Err("redaction_stream_bytes_overflow".to_owned());
+            }
+        }
+        Ok(BoundedStreamTail {
+            tail,
+            emitted_bytes: self.emitted_bytes,
+            profile_digest: self.profile.profile_digest.clone(),
+        })
+    }
+}
+
 /// 找到文本中最早出现的 marker；同一位置有多个候选时优先选择较长者。
 ///
 /// 例如完整的 `authorization: bearer ` 应覆盖较短的 `bearer ` 子串，从而让 marker 边界与后续
@@ -1795,8 +1987,10 @@ fn partial_jwt_start(text: &str, overlap_len: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        redact_text, scan_secret_value, scan_secret_value_with_limit, SecretScanChannel,
-        StreamingRedactor, MAX_SECRET_SENTINEL_SCAN_BYTES, STREAM_REDACTION_BUFFER_LIMIT,
+        encode_bounded_text_for, encode_bounded_value_for, redact_text, scan_secret_value,
+        scan_secret_value_with_limit, RedactionProfile, RedactionSignal, SecretScanChannel,
+        StreamingRedactionSink, StreamingRedactor, MAX_SECRET_SENTINEL_SCAN_BYTES,
+        STREAM_REDACTION_BUFFER_LIMIT,
     };
     use serde_json::json;
 
@@ -1944,5 +2138,96 @@ mod tests {
             redact_text("Authorization: Bearer "),
             "Authorization: Bearer [REDACTED]"
         );
+    }
+
+    #[test]
+    fn channel_profiles_bind_signal_and_share_digest_across_text_channels() {
+        let prompt = RedactionProfile::for_channel(SecretScanChannel::Prompt);
+        assert_eq!(prompt.signal, RedactionSignal::Log);
+        assert_eq!(
+            prompt.profile_digest,
+            RedactionProfile::for_signal(RedactionSignal::Log).profile_digest
+        );
+        for channel in [
+            SecretScanChannel::Transcript,
+            SecretScanChannel::Stdout,
+            SecretScanChannel::Stderr,
+            SecretScanChannel::Argv,
+            SecretScanChannel::Env,
+            SecretScanChannel::Cache,
+        ] {
+            assert_eq!(
+                RedactionProfile::for_channel(channel).profile_digest,
+                prompt.profile_digest,
+                "{channel:?}"
+            );
+        }
+        let receipt = RedactionProfile::for_channel(SecretScanChannel::Receipt);
+        assert_eq!(receipt.signal, RedactionSignal::Audit);
+        assert_eq!(
+            receipt.profile_digest,
+            RedactionProfile::for_channel(SecretScanChannel::Event).profile_digest
+        );
+    }
+
+    #[test]
+    fn channel_aware_encoders_block_residual_secrets_without_raw_fallback() {
+        let profile = RedactionProfile::for_channel(SecretScanChannel::Env);
+        let error = encode_bounded_text_for(&profile, SecretScanChannel::Env, "prefix sk-oa03chan")
+            .unwrap_err();
+        assert_eq!(error, "redaction_secret_sentinel_detected");
+        // The value is redacted rather than returned raw, so the encoder succeeds with a placeholder.
+        let secret = encode_bounded_value_for(
+            &profile,
+            SecretScanChannel::Prompt,
+            &json!({"api_key": "oa03-prompt-sentinel"}),
+        )
+        .unwrap();
+        assert_eq!(
+            secret.value["api_key"],
+            serde_json::Value::String("[REDACTED]".to_owned())
+        );
+        let raw = json!({"authorization": "Bearer oa03-raw-sentinel"});
+        let encoded = encode_bounded_value_for(&profile, SecretScanChannel::Prompt, &raw).unwrap();
+        assert!(!encoded.value.to_string().contains("oa03-raw-sentinel"));
+        assert_eq!(encoded.profile_digest, profile.profile_digest);
+    }
+
+    #[test]
+    fn streaming_sink_binds_profile_and_masks_split_markers() {
+        let mut sink = StreamingRedactionSink::for_channel(SecretScanChannel::Stderr);
+        let mut output = String::new();
+        output.push_str(&sink.push("Authorization: Bear").unwrap());
+        output.push_str(&sink.push("er oa03-sink-sentinel").unwrap());
+        let tail = sink.finish().unwrap();
+        output.push_str(&tail.tail);
+
+        assert_eq!(output, "Authorization: Bearer [REDACTED]");
+        assert!(!output.contains("oa03-sink-sentinel"), "{output}");
+        assert_eq!(
+            tail.profile_digest,
+            RedactionProfile::for_channel(SecretScanChannel::Stderr).profile_digest
+        );
+        assert_eq!(tail.emitted_bytes, output.len());
+        assert!(!sink.failed());
+        assert!(!sink.has_pending_secret());
+        assert_eq!(sink.channel(), SecretScanChannel::Stderr);
+    }
+
+    #[test]
+    fn streaming_sink_rejects_invalid_profile_and_never_reopens_after_finish() {
+        let mut forged = RedactionProfile::for_signal(RedactionSignal::Log);
+        forged.max_bytes = forged.max_bytes.saturating_sub(1);
+        assert_eq!(
+            StreamingRedactionSink::new(forged, SecretScanChannel::Transcript).unwrap_err(),
+            "redaction_profile_digest_mismatch"
+        );
+
+        let mut sink = StreamingRedactionSink::for_channel(SecretScanChannel::Stdout);
+        assert!(sink.finish().unwrap().tail.is_empty());
+        // After finish, new pushes run as independent complete text; a marker plus value is closed
+        // with the same placeholder rather than emitted raw.
+        assert_eq!(sink.push("token=oa03-after-finish").unwrap(), "token=[REDACTED]");
+        assert!(!sink.failed());
     }
 }

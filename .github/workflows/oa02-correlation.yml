@@ -22,7 +22,15 @@ jobs:
         run: cargo test -p kiana-domain --test oa02_correlation --locked -- --test-threads=1
       - name: Run OA-02 port boundary tests
         run: cargo test -p kiana-ports --test oa02_correlation_port --locked -- --test-threads=1
+      - name: Run OA-02 daemon ingress trail tests
+        run: cargo test -p kiana-daemon --test ci04_ingress --locked -- --test-threads=1
+      - name: Run OA-02 core identity bridge guard
+        run: cargo test -p kiana-core --test er02_identity_guard --locked -- --test-threads=1
       - name: Compile OA-02 domain target
         run: cargo test -p kiana-domain --test oa02_correlation --no-run --locked
       - name: Compile OA-02 ports target
         run: cargo test -p kiana-ports --test oa02_correlation_port --no-run --locked
+      - name: Compile OA-02 daemon target
+        run: cargo test -p kiana-daemon --test ci04_ingress --no-run --locked
+      - name: Compile OA-02 core guard target
+        run: cargo test -p kiana-core --test er02_identity_guard --no-run --locked

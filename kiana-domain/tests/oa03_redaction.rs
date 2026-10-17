@@ -1,10 +1,10 @@
 use kiana_domain::{
-    encode_bounded_text, encode_bounded_value, redact_text_with_profile, redact_with_profile,
-    ApprovalChallenge, ApprovalExecutionMaterial, ApprovalId, ApprovalMaterialState,
-    ApprovalPlanPreview, AuthenticatedPrincipalRef, CapabilityKind, CapabilityRequest, DataClass,
-    ExecutionScope, PendingApproval, ProjectIdentity, RedactionProfile, RedactionSignal,
-    RequestContext, RequestId, RiskLevel, RunId, ScopeSet, SessionId, TurnId,
-    REDACTION_PROFILE_SCHEMA,
+    encode_bounded_text, encode_bounded_text_for, encode_bounded_value, redact_text_with_profile,
+    redact_with_profile, ApprovalChallenge, ApprovalExecutionMaterial, ApprovalId,
+    ApprovalMaterialState, ApprovalPlanPreview, AuthenticatedPrincipalRef, CapabilityKind,
+    CapabilityRequest, DataClass, ExecutionScope, PendingApproval, ProjectIdentity,
+    RedactionProfile, RedactionSignal, RequestContext, RequestId, RiskLevel, RunId, ScopeSet,
+    SecretScanChannel, SessionId, StreamingRedactionSink, TurnId, REDACTION_PROFILE_SCHEMA,
 };
 use serde_json::json;
 
@@ -310,4 +310,103 @@ fn malformed_json_like_secret_key_is_rejected_without_original_fallback() {
         encode_bounded_text(&profile, input).unwrap_err(),
         "redaction_secret_sentinel_detected"
     );
+}
+
+#[test]
+fn channel_bound_encoder_redacts_every_publication_channel_and_blocks_unhandled_shapes() {
+    for (channel, sentinel, text) in [
+        (
+            SecretScanChannel::Prompt,
+            "oa03-chan-token",
+            "access_token=oa03-chan-token",
+        ),
+        (
+            SecretScanChannel::Transcript,
+            "oa03-chan-bearer",
+            "Authorization: Bearer oa03-chan-bearer",
+        ),
+        (
+            SecretScanChannel::Stdout,
+            "oa03-chan-pass",
+            "https://user:oa03-chan-pass@example.test/path",
+        ),
+        (
+            SecretScanChannel::Stderr,
+            "oa03-chan-jwt",
+            "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvYTAzIn0.oa03-chan-jwt",
+        ),
+        (
+            SecretScanChannel::Env,
+            "oa03-chan-env",
+            "CLIENT_SECRET=oa03-chan-env",
+        ),
+        (
+            SecretScanChannel::Argv,
+            "oa03-chan-argv",
+            "--token=oa03-chan-argv",
+        ),
+        (
+            SecretScanChannel::Cache,
+            "oa03-chan-cache",
+            "refresh_token=oa03-chan-cache",
+        ),
+        (
+            SecretScanChannel::Event,
+            "oa03-chan-event",
+            "api_key=oa03-chan-event",
+        ),
+        (
+            SecretScanChannel::Receipt,
+            "oa03-chan-receipt",
+            "x-api-key: oa03-chan-receipt",
+        ),
+    ] {
+        let profile = RedactionProfile::for_channel(channel);
+        let encoded = encode_bounded_text_for(&profile, channel, text).unwrap();
+        assert!(
+            !encoded.text.contains(sentinel),
+            "{channel:?} leaked: {}",
+            encoded.text
+        );
+        assert_eq!(encoded.profile_digest, profile.profile_digest);
+    }
+    let profile = RedactionProfile::for_channel(SecretScanChannel::Prompt);
+    assert_eq!(
+        encode_bounded_text_for(
+            &profile,
+            SecretScanChannel::Prompt,
+            "prefix sk-oa03chankeysuffix"
+        )
+        .unwrap_err(),
+        "redaction_secret_sentinel_detected"
+    );
+}
+
+#[test]
+fn streaming_sink_binds_profile_for_split_chunks_and_nested_json_stays_bounded() {
+    let mut sink = StreamingRedactionSink::for_channel(SecretScanChannel::Transcript);
+    let mut streamed = String::new();
+    streamed.push_str(&sink.push("token=oa03").unwrap());
+    streamed.push_str(&sink.push("-split-value, visible").unwrap());
+    let tail = sink.finish().unwrap();
+    streamed.push_str(&tail.tail);
+
+    assert_eq!(streamed, "token=[REDACTED], visible");
+    assert_eq!(tail.emitted_bytes, streamed.len());
+    assert_eq!(
+        tail.profile_digest,
+        RedactionProfile::for_channel(SecretScanChannel::Transcript).profile_digest
+    );
+
+    let nested = json!({"outer": {"inner": [{"api_key": "oa03-nested-sentinel"}]}});
+    for signal in [
+        RedactionSignal::Log,
+        RedactionSignal::Metric,
+        RedactionSignal::Trace,
+        RedactionSignal::Audit,
+        RedactionSignal::Export,
+    ] {
+        let encoded = encode_bounded_value(&RedactionProfile::for_signal(signal), &nested).unwrap();
+        assert!(!encoded.value.to_string().contains("oa03-nested-sentinel"));
+    }
 }

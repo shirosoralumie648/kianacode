@@ -1,5 +1,11 @@
-use kiana_domain::{CorrelationScope, RequestContext, SpanLink, SpanLinkKind, TraceParent};
-use kiana_ports::{CorrelationContextPort, DomainCorrelationContextPort, PortError};
+use kiana_domain::{
+    AttemptRef, CorrelationScope, CorrelationStage, ExecutionId, InvocationId, RequestContext,
+    RunId, SpanLink, SpanLinkKind, TraceParent, TurnId,
+};
+use kiana_ports::{
+    CorrelationContextPort, CorrelationTrailPort, DomainCorrelationContextPort,
+    DomainCorrelationTrailPort, PortError,
+};
 
 #[test]
 fn default_port_delegates_server_root_and_child_construction() {
@@ -92,4 +98,64 @@ fn port_rejects_forged_parent_and_self_links_before_child_creation() {
         port.child_span(&self_link).unwrap_err(),
         PortError::Failed("correlation_context:correlation_span_link_self".to_owned())
     );
+}
+
+#[test]
+fn trail_port_threads_ingress_through_the_spine_and_rejects_out_of_order() {
+    let request = RequestContext::local("oa02-port-session", "/workspace/project");
+    let scope = CorrelationScope::new(request.session_id.clone(), None, None);
+    let context_port = DomainCorrelationContextPort;
+    let trail_port = DomainCorrelationTrailPort;
+    let root = context_port.root(&request, scope, 2, 4, None).unwrap();
+    let command_id = root.command_id.unwrap();
+    let trail = trail_port.start(root).unwrap();
+    assert_eq!(trail.current_stage(), CorrelationStage::Ingress);
+
+    assert_eq!(
+        trail_port.provider(&trail).unwrap_err(),
+        PortError::Failed("correlation_trail:correlation_trail_stage_order".to_owned())
+    );
+
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let invocation_id = InvocationId::new();
+    let execution_id = ExecutionId::new();
+    let trail = trail_port.with_run(&trail, run_id).unwrap();
+    let trail = trail_port.with_turn(&trail, turn_id).unwrap();
+    let trail = trail_port
+        .with_invocation(&trail, invocation_id, execution_id)
+        .unwrap();
+    let attempt = AttemptRef::new(
+        run_id,
+        turn_id,
+        invocation_id,
+        execution_id,
+        command_id,
+        1,
+    )
+    .unwrap();
+    let trail = trail_port.with_attempt(&trail, attempt).unwrap();
+    let trail = trail_port.provider(&trail).unwrap();
+    let trail = trail_port.broker(&trail).unwrap();
+    let trail = trail_port.event_log(&trail, 5).unwrap();
+
+    assert_eq!(trail.current_stage(), CorrelationStage::EventLog);
+    assert_eq!(trail.entries().len(), CorrelationStage::ORDERED.len());
+    assert_eq!(trail.current().trace_id, trail.entries()[0].context.trace_id);
+    assert_eq!(trail.event_correlation().unwrap().source_cursor, Some(5));
+
+    let recovery = trail_port
+        .async_recovery(&trail, SpanLinkKind::FollowsFrom)
+        .unwrap();
+    assert!(recovery.context.parent_span_id.is_none());
+    assert_ne!(recovery.context.span_id, trail.current().span_id);
+    assert_eq!(recovery.context.trace_id, trail.current().trace_id);
+    assert_eq!(
+        trail_port
+            .async_recovery(&trail, SpanLinkKind::Parent)
+            .unwrap_err(),
+        PortError::Failed("correlation_trail:correlation_async_parent_link_forbidden".to_owned())
+    );
+    let resumed = recovery.trail().unwrap();
+    assert_eq!(resumed.current_stage(), CorrelationStage::Ingress);
 }

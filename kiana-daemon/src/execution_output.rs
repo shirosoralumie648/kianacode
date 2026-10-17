@@ -238,7 +238,23 @@ pub(crate) fn render_capped_for(
     } else if truncated {
         text.push_str("\n...truncated...");
     }
-    text
+    // 预览是发布给模型/界面的信号，必须走该通道的 bounded encoder：它复用同一份 profile 的
+    // 字节上限与通道扫描；任何失败都退回固定占位文本，绝不把未通过检查的内容交出去。预览
+    // 已被裁到 preview_max_bytes（默认 8 KiB），远小于文本通道 profile 上限，因此正常路径不会
+    // 触发大小拒绝，这里只是把“发布前必须过 profile”的契约显式绑定到运行时 sink。
+    let profile = kiana_domain::RedactionProfile::for_channel(channel);
+    match kiana_domain::encode_bounded_text_for(&profile, channel, &text) {
+        Ok(encoded) => encoded.text,
+        Err(_) => "[REDACTED]".to_owned(),
+    }
+}
+
+/// 返回治理某个输出通道的 bounded encoder 所采用的 profile 摘要。
+///
+/// `execution_control::store_output()` 把它写进归档记录，使一份持久化的 shell 输出能定位到
+/// 实际使用的脱敏配置；它只暴露摘要，不暴露规则内部状态。
+pub(crate) fn preview_profile_digest(channel: kiana_domain::SecretScanChannel) -> String {
+    kiana_domain::RedactionProfile::for_channel(channel).profile_digest
 }
 
 /// 将已存在的文本重新走 stdout 安全清理并裁成预览；不表示该文本来自真实 stdout pipe。

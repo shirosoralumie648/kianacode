@@ -21,20 +21,22 @@ use async_trait::async_trait;
 use kiana_domain::{
     AgentTemplate, ApprovalChallenge, ApprovalId, ArtifactPublicationIntent,
     ArtifactPublicationState, ArtifactRef, ArtifactVersion, AssignmentDirectory, AssignmentId,
-    AuditActionKind, AuditDecision, AuditRecord, AuthenticatedPrincipalRef, AuthoritySnapshot,
-    AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId, CapabilityGrant, CapabilityGrantId,
-    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, ClockObservation,
-    CommunicationMessage, ConfigSnapshot, CorrelationContext, CorrelationScope,
-    DataPropagationPlan, DataPropagationReceipt, DeletionManifest, DeletionTombstone, EvalCase,
-    EvalCaseId, EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor,
-    EventId, GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint, ObservabilityRecord,
-    OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity, QualityArtifact,
-    QualityArtifactId, QuotaReservation, QuotaReservationId, QuotaReservationState, RateCard,
-    RateCardId, RequestContext, RequestId, ResolvedAssignment, RetirementRecord, RetrievalItem,
-    RetrievalRequest, RetrievalResult, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind,
-    SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth,
-    StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SupervisorObservation,
-    SupervisorRequest, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
+    AttemptRef, AuditActionKind, AuditDecision, AuditRecord, AuthenticatedPrincipalRef,
+    AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId, CapabilityGrant,
+    CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec,
+    ClockObservation, CommunicationMessage, ConfigSnapshot, CorrelationContext,
+    CorrelationRecovery, CorrelationScope, CorrelationTrail, DataPropagationPlan,
+    DataPropagationReceipt, DeletionManifest, DeletionTombstone, EvalCase, EvalCaseId,
+    EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, EventId,
+    ExecutionId, GoldenTrace, GoldenTraceId, HealthSnapshot, InvocationId, MetricPoint,
+    ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity,
+    QualityArtifact, QualityArtifactId, QuotaReservation, QuotaReservationId,
+    QuotaReservationState, RateCard, RateCardId, RequestContext, RequestId, ResolvedAssignment,
+    RetirementRecord, RetrievalItem, RetrievalRequest, RetrievalResult, RoleAssignment, RunId,
+    RuntimeEvent, SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError,
+    StorageErrorClass, StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease,
+    SupervisorObservation, SupervisorRequest, SwarmLineage, SwarmPlanId, TraceSummary, TurnId,
+    WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde::{Deserialize, Serialize};
@@ -1630,6 +1632,130 @@ impl CorrelationContextPort for DomainCorrelationContextPort {
         parent
             .linked_child(relationship)
             .map_err(|error| PortError::Failed(format!("correlation_context:{error}")))
+    }
+}
+
+/// Service-side boundary for threading an authenticated correlation context through the spine.
+///
+/// The port only derives child spans and links; it never grants authority, resolves actor/project
+/// data from the caller, or accepts a stage out of order. Callers must start from a context the
+/// control plane produced after authenticating a `RequestContext`.
+pub trait CorrelationTrailPort: Send + Sync {
+    fn start(&self, root: CorrelationContext) -> Result<CorrelationTrail, PortError>;
+
+    fn with_run(
+        &self,
+        trail: &CorrelationTrail,
+        run_id: RunId,
+    ) -> Result<CorrelationTrail, PortError>;
+
+    fn with_turn(
+        &self,
+        trail: &CorrelationTrail,
+        turn_id: TurnId,
+    ) -> Result<CorrelationTrail, PortError>;
+
+    fn with_invocation(
+        &self,
+        trail: &CorrelationTrail,
+        invocation_id: InvocationId,
+        execution_id: ExecutionId,
+    ) -> Result<CorrelationTrail, PortError>;
+
+    fn with_attempt(
+        &self,
+        trail: &CorrelationTrail,
+        attempt: AttemptRef,
+    ) -> Result<CorrelationTrail, PortError>;
+
+    fn provider(&self, trail: &CorrelationTrail) -> Result<CorrelationTrail, PortError>;
+
+    fn broker(&self, trail: &CorrelationTrail) -> Result<CorrelationTrail, PortError>;
+
+    fn event_log(
+        &self,
+        trail: &CorrelationTrail,
+        source_cursor: u64,
+    ) -> Result<CorrelationTrail, PortError>;
+
+    fn async_recovery(
+        &self,
+        trail: &CorrelationTrail,
+        relationship: SpanLinkKind,
+    ) -> Result<CorrelationRecovery, PortError>;
+}
+
+/// Default in-process adapter; it only delegates to the domain bridge invariants.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DomainCorrelationTrailPort;
+
+fn trail_failed(error: String) -> PortError {
+    PortError::Failed(format!("correlation_trail:{error}"))
+}
+
+impl CorrelationTrailPort for DomainCorrelationTrailPort {
+    fn start(&self, root: CorrelationContext) -> Result<CorrelationTrail, PortError> {
+        CorrelationTrail::from_ingress(root).map_err(trail_failed)
+    }
+
+    fn with_run(
+        &self,
+        trail: &CorrelationTrail,
+        run_id: RunId,
+    ) -> Result<CorrelationTrail, PortError> {
+        trail.clone().with_run(run_id).map_err(trail_failed)
+    }
+
+    fn with_turn(
+        &self,
+        trail: &CorrelationTrail,
+        turn_id: TurnId,
+    ) -> Result<CorrelationTrail, PortError> {
+        trail.clone().with_turn(turn_id).map_err(trail_failed)
+    }
+
+    fn with_invocation(
+        &self,
+        trail: &CorrelationTrail,
+        invocation_id: InvocationId,
+        execution_id: ExecutionId,
+    ) -> Result<CorrelationTrail, PortError> {
+        trail
+            .clone()
+            .with_invocation(invocation_id, execution_id)
+            .map_err(trail_failed)
+    }
+
+    fn with_attempt(
+        &self,
+        trail: &CorrelationTrail,
+        attempt: AttemptRef,
+    ) -> Result<CorrelationTrail, PortError> {
+        trail.clone().with_attempt(attempt).map_err(trail_failed)
+    }
+
+    fn provider(&self, trail: &CorrelationTrail) -> Result<CorrelationTrail, PortError> {
+        trail.clone().provider().map_err(trail_failed)
+    }
+
+    fn broker(&self, trail: &CorrelationTrail) -> Result<CorrelationTrail, PortError> {
+        trail.clone().broker().map_err(trail_failed)
+    }
+
+    fn event_log(
+        &self,
+        trail: &CorrelationTrail,
+        source_cursor: u64,
+    ) -> Result<CorrelationTrail, PortError> {
+        trail.clone().event_log(source_cursor).map_err(trail_failed)
+    }
+
+    fn async_recovery(
+        &self,
+        trail: &CorrelationTrail,
+        relationship: SpanLinkKind,
+    ) -> Result<CorrelationRecovery, PortError> {
+        trail.async_recovery(relationship).map_err(trail_failed)
     }
 }
 

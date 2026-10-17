@@ -15,6 +15,52 @@ limitations: 非真正单事务跨 store 提交（崩溃/掉电语义未证明�
 reviewer: root integration agent；CO-06 发布窗口/对账/只读投影静态复核
 ```
 
+### 2026-10-17 OA-03 翻 ✅（统一有界信号编码与运行时 sink/stream 接线，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 094（🔄 → ✅）；kiana-domain/src/redaction.rs（RedactionSignal::for_scan_channel、RedactionProfile::for_channel、encode_bounded_text_for/encode_bounded_value_for、StreamingRedactionSink/BoundedStreamTail）；kiana-runner/src/harness.rs（transcript delta 流）；kiana-daemon/src/execution_output.rs（render_capped_for / preview_profile_digest）；kiana-daemon/src/execution_control.rs（归档记录 profile digest）；kiana-domain/tests/oa03_redaction.rs；kiana-core/tests/oa03_redaction_guard.rs；.github/workflows/oa03-redaction.yml
+worktree_status: 行 094 🔄 → ✅；只改本 Step 相关源码/夹具/workflow 与共享文档的单行回填；无 manifest/lockfile 变化；未新增执行循环或第二个事实源
+command_argv: CI-only；本地未运行任何 cargo/build/test/fmt/smoke（按本轮用户指示禁测）；仅做静态核对（rg/sed 源码与既有 guard marker 对照）＋ bash scripts/ci/validate-workflows.sh、bash scripts/ci/validate-doc-references.sh
+cwd·environment: worktree /workspace/kianacode-worktrees/OA-03，分支 step/oa-03-20261017-1（基线 master 9c990f524b2d）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: domain `oa03_redaction` 新增 channel_bound_encoder_redacts_every_publication_channel_and_blocks_unhandled_shapes（Prompt/Transcript/Stdout/Stderr/Env/Argv/Cache/Event/Receipt 九通道各自 redact 且 sk- 未处理形状 fail-closed）与 streaming_sink_binds_profile_for_split_chunks_and_nested_json_stays_bounded（跨 chunk marker + profile digest + 五类信号 nested JSON）；redaction.rs 库单测新增 channel_profiles_bind_signal_and_share_digest_across_text_channels / channel_aware_encoders_block_residual_secrets_without_raw_fallback / streaming_sink_binds_profile_and_masks_split_markers / streaming_sink_rejects_invalid_profile_and_never_reopens_after_finish；Core `oa03_redaction_guard` 新增 runtime_stream_and_artifact_sinks_bind_the_channel_redaction_profile（固定 runner transcript sink 组合、daemon 预览 encoder 与归档 digest marker）；既有 profiles_are_versioned_digest_bound_and_closed、every_signal_boundary_redacts_nested_secret_sentinels_before_encoding、encoder_errors_are_fail_closed_without_returning_original_payload、numeric_token_metrics…、hyphenated_secret_keys…、malformed_json_like_secret_key…、audit export 全格式拒绝 2/2、INT-13 4/4 保持不变
+exit_code: 本地未运行；CI 回执未等待（oa03-redaction.yml 含 domain fixture、domain lib 单测、Core guard、runner/daemon --all-targets compile、export refusal 目标）
+status_change: OA-03 源码层退出条件（先拒绝：九通道 secret/sk- 阻断且错误不回退原文；再成功：split chunk/nested JSON/NUL/oversize/provider echo/artifact+export 通道扫描/profile 摘要可定位）覆盖，状态提升 implemented（row 094 ✅）
+proof-level_change: 维持 source；未提升 local_behavior/durable/live/physical
+limitations: 整条 prompt/tool-arg 文本不套用 profile 字节上限（真实提示常超 64 KiB 值上限，按设计只做 redact+channel scan 与占位回退；profile 字节上限只作用于有界信号值与预览）；runner prompt/tool-arg producers（harness 1200/1481/1856/1867 的 safe_channel_text）与 entrypoints web/stream_render 展示流仍未改为 profile-bound；任意未标记随机 secret 仍无法保证识别；daemon 归档只记录 profile 摘要，完整输出仍按 ExecutionOutputBudget 而非 profile 上限；下游 data-class ceiling 属 OA-20；durable/live sink 与 CI 回执均未等待
+reviewer: root integration agent；OA-03 静态复核
+```
+
+### 2026-10-17 H05 翻 ✅（统一停止原因、错误与重试分类，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md 行 047；docs/roadmap/harness.md#step-h05；docs/roadmap/harness-stop-retry-baseline.md §3.1；kiana-protocol/tests/h05_model_failure_wire.rs（新增 lifecycle 权威性 fixture）
+worktree_status: 行 047 🔄 → ✅；新增停止/错误/CLI/wire 映射表与一个 focused fixture；无 manifest/lockfile、无第二执行路径、未接线自动 repair
+command_argv: CI-only；本地未运行 cargo/build/test/fmt/smoke；静态核对（rg/读取既有 domain/runner/provider/protocol/entrypoints 源码与 fixture）＋ python3 scripts/roadmap-goal.py、bash scripts/ci/validate-workflows.sh、bash scripts/ci/validate-doc-references.sh
+cwd·environment: worktree /workspace/kianacode-worktrees/H05，分支 step/h05-20261017-1；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: 卡片先拒绝 length_stop_never_dispatches_tools_or_completes_turn / refusal_is_not_success / unknown_stop_reason_fails_closed 与再成功 normal_text_stop_finishes_and_tool_stop_continues 均在树内；新增 only_failed_status_projects_a_model_failure_and_lifecycle_codes_win（ResultUnknown/Cancelled/AwaitingApproval/Running 不被模型诊断改写成模型失败，仅 Failed 投影 ModelFailureSurface）；wire/presenter target 已接入 h05-stop-diagnostic.yml 与统一 ci.yml 的 kiana-protocol/kiana-entrypoints 整 crate lane
+exit_code: 本地未运行；CI 回执未等待
+status_change: H05 源码层退出条件覆盖 → implemented（row 047 ✅）；proof_level 维持 source
+proof-level_change: 无；未提升 local_behavior/durable/live/physical
+limitations: 自动 FormatRepair/ToolRepair/ContextRepair 执行未接线（卡片要求仅在显式预算化命令下执行，当前仅分类并以 *_repair_unavailable 到达 wire）；cli_exit/http_status 仅为既有 CapabilityErrorCode 投影，进程退出码未改；workbench/web 渲染与流式展示未接线；完整统一 shard green、live provider、账单/外部效果与物理证明未获；CI 回执未等待
+reviewer: root integration agent；H05 静态复核
+```
+
+### 2026-10-17 OA-02 typed correlation bridge（CI-only 口径）
+
+```text
+source_snapshot: 分支 step/oa-02-20261017-1（基于 master 0680c38e4256）；改动仅限本 Step 相关文件——kiana-domain/src/correlation.rs（+CorrelationStage/CorrelationStageEntry/CorrelationTrail/CorrelationRecovery）、kiana-domain/tests/oa02_correlation.rs、kiana-ports/src/lib.rs（+CorrelationTrailPort/DomainCorrelationTrailPort）、kiana-ports/tests/oa02_correlation_port.rs、kiana-daemon/src/lib.rs（+build_ingress_correlation_trail）、kiana-daemon/tests/ci04_ingress.rs、kiana-core/tests/er02_identity_guard.rs、.github/workflows/oa02-correlation.yml、docs/roadmap.md（行 093 与 §3）；提交哈希 待本提交
+worktree_status: OA-02 row 093 由 🔄 提升 ✅（CI pending）/ feature_status=implemented（source 层）；无 manifest/lockfile/package.json 变化，无第二条执行循环，五个模型工具面不变，未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与纯静态脚本 bash scripts/ci/validate-doc-references.sh（732 documents，通过）
+cwd·environment: 仓库根 /workspace/kianacode-worktrees/OA-02；CI 为 GitHub Actions ubuntu-latest（oa02-correlation workflow=workflow_dispatch-only，按调度器触发；回执未等待）
+fixture·cassette: domain `oa02_correlation` 新增 4 个：ingress→run→turn→invocation→provider→broker→eventlog 全链单 trace/identity/scope/command 绑定与 parent 链、乱序/跳级/终止后推进拒绝（correlation_trail_stage_order/terminal）、from_entries 伪造根/stage 顺序/actor/trace/parent 漂移拒绝（correlation_trail_ingress_required/_ingress_parent_forbidden/_stage_order/_identity_drift/_trace_drift/_parent_link）、异步恢复 link+新 span（parent 拒绝、run/turn/attempt/source_cursor 清空、同 trace 新 span、trail 重根可再绑 run）；ports `oa02_correlation_port` 新增 1 个：经 CorrelationTrailPort 走全链 + 乱序拒绝 + async_recovery link+新 span（错误码带 `correlation_trail:` 前缀）；daemon `ci04_ingress` 新增 1 个：build_ingress_correlation_trail 从已认证 ingress 起 trail、ForeignParent link 保留、全链 source_cursor 落账、恢复采 link+新 span；core `er02_identity_guard` 增加 bridge marker 固定（CorrelationStage/Trail/Recovery 与新拒绝码、ports trait、daemon ingress 入口）
+exit_code: 本地未运行（用户指示 CI-only）；CI 回执未等待
+status_change: OA-02 typed bridge 从 domain 单点 context 升级为贯穿执行脊柱的 typed trail + port + daemon ingress 入口；inspect→成功列在源码层有树内证据
+proof-level_change: 维持 source；无 local_behavior/durable/live/physical 提升（本地未运行、CI 未回执）
+limitations: 运行时逐阶段 span 落账与 Run/Turn/Invocation 生命周期属 OA-07，EventLog/exporter 接线属 OA-06/OA-14；trail 目前是进程内 builder，尚未持久化/跨进程传输；Provider/Broker 阶段仅建模 span 派生，未在真实 provider/Broker 路径盖 trace 到事件载荷；未证明 durable 或 live；CI 回执未等待
+reviewer: root integration agent；基于 OA-02 卡片逐条静态核对（先拒绝/成功列 + core guard）
+```
+
+
 ### 2026-10-16/17 第二波 step 切片（P0-A-01b/EQ-11 翻 ✅；ER-13/BQ-07/AUT-07/EXT-25/DEP-03 切片）
 
 ```text
