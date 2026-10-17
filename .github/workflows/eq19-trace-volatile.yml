@@ -1,0 +1,44 @@
+name: EQ-19 trace volatile normalization
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trace-volatile:
+    name: EQ-19 volatile normalization fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt -p kiana-quality --check
+      - name: Run EQ-19 volatile normalization fixtures
+        run: cargo test -p kiana-quality --test eq19_volatile --locked -- --test-threads=1
+      - name: Run EQ-19 source and wiring guard
+        run: cargo test -p kiana-quality --test eq19_quality_guard --locked -- --test-threads=1
+      - name: Run named EQ-19 volatile fixtures
+        run: |
+          for fixture in \
+            declared_timestamp_uuid_temp_path_and_actor_are_replaced_with_counts \
+            undeclared_volatile_value_is_not_silently_normalized \
+            wildcard_rules_cover_array_members_and_replacement_budget_is_bounded \
+            wildcard_array_rule_does_not_normalize_undeclared_siblings \
+            invalid_rule_and_policy_shapes_are_rejected \
+            declared_kind_must_match_the_value_type \
+            source_normalization_version_must_match_before_any_replacement \
+            replacement_ledger_records_paths_kinds_and_per_kind_counts; do
+            cargo test -p kiana-quality --test eq19_volatile "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Compile volatile fixture target
+        run: cargo test -p kiana-quality --test eq19_volatile --no-run --locked
+      - name: Compile volatile guard target
+        run: cargo test -p kiana-quality --test eq19_quality_guard --no-run --locked

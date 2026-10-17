@@ -4,7 +4,7 @@ use crate::{ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CANONICAL_NORMALIZ
 use kiana_domain::{canonical_journal_bytes, RequestId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 pub const VOLATILE_NORMALIZATION_VERSION: &str = "eq19.volatile-events.v1";
 pub const MAX_VOLATILE_RULES: usize = 128;
@@ -116,13 +116,21 @@ impl VolatilePolicy {
         {
             return Err(VolatileError::PolicyInvalid);
         }
-        let mut paths = BTreeSet::new();
+        let mut kinds = BTreeMap::new();
         for rule in &self.rules {
             rule.validate()?;
-            if !paths.insert((rule.path.clone(), rule.kind)) {
-                return Err(VolatileError::DuplicateRule {
-                    path: rule.path.clone(),
-                });
+            match kinds.insert(rule.path.clone(), rule.kind) {
+                Some(existing) if existing == rule.kind => {
+                    return Err(VolatileError::DuplicateRule {
+                        path: rule.path.clone(),
+                    });
+                }
+                Some(_) => {
+                    return Err(VolatileError::AmbiguousRule {
+                        path: rule.path.clone(),
+                    });
+                }
+                None => {}
             }
         }
         Ok(())
@@ -181,6 +189,14 @@ impl VolatileEventTrace {
             .collect::<Vec<_>>();
         canonical_journal_bytes(&normalized_values).map_err(VolatileError::CanonicalEncodingFailed)
     }
+
+    /// Replacement count for one volatile kind, derived from the recorded ledger.
+    pub fn replacement_count_for(&self, kind: VolatileKind) -> usize {
+        self.replacements
+            .iter()
+            .filter(|replacement| replacement.kind == kind)
+            .count()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -191,6 +207,8 @@ pub enum VolatileError {
     PolicyInvalid,
     #[error("volatile_rule_duplicate:{path}")]
     DuplicateRule { path: String },
+    #[error("volatile_rule_ambiguous:{path}")]
+    AmbiguousRule { path: String },
     #[error("volatile_source_version_invalid")]
     SourceVersionInvalid,
     #[error("volatile_value_type_mismatch:{path}:{kind:?}")]
