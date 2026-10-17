@@ -22,7 +22,7 @@ const PLATFORM_STREAM: &str = "human_operations";
 /// Bridge the committed notification projection to the existing display-only inbox DTO.  The
 /// materializer owns no action execution; callers still submit an action through the original
 /// ControlPlane authority after rechecking the source HumanTask.
-pub(crate) fn materialize_notification_inbox(
+pub fn materialize_notification_inbox(
     materializer: &NotificationMaterializer,
     server_recipient_id: &str,
 ) -> Result<Vec<HumanInboxItem>, CoreError> {

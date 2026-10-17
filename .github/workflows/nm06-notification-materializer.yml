@@ -1,0 +1,29 @@
+name: NM-06 notification materializer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-materializer:
+    name: NM-06 materializer and HumanTask bridge fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-06 materializer fixtures
+        run: cargo test -p kiana-core --test nm06_notification_materializer --locked -- --test-threads=1
+      - name: Run NM-06 materializer source guard
+        run: cargo test -p kiana-core --test nm06_notification_materializer_guard --locked -- --test-threads=1
+      - name: Compile NM-06 materializer target
+        run: cargo test -p kiana-core --test nm06_notification_materializer --no-run --locked
+      - name: Compile NM-06 source guard target
+        run: cargo test -p kiana-core --test nm06_notification_materializer_guard --no-run --locked

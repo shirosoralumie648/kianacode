@@ -414,6 +414,7 @@ pub use persistence_read_model::{
     PERSISTENCE_READ_MODEL_SCHEMA,
 };
 pub use platform::classify_failure_summary;
+pub use platform::materialize_notification_inbox;
 pub use projection::{project_run_state, RunOutcome, RunPhase, RunProjectionError, RunState};
 pub use projection_checkpoint::{ProjectionDriver, ProjectionDriverStatus, ReplayProjection};
 pub use promotion_gate::*;
