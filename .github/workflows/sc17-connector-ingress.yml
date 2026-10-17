@@ -1,0 +1,33 @@
+name: SC-17 connector ingress intent
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connector-ingress:
+    name: SC-17 connector ingress intent fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-17 domain intent fixtures
+        run: cargo test -p kiana-domain --test sc17_connector_intent --locked -- --test-threads=1
+      - name: Run SC-17 daemon ingress fixtures
+        run: cargo test -p kiana-daemon --test sc17_connector_ingress --locked -- --test-threads=1
+      - name: Run SC-17 source guard
+        run: cargo test -p kiana-core --test sc17_connector_ingress_guard --locked -- --test-threads=1
+      - name: Compile SC-17 domain intent target
+        run: cargo test -p kiana-domain --test sc17_connector_intent --no-run --locked
+      - name: Compile SC-17 daemon ingress target
+        run: cargo test -p kiana-daemon --test sc17_connector_ingress --no-run --locked
+      - name: Compile SC-17 source guard target
+        run: cargo test -p kiana-core --test sc17_connector_ingress_guard --no-run --locked

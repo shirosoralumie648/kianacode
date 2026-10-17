@@ -1102,6 +1102,7 @@
    "sc07_trust_snapshots",
    "sc08_fence",
    "sc14_network_policy",
+   "sc17_connector_intent",
    "sc21_data_boundary_guard",
    "sc22_retention",
    "sc23_deletion",
