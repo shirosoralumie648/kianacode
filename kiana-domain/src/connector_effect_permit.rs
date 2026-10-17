@@ -30,6 +30,20 @@ fn digest(value: &str, field: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Credential-backed bindings must carry the non-zero generation of the credential they fence; a
+/// zero credential epoch is reserved for bindings that intentionally have no credential.  The rule
+/// is enforced wherever the binding snapshot is known (`issue` and `validate_for_effect`); the
+/// fence itself cannot decide it because it carries no binding identity.
+fn require_credential_epoch(
+    binding: &ConnectorBindingSnapshot,
+    credential_epoch: u64,
+) -> Result<(), String> {
+    if binding.binding.credential_ref.is_some() && credential_epoch == 0 {
+        return Err("connector_effect_credential_epoch_required".to_owned());
+    }
+    Ok(())
+}
+
 /// The current server-owned values read again immediately before adapter dispatch.  A caller may
 /// provide a stale copy, but it can never make a stale permit current because the Broker compares
 /// every field to its own fence snapshot.
@@ -42,7 +56,8 @@ pub struct ConnectorEffectFence {
     pub configuration_epoch: u64,
     pub policy_epoch: u64,
     /// Zero means that this binding intentionally has no credential. Credential-backed bindings
-    /// must carry a non-zero generation.
+    /// must carry the non-zero generation of the credential they fence; the rule is checked by
+    /// `ConnectorEffectPermit::issue`/`validate_for_effect`, which also see the binding snapshot.
     pub credential_epoch: u64,
     pub data_epoch: u64,
     pub fence_digest: String,
@@ -213,6 +228,7 @@ impl ConnectorEffectPermit {
             command.credential_generation,
             command.data_revision,
         )?;
+        require_credential_epoch(binding, fence.credential_epoch)?;
         let scope_digest = connector_effect_scope_digest(binding, &command.operation)?;
         if scope_digest != fence.scope_digest
             || fence.authority_epoch != command.authority_revision
@@ -385,10 +401,14 @@ impl ConnectorEffectPermit {
         {
             return Err("connector_effect_binding_snapshot_stale".to_owned());
         }
+        require_credential_epoch(binding, self.credential_epoch)?;
         let scope_digest = connector_effect_scope_digest(binding, &self.operation)?;
         if scope_digest != self.scope_digest {
             return Err("connector_effect_scope_digest_mismatch".to_owned());
         }
+        // A caller supplied fence is evidence, not authority: a fence whose recorded digest no
+        // longer matches its own fields is refused instead of being silently re-derived.
+        current.validate()?;
         let expected = ConnectorEffectFence::new(
             current.scope_digest.clone(),
             current.authority_epoch,
