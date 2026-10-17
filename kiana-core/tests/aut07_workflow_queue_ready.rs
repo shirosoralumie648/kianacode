@@ -91,3 +91,28 @@ fn child_scope_or_budget_widening_fails_closed_before_claim() {
             || error == "workflow_queue_budget_subset_invalid"
     );
 }
+
+#[test]
+fn ready_view_rejects_two_claims_for_one_item() {
+    // 同一 item 出现两条 Ready claim 时，交接前必须失败关闭：一个 item 只有一个有效 claim。
+    let budget = BudgetLeaseId::new();
+    let parent = approved(
+        WorkPacket::builder_task("parent", "parent work").with_path_allow(["src"]),
+        budget,
+    );
+    let mut child = approved(
+        WorkPacket::builder_task("child", "child work").with_path_allow(["src/lib.rs"]),
+        budget,
+    );
+    child.parent_packet_id = Some(parent.id.clone());
+    let packets = BTreeMap::from([(parent.id.clone(), parent), (child.id.clone(), child)]);
+
+    let mut view = project_workflow_queue_ready(&packets, 1_000, 2).expect("ready view");
+    let claim = view.claims[0].clone();
+    view.claims = vec![claim.clone(), claim];
+    view.ready_digest = view.digest();
+    assert_eq!(
+        view.validate().unwrap_err(),
+        "workflow_queue_ready_duplicate_item"
+    );
+}
