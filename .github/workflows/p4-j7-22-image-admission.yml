@@ -9,6 +9,7 @@ permissions:
 jobs:
   image-admission:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -16,9 +17,15 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Compile workspace test targets
+        run: cargo check --workspace --tests --locked
       - name: Run P4-J7-22 domain image admission fixtures
         run: cargo test -p kiana-domain --test p4_j7_22_image_admission --locked -- --test-threads=1
       - name: Run P4-J7-22 provider image fixtures
         run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run P4-J7-22 provider end-to-end admission fixtures
+        run: cargo test -p kiana-provider --test p4_j7_22_image_admission --locked -- --test-threads=1
       - name: Run P4-J7-22 source guard
         run: cargo test -p kiana-core --test p4_j7_22_image_admission_guard --locked -- --test-threads=1

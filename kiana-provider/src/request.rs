@@ -82,8 +82,8 @@ pub(crate) fn compile_with_images(
         return Err(ModelError::invalid("model_replay_storage_unavailable"));
     }
     validate_image_admissions(&request, &route, connection, images)?;
-    let original_request = request.clone();
-    let request = normalize_structured_request(request, &route, connection, images)?;
+    let placements = image_placements(&request, images, connection.limits.max_body)?;
+    let request = normalize_structured_request(request, &route)?;
     let context = ModelRequestContext::for_request(&request);
     let tool_names = ToolNameMap::from_tools(&request.tools, true)?;
     let tools = tool_map(&request.tools, &tool_names)?;
@@ -109,13 +109,7 @@ pub(crate) fn compile_with_images(
             ))
         }
     }?;
-    inject_admitted_images(
-        &mut body,
-        &route,
-        &original_request,
-        images,
-        connection.limits.max_body,
-    )?;
+    inject_image_placements(&mut body, route.protocol, &placements)?;
     body["model"] = json!(route.model_id);
     body["stream"] = json!(route.streaming);
     match route.protocol {
@@ -211,11 +205,15 @@ fn validate_image_admissions(
         return Err(ModelError::invalid("image_admission_count_limit"));
     }
     let limits = ImagePayloadLimits::for_request(connection.limits.max_body);
+    // Dispatch-time freshness: retention is compared against the real wall clock here, not
+    // against `admitted_at_unix_ms` (that timestamp only proves the admission was valid when it
+    // was created). A grant that expired between admission and send fails before any encoding.
+    let dispatch_now_unix_ms = crate::transport::unix_ms()?;
     for image in images {
         image.validate_for_route(
             route,
             &connection.capabilities,
-            image.admitted_at_unix_ms,
+            dispatch_now_unix_ms,
             &limits,
         )?;
         if !attachments
@@ -261,9 +259,113 @@ fn image_data(
     Ok((encoded, data_url, image.media_type.clone()))
 }
 
+/// 一个已编码准入图片在 wire body 里的最终落点。
+///
+/// 落点来自引用该 Artifact 的消息本身，而不是“请求里的第一条 user 消息”：把工具结果
+/// 里的图片塞进用户轮次会改变请求语义，也会让 provider 无从把图片关联回 tool_use。
+#[derive(Clone, Debug)]
+enum ImagePlacementTarget {
+    /// 第 N 个用户轮次（从 0 计数）；承载 tool_result 的 user 消息不计入用户轮次。
+    UserTurn(usize),
+    /// Anthropic `tool_result` 块，用模型工具调用 id 定位。
+    ToolResult(String),
+}
+
+/// 已编码的准入图片与其引用位置。
+#[derive(Clone, Debug)]
+struct ImagePlacement {
+    target: ImagePlacementTarget,
+    encoded: String,
+    data_url: String,
+    media_type: String,
+}
+
+/// 按请求消息顺序把每个 `AttachmentRef` 解析成“准入图片 + wire 落点”。
+///
+/// 附件只允许出现在 user 轮（用户附件）或 tool 轮（工具返回的图片）；两类都复用同一份
+/// `ImageInputAdmission` 准入通道。缺失匹配 admission、admission 未被引用、或附件出现在
+/// 无法表达图片的角色上，都在编码和网络发送前拒绝。
+fn image_placements(
+    request: &ModelRequest,
+    images: &[ImageInputAdmission],
+    max_request_bytes: usize,
+) -> Result<Vec<ImagePlacement>, ModelError> {
+    let mut placements = Vec::new();
+    let mut user_turns = 0usize;
+    for message in &request.messages {
+        let mut attachments = Vec::new();
+        for block in message.content_blocks()? {
+            if let ModelContent::AttachmentRef {
+                artifact_ref,
+                media_type,
+                digest,
+            } = block
+            {
+                attachments.push((artifact_ref, media_type, digest));
+            }
+        }
+        let target = if message.role == ModelRole::User {
+            let target = ImagePlacementTarget::UserTurn(user_turns);
+            user_turns += 1;
+            Some(target)
+        } else if message.role == ModelRole::Tool {
+            message
+                .tool_call_id
+                .clone()
+                .map(ImagePlacementTarget::ToolResult)
+        } else {
+            None
+        };
+        if attachments.is_empty() {
+            continue;
+        }
+        let target =
+            target.ok_or_else(|| ModelError::invalid("image_attachment_role_unsupported"))?;
+        for (artifact_ref, media_type, digest) in attachments {
+            let image = images
+                .iter()
+                .find(|image| image.matches_attachment(&artifact_ref, &media_type, &digest))
+                .ok_or_else(|| ModelError::invalid("image_admission_required"))?;
+            let (encoded, data_url, media_type) = image_data(image, max_request_bytes)?;
+            placements.push(ImagePlacement {
+                target: target.clone(),
+                encoded,
+                data_url,
+                media_type,
+            });
+        }
+    }
+    if !images.is_empty() && placements.is_empty() {
+        return Err(ModelError::invalid("image_admission_unreferenced"));
+    }
+    Ok(placements)
+}
+
+/// 在 `values` 里找第 `ordinal` 个满足谓词的元素下标。
+fn ordinal_index(
+    values: &[Value],
+    predicate: impl Fn(&Value) -> bool,
+    ordinal: usize,
+) -> Option<usize> {
+    values
+        .iter()
+        .enumerate()
+        .filter(|(_, value)| predicate(value))
+        .map(|(index, _)| index)
+        .nth(ordinal)
+}
+
+/// Anthropic 把连续的 tool 消息编译成同一个 user 消息，其 content 数组里有 `tool_result` 块。
+/// 这类 user 项不是用户轮次，计数时要跳过。
+fn anthropic_tool_result_carrier(message: &Value) -> bool {
+    message["content"]
+        .as_array()
+        .is_some_and(|blocks| blocks.iter().any(|block| block["type"] == "tool_result"))
+}
+
 fn push_text_and_images(
     content: &mut Value,
-    images: &[(String, String, String)],
+    placements: &[&ImagePlacement],
     kind: &str,
 ) -> Result<(), ModelError> {
     if content.is_string() {
@@ -273,133 +375,197 @@ fn push_text_and_images(
     let values = content
         .as_array_mut()
         .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-    for (encoded, data_url, _) in images {
+    for placement in placements {
         values.push(match kind {
-            "anthropic" => json!({
-                "type":"image",
-                "source":{"type":"base64","media_type":"","data":encoded}
-            }),
-            "chat" => json!({"type":"image_url","image_url":{"url":data_url}}),
-            "responses" => json!({"type":"input_image","image_url":data_url}),
+            "chat" => json!({"type":"image_url","image_url":{"url":placement.data_url}}),
+            "responses" => json!({"type":"input_image","image_url":placement.data_url}),
             _ => return Err(ModelError::invalid("image_wire_protocol_unsupported")),
         });
     }
     Ok(())
 }
 
-fn inject_admitted_images(
+fn push_anthropic_image(content: &mut Value, placement: &ImagePlacement) -> Result<(), ModelError> {
+    if content.is_string() {
+        let text = content.take();
+        *content = json!([{"type":"text","text":text}]);
+    }
+    content
+        .as_array_mut()
+        .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?
+        .push(json!({
+            "type":"image",
+            "source":{"type":"base64","media_type":placement.media_type,"data":placement.encoded}
+        }));
+    Ok(())
+}
+
+/// 只把已准入并已编码的图片写进其引用消息；不重新读文件、抓 URL 或改动 admission。
+///
+/// 图片在工具结果里的唯一受支持形状是 Anthropic `tool_result.content` 内容块数组；
+/// 其它协议没有可表达“工具返回图片”的 wire 形状，因此在发送前拒绝而不是错位注入。
+fn inject_image_placements(
     body: &mut Value,
-    route: &ModelRoute,
-    original_request: &ModelRequest,
-    images: &[ImageInputAdmission],
-    max_request_bytes: usize,
+    protocol: ModelProtocol,
+    placements: &[ImagePlacement],
 ) -> Result<(), ModelError> {
-    if images.is_empty() {
+    if placements.is_empty() {
         return Ok(());
     }
-    let mut selected = Vec::new();
-    for image in images {
-        let referenced = original_request.messages.iter().any(|message| {
-            message.content_blocks().ok().is_some_and(|blocks| {
-                blocks.iter().any(|block| {
-                    matches!(
-                        block,
-                        ModelContent::AttachmentRef {
-                            artifact_ref,
-                            media_type,
-                            digest,
-                        } if image.matches_attachment(artifact_ref, media_type, digest)
-                    )
-                })
-            })
-        });
-        if referenced {
-            selected.push(image_data(image, max_request_bytes)?);
-        }
+    let has_tool_result = placements
+        .iter()
+        .any(|placement| matches!(&placement.target, ImagePlacementTarget::ToolResult(_)));
+    if has_tool_result && protocol != ModelProtocol::AnthropicMessages {
+        return Err(ModelError::invalid(
+            "image_tool_result_protocol_unsupported",
+        ));
     }
-    if selected.is_empty() {
-        return Err(ModelError::invalid("image_admission_unreferenced"));
-    }
-    match route.protocol {
+    match protocol {
         ModelProtocol::AnthropicMessages => {
             let messages = body["messages"]
                 .as_array_mut()
                 .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            let index = messages
-                .iter()
-                .position(|message| message["role"] == "user")
-                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
-            let content = &mut messages[index]["content"];
-            if content.is_string() {
-                let text = content.take();
-                *content = json!([{"type":"text","text":text}]);
+            for placement in placements {
+                match &placement.target {
+                    ImagePlacementTarget::UserTurn(ordinal) => {
+                        let index = ordinal_index(
+                            messages,
+                            |message| {
+                                message["role"] == "user" && !anthropic_tool_result_carrier(message)
+                            },
+                            *ordinal,
+                        )
+                        .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
+                        push_anthropic_image(&mut messages[index]["content"], placement)?;
+                    }
+                    ImagePlacementTarget::ToolResult(call_id) => {
+                        let index = messages
+                            .iter()
+                            .position(|message| {
+                                message["role"] == "user"
+                                    && message["content"].as_array().is_some_and(|blocks| {
+                                        blocks.iter().any(|block| {
+                                            block["type"] == "tool_result"
+                                                && block["tool_use_id"] == call_id.as_str()
+                                        })
+                                    })
+                            })
+                            .ok_or_else(|| ModelError::invalid("image_wire_tool_result_missing"))?;
+                        let blocks =
+                            messages[index]["content"].as_array_mut().ok_or_else(|| {
+                                ModelError::invalid("image_wire_content_shape_invalid")
+                            })?;
+                        let block = blocks
+                            .iter_mut()
+                            .find(|block| {
+                                block["type"] == "tool_result"
+                                    && block["tool_use_id"] == call_id.as_str()
+                            })
+                            .ok_or_else(|| ModelError::invalid("image_wire_tool_result_missing"))?;
+                        let text =
+                            block["content"]
+                                .as_str()
+                                .map(str::to_owned)
+                                .ok_or_else(|| {
+                                    ModelError::invalid("image_wire_tool_result_content_invalid")
+                                })?;
+                        block["content"] = json!([
+                            {"type":"text","text":text},
+                            {
+                                "type":"image",
+                                "source":{
+                                    "type":"base64",
+                                    "media_type":placement.media_type,
+                                    "data":placement.encoded
+                                }
+                            }
+                        ]);
+                    }
+                }
             }
-            let values = content
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            for (encoded, _, media_type) in &selected {
-                values.push(json!({
-                    "type":"image",
-                    "source":{"type":"base64","media_type":media_type,"data":encoded}
-                }));
-            }
         }
-        ModelProtocol::OpenAiChat => {
-            let messages = body["messages"]
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            let index = messages
-                .iter()
-                .position(|message| message["role"] == "user")
-                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
-            push_text_and_images(&mut messages[index]["content"], &selected, "chat")?;
-        }
-        ModelProtocol::OpenAiResponses => {
-            let input = body["input"]
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            let index = input
-                .iter()
-                .position(|item| item["role"] == "user")
-                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
-            push_text_and_images(&mut input[index]["content"], &selected, "responses")?;
-        }
-        ModelProtocol::OllamaChat => {
-            let messages = body["messages"]
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            let index = messages
-                .iter()
-                .position(|message| message["role"] == "user")
-                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
-            let values = messages[index]
-                .as_object_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?
-                .entry("images")
-                .or_insert_with(|| json!([]));
-            let values = values
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            for (encoded, _, _) in &selected {
-                values.push(json!(encoded));
-            }
-        }
-        ModelProtocol::GeminiInteractions => {
-            let input = body["input"]
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            let index = input
-                .iter()
-                .position(|item| item["type"] == "user_input")
-                .ok_or_else(|| ModelError::invalid("image_wire_user_message_missing"))?;
-            let values = input[index]["content"]
-                .as_array_mut()
-                .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?;
-            for (encoded, _, media_type) in &selected {
-                values.push(json!({
-                    "type":"inline_data",
-                    "inline_data":{"mime_type":media_type,"data":encoded}
-                }));
+        ModelProtocol::OpenAiChat
+        | ModelProtocol::OpenAiResponses
+        | ModelProtocol::OllamaChat
+        | ModelProtocol::GeminiInteractions => {
+            for placement in placements {
+                let ImagePlacementTarget::UserTurn(ordinal) = &placement.target else {
+                    continue;
+                };
+                let ordinal = *ordinal;
+                match protocol {
+                    ModelProtocol::OpenAiChat => {
+                        let messages = body["messages"].as_array_mut().ok_or_else(|| {
+                            ModelError::invalid("image_wire_content_shape_invalid")
+                        })?;
+                        let index =
+                            ordinal_index(messages, |message| message["role"] == "user", ordinal)
+                                .ok_or_else(|| {
+                                ModelError::invalid("image_wire_user_message_missing")
+                            })?;
+                        push_text_and_images(
+                            &mut messages[index]["content"],
+                            std::slice::from_ref(&placement),
+                            "chat",
+                        )?;
+                    }
+                    ModelProtocol::OpenAiResponses => {
+                        let input = body["input"].as_array_mut().ok_or_else(|| {
+                            ModelError::invalid("image_wire_content_shape_invalid")
+                        })?;
+                        let index = ordinal_index(input, |item| item["role"] == "user", ordinal)
+                            .ok_or_else(|| {
+                                ModelError::invalid("image_wire_user_message_missing")
+                            })?;
+                        push_text_and_images(
+                            &mut input[index]["content"],
+                            std::slice::from_ref(&placement),
+                            "responses",
+                        )?;
+                    }
+                    ModelProtocol::OllamaChat => {
+                        let messages = body["messages"].as_array_mut().ok_or_else(|| {
+                            ModelError::invalid("image_wire_content_shape_invalid")
+                        })?;
+                        let index =
+                            ordinal_index(messages, |message| message["role"] == "user", ordinal)
+                                .ok_or_else(|| {
+                                ModelError::invalid("image_wire_user_message_missing")
+                            })?;
+                        let values = messages[index]
+                            .as_object_mut()
+                            .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?
+                            .entry("images")
+                            .or_insert_with(|| json!([]));
+                        values
+                            .as_array_mut()
+                            .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?
+                            .push(json!(placement.encoded));
+                    }
+                    ModelProtocol::GeminiInteractions => {
+                        let input = body["input"].as_array_mut().ok_or_else(|| {
+                            ModelError::invalid("image_wire_content_shape_invalid")
+                        })?;
+                        let index =
+                            ordinal_index(input, |item| item["type"] == "user_input", ordinal)
+                                .ok_or_else(|| {
+                                    ModelError::invalid("image_wire_user_message_missing")
+                                })?;
+                        input[index]["content"]
+                            .as_array_mut()
+                            .ok_or_else(|| ModelError::invalid("image_wire_content_shape_invalid"))?
+                            .push(json!({
+                                "type":"inline_data",
+                                "inline_data":{
+                                    "mime_type":placement.media_type,
+                                    "data":placement.encoded
+                                }
+                            }));
+                    }
+                    ModelProtocol::AnthropicMessages | ModelProtocol::Legacy => {
+                        return Err(ModelError::invalid("image_wire_protocol_unsupported"));
+                    }
+                }
             }
         }
         ModelProtocol::Legacy => {
@@ -425,8 +591,6 @@ fn require_gemini_streaming(route: &mut ModelRoute) {
 fn normalize_structured_request(
     mut request: ModelRequest,
     route: &ModelRoute,
-    connection: &Connection,
-    images: &[ImageInputAdmission],
 ) -> Result<ModelRequest, ModelError> {
     for message in &mut request.messages {
         if message.content.is_empty() && message.continuation.is_none() {
@@ -446,23 +610,11 @@ fn normalize_structured_request(
                     tool_call_id = Some(call_id);
                     text = content;
                 }
-                ModelContent::AttachmentRef {
-                    artifact_ref,
-                    media_type,
-                    digest,
-                } => {
-                    if connection.capabilities.images != CapabilitySupport::Supported {
-                        return Err(ModelError::invalid(
-                            "unsupported_content_block_fails_before_request",
-                        ));
-                    }
-                    if !images
-                        .iter()
-                        .any(|image| image.matches_attachment(&artifact_ref, &media_type, &digest))
-                    {
-                        return Err(ModelError::invalid("image_admission_required"));
-                    }
-                }
+                // AttachmentRef was already matched against the admitted images (and re-checked
+                // for role/route/retention) by `validate_image_admissions` and `image_placements`
+                // before normalization. The reference itself is not wire text; the image block is
+                // injected into the referencing message afterwards.
+                ModelContent::AttachmentRef { .. } => {}
                 ModelContent::ProviderOpaque {
                     provider_id,
                     protocol,
@@ -1279,5 +1431,208 @@ mod p4_j7_22_image_input_tests {
         let (encoded, data_url, _) = image_data(&admitted(), 4096).expect("encoded image");
         assert!(!encoded.contains("assets/image.png"));
         assert!(data_url.starts_with("data:image/png;base64,"));
+    }
+
+    /// 供 placement 用例构造消息的附件引用块；字段来自 fixture admission 本身。
+    fn attachment_block(image: &ImageInputAdmission) -> ModelContent {
+        ModelContent::AttachmentRef {
+            artifact_ref: image.attachment_ref(),
+            media_type: image.media_type.clone(),
+            digest: image.artifact.content_hash.clone(),
+        }
+    }
+
+    /// 一个引用 fixture 图片的用户消息：文本块 + 附件引用块。
+    fn image_user_message(image: &ImageInputAdmission, text: &str) -> ModelMessage {
+        ModelMessage::with_content(
+            ModelRole::User,
+            vec![
+                ModelContent::Text {
+                    text: text.to_owned(),
+                },
+                attachment_block(image),
+            ],
+        )
+        .expect("user image message")
+    }
+
+    /// 五个规范工具之一的最小 schema，供工具名映射使用。
+    fn tools() -> Vec<Value> {
+        vec![json!({
+            "name":"shell",
+            "description":"fixture shell",
+            "parameters":{"type":"object","properties":{}}
+        })]
+    }
+
+    #[test]
+    fn attachment_ref_without_admission_is_rejected_before_encoding() {
+        let image = admitted();
+        let request = ModelRequest {
+            messages: vec![image_user_message(&image, "look")],
+            tools: Vec::new(),
+            sandbox: "read-only".to_owned(),
+        };
+        let error = image_placements(&request, &[], 4096).unwrap_err();
+
+        assert_eq!(error.code, "image_admission_required");
+        assert!(!error.request_sent);
+    }
+
+    #[test]
+    fn attachment_ref_outside_user_and_tool_turns_is_rejected() {
+        let image = admitted();
+        let request = ModelRequest {
+            messages: vec![ModelMessage::with_content(
+                ModelRole::Assistant,
+                vec![attachment_block(&image)],
+            )
+            .expect("assistant attachment message")],
+            tools: Vec::new(),
+            sandbox: "read-only".to_owned(),
+        };
+        let error = image_placements(&request, std::slice::from_ref(&image), 4096).unwrap_err();
+
+        assert_eq!(error.code, "image_attachment_role_unsupported");
+    }
+
+    #[test]
+    fn user_image_is_placed_in_the_referencing_user_turn() {
+        let image = admitted();
+        let request = ModelRequest {
+            messages: vec![
+                ModelMessage::with_content(
+                    ModelRole::User,
+                    vec![ModelContent::Text {
+                        text: "first".to_owned(),
+                    }],
+                )
+                .expect("first user message"),
+                image_user_message(&image, "second"),
+            ],
+            tools: Vec::new(),
+            sandbox: "read-only".to_owned(),
+        };
+        let route = image.route.clone();
+        let normalized = normalize_structured_request(request.clone(), &route).expect("normalized");
+        let names = ToolNameMap::from_tools(&request.tools, true).expect("tool names");
+        let mut body = chat_body(&normalized, "", &[], &names).expect("chat body");
+        let placements =
+            image_placements(&request, std::slice::from_ref(&image), 4096).expect("placements");
+        inject_image_placements(&mut body, ModelProtocol::OpenAiChat, &placements)
+            .expect("injected image");
+
+        let messages = body["messages"].as_array().expect("chat messages");
+        assert_eq!(messages[0]["content"], json!("first"));
+        let content = messages[1]["content"]
+            .as_array()
+            .expect("referencing user content blocks");
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "second");
+        assert_eq!(content[1]["type"], "image_url");
+        assert!(content[1]["image_url"]["url"]
+            .as_str()
+            .is_some_and(|url| url.starts_with("data:image/png;base64,")));
+    }
+
+    #[test]
+    fn tool_result_image_is_placed_inside_the_anthropic_tool_result() {
+        let image = admitted();
+        let call = ModelToolCall {
+            id: "call-image".to_owned(),
+            name: "shell".to_owned(),
+            arguments: json!({"command":"fixture-screenshot"}),
+        };
+        let request = ModelRequest {
+            messages: vec![
+                ModelMessage::with_content(
+                    ModelRole::Assistant,
+                    vec![ModelContent::ToolCall { call: call.clone() }],
+                )
+                .expect("assistant tool call"),
+                ModelMessage::with_content(
+                    ModelRole::Tool,
+                    vec![
+                        ModelContent::ToolResult {
+                            call_id: call.id.clone(),
+                            content: "{\"status\":\"succeeded\"}".to_owned(),
+                            is_error: false,
+                        },
+                        attachment_block(&image),
+                    ],
+                )
+                .expect("tool image result"),
+            ],
+            tools: tools(),
+            sandbox: "read-only".to_owned(),
+        };
+        let route = image.route.clone();
+        let normalized = normalize_structured_request(request.clone(), &route).expect("normalized");
+        let names = ToolNameMap::from_tools(&request.tools, true).expect("tool names");
+        let mapped = tool_map(&request.tools, &names).expect("tool schemas");
+        let mut body = anthropic_body(&normalized, "", &mapped, &names).expect("anthropic body");
+        let placements =
+            image_placements(&request, std::slice::from_ref(&image), 4096).expect("placements");
+        inject_image_placements(&mut body, ModelProtocol::AnthropicMessages, &placements)
+            .expect("injected tool image");
+
+        let messages = body["messages"].as_array().expect("anthropic messages");
+        let tool_result = messages
+            .iter()
+            .flat_map(|message| message["content"].as_array().into_iter().flatten())
+            .find(|block| block["type"] == "tool_result")
+            .expect("tool result block");
+        assert_eq!(tool_result["tool_use_id"].as_str(), Some("call-image"));
+        let content = tool_result["content"]
+            .as_array()
+            .expect("tool result content blocks");
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "{\"status\":\"succeeded\"}");
+        assert_eq!(content[1]["type"], "image");
+        assert_eq!(content[1]["source"]["media_type"], "image/png");
+        assert!(content[1]["source"]["data"]
+            .as_str()
+            .is_some_and(|data| !data.is_empty()));
+    }
+
+    #[test]
+    fn tool_result_image_is_rejected_without_a_protocol_tool_image_shape() {
+        let image = admitted();
+        let call = ModelToolCall {
+            id: "call-image".to_owned(),
+            name: "shell".to_owned(),
+            arguments: json!({"command":"fixture-screenshot"}),
+        };
+        let request = ModelRequest {
+            messages: vec![
+                ModelMessage::with_content(
+                    ModelRole::Assistant,
+                    vec![ModelContent::ToolCall { call: call.clone() }],
+                )
+                .expect("assistant tool call"),
+                ModelMessage::with_content(
+                    ModelRole::Tool,
+                    vec![
+                        ModelContent::ToolResult {
+                            call_id: call.id.clone(),
+                            content: "{\"status\":\"succeeded\"}".to_owned(),
+                            is_error: false,
+                        },
+                        attachment_block(&image),
+                    ],
+                )
+                .expect("tool image result"),
+            ],
+            tools: tools(),
+            sandbox: "read-only".to_owned(),
+        };
+        let placements =
+            image_placements(&request, std::slice::from_ref(&image), 4096).expect("placements");
+        let mut body = json!({"messages":[]});
+        let error =
+            inject_image_placements(&mut body, ModelProtocol::OpenAiChat, &placements).unwrap_err();
+
+        assert_eq!(error.code, "image_tool_result_protocol_unsupported");
+        assert!(!error.request_sent);
     }
 }

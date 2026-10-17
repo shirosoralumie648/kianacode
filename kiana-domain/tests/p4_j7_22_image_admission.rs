@@ -96,6 +96,31 @@ fn admission(bytes: &[u8], revoked: bool) -> Result<ImageInputAdmission, String>
     )
 }
 
+/// 与 `admission` 相同，但可指定媒体类型和 Artifact schema，用于未支持输入的拒绝路径。
+fn admission_with_media(
+    bytes: &[u8],
+    media_type: &str,
+    artifact_schema: &str,
+) -> Result<ImageInputAdmission, String> {
+    let mut artifact = artifact(bytes);
+    artifact.artifact_schema = artifact_schema.to_owned();
+    ImageInputAdmission::new(
+        artifact,
+        grant(bytes, false),
+        "assets/image.png",
+        media_type,
+        bytes.to_vec(),
+        route(),
+        capabilities(CapabilitySupport::Supported),
+        format!("sha256:{}", "c".repeat(64)),
+        1,
+        1,
+        "vision-review",
+        vec![DataClass::Restricted],
+        100,
+    )
+}
+
 #[test]
 /// 未受控绝对路径与 grant source path 不同，必须在 admission 创建阶段拒绝。
 fn untrusted_image_path_never_reaches_provider() {
@@ -158,4 +183,34 @@ fn image_hash_matches_admitted_payload() {
         "image/png",
         &admitted.artifact.content_hash
     ));
+}
+
+#[test]
+/// 文档、音频、视频和未列入 allowlist 的图片格式必须给出准确的 unsupported，而不是降级成图片。
+fn document_audio_and_video_inputs_are_explicitly_unsupported() {
+    for (media_type, artifact_schema, code) in [
+        (
+            "application/pdf",
+            "application/pdf",
+            "unsupported_document_upload",
+        ),
+        ("text/plain", "text/plain", "unsupported_document_upload"),
+        (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "unsupported_document_upload",
+        ),
+        ("audio/mpeg", "audio/mpeg", "unsupported_audio_video_input"),
+        ("video/mp4", "video/mp4", "unsupported_audio_video_input"),
+        (
+            "image/svg+xml",
+            "image/svg+xml",
+            "image_media_type_unsupported",
+        ),
+    ] {
+        let error = admission_with_media(b"fixture-payload", media_type, artifact_schema)
+            .expect_err("unsupported media type");
+
+        assert_eq!(error, code, "{media_type}");
+    }
 }
