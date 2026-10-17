@@ -63,3 +63,42 @@ fn job_handle_digest_detects_pid_or_scope_tamper() {
     handle.process_group_id = Some(5678);
     assert_eq!(handle.validate().unwrap_err(), "job_handle_digest_mismatch");
 }
+
+/// 进程组证据、authority epoch 或到期时刻为零/缺失时，构造期就必须拒绝；
+/// 「只有 PID」或「永久有效」的形状不能成为合法句柄。
+#[test]
+fn job_handle_requires_process_group_epoch_and_expiry() {
+    let session = SessionId::new("session");
+    let project_digest = digest('p');
+    let build = |process_group_id: Option<u32>, authority_epoch: u64, expires_at_unix_ms: u64| {
+        JobHandle::new(
+            RequestId::new(),
+            RequestId::new(),
+            None,
+            None,
+            "owner",
+            session.clone(),
+            project_digest.clone(),
+            authority_epoch,
+            process_group_id,
+            expires_at_unix_ms,
+        )
+    };
+    assert_eq!(
+        build(None, 1, 9_999).unwrap_err(),
+        "job_handle_header_invalid"
+    );
+    assert_eq!(
+        build(Some(0), 1, 9_999).unwrap_err(),
+        "job_handle_header_invalid"
+    );
+    assert_eq!(
+        build(Some(4242), 0, 9_999).unwrap_err(),
+        "job_handle_header_invalid"
+    );
+    assert_eq!(
+        build(Some(4242), 1, 0).unwrap_err(),
+        "job_handle_header_invalid"
+    );
+    assert!(build(Some(4242), 1, 9_999).is_ok());
+}

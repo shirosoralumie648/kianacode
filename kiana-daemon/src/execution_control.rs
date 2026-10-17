@@ -587,31 +587,7 @@ impl ExecutionControl {
             // EventStore 只能给出生命周期事实；没有进程内 entry 时，IO channel、PTY 文件
             // 和实时输出都已不可用。故而只对 poll 返回已知终态或保守的 Unknown。
             let records = self.events.read_stream("process", id).await?;
-            let identity = records
-                .iter()
-                .rev()
-                .find(|event| event.kind == "process.started")
-                .or_else(|| {
-                    records
-                        .iter()
-                        .find(|event| event.kind == "process.prepared")
-                })
-                .map(|event| &event.data)
-                .ok_or_else(|| error("process_not_found"))?;
-            check_owner(identity, arguments)?;
-            validate_job_handle(identity, arguments)?;
-            if request.request.operation != "process.poll" {
-                return Err(error(
-                    "result_unknown:process_handle_unavailable_after_restart",
-                ));
-            }
-            let outcome = records.iter().rev().find(|event|event.kind=="process.finished").map(|event|event.data["outcome"].clone())
-                .unwrap_or_else(||json!({"state":"result_unknown","stop_confirmed":false,"automatic_retry":false}));
-            let handle = serde_json::from_value::<JobHandle>(identity["job_handle"].clone())
-                .map_err(|_| error("job_handle_invalid"))?;
-            return Ok(
-                json!({"process_id":id,"job_handle":handle,"outcome":outcome,"cursor":Value::Null,"output_unavailable":"process_handle_not_live"}),
-            );
+            return restart_continuation(id, &request.request.operation, &records, arguments);
         };
         check_owner(&entry.identity, arguments)?;
         validate_job_handle(&entry.identity, arguments)?;
@@ -742,6 +718,59 @@ impl ExecutionControl {
             .map_err(|reason| error(&reason))?;
         Ok(json!({"process_id":id,"written_bytes":bytes}))
     }
+}
+
+/// 无进程内 live entry 时，仅凭 EventStore 事实解析一次 continuation 请求。
+///
+/// 【调用者】`continuation()` 在进程内 HashMap 找不到该 process ID 时调用；Daemon 重启后
+/// 活动 channel、PTY 文件与滚动输出都已丢失，只剩 `process.prepared/started/finished` 事实。
+/// 【输入】`id` 是请求查找的 process ID；`operation` 是本次请求的固定操作名；`records` 是按
+/// 追加顺序读到的该 process 事实；`arguments` 是已授权请求的 JSON 参数。
+/// 【输出】身份与句柄校验通过且操作是 `process.poll` 时，返回持久化 JobHandle、已记录
+/// outcome（没有 `process.finished` 时为保守的 Unknown）和 `output_unavailable` 标记；
+/// `cursor` 为 null，因为这里没有可增长的实时输出。
+/// 【失败】owner/项目/Run 范围不符、句柄摘要或绑定不符、句柄缺少进程组证据或已过期、
+/// 流里没有任何 prepared/started 事实，以及任何非 poll 操作（stdin/resize/stop 不能按 PID
+/// 重新挂接）都返回稳定错误码。
+/// 【边界】此函数不查进程表、不写事实、不 spawn 也不 attach 任何进程；它只解释传入的事实行。
+/// 因此它自身不授予权限，调用方仍须先经过 Core/Broker 授权。
+fn restart_continuation(
+    id: &str,
+    operation: &str,
+    records: &[RuntimeEvent],
+    arguments: &Value,
+) -> Result<Value, PortError> {
+    let identity = records
+        .iter()
+        .rev()
+        .find(|event| event.kind == "process.started")
+        .or_else(|| {
+            records
+                .iter()
+                .find(|event| event.kind == "process.prepared")
+        })
+        .map(|event| &event.data)
+        .ok_or_else(|| error("process_not_found"))?;
+    check_owner(identity, arguments)?;
+    validate_job_handle(identity, arguments)?;
+    if operation != "process.poll" {
+        return Err(error(
+            "result_unknown:process_handle_unavailable_after_restart",
+        ));
+    }
+    let outcome = records
+        .iter()
+        .rev()
+        .find(|event| event.kind == "process.finished")
+        .map(|event| event.data["outcome"].clone())
+        .unwrap_or_else(|| {
+            json!({"state":"result_unknown","stop_confirmed":false,"automatic_retry":false})
+        });
+    let handle = serde_json::from_value::<JobHandle>(identity["job_handle"].clone())
+        .map_err(|_| error("job_handle_invalid"))?;
+    Ok(
+        json!({"process_id":id,"job_handle":handle,"outcome":outcome,"cursor":Value::Null,"output_unavailable":"process_handle_not_live"}),
+    )
 }
 
 /// CapabilityBroker 中每种注册操作共用的薄路由器。
@@ -2185,5 +2214,616 @@ mod h15_output_read {
         second["cursor"] = page["next_cursor"].clone();
         let page2 = read_output_at(&archive, &second).expect("second page");
         assert_eq!(page2["complete"], json!(false));
+    }
+}
+
+#[cfg(all(test, unix))]
+/// H17 长任务 JobHandle 的续用行为夹具。
+///
+/// 这些测试用内存 EventStore 与同一份 `restart_continuation`/`continuation` 逻辑驱动
+/// poll/stdin/resize/stop：重启路径只解释已落盘的 `process.*` 事实；live 路径直接操作进程表
+/// 里的 entry、输入 channel 和取消信号。它们不 spawn OS 子进程，也不经过
+/// DaemonHost/ControlPlane/Broker 组合链，因此只证明本适配层的身份/范围/句柄/游标语义，
+/// 不能当作进程监督、跨进程恢复或 live 运行环境的证据。
+mod h17_job_handle {
+    use super::*;
+    use kiana_domain::CapabilityRequest;
+    use kiana_eventlog::MemoryEventLog;
+
+    /// 夹具使用的主体与会话；与生产一样，句柄的 owner/session 必须与续用请求一致。
+    const ACTOR: &str = "h17-actor";
+    const SESSION: &str = "h17-session";
+    const ROLE: &str = "builder";
+    const DEPARTMENT: &str = "engineering";
+
+    /// 建立一个隔离的临时项目目录，返回 canonical 路径作为 project root。
+    fn project_root(label: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("kiana-h17-{label}-{stamp}"));
+        std::fs::create_dir_all(&path).expect("temp project root");
+        path.canonicalize().expect("canonical project root")
+    }
+
+    /// 构造与生产 `start()`/`identity()` 一致的 owner/scope 参数。
+    fn arguments(root: &Path, run_id: Option<RunId>) -> Value {
+        json!({
+            "operator_authorized": true,
+            "actor_id": ACTOR,
+            "session_id": SESSION,
+            "role_id": ROLE,
+            "department_id": DEPARTMENT,
+            "project_root": root.to_string_lossy(),
+            "run_id": run_id.map(|id| json!(id.to_string())).unwrap_or(Value::Null),
+            "turn_id": Value::Null,
+        })
+    }
+
+    /// 按生产 `start()` 的形状生成句柄：绑定 job/start request、owner/session/project 与 TTL。
+    fn job_handle(
+        root: &Path,
+        owner: &str,
+        run_id: Option<RunId>,
+        turn_id: Option<TurnId>,
+    ) -> JobHandle {
+        JobHandle::new(
+            RequestId::new(),
+            RequestId::new(),
+            run_id,
+            turn_id,
+            owner,
+            SessionId::new(SESSION),
+            kiana_domain::json_digest(&json!({
+                "project_root": root,
+                "session_id": SessionId::new(SESSION),
+            })),
+            1,
+            Some(4242),
+            unix_time_ms().expect("clock") + 3_600_000,
+        )
+        .expect("job handle")
+    }
+
+    /// 只改写句柄的绑定字段并重算无密钥摘要，用于构造“摘要自洽、绑定不符”的续用材料。
+    ///
+    /// 这不是生产路径：生产只由 `JobHandle::new` 产出句柄。这里改字段再重算摘要，是为了让
+    /// 夹具区分“摘要不一致”和“摘要一致但绑定不匹配”两类拒绝。
+    fn rebound(handle: &JobHandle, updates: Value) -> JobHandle {
+        let mut json = serde_json::to_value(handle).expect("handle json");
+        for (key, value) in updates.as_object().expect("update object") {
+            json[key.clone()] = value.clone();
+        }
+        let mut rebound: JobHandle = serde_json::from_value(json).expect("handle json decode");
+        rebound.handle_digest = rebound.digest();
+        rebound
+            .validate()
+            .expect("rebound handle keeps header invariants");
+        rebound
+    }
+
+    /// 去掉进程组证据但保持字段摘要自洽的句柄 JSON。
+    ///
+    /// 生产 `JobHandle::new` 不会产出这种形状；夹具直接构造它，用来证明即使摘要自洽，
+    /// 缺少进程身份的材料仍被句柄校验 fail-closed 拒绝，而不是被当成“PID 就是身份”。
+    fn handle_without_process_evidence(handle: &JobHandle) -> Value {
+        let mut json = serde_json::to_value(handle).expect("handle json");
+        json["process_group_id"] = Value::Null;
+        let decoded: JobHandle = serde_json::from_value(json).expect("handle json decode");
+        let mut json = serde_json::to_value(&decoded).expect("handle json");
+        json["handle_digest"] = json!(decoded.digest());
+        json
+    }
+
+    /// 按生产 `process.started` 事实的形状组装 identity：owner/scope、authority 与句柄。
+    fn identity_for(root: &Path, handle: &JobHandle, handle_value: Value) -> Value {
+        json!({
+            "process_id": handle.job_id,
+            "actor_id": ACTOR,
+            "session_id": SESSION,
+            "role_id": ROLE,
+            "department_id": DEPARTMENT,
+            "project_root": root.to_string_lossy(),
+            "authority": {"version": 1, "digest": kiana_domain::json_digest(&json!({"h17":"fixture"})), "data_revision": 0},
+            "run_id": handle.run_id,
+            "turn_id": handle.turn_id,
+            "path_allow": ["."],
+            "sandbox": "read-only",
+            "request_id": handle.start_request_id,
+            "execution_id": "policy:h17-fixture",
+            "timeout_ms": 60_000,
+            "pty": false,
+            "job_handle": handle_value,
+            "shell_plan": {"argv": ["/bin/true"]},
+        })
+    }
+
+    /// 构造一份独立的 process 操作请求；每次调用都产生新的 request/invocation 身份。
+    fn request(operation: &str, arguments: &Value) -> (AuthorizedCapabilityRequest, InvocationId) {
+        let request = AuthorizedCapabilityRequest::new(
+            "policy:h17-fixture",
+            CapabilityRequest::new(
+                RequestId::new(),
+                CapabilityKind::Process,
+                operation,
+                arguments.clone(),
+            ),
+        )
+        .expect("typed handler fixture");
+        let invocation = InvocationId::from_uuid(request.request.request_id.as_uuid());
+        (request, invocation)
+    }
+
+    /// 断言一次 handler 调用以预期稳定错误码被拒绝。
+    fn deny(result: Result<CapabilityResult, PortError>, expected: &str) {
+        assert!(
+            matches!(result, Err(PortError::Failed(ref code)) if code == expected),
+            "expected {expected}, got {result:?}"
+        );
+    }
+
+    /// 取出成功回执的输出。
+    fn output(result: Result<CapabilityResult, PortError>) -> Value {
+        match result {
+            Ok(result) => result.output,
+            Err(error) => panic!("expected success, got {error:?}"),
+        }
+    }
+
+    /// 建立共享内存 EventStore 的 ExecutionControl（进程表为空 = Daemon 重启后的状态）。
+    fn control_with(events: &Arc<MemoryEventLog>) -> Arc<ExecutionControl> {
+        Arc::new(ExecutionControl {
+            events: events.clone(),
+            processes: Mutex::new(HashMap::new()),
+            capacity: Arc::new(tokio::sync::Semaphore::new(8)),
+        })
+    }
+
+    /// 用生产 `fact()` 写入一份进程生命周期事实。
+    async fn fact(control: &ExecutionControl, id: &str, kind: &str, data: Value) {
+        control
+            .fact(id, kind, data)
+            .await
+            .unwrap_or_else(|error| panic!("{kind} fact: {error:?}"));
+    }
+
+    /// 写入一份项目授权快照事实；live poll/stdin 会把它与启动时的快照比较。
+    async fn seed_authority(events: &MemoryEventLog, root: &Path) {
+        let key = kiana_domain::json_digest(&json!({"project_root": root}));
+        let payload = json!({
+            "schema": "kiana.authority-revision.v1",
+            "project_root": root.to_string_lossy(),
+            "project_trusted": true,
+            "configuration_revision": "h17-fixture",
+            "revision_digest": kiana_domain::json_digest(&json!({"h17":"authority-fixture"})),
+        });
+        let event = RuntimeEvent::new(RequestId::new(), 1, "authority.revised", payload)
+            .expect("authority fact")
+            .with_stream_metadata("authority", &key, 1);
+        events
+            .append_expected(event, None)
+            .await
+            .expect("authority stream");
+    }
+
+    /// 已写入 `process.*` 事实、但进程内没有 live entry 的夹具（模拟 Daemon 重启）。
+    struct Restarted {
+        control: Arc<ExecutionControl>,
+        events: Arc<MemoryEventLog>,
+        process_id: String,
+        handle: JobHandle,
+        arguments: Value,
+    }
+
+    /// 以给定 identity 写入 prepared/started（可选 finished）事实并返回重启后的夹具。
+    async fn restarted(
+        root: &Path,
+        handle: JobHandle,
+        identity: Value,
+        finished: Option<Value>,
+    ) -> Restarted {
+        let events = Arc::new(MemoryEventLog::new());
+        let control = control_with(&events);
+        let process_id = handle.job_id.to_string();
+        fact(&control, &process_id, "process.prepared", identity.clone()).await;
+        fact(&control, &process_id, "process.started", identity.clone()).await;
+        if let Some(outcome) = finished {
+            fact(
+                &control,
+                &process_id,
+                "process.finished",
+                json!({"identity": identity, "outcome": outcome}),
+            )
+            .await;
+        }
+        Restarted {
+            control,
+            arguments: arguments(root, handle.run_id),
+            events,
+            process_id,
+            handle,
+        }
+    }
+
+    /// 通用路径：事实里的 `job_handle` 就是句柄本身。
+    async fn restarted_with(root: &Path, handle: JobHandle, finished: Option<Value>) -> Restarted {
+        let identity = identity_for(
+            root,
+            &handle,
+            serde_json::to_value(&handle).expect("handle json"),
+        );
+        restarted(root, handle, identity, finished).await
+    }
+
+    #[tokio::test]
+    async fn h17_behavior_foreign_job_handle_cannot_receive_stdin_or_cancel() {
+        let root = project_root("foreign");
+        let fixture = restarted_with(&root, job_handle(&root, ACTOR, None, None), None).await;
+
+        // 成功基线：原 owner 在重启后仍能 poll 已记录状态（读取既不延长句柄也不恢复输出）。
+        let poll = output(
+            fixture
+                .control
+                .handle_read_or_continue(request("process.poll", &fixture.arguments).0)
+                .await,
+        );
+        assert_eq!(poll["outcome"]["state"], json!("result_unknown"));
+        assert!(poll["cursor"].is_null());
+        assert_eq!(poll["output_unavailable"], json!("process_handle_not_live"));
+
+        // 拒绝：另一个 actor 既不能 poll，也不能 stdin/stop。
+        let mut foreign_actor = fixture.arguments.clone();
+        foreign_actor["actor_id"] = json!("h17-other-actor");
+        foreign_actor["data"] = json!("h17-input\n");
+        for operation in ["process.poll", "process.stdin", "process.stop"] {
+            deny(
+                fixture
+                    .control
+                    .handle_read_or_continue(request(operation, &foreign_actor).0)
+                    .await,
+                "execution_owner_mismatch",
+            );
+        }
+
+        // 拒绝：同一 owner 的另一个 session 也不能续用该句柄。
+        let mut foreign_session = fixture.arguments.clone();
+        foreign_session["session_id"] = json!("h17-other-session");
+        for operation in ["process.stdin", "process.stop"] {
+            deny(
+                fixture
+                    .control
+                    .handle_read_or_continue(request(operation, &foreign_session).0)
+                    .await,
+                "execution_owner_mismatch",
+            );
+        }
+
+        // 拒绝：owner/session 与请求一致，但句柄绑定的是另一个 owner。
+        let foreign_handle = rebound(&fixture.handle, json!({"owner_id": "h17-other-actor"}));
+        let foreign = restarted_with(&root, foreign_handle, None).await;
+        for operation in ["process.stdin", "process.stop"] {
+            deny(
+                foreign
+                    .control
+                    .handle_read_or_continue(request(operation, &foreign.arguments).0)
+                    .await,
+                "job_handle_owner_mismatch",
+            );
+        }
+
+        // 拒绝：句柄绑定了另一个 Turn 范围，而请求声称没有 turn。
+        let scoped = rebound(&fixture.handle, json!({"turn_id": TurnId::new().to_string()}));
+        let scoped_fixture = restarted_with(&root, scoped, None).await;
+        deny(
+            scoped_fixture
+                .control
+                .handle_read_or_continue(request("process.stdin", &scoped_fixture.arguments).0)
+                .await,
+            "job_handle_scope_mismatch",
+        );
+    }
+
+    #[tokio::test]
+    async fn h17_behavior_pid_reuse_cannot_attach_to_other_process() {
+        let root = project_root("pid-reuse");
+        let original = job_handle(&root, ACTOR, None, None);
+        let fixture = restarted_with(&root, original.clone(), None).await;
+
+        // 拒绝：没有 live entry 时 stdin/resize/stop 都不尝试按持久化 PID 重新挂接，
+        // 只留下 Unknown 交恢复路径处理。
+        let mut stdin_arguments = fixture.arguments.clone();
+        stdin_arguments["data"] = json!("h17-input\n");
+        let mut resize_arguments = fixture.arguments.clone();
+        resize_arguments["rows"] = json!(40);
+        resize_arguments["cols"] = json!(120);
+        deny(
+            fixture
+                .control
+                .handle_read_or_continue(request("process.stdin", &stdin_arguments).0)
+                .await,
+            "result_unknown:process_handle_unavailable_after_restart",
+        );
+        deny(
+            fixture
+                .control
+                .handle_read_or_continue(request("process.resize", &resize_arguments).0)
+                .await,
+            "result_unknown:process_handle_unavailable_after_restart",
+        );
+        deny(
+            fixture
+                .control
+                .handle_read_or_continue(request("process.stop", &fixture.arguments).0)
+                .await,
+            "result_unknown:process_handle_unavailable_after_restart",
+        );
+
+        // 拒绝：查找键仍是原 job，但事实中的句柄绑定另一个执行（等价于 PID 被复用后
+        // 另一次启动留下的句柄）→ 身份不符，不能据此挂接。
+        let reused = job_handle(&root, ACTOR, None, None);
+        let mut swapped = identity_for(
+            &root,
+            &original,
+            serde_json::to_value(&original).expect("handle json"),
+        );
+        swapped["job_handle"] = serde_json::to_value(&reused).expect("handle json");
+        let swapped_fixture = restarted(&root, original.clone(), swapped, None).await;
+        deny(
+            swapped_fixture
+                .control
+                .handle_read_or_continue(request("process.poll", &swapped_fixture.arguments).0)
+                .await,
+            "job_handle_identity_mismatch",
+        );
+
+        // 拒绝：删除进程组证据后即使摘要自洽，句柄校验仍然 fail-closed。
+        let no_process_evidence =
+            identity_for(&root, &original, handle_without_process_evidence(&original));
+        let no_evidence_fixture = restarted(&root, original.clone(), no_process_evidence, None).await;
+        deny(
+            no_evidence_fixture
+                .control
+                .handle_read_or_continue(request("process.poll", &no_evidence_fixture.arguments).0)
+                .await,
+            "job_handle_invalid",
+        );
+
+        // 拒绝：字段被改动但没有同步摘要 → 摘要不符。
+        let mut tampered = serde_json::to_value(&original).expect("handle json");
+        tampered["job_id"] = json!(RequestId::new().to_string());
+        let tampered_fixture = restarted(
+            &root,
+            original.clone(),
+            identity_for(&root, &original, tampered),
+            None,
+        )
+        .await;
+        deny(
+            tampered_fixture
+                .control
+                .handle_read_or_continue(request("process.poll", &tampered_fixture.arguments).0)
+                .await,
+            "job_handle_invalid",
+        );
+
+        // 拒绝：过期句柄不再授权任何续用（TTL 到期不是“进程已停止”的证明）。
+        let expired = rebound(
+            &original,
+            json!({"expires_at_unix_ms": unix_time_ms().expect("clock").max(2) - 1}),
+        );
+        let expired_fixture = restarted_with(&root, expired, None).await;
+        deny(
+            expired_fixture
+                .control
+                .handle_read_or_continue(request("process.poll", &expired_fixture.arguments).0)
+                .await,
+            "job_handle_expired",
+        );
+    }
+
+    #[tokio::test]
+    async fn h17_behavior_poll_does_not_restart_job() {
+        let root = project_root("poll");
+        let handle = job_handle(&root, ACTOR, None, None);
+
+        // 没有 finished 事实：只能返回保守 Unknown，不会重新启动任务或按 PID 挂接。
+        let fixture = restarted_with(&root, handle.clone(), None).await;
+        let poll = output(
+            fixture
+                .control
+                .handle_read_or_continue(request("process.poll", &fixture.arguments).0)
+                .await,
+        );
+        assert_eq!(poll["outcome"]["state"], json!("result_unknown"));
+        assert_eq!(poll["outcome"]["stop_confirmed"], json!(false));
+        assert!(poll["cursor"].is_null());
+        assert!(poll["stdout"].is_null());
+        assert!(poll["stderr"].is_null());
+        let facts = fixture
+            .events
+            .read_stream("process", &fixture.process_id)
+            .await
+            .expect("process facts");
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0].kind, "process.prepared");
+        assert_eq!(facts[1].kind, "process.started");
+        assert!(fixture
+            .control
+            .processes
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .is_empty());
+
+        // 已有 finished 事实：poll 返回已记录终态，依然不 spawn、不写新事实。
+        let finished = json!({"state":"completed","reason":"exited","exit_code":0,"stop_confirmed":true,"capture_complete":true});
+        let recorded = restarted_with(&root, handle, Some(finished.clone())).await;
+        let poll = output(
+            recorded
+                .control
+                .handle_read_or_continue(request("process.poll", &recorded.arguments).0)
+                .await,
+        );
+        assert_eq!(poll["outcome"], finished);
+        assert_eq!(poll["output_unavailable"], json!("process_handle_not_live"));
+        assert!(poll["cursor"].is_null());
+        let facts = recorded
+            .events
+            .read_stream("process", &recorded.process_id)
+            .await
+            .expect("process facts");
+        assert_eq!(facts.len(), 3);
+        assert_eq!(facts[2].kind, "process.finished");
+        assert!(recorded
+            .control
+            .processes
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn h17_behavior_long_command_has_one_job_and_distinct_operation_invocations() {
+        let root = project_root("live");
+        let project_root_text = root.to_string_lossy().into_owned();
+        let events = Arc::new(MemoryEventLog::new());
+        let control = control_with(&events);
+        seed_authority(&events, &root).await;
+        let authority = control
+            .authority(&project_root_text)
+            .await
+            .expect("authority snapshot");
+
+        let handle = job_handle(&root, ACTOR, None, None);
+        let process_id = handle.job_id.to_string();
+        let mut live_arguments = arguments(&root, None);
+        live_arguments["process_id"] = json!(process_id);
+        let mut identity = identity_for(
+            &root,
+            &handle,
+            serde_json::to_value(&handle).expect("handle json"),
+        );
+        identity["authority"] = authority;
+
+        // live entry 在真实运行中由 `start()` 创建；这里用同一形状构造它，并让输入写入与
+        // 取消确认像生产后台任务一样由独立协程处理（不启动 OS 子进程）。
+        let (input, mut input_rx) = mpsc::channel::<Input>(8);
+        let (cancelled, cancellation) = watch::channel(false);
+        let entry = Arc::new(ProcessEntry {
+            identity: identity.clone(),
+            cancelled,
+            input,
+            state: Mutex::new(json!({"state":"running","stop_confirmed":false})),
+            output: Mutex::new((String::new(), String::new())),
+            terminal: None,
+        });
+        fact(&control, &process_id, "process.started", identity).await;
+        control
+            .processes
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .insert(process_id.clone(), entry.clone());
+        tokio::spawn(async move {
+            while let Some(message) = input_rx.recv().await {
+                let _ = message.reply.send(Ok(message.text.len()));
+            }
+        });
+        let stop_entry = entry.clone();
+        tokio::spawn(async move {
+            let mut cancellation = cancellation;
+            let _ = kiana_ports::wait_for_cancellation(&mut cancellation).await;
+            *stop_entry
+                .state
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) =
+                json!({"state":"cancelled","reason":"cancelled","stop_confirmed":true});
+        });
+
+        let mut invocations = Vec::new();
+
+        // 第一次 poll：同一个 job 的 live 状态与初始 cursor。
+        let (poll_request, invocation) = request("process.poll", &live_arguments);
+        invocations.push(invocation);
+        let first = output(control.handle_read_or_continue(poll_request).await);
+        assert_eq!(first["outcome"]["state"], json!("running"));
+        assert_eq!(first["stdout"], json!(""));
+        let first_cursor = first["cursor"].as_str().expect("cursor").to_owned();
+
+        // 追加输出后再 poll：cursor 随输出长度变化，新增内容可见，任务没有被重启。
+        entry
+            .output
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .0
+            .push_str("h17-line-1\n");
+        let (poll_request, invocation) = request("process.poll", &live_arguments);
+        invocations.push(invocation);
+        let second = output(control.handle_read_or_continue(poll_request).await);
+        assert_eq!(second["stdout"], json!("h17-line-1\n"));
+        assert_ne!(second["cursor"], json!(first_cursor));
+
+        // stdin 是同一句柄上的独立操作：确认写入后才返回字节数。
+        let mut stdin_arguments = live_arguments.clone();
+        stdin_arguments["data"] = json!("hello\n");
+        let (stdin_request, invocation) = request("process.stdin", &stdin_arguments);
+        invocations.push(invocation);
+        let written = output(control.handle_read_or_continue(stdin_request).await);
+        assert_eq!(written["written_bytes"], json!(6));
+
+        // resize 没有 PTY 时必须拒绝，而不是假装已调整终端。
+        let mut resize_arguments = live_arguments.clone();
+        resize_arguments["rows"] = json!(40);
+        resize_arguments["cols"] = json!(120);
+        let (resize_request, invocation) = request("process.resize", &resize_arguments);
+        invocations.push(invocation);
+        deny(
+            control.handle_read_or_continue(resize_request).await,
+            "process_has_no_pty",
+        );
+
+        // stop 发取消信号并等待后台确认，返回已记录终态。
+        let (stop_request, invocation) = request("process.stop", &live_arguments);
+        invocations.push(invocation);
+        let stopped = output(control.handle_read_or_continue(stop_request).await);
+        assert_eq!(stopped["state"], json!("cancelled"));
+        assert_eq!(stopped["stop_confirmed"], json!(true));
+
+        // 一个 job：poll 回执都引用同一个持久化句柄与原始 start invocation。
+        let expected = serde_json::to_value(&handle).expect("handle json");
+        for seen in [&first, &second] {
+            assert_eq!(seen["job_handle"]["job_id"], expected["job_id"]);
+            assert_eq!(
+                seen["job_handle"]["start_request_id"],
+                expected["start_request_id"]
+            );
+            assert_eq!(
+                seen["job_handle"]["start_invocation_id"],
+                expected["start_invocation_id"]
+            );
+            assert_eq!(seen["job_handle"]["handle_digest"], expected["handle_digest"]);
+        }
+
+        // 每次操作有自己的 invocation，且都不复用已消费的 start invocation。
+        for invocation in &invocations {
+            assert_ne!(
+                *invocation, handle.start_invocation_id,
+                "operation must not reuse the start invocation"
+            );
+        }
+        let distinct: std::collections::HashSet<InvocationId> =
+            invocations.iter().copied().collect();
+        assert_eq!(
+            distinct.len(),
+            invocations.len(),
+            "each operation has its own invocation"
+        );
+
+        // continuation 只读事实：除了 start 时写入的 started，没有新增 process 事实。
+        let facts = events
+            .read_stream("process", &process_id)
+            .await
+            .expect("process facts");
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].kind, "process.started");
     }
 }
