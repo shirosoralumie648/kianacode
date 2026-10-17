@@ -297,13 +297,43 @@ lag 与未知进度并给出 `lag` 数值，绝不把投影落后渲染成空列
 
 
 
-#### UI-08 · 共享 reducer/entity store　🔄
+#### UI-08 · 共享 reducer/entity store　✅
 
 - 依赖：UI-05–07。代码：`kiana-entrypoints` 或共享 adapter 的纯函数 reducer/store。
 - 步骤：按 entity ID/revision 合并 snapshot/feed；分别存 run、connection、submission、draft、inbox、artifact viewer；固定 optimistic 状态只能短暂存在且可回滚。
 - 先拒绝：旧 revision 覆盖新值、跨 session 串数据、event duplicate 产生两条 item、cache eviction 丢 pending/unknown、乐观成功掩盖服务端拒绝。
 - 成功/回归：乱序/重复/gap/epoch reset、tab isolation、hydrate/dehydrate、内存上限和 reducer purity 测试。
-- 完成产物：共享 store、状态图、fixture reducer trace；presenter 不再自建事实状态。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
+- 完成产物：共享 store、状态图、fixture reducer trace；presenter 不再自建事实状态。
+
+`kiana-client::UiEntityStore` 是纯函数 reducer + 有界 store（`kiana-client/src/ui_store.rs`），
+`reduce` 不修改输入、`apply` 只提交 reducer 输出。完成切片（2026-10-17）修掉四类真实缺口并补齐
+拒绝面：位置 0 的初始 boundary 变成合法起点（此前 daemon 的 live feed 第一帧会被当重复帧拒绝）；
+缺 `entity_kind` 的 server 帧一律 `ui_feed_entity_kind_missing` 拒绝（不再默认猜成 run，raw
+run-stream 帧因此进不了实体面）；draft 命名空间只属于本地输入层（feed → `ui_feed_draft_kind_forbidden`，
+伪造快照 → `ui_store_snapshot_draft_entity`）；pending/unknown 实体遇到更高 revision 的权威 delta
+不再静默保留本地值，而是 `SnapshotRequired` + `UiStoreGapReason::PendingConflict`（帧不记为已应用、
+位置不回退）；新 authority epoch 的 boundary 丢弃旧权威实体、保留本地 pending 并要求 snapshot；
+`Rejected` 结算不再删除自己从未 stage 过的权威实体；protocol snapshot 合并到 protected 实体时刷新
+rollback baseline（回滚到服务端最新已知值）。`entities_of_kind`/`count_of_kind` 让 presenter 按命名空间
+读共享 store 而不是自建副本。验收夹具：`kiana-client/tests/ui08_reducer_store.rs` 17 条先拒绝优先
+（新增 10 条，含 `live_feed_starts_at_the_initial_boundary_and_markers_never_regress`、
+`replayed_terminal_after_the_boundary_is_not_a_second_item`、
+`epoch_reset_drops_authoritative_state_and_keeps_local_pending`、
+`generic_feed_requires_an_explicit_kind_and_refuses_the_draft_namespace`、
+`pending_conflict_never_lets_an_optimistic_value_hide_a_newer_revision`、
+`snapshot_merge_refreshes_the_rollback_baseline_instead_of_a_stale_value`、
+`hydrate_refuses_a_forged_draft_entity`、`a_stale_rejection_never_deletes_an_authoritative_entity`、
+`kind_scoped_views_keep_the_six_namespaces_separate`、`ui08_reducer_plan_and_trace_replay_deterministically`），
+声明式 plan + 31 步 reducer trace
+[`kiana-client/tests/fixtures/ui08-reducer-store.json`](../../kiana-client/tests/fixtures/ui08-reducer-store.json)
+（kind/lifecycle/gap reason/预算/夹具名/拒绝清单 + 两次重放同摘要）；
+真实组合根夹具 `kiana-daemon/tests/ui08_entity_store.rs` 3 条（raw run-stream 帧必须被拒绝且零事实、
+tab/cross-session 隔离、真实 gap 只围栏不伪装）；
+`kiana-core/tests/ui08_reducer_store_guard.rs` 扩为 2 条守卫（marker/负断言 + plan/trace/夹具/lane/分片
+绑定）；`kiana-entrypoints/tests/ui08_store_boundary_guard.rs` 拒绝入口再声明一套 store。
+手动 lane 为 [`.github/workflows/ui08-reducer-store.yml`](../../.github/workflows/ui08-reducer-store.yml)，
+自动 lane 仍是统一 `ci.yml` 的 `kiana-core-s6/6` 与 `kiana-client`/`kiana-daemon`/`kiana-entrypoints`
+整 crate 分片。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-09"></a>
 
