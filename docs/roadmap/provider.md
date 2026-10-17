@@ -70,7 +70,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | 🔄 |
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | ✅ |
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | 🔄 |
-| `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | 🔄 |
+| `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | ✅ |
 | `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | 🔄 |
 | `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | 🔄 |
 | `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
@@ -325,7 +325,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-21 结构化输出的请求与验收　🔄
+#### P4-J7-21 结构化输出的请求与验收　✅
 
 - **依赖**：`P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`。
 - **改动位置**：domain response format、provider/request、各 codec；runner 消费结构化结果的边界。
@@ -333,9 +333,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **先拒绝**：`unsupported_response_schema_fails_before_send`、`refusal_is_not_an_empty_structured_success`、`truncated_json_is_never_repaired_silently`。
 - **再成功**：`structured_output_validates_against_requested_schema`、`structured_output_and_tools_have_distinct_contracts`。
 - **退出 / 证据**：Provider 无隐藏 JSON 修复循环；不修改既有业务 Artifact 验收规则；每种支持形式独立记矩阵。
-- **本次实现**：`ModelResponseFormat` 明确区分 text/JSON object/JSON schema；请求编译在发送前校验能力、协议子集、schema 名称和受支持关键字；完整终态后返回独立的 `ModelOutput.structured`，并把空、非法 JSON、schema 不匹配、拒绝和长度终止保持为不同错误。工具调用不会填充 structured 字段；Harness 暴露显式 `OutputRepair` 调用入口，不在 Provider 内部重试修复。
-- **拒绝与回归 fixture**：`structured_output_validates_and_is_exposed_separately`、`refusal_length_empty_and_invalid_json_are_distinct`、`structured_output_and_tool_calls_are_distinct`、`response_format_metadata_rejects_empty_schema_names`、`structured_parser_has_no_implicit_repair_path` 与 Core source guard；专属 workflow 在 GitHub 执行 provider fixtures 和 guard。
-- **CI / 状态**：源码和 GitHub workflow 已加入，保持 🔄，proof 上限 `source`；本地未运行测试/build/check/clippy/smoke，CI 结果未等待。
+- **本次实现**：`ModelResponseFormat` 明确区分 text/JSON object/JSON schema；请求编译在发送前校验能力、协议子集、schema 名称和受支持关键字；完整终态后返回独立的 `ModelOutput.structured`，并把空、非法 JSON、schema 不匹配、拒绝和长度终止保持为不同错误。工具调用不会填充 structured 字段；Harness 暴露显式 `OutputRepair` 调用入口，不在 Provider 内部重试修复。完成切片把响应形式抽成 `apply_response_format(body, protocol, format)`，为每种支持形式逐协议记录 wire 矩阵并保持 `text` 为逐字节 no-op。
+- **拒绝与回归 fixture**：先拒绝 `unsupported_response_schema_fails_before_send`（真实 `ProviderGateway::prepare_call`：未声明结构化能力或协议不可表达该形式时发送前拒绝，零 socket，同连接 `text` 仍可用）、`unsupported_structured_format_is_rejected_before_encoding`（Legacy 与 Anthropic json_object 稳定码、无半成品 body）、`refusal_is_not_an_empty_structured_success`（refusal 不是空的 structured 成功）、`truncated_json_is_never_repaired_silently`（length 截断不是格式修复，唯一解析器不补全）；再成功 `structured_output_and_tools_have_distinct_contracts`（schema 与 tool catalog 在四种协议各自独立落地）、`structured_response_format_wire_matrix_is_recorded_per_protocol`（逐形式独立记矩阵，`text` no-op）；保留 `structured_output_validates_and_is_exposed_separately`、`refusal_length_empty_and_invalid_json_are_distinct`、`structured_output_and_tool_calls_are_distinct`、`response_format_metadata_rejects_empty_schema_names`、`structured_parser_has_no_implicit_repair_path` 与 Core source guard；专属 workflow 在 GitHub 执行 fmt、provider lib 与 `p4_j7_21_structured_output` fixture、Core guard。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖，`docs/roadmap.md` §1.1 行 398 记 ✅（CI pending）；自动 lane 是统一 `ci.yml` 的 `kiana-provider` 整 crate 分片（自动涵盖 `p4_j7_21_structured_output`）与 `kiana-core-s5/6`（列出 `p4_j7_21_structured_output_guard`），专属 `.github/workflows/p4-j7-21-structured-output.yml`（按 2026-09-27 收敛规则只保留 `workflow_dispatch`）跑 `cargo fetch --locked`、`cargo fmt --all --check`、provider lib 夹具与 Core guard。本地未运行测试/build/check/clippy/smoke，CI 回执未等待，proof 上限 `source`；未证明 live provider/schema 兼容性与自动修复行为。
 
 <a id="step-p4-j7-22"></a>
 

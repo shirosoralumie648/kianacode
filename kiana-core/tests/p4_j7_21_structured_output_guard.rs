@@ -62,6 +62,58 @@ fn p4_j7_21_structured_output_is_explicit_and_fail_closed() {
             "structured-output CI marker missing: {marker}"
         );
     }
+
+    let integration = include_str!("../../kiana-provider/tests/p4_j7_21_structured_output.rs");
+    for marker in [
+        "structured_response_format_wire_matrix_is_recorded_per_protocol",
+        "unsupported_structured_format_is_rejected_before_encoding",
+        "apply_response_format",
+    ] {
+        assert!(request.contains(marker), "request marker missing: {marker}");
+    }
+    for marker in [
+        "refusal_is_not_an_empty_structured_success",
+        "truncated_json_is_never_repaired_silently",
+    ] {
+        assert!(
+            response.contains(marker),
+            "response marker missing: {marker}"
+        );
+    }
+    for marker in [
+        "unsupported_response_schema_fails_before_send",
+        "structured_output_and_tools_have_distinct_contracts",
+        "prepare_call",
+    ] {
+        assert!(
+            integration.contains(marker),
+            "integration marker missing: {marker}"
+        );
+    }
+    // The integration fixture stops at request preparation: it must never open a socket,
+    // admit or complete a call, or be skipped.
+    for marker in [
+        "complete_admitted",
+        "TcpListener",
+        "tokio::net",
+        "#[ignore]",
+    ] {
+        assert!(
+            !integration.contains(marker),
+            "integration fixture must not contain {marker}"
+        );
+    }
+    for marker in [
+        "cargo fetch --locked",
+        "cargo fmt --all --check",
+        "--test p4_j7_21_structured_output",
+    ] {
+        assert!(
+            workflow.contains(marker),
+            "workflow marker missing: {marker}"
+        );
+    }
+    assert!(!workflow.contains("continue-on-error"));
     assert!(!request.contains("repair_until_valid"));
     assert!(!response.contains("repair_until_valid"));
 }
