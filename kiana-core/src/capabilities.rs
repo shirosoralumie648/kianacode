@@ -609,6 +609,11 @@ impl ControlPlane {
             "approval_id",
             "dispatch_permit",
             "execution_context",
+            // INT-15: connector data grants and once-approvals are server-owned narrowing objects.
+            // A caller-supplied wire value can never stand in for the ControlPlane approval gate or
+            // a server-resolved data grant, so both authority-bearing keys are dropped here.
+            "data_grant",
+            "connector_approval",
         ] {
             arguments.remove(key);
         }
