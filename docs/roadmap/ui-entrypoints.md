@@ -243,13 +243,31 @@ lag 与未知进度并给出 `lag` 数值，绝不把投影落后渲染成空列
 
 
 
-#### UI-06 · feed cursor、gap、replay 与背压　🔄
+#### UI-06 · feed cursor、gap、replay 与背压　✅
 
 - 依赖：UI-05。代码：daemon feed facade，复用 `RunStreamEnvelope` 但补齐 instance/epoch/schema/gap 语义。
 - 步骤：定义 snapshot boundary、feed sequence、Last-Event-ID/after cursor、replay window、heartbeat、慢消费者上限；区分 duplicate、gap、old epoch、terminal、unknown。
 - 先拒绝：序列跳跃、错误 epoch、过期 replay、无界队列、慢客户端阻塞事实提交、terminal 后伪造 delta。
 - 成功/回归：断线重连、重复事件、跨页、慢消费者、服务器重启、terminal retention 和 gap→rehydrate；gap 后 boundary 必须使用服务端当前 cursor，sequence 由服务端决定，不能按 timestamp 排序。
-- 完成产物：feed state machine、fault fixture、背压指标和 [replay 基线](ui06-feed-replay-baseline.md)。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
+- 完成产物：feed state machine、fault fixture、背压指标和 [replay 基线](ui06-feed-replay-baseline.md)。完成切片补齐：`UiFeedGapReason::TerminalRetention`
+  由真实淘汰路径产生（instance/epoch 已匹配的 cursor 领先一个 `current_sequence == 0` 的已被有界表淘汰 channel 时报保留期丢失，
+  `sequence_ahead` 只在服务端确实持有更高位置时报；两者都 `snapshot_required` 且后续 boundary 一律用服务端当前 cursor）；
+  `NotificationStreamBridge::ingest` 区分 `Replayed`（已看过位置不重复投递）、`Terminal`（回放的 terminal 仍是终态事实）与新增的
+  `NotificationStreamDisposition::Unknown`（`UiFeedFrameKind::Unknown` 的 cursor 前进但 `snapshot_required`，不当 delta 渲染）；
+  新增 `kiana-daemon/tests/ui06_feed_replay.rs` 5 条真实 `KianaHarness` run + `DaemonHost` 夹具
+  （`ui06_feed_fault_plan_binds_the_bounded_budget_and_the_deny_matrix`、
+  `live_feed_keeps_the_boundary_the_sequence_and_the_retained_terminal`、
+  `gap_frames_use_the_server_cursor_and_hydrate_through_the_snapshot_page`、
+  `a_stalled_consumer_gaps_but_never_blocks_committed_facts`、
+  `restarted_host_requires_hydration_and_keeps_the_same_ledger`）与声明式 fault plan
+  [`kiana-daemon/tests/fixtures/ui06-feed-replay.json`](../../kiana-daemon/tests/fixtures/ui06-feed-replay.json)（256/128 预算 + 七类 gap 原因 + required/denied）；
+  `run_stream.rs` 新增 `resumed_feed_replays_nothing_when_the_cursor_is_already_current`、
+  `retired_feed_window_reports_terminal_retention_and_requires_snapshot`、
+  `stalled_consumer_keeps_the_queue_and_history_bounded`，`nm13_notification_stream.rs` 新增
+  `terminal_retention_and_unknown_frames_never_collapse_into_a_delta`；core 守卫新增
+  `ui06_feed_fault_matrix_stays_wired_to_the_lane_and_the_auto_shards` 绑定夹具名、预算常量、七类 gap 原因、lane 与分片。
+  手动 lane 为 [`.github/workflows/ui06-feed-replay.yml`](../../.github/workflows/ui06-feed-replay.yml)，自动 lane 仍是统一 `ci.yml` 的
+  core 分片与 `kiana-daemon`/`kiana-protocol` 整 crate 分片。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-07"></a>
 
