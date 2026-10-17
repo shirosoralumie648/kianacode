@@ -15,6 +15,21 @@ limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Acti
 reviewer: root integration agent；EQ-15 evaluation fault plan/fail-closed bridge 静态复核
 ```
 
+### 2026-10-17 CI-08 翻 ✅（ProviderGateway 接线与 route admission 收口，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 168（🔄 → ✅，CI pending）、§3 变更日志与 §29.8 详细卡验收；kiana-provider/tests/ci08_route_admission.rs（+`prepare_network_call` helper、+`fake_provider_redirect_is_rejected_and_ambient_proxy_is_ignored`、+`gateway_snapshot_and_catalog_never_expose_raw_credential`，既有 `fake_provider_receives_one_opaque_account_binding_and_no_secret_in_body` 改用 helper）；kiana-core/tests/ci08_route_admission.rs（+config redirect/proxy/retry/host marker 与 +daemon `provider_gateway_for_project` 源守卫）；kiana-domain/tests/ci08_route_admission.rs、kiana-provider/src/{lib.rs,config.rs,transport.rs}、kiana-core/src/model_budget.rs、kiana-daemon/src/{model_client.rs,lib.rs}、.github/workflows/ci08-route-admission.yml 为已合并的实现/夹具/布线，未改
+worktree_status: 行 168 🔄 → ✅（CI pending）；只改本 Step 相关测试/夹具与共享文档（roadmap 该行/变更日志/详细卡验收、CURRENT_STATUS）单点回填；无 Cargo.toml/Cargo.lock/package.json 变化、无第二执行循环、未改五个模型工具面、未新增外部依赖、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与阅读源码/夹具；.github/workflows/ci08-route-admission.yml 运行 `cargo test -p kiana-domain --test ci08_route_admission`、`cargo test -p kiana-provider --test ci08_route_admission`、`cargo test -p kiana-core --test ci08_route_admission`（均 `--locked -- --test-threads=1`）、`cargo fmt --all --check` 与三个 target-scoped `--no-run`（同一 test target 自动涵盖新用例，未新增步骤/目标）
+cwd·environment: worktree /workspace/kianacode-worktrees/CI-08，分支 step/ci-08-20261017-1（基线 master 4b8895356847）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: provider `fake_provider_redirect_is_rejected_and_ambient_proxy_is_ignored`——loopback fake provider 只接受一条请求并回 `302 Found` + `Location: http://<bogus-proxy>/redirected`（`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` 均指向该 bogus 代理），断言 gateway 返回 `provider_http_302`、`request_sent=true`、零 reply delta、错误 JSON 无 `CI08_SECRET_SENTINEL`、bogus 代理 listener `WouldBlock`（redirect 不 follow 且 ambient proxy 被忽略）、provider 只收到一次 `authorization: bearer ci08_secret_sentinel` 且请求体无 sentinel；provider `gateway_snapshot_and_catalog_never_expose_raw_credential`——`catalog()`/`configuration_snapshot()` 序列化均不含 raw credential 且 `workspace_configuration_snapshot()` 为空；core `provider_route_admission_is_fenced_before_network_and_stays_actor_blind` 新增 config marker（`credential_ref: Option<SecretRef>`、`.redirect(reqwest::redirect::Policy::none())`、`.no_proxy()`、`.retry(reqwest::retry::never())`、`model_endpoint_requires_tls_or_loopback`、`set_host(Some("127.0.0.1"))`）与 daemon `provider_gateway_for_project`；既有 domain `route_admission_accepts_exact_binding_but_rejects_revision_drift`/`route_admission_rejects_expired_or_missing_binding_without_effect`/`legacy_route_may_omit_provider_identity_but_network_route_may_not` 与 provider opaque-account/单次注入夹具不变
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CI-08 卡「先拒绝」（route/config/authority/credential/account 在 admission 后漂移、过期/缺绑定 permit、provider 反推 actor、redirect/proxy/host 变更均 0 effect/拒绝）与「再成功」（`Connection` 不保存 raw credential、fake provider 收到正确 opaque account binding 与一次注入、usage/receipt/诊断投影不含 secret）在源码层与夹具层齐备；行 168 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；fake loopback provider 成功不证明外部服务商行为、真实账户/租户身份或计费正确；`provider_account` 仍是 provider+connection 派生 digest，不是外部账户认证；redirect/proxy 夹具证明进程内 reqwest client 的 `Policy::none()`/`no_proxy()` 语义，未证明 DNS/host pinning 与 TLS；route/authority admission 复用现有进程内 `JournalModelBudget`/EventStore，跨进程 durable permit recovery、动态配置 reload、rotation/revoke CAS、OAuth 属 CI-09/CI-11/PD/ER/SC；daemon 项目装配由 CI-06 fixture 承担，本卡仅源守卫复核；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；CI-08 provider route admission/redirect/proxy/secret-projection 静态复核
+```
+
 ### 2026-10-17 EQ-14 翻 ✅（证据采集与 flush fail-closed 不变量，CI-only 口径）
 
 ```text
