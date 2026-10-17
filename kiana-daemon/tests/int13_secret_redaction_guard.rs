@@ -6,6 +6,7 @@ fn int13_daemon_scans_provider_errors_and_process_channels_before_projection() {
     let output = include_str!("../src/execution_output.rs");
     let mcp = include_str!("../src/mcp_stdio.rs");
     let sandbox = include_str!("../src/harness_sandbox.rs");
+    let daemon_host = include_str!("daemon_host.rs");
     let domain = include_str!("../../kiana-domain/src/redaction.rs");
 
     // The daemon health path must classify probe failures through the shared domain projection;
@@ -45,10 +46,27 @@ fn int13_daemon_scans_provider_errors_and_process_channels_before_projection() {
         "SecretScanChannel::Stdout",
         "SecretScanChannel",
         "scan_secret_sentinels",
+        "mod int13_channels",
+        "stdout_and_stderr_previews_never_publish_a_credential_shape",
+        "bounded_previews_keep_channel_labels_and_fall_back_to_a_placeholder",
     ] {
         assert!(
             output.contains(marker),
             "output channel marker missing: {marker}"
+        );
+    }
+    // End-to-end daemon behaviour fixtures already cover argv/stdout/stderr/env projection.
+    for marker in [
+        "shell_secret_sentinels_do_not_reach_events_receipt_or_model_context",
+        "split_secret_across_stream_deltas_never_reaches_stdout_events_receipt_or_model_context",
+        "argv-sentinel",
+        "stdout-sentinel",
+        "stderr-sentinel",
+        "env-sentinel",
+    ] {
+        assert!(
+            daemon_host.contains(marker),
+            "daemon host channel fixture missing: {marker}"
         );
     }
     for marker in ["stderr_digest", "stderr_truncated", "secret-bearing stderr"] {

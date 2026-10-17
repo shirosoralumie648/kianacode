@@ -20,8 +20,10 @@
 //! ```
 //!
 //! EventStore 的 `validate_event_for_storage()` 使用 `validate_secret_free()`；这个检查通过比较
-//! `redact_value(value)` 与原值来拒绝需要脱敏的数据，**不调用 `scan_secret_sentinels()`**。
-//! 因此本文件校验和脱敏扫描器是不同层次的检查，不能把通用持久化校验说成覆盖了所有 secret 形状。
+//! `redact_value(value)` 与原值来拒绝需要脱敏的数据，**本函数自身不调用 `scan_secret_sentinels()`**。
+//! INT-13 之后，同一个事件存储校验还会显式调用 `scan_secret_value()` 补上 `redact_text()` 不重写
+//! 的残留形状（`sk-` token 前缀、`proxy-authorization:` 文本标记、NUL/超限输入）。两个调用点各覆盖
+//! 一部分形状，因此不能把本文件校验或任何单个扫描器说成覆盖了所有 secret 形状。
 //!
 //! 文件身份和加密绑定都是普通可序列化元数据。摘要（digest）可以发现字段变化，但没有密钥，不能证明
 //! 文件来自可信路径、密文真实存在、密钥对调用者可用或底层文件操作已达到某种物理保证；这些责任仍由
