@@ -428,6 +428,122 @@ pub trait CredentialResolver: Send + Sync {
     }
 }
 
+/// Fixed schema name for the secret-store binding below.
+pub const SECRET_STORE_BINDING_SCHEMA: &str = "kiana.secret-store-binding.v1";
+
+/// Secret-free metadata naming the single effect a [`SecretRef`] may be resolved for.
+///
+/// The binding pins the server-owned provider account, business purpose, downstream audience and
+/// the digest of the exact endpoint the credential will be injected into. It carries no secret
+/// value, so it may cross the wire/log/event boundary; it exists so a reference cannot be
+/// transferred between accounts, purposes, audiences or endpoints.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SecretStoreBinding {
+    pub schema: String,
+    /// Server-owned provider account the credential belongs to; a caller string is not authority.
+    pub provider_account: String,
+    /// Business purpose the credential may be used for; must match the `SecretRef` purpose.
+    pub purpose: String,
+    /// Intended downstream audience; must match the `SecretRef` audience.
+    pub audience: String,
+    /// Digest of the exact endpoint the credential will be injected into.
+    pub endpoint_digest: String,
+}
+
+impl SecretStoreBinding {
+    /// Build a binding and reject empty, control-character or malformed fields up front.
+    pub fn new(
+        provider_account: impl Into<String>,
+        purpose: impl Into<String>,
+        audience: impl Into<String>,
+        endpoint_digest: impl Into<String>,
+    ) -> Result<Self, String> {
+        let binding = Self {
+            schema: SECRET_STORE_BINDING_SCHEMA.to_owned(),
+            provider_account: provider_account.into(),
+            purpose: purpose.into(),
+            audience: audience.into(),
+            endpoint_digest: endpoint_digest.into(),
+        };
+        binding.validate()?;
+        Ok(binding)
+    }
+
+    /// Validate schema, non-empty bounded fields and the endpoint digest format. This is a local
+    /// shape check; it does not prove the account, purpose or endpoint are actually authorized.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != SECRET_STORE_BINDING_SCHEMA {
+            return Err("secret_store_binding_schema_invalid".to_owned());
+        }
+        for (value, field, max) in [
+            (&self.provider_account, "secret_store_binding_provider", 256),
+            (&self.purpose, "secret_store_binding_purpose", 256),
+            (&self.audience, "secret_store_binding_audience", 256),
+        ] {
+            if value.trim().is_empty() || value.len() > max || value.contains('\0') {
+                return Err(format!("{field}_invalid"));
+            }
+            if value.contains(['\n', '\r']) {
+                return Err(format!("{field}_invalid"));
+            }
+        }
+        if !self
+            .endpoint_digest
+            .strip_prefix("sha256:")
+            .is_some_and(|hex| {
+                hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
+        {
+            return Err("secret_store_binding_endpoint_digest_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Secret-store adapter boundary. Implementations resolve an opaque [`SecretRef`] for exactly one
+/// bound effect and return only [`CredentialResolution`] metadata; raw secret material never
+/// crosses this port (not to core, runner, EventLog, logs, metrics or UI). Unknown store names,
+/// provider accounts and purposes are denied, and a reference is not transferable between
+/// accounts, purposes, audiences or endpoints.
+#[async_trait]
+pub trait SecretStore: Send + Sync {
+    /// Logical store name this adapter serves, for example `env` or `keyring`.
+    fn store_name(&self) -> &str;
+
+    /// Resolve the reference for the given binding. Implementations must deny unknown provider
+    /// accounts or purposes and must not encode the secret value into any returned field.
+    async fn resolve_secret(
+        &self,
+        secret_ref: &SecretRef,
+        binding: &SecretStoreBinding,
+        now_unix_ms: u64,
+    ) -> Result<CredentialResolution, PortError>;
+
+    /// Deny-first resolution used by callers. Unknown stores, references whose purpose or audience
+    /// do not match the binding, malformed bindings and drift between the reference and the
+    /// adapter output are all rejected before any value can be materialized.
+    async fn resolve_secret_checked(
+        &self,
+        secret_ref: &SecretRef,
+        binding: &SecretStoreBinding,
+        now_unix_ms: u64,
+    ) -> Result<CredentialResolution, PortError> {
+        secret_ref.validate().map_err(PortError::Failed)?;
+        binding.validate().map_err(PortError::Failed)?;
+        if secret_ref.store != self.store_name() {
+            let code = format!("secret_store_unknown:{}", secret_ref.store);
+            return Err(PortError::Failed(code));
+        }
+        if secret_ref.purpose != binding.purpose || secret_ref.audience != binding.audience {
+            return Err(PortError::Conflict("secret_store_binding_mismatch".to_owned()));
+        }
+        let resolution = self.resolve_secret(secret_ref, binding, now_unix_ms).await?;
+        resolution.validate_for(secret_ref, now_unix_ms)?;
+        Ok(resolution)
+    }
+}
+
 /// Read/publish the immutable, non-secret configuration snapshot for a project.
 /// When `expected_revision` is `Some`, implementations must compare it with the current
 /// snapshot's `config_revision` and leave stored state unchanged on mismatch. `None` semantics
