@@ -211,3 +211,35 @@ fn artifact_workspace_delta_is_a_confined_read_only_projection() {
         "the workspace delta must stay a read-only projection"
     );
 }
+
+#[test]
+fn artifact_original_readback_prefers_the_store_and_verifies_the_fact_fallback() {
+    let source = include_str!("../src/company.rs");
+    let start = source
+        .find("pub async fn artifact_workspace_delta")
+        .expect("workspace delta boundary");
+    let rest = &source[start..];
+    let end = rest.find("fn company_context(").expect("next boundary");
+    let delta = &rest[..end];
+    let store_read = delta
+        .find("store.read_artifact(&reference).await")
+        .expect("immutable store read");
+    let marker = delta
+        .find("historical_source_committed_fact")
+        .expect("fact-backed original marker");
+    let fallback = delta
+        .find("Self::fact_backed_original(&artifact, &reference)")
+        .expect("fact-backed read-back");
+    assert!(
+        store_read < marker && marker < fallback,
+        "the immutable store copy is preferred and the committed fact is only a disclosed fallback"
+    );
+    let helper_start = delta
+        .find("fn fact_backed_original(")
+        .expect("fact-backed helper boundary");
+    let helper = &delta[helper_start..];
+    assert!(
+        helper.contains("validate_artifact_reference_content"),
+        "a fact-backed original must be re-verified against the typed reference before it is served"
+    );
+}

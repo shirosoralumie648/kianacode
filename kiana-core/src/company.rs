@@ -1369,14 +1369,28 @@ impl ControlPlane {
             .as_ref()
             .map(kiana_domain::ArtifactVersion::as_ref)
             .ok_or_else(|| company_conflict("company_artifact_reference_invalid"))?;
+        // The admitted original is durable in two places: the immutable store copy and the
+        // committed Company fact that admitted it. The store copy is preferred whenever it is
+        // readable, but a committed fact whose snapshot still hashes to the typed reference is a
+        // valid historical source on its own, so the projection never has to trust the mutable
+        // workspace or fail closed merely because the derived copy is gone.
+        let mut limitations = Vec::new();
         let historical = match self.artifact_store.as_ref() {
-            Some(store) => {
-                let bytes = store.read_artifact(&reference).await?;
-                crate::artifacts::validate_artifact_reference_content(&reference, &bytes)
-                    .map_err(company_conflict)?;
-                bytes
+            Some(store) => match store.read_artifact(&reference).await {
+                Ok(bytes) => {
+                    crate::artifacts::validate_artifact_reference_content(&reference, &bytes)
+                        .map_err(company_conflict)?;
+                    bytes
+                }
+                Err(_) => {
+                    limitations.push("historical_source_committed_fact".to_owned());
+                    Self::fact_backed_original(&artifact, &reference)?
+                }
+            },
+            None => {
+                limitations.push("historical_source_committed_fact".to_owned());
+                Self::fact_backed_original(&artifact, &reference)?
             }
-            None => artifact.text.as_bytes().to_vec(),
         };
         let root = company_root(context);
         let relative = artifact.relative_path.clone();
@@ -1432,7 +1446,6 @@ impl ControlPlane {
                     0,
                 ),
             };
-        let mut limitations = Vec::new();
         if current_state == kiana_domain::ArtifactWorkspaceDeltaState::Unavailable {
             limitations.push("current_source_unavailable".to_owned());
         }
@@ -1451,6 +1464,22 @@ impl ControlPlane {
             limitations,
         )
         .map_err(|error| company_error(&error))
+    }
+
+    /// Re-derive the historical original from the committed Company fact.
+    ///
+    /// The fact is the durable commit point for the bounded snapshot that was admitted with the
+    /// immutable reference, so it stays readable even when the store's derived copy is gone. The
+    /// snapshot is never trusted as-is: it must hash to the same typed reference the fact cites,
+    /// so a drifted or fabricated snapshot is refused instead of becoming a fabricated original.
+    fn fact_backed_original(
+        artifact: &kiana_domain::CompanyArtifact,
+        reference: &kiana_domain::ArtifactRef,
+    ) -> Result<Vec<u8>, PortError> {
+        let bytes = artifact.text.as_bytes().to_vec();
+        crate::artifacts::validate_artifact_reference_content(reference, &bytes)
+            .map_err(company_conflict)?;
+        Ok(bytes)
     }
 
     /// Read-only retention plan for committed blobs that no Company fact cites.
