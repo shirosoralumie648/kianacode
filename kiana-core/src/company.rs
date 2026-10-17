@@ -370,18 +370,24 @@ impl ControlPlane {
                 .reject_company(&context, "company_artifact_event_atomicity_unsupported")
                 .await;
         }
+        // Record the cross-store publication window before the blob is staged. The intent binds
+        // the reference to this logical command so a restart can reconcile the blob/fact pair
+        // instead of guessing; writing it first also covers a crash between the blob commit and
+        // the fact append, which would otherwise leave an orphan blob with no journal record at
+        // all. An adapter without a journal keeps the legacy single-phase path.
+        let publication_intent = self
+            .record_artifact_publication_intent(&command_id, &context, &request, &proof)
+            .await?;
         if let Err(error) = self.persist_company_artifact(&mut proof).await {
+            // Nothing was published, so the window is closed explicitly instead of being left for
+            // a reconciliation pass to classify. A failed abandon keeps it Pending and visible.
+            self.abandon_artifact_publication_intent(publication_intent.as_ref())
+                .await;
             return match error {
                 PortError::Conflict(reason) => self.reject_company(&context, &reason).await,
                 other => Err(other.into()),
             };
         }
-        // Record the cross-store publication window before the fact is appended. The intent binds
-        // the committed reference to this logical command so a restart can reconcile the
-        // blob/fact pair instead of guessing; an adapter without a journal keeps the legacy path.
-        let publication_intent = self
-            .record_artifact_publication_intent(&command_id, &context, &request, &proof)
-            .await?;
         // Retryable staging returns the first immutable manifest, including its timestamp.
         // The pre-publication transition above remains the deny boundary; rebuild the response
         // projection from the finalized proof so it matches the fact that will be committed.
@@ -1227,6 +1233,29 @@ impl ControlPlane {
         }
     }
 
+    /// Close a recorded window that never produced a fact. Best effort: if the terminal append
+    /// fails the intent stays Pending and a later reconciliation decides, which is strictly safer
+    /// than claiming the window is closed.
+    async fn abandon_artifact_publication_intent(
+        &self,
+        intent: Option<&kiana_domain::ArtifactPublicationIntent>,
+    ) {
+        let Some(store) = self.artifact_store.as_ref() else {
+            return;
+        };
+        let Some(intent) = intent else {
+            return;
+        };
+        let _ = store
+            .resolve_publication_intent(
+                &intent.command_id,
+                kiana_domain::ArtifactPublicationState::Abandoned,
+                None,
+                company_now(),
+            )
+            .await;
+    }
+
     /// Close the publication window after the Company fact is committed. A resolve failure leaves
     /// the intent Pending and is recovered by reconciliation; it must not turn a committed
     /// command into an error response.
@@ -1422,6 +1451,162 @@ impl ControlPlane {
             limitations,
         )
         .map_err(|error| company_error(&error))
+    }
+
+    /// Read-only retention plan for committed blobs that no Company fact cites.
+    ///
+    /// The plan reads the artifact store's publication journal and classifies each abandoned
+    /// window. It never reclaims bytes, never appends a Company fact and never widens authority; a
+    /// store without a journal yields an explicitly unbacked, empty plan. Open (pending) windows
+    /// are reported but excluded, because only reconciliation may prove a window is fact-free.
+    pub async fn plan_artifact_publication_retention(
+        &self,
+        context: &RequestContext,
+        policy: &kiana_domain::ArtifactPublicationRetentionPolicy,
+    ) -> Result<kiana_domain::ArtifactPublicationRetentionPlan, CoreError> {
+        company_context(context, false).map_err(company_conflict)?;
+        policy.validate().map_err(|error| company_error(&error))?;
+        self.artifact_publication_retention(policy, false).await
+    }
+
+    /// Apply orphan reclamation under an explicit retention policy.
+    ///
+    /// Bytes are removed only when the policy sets `allow_blob_removal`, the Company write context
+    /// is satisfied, and the store independently re-confirms from its own journal that the
+    /// reference is abandoned. Every other case is denied or retained, and the plan is returned
+    /// either way so a caller never has to assume what happened. Reclamation never appends a
+    /// Company fact, never widens authority and never rewrites a committed reference.
+    pub async fn apply_artifact_publication_retention(
+        &self,
+        context: &RequestContext,
+        policy: &kiana_domain::ArtifactPublicationRetentionPolicy,
+    ) -> Result<kiana_domain::ArtifactPublicationRetentionPlan, CoreError> {
+        company_context(context, true).map_err(company_conflict)?;
+        policy.validate().map_err(|error| company_error(&error))?;
+        self.artifact_publication_retention(policy, true).await
+    }
+
+    async fn artifact_publication_retention(
+        &self,
+        policy: &kiana_domain::ArtifactPublicationRetentionPolicy,
+        apply: bool,
+    ) -> Result<kiana_domain::ArtifactPublicationRetentionPlan, CoreError> {
+        use kiana_domain::{
+            ArtifactOrphanRetention, ArtifactOrphanRetentionDecision,
+            ArtifactPublicationRetentionPlan, ArtifactPublicationState,
+        };
+        let now = company_now();
+        let empty = |journal_available: bool| {
+            ArtifactPublicationRetentionPlan::new(
+                policy.clone(),
+                journal_available,
+                0,
+                Vec::new(),
+                now,
+            )
+            .map_err(|error| company_error(&error))
+        };
+        let Some(store) = self.artifact_store.as_ref() else {
+            return empty(false);
+        };
+        let intents = match store.publication_intents().await {
+            Ok(intents) => intents,
+            Err(PortError::Unavailable(_)) => return empty(false),
+            Err(error) => return Err(error.into()),
+        };
+        let pending_count = intents
+            .iter()
+            .filter(|intent| intent.is_pending())
+            .count()
+            .min(u32::MAX as usize) as u32;
+        let mut candidates: Vec<&kiana_domain::ArtifactPublicationIntent> = intents
+            .iter()
+            .filter(|intent| intent.state == ArtifactPublicationState::Abandoned)
+            .collect();
+        // Deterministic order: oldest settled window first, then command id. The per-run cap is
+        // applied against this order so repeated runs converge instead of thrashing.
+        candidates.sort_by(|left, right| {
+            left.recorded_at_unix_ms
+                .cmp(&right.recorded_at_unix_ms)
+                .then_with(|| left.command_id.cmp(&right.command_id))
+        });
+        let mut orphans = Vec::with_capacity(candidates.len());
+        let mut selected = 0u32;
+        for intent in candidates {
+            let settled_at = intent
+                .resolved_at_unix_ms
+                .unwrap_or(intent.recorded_at_unix_ms);
+            let age_ms = now.saturating_sub(settled_at);
+            let blob_readable = match store.read_artifact(&intent.artifact).await {
+                Ok(bytes) => kiana_domain::journal_sha256(&bytes) == intent.artifact.content_hash,
+                Err(_) => false,
+            };
+            let (decision, reason) = if !blob_readable {
+                (
+                    ArtifactOrphanRetentionDecision::Retained,
+                    "orphan_blob_absent",
+                )
+            } else if age_ms < policy.max_orphan_age_ms {
+                (
+                    ArtifactOrphanRetentionDecision::Retained,
+                    "orphan_age_below_retention_window",
+                )
+            } else if selected >= policy.max_orphan_count {
+                (
+                    ArtifactOrphanRetentionDecision::Denied,
+                    "orphan_retention_capacity_exceeded",
+                )
+            } else if !apply {
+                selected += 1;
+                (
+                    ArtifactOrphanRetentionDecision::Eligible,
+                    "orphan_eligible_for_retention",
+                )
+            } else if !policy.allow_blob_removal {
+                (
+                    ArtifactOrphanRetentionDecision::Denied,
+                    "orphan_blob_removal_not_permitted",
+                )
+            } else {
+                match store.remove_orphan_blob(&intent.artifact).await {
+                    Ok(true) => {
+                        selected += 1;
+                        (
+                            ArtifactOrphanRetentionDecision::Removed,
+                            "orphan_blob_reclaimed",
+                        )
+                    }
+                    Ok(false) => {
+                        selected += 1;
+                        (
+                            ArtifactOrphanRetentionDecision::Removed,
+                            "orphan_blob_already_absent",
+                        )
+                    }
+                    Err(PortError::Unavailable(_)) => (
+                        ArtifactOrphanRetentionDecision::Denied,
+                        "artifact_orphan_removal_unsupported",
+                    ),
+                    Err(_) => (
+                        ArtifactOrphanRetentionDecision::Denied,
+                        "artifact_orphan_removal_failed",
+                    ),
+                }
+            };
+            orphans.push(
+                ArtifactOrphanRetention::new(
+                    intent.command_id.clone(),
+                    intent.artifact.clone(),
+                    intent.state,
+                    age_ms,
+                    decision,
+                    reason,
+                )
+                .map_err(|error| company_error(&error))?,
+            );
+        }
+        ArtifactPublicationRetentionPlan::new(policy.clone(), true, pending_count, orphans, now)
+            .map_err(|error| company_error(&error))
     }
 }
 

@@ -93,12 +93,12 @@ fn artifact_publication_verifies_staged_manifest_and_readback_before_fact() {
 #[test]
 fn artifact_publication_window_is_recorded_before_the_fact_and_resolved_after() {
     let source = include_str!("../src/company.rs");
-    let persist = source
-        .find("self.persist_company_artifact(&mut proof).await")
-        .expect("artifact persistence boundary");
     let record = source
         .find(".record_artifact_publication_intent(&command_id")
         .expect("publication intent boundary");
+    let persist = source
+        .find("self.persist_company_artifact(&mut proof).await")
+        .expect("artifact persistence boundary");
     let commit = source
         .find("self.commit_company(&context, event).await")
         .expect("Company EventLog commit boundary");
@@ -106,8 +106,8 @@ fn artifact_publication_window_is_recorded_before_the_fact_and_resolved_after() 
         .find("self.resolve_artifact_publication_intent(")
         .expect("publication resolution boundary");
     assert!(
-        persist < record && record < commit && commit < resolve,
-        "the publication intent must be durable before the fact append and resolved after it"
+        record < persist && persist < commit && commit < resolve,
+        "the publication intent must be durable before the blob is staged and before the fact append, and resolved after it"
     );
 }
 
@@ -130,6 +130,65 @@ fn artifact_publication_reconciliation_classifies_without_appending_a_fact() {
             && !reconciliation.contains("append_event")
             && !reconciliation.contains("commit_protected_event"),
         "reconciliation must never append a Company fact"
+    );
+}
+
+#[test]
+fn artifact_orphan_retention_is_policy_gated_and_plan_only_by_default() {
+    let source = include_str!("../src/company.rs");
+    let plan = source
+        .find("pub async fn plan_artifact_publication_retention")
+        .expect("retention plan boundary");
+    let apply = source
+        .find("pub async fn apply_artifact_publication_retention")
+        .expect("retention apply boundary");
+    let helper = source
+        .find("async fn artifact_publication_retention")
+        .expect("retention helper boundary");
+    assert!(plan < apply && apply < helper);
+    // The read-only plan entry must not be able to remove bytes, and it must not require a write
+    // profile even to look.
+    let plan_body = &source[plan..apply];
+    assert!(plan_body.contains("company_context(context, false)"));
+    assert!(
+        !plan_body.contains("remove_orphan_blob") && !plan_body.contains("allow_blob_removal"),
+        "the plan entry must stay read-only and policy-agnostic"
+    );
+    let apply_body = &source[apply..helper];
+    assert!(apply_body.contains("company_context(context, true)"));
+    // Removal is only reachable after the explicit policy permission, the retention window and the
+    // per-run cap, and the helper never appends a Company fact.
+    let helper_body = &source[helper..];
+    let window = helper_body
+        .find("orphan_age_below_retention_window")
+        .expect("retention window fence");
+    let capacity = helper_body
+        .find("orphan_retention_capacity_exceeded")
+        .expect("retention capacity fence");
+    let permission = helper_body
+        .find("orphan_blob_removal_not_permitted")
+        .expect("explicit-removal permission fence");
+    let removal = helper_body
+        .find("remove_orphan_blob(&intent.artifact)")
+        .expect("orphan removal boundary");
+    assert!(
+        window < capacity && capacity < permission && permission < removal,
+        "retention must check the window, the cap and the explicit removal permission before touching bytes"
+    );
+    assert!(
+        helper_body.contains("artifact_orphan_removal_unsupported")
+            && helper_body.contains("artifact_orphan_removal_failed"),
+        "an unsupported or failed removal must be denied instead of being reported as reclaimed"
+    );
+    let helper_end = helper_body
+        .find("fn company_context(")
+        .expect("next boundary");
+    let helper_body = &helper_body[..helper_end];
+    assert!(
+        !helper_body.contains("commit_company")
+            && !helper_body.contains("append_event")
+            && !helper_body.contains("commit_protected_event"),
+        "retention must never append a Company fact"
     );
 }
 

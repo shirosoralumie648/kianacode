@@ -134,4 +134,14 @@ async fn artifact_store_publication_journal_defaults_fail_closed() {
         store.pending_publication_intents().await,
         Err(PortError::Unavailable(reason)) if reason == "artifact_publication_journal_unsupported"
     ));
+    // Retention reads the same journal, and byte reclamation is never a default: an adapter that
+    // has not opted in must deny both instead of pretending the plan is empty-but-backable.
+    assert!(matches!(
+        store.publication_intents().await,
+        Err(PortError::Unavailable(reason)) if reason == "artifact_publication_journal_unsupported"
+    ));
+    assert!(matches!(
+        store.remove_orphan_blob(&version.as_ref()).await,
+        Err(PortError::Unavailable(reason)) if reason == "artifact_orphan_removal_unsupported"
+    ));
 }

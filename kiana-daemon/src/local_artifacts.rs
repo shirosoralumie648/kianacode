@@ -13,6 +13,7 @@ use kiana_domain::{
 use kiana_ports::{ArtifactContentPort, ArtifactStorePort, PortError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -352,6 +353,72 @@ impl LocalArtifactStore {
         Ok(pending)
     }
 
+    fn publication_intents_sync(&self) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        let mut intents = self.read_journal()?;
+        intents.sort_by(|left, right| left.command_id.cmp(&right.command_id));
+        Ok(intents)
+    }
+
+    /// Reclaim the bytes of a committed blob that this store's own journal proves fact-free.
+    ///
+    /// The caller's retention decision is never trusted: this method re-derives the precondition
+    /// from the append-only journal and refuses any reference that any recorded intent still holds
+    /// as pending or committed. The pinned descriptor and the recorded content hash are checked
+    /// before unlinking, so a replaced, drifted or hard-linked file is refused rather than deleted.
+    fn remove_orphan_blob_sync(&self, reference: &ArtifactRef) -> Result<bool, PortError> {
+        reference
+            .validate()
+            .map_err(|error| failed(format!("artifact_reference_invalid:{error}")))?;
+        // The journal is checked before the filesystem: a reference this store never recorded is
+        // denied rather than reported as "nothing to reclaim", so a mis-targeted call cannot look
+        // like a successful no-op.
+        let journal = self.read_journal()?;
+        let mut matching = journal
+            .iter()
+            .filter(|intent| intent.artifact == *reference)
+            .peekable();
+        if matching.peek().is_none() {
+            return Err(PortError::Conflict(
+                "artifact_orphan_retention_unrecorded".to_owned(),
+            ));
+        }
+        if matching.any(|intent| intent.state != ArtifactPublicationState::Abandoned) {
+            return Err(PortError::Conflict(
+                "artifact_orphan_retention_denied".to_owned(),
+            ));
+        }
+        let Some(directory) = self.key_directory(&reference)? else {
+            return Ok(false);
+        };
+        let [blob_name, manifest_name, stage_name, commit_name] = Self::filenames(&reference);
+        let blob_marker = blob_name.clone();
+        let mut removed = false;
+        // Remove the commit marker first: after it is gone no reader can treat this version as
+        // committed, so an interrupted reclamation cannot leave a half-readable artifact.
+        for name in [commit_name, stage_name, manifest_name, blob_name] {
+            let Some(owned) = directory.open_regular_file(&name)? else {
+                continue;
+            };
+            if name == blob_marker {
+                let mut bytes = Vec::new();
+                (&owned)
+                    .take(MAX_ARTIFACT_BYTES as u64 + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(|error| failed(format!("artifact_orphan_read_failed:{error}")))?;
+                if bytes.len() > MAX_ARTIFACT_BYTES
+                    || kiana_domain::journal_sha256(&bytes) != reference.content_hash
+                {
+                    return Err(PortError::Conflict(
+                        "artifact_orphan_content_drift".to_owned(),
+                    ));
+                }
+            }
+            directory.remove_owned_file(&name, &owned)?;
+            removed = true;
+        }
+        Ok(removed)
+    }
+
     fn stage_version_sync(
         &self,
         version: ArtifactVersion,
@@ -650,6 +717,39 @@ impl ArtifactStorePort for LocalArtifactStore {
         .map_err(|error| {
             failed(format!(
                 "result_unknown:artifact_publication_journal_join_failed:{error}"
+            ))
+        })?
+    }
+
+    async fn publication_intents(&self) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .publication_intents_sync()
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_publication_journal_join_failed:{error}"
+            ))
+        })?
+    }
+
+    async fn remove_orphan_blob(&self, reference: &ArtifactRef) -> Result<bool, PortError> {
+        let reference = reference.clone();
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .remove_orphan_blob_sync(&reference)
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_orphan_removal_join_failed:{error}"
             ))
         })?
     }
