@@ -391,11 +391,11 @@ fn duplicate_identity_and_invalid_catalog_shapes_are_rejected() {
 
 #[test]
 fn widened_or_tampered_catalog_entry_is_rejected() {
-    let manifest = manifest("reader", ExtensionEffect::ReadOnly, &["memory.search"]);
+    let reader_manifest = manifest("reader", ExtensionEffect::ReadOnly, &["memory.search"]);
     let authority = capabilities(&["memory.search"]);
     let catalog = CapabilityCatalog::from_manifests(
         3,
-        std::slice::from_ref(&manifest),
+        std::slice::from_ref(&reader_manifest),
         &authority,
         &authority,
         &authority,

@@ -144,10 +144,10 @@ fn schema_format() -> ModelResponseFormat {
 #[tokio::test]
 async fn unsupported_response_schema_fails_before_send() {
     let _env = EnvRestore::new();
-    let gateway = gateway("openai", "p4-j7-21-undeclared-model");
+    let openai_gateway = gateway("openai", "p4-j7-21-undeclared-model");
 
     for format in [ModelResponseFormat::JsonObject, schema_format()] {
-        let error = gateway
+        let error = openai_gateway
             .prepare_call(request(Vec::new()), spec(format.clone()))
             .expect_err("undeclared structured output must fail before send");
         assert_eq!(
@@ -178,7 +178,7 @@ async fn unsupported_response_schema_fails_before_send() {
     assert!(!error.request_sent);
     assert_eq!(error.side_effect_state, ModelSideEffectState::None);
 
-    let prepared = gateway
+    let prepared = openai_gateway
         .prepare_call(request(Vec::new()), spec(ModelResponseFormat::Text))
         .expect("text responses do not require structured-output capability");
     assert!(prepared.wire_body.get("response_format").is_none());
