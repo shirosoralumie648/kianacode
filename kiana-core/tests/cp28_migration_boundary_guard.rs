@@ -267,3 +267,88 @@ fn cp_every_product_constructor_enforces_the_same_boundary() {
         assert!(!source.contains("CapabilityBroker::new"));
     }
 }
+
+#[test]
+fn cp_migration_matrix_and_single_writer_are_explicit() {
+    let preflight = include_str!("../../kiana-domain/src/migration_preflight.rs");
+    let rollback = include_str!("../../kiana-domain/src/migration_rollback.rs");
+    let registry = include_str!("../../kiana-domain/src/migration_registry.rs");
+    let record = include_str!("../../kiana-domain/src/migration_record.rs");
+    let runner = include_str!("../../kiana-domain/src/migration_runner.rs");
+    let primitives = include_str!("../../kiana-domain/src/migration_primitives.rs");
+    let baseline = include_str!("../../docs/roadmap/cp28-migration-boundary-baseline.md");
+
+    require(
+        preflight,
+        &[
+            "MigrationPreflightReport",
+            "read_only: true",
+            "effect_calls: 0",
+            "migration_store_digest_mismatch",
+            "migration_downgrade_denied",
+            "migration_schema_major_mismatch",
+            "migration_projection_lag",
+            "migration_old_writer_active",
+            "migration_runner_concurrent",
+            "migration_backup_unverified",
+        ],
+        "migration preflight dry-run",
+    );
+    require(
+        rollback,
+        &[
+            "MigrationRollbackFacts",
+            "active_writer_count",
+            "rollback_writer_active",
+        ],
+        "single-writer rollback gate",
+    );
+    require(
+        registry,
+        &[
+            "MigrationCompatibilityWindow",
+            "min_reader_version",
+            "max_reader_version",
+            "ordered_steps",
+            "signing_bytes",
+            "requires_verified_backup",
+        ],
+        "migration registry",
+    );
+    require(
+        record,
+        &[
+            "MigrationRecord",
+            "backup_snapshot_id",
+            "preflight_digest",
+            "Quarantined",
+        ],
+        "migration record",
+    );
+    require(
+        runner,
+        &[
+            "MigrationRunnerStatus",
+            "MigrationResumeToken",
+            "migration_failure_quarantined",
+        ],
+        "migration runner quarantine",
+    );
+    require(
+        primitives,
+        &["MAX_MIGRATION_BATCH", "MAX_MIGRATION_ITEMS"],
+        "migration primitives",
+    );
+    require(
+        baseline,
+        &[
+            "## Migration matrix",
+            "## Upgrade / downgrade handling",
+            "## Legacy bypass inventory",
+            "eventlog_legacy_writer_after_upgrade",
+            "legacy_implementation_edges_can_only_decrease",
+            "rollback_writer_active",
+        ],
+        "CP-28 baseline deliverable",
+    );
+}
