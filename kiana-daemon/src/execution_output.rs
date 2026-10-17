@@ -357,3 +357,82 @@ mod h15_bounds {
         assert!(!raw.contains('\u{0}'));
     }
 }
+
+#[cfg(test)]
+/// INT-13 进程输出通道夹具：stdout/stderr 预览在发布前经过脱敏、控制序列过滤和哨兵扫描，
+/// 命中残留凭证形状时整体退回固定占位符，并且预览编码器绑定调用方给出的真实通道标签。
+///
+/// 这些测试直接驱动 `safe_output_text_for`/`render_capped_for`/`preview_profile_digest` 的
+/// 内存实现，不启动真实子进程，也不证明 OS 级 pipe、跨进程归档或外部日志的行为。
+mod int13_channels {
+    use super::*;
+    use kiana_domain::SecretScanChannel;
+
+    /// 每种已知凭证形状在 stdout 与 stderr 上都必须被替换或整体隐藏，且输出本身能再次通过
+    /// 同一通道的扫描。
+    #[test]
+    fn stdout_and_stderr_previews_never_publish_a_credential_shape() {
+        let shaped = [
+            "access_token=daemon-int13-access",
+            "Authorization: Bearer daemon-int13-bearer",
+            "https://user:daemon-int13-password@example.test/v1",
+            "eyJpbnQxMyI6InNlbnNpdGl2ZSJ9.eyJzZWNyZXQiOiJpbnQxMyJ9.DAEMON_SIGNATURE",
+            "key artifact/sk-live-int13-secret",
+        ];
+        let sentinels = [
+            "daemon-int13-access",
+            "daemon-int13-bearer",
+            "daemon-int13-password",
+            "DAEMON_SIGNATURE",
+            "sk-live-int13-secret",
+        ];
+        for channel in [SecretScanChannel::Stdout, SecretScanChannel::Stderr] {
+            for text in shaped {
+                let output = safe_output_text_for(channel, text);
+                for sentinel in sentinels {
+                    assert!(
+                        !output.contains(sentinel),
+                        "{channel:?} leaked {sentinel}: {output}"
+                    );
+                }
+                assert!(
+                    kiana_domain::scan_secret_sentinels(channel, &output).is_ok(),
+                    "{channel:?} published a residual shape: {output}"
+                );
+            }
+        }
+    }
+
+    /// 有界预览保留可读的已脱敏行，遇到脱敏不会重写的残留形状则整体退回 `[REDACTED]`，
+    /// 并为每个通道绑定稳定且互不相同的 profile 摘要。
+    #[test]
+    fn bounded_previews_keep_channel_labels_and_fall_back_to_a_placeholder() {
+        let header = render_capped_for(
+            SecretScanChannel::Stderr,
+            b"stderr: Authorization: Bearer daemon-preview-secret\n",
+            false,
+            4096,
+        );
+        assert!(!header.contains("daemon-preview-secret"), "{header}");
+        assert!(header.contains("Authorization"), "{header}");
+
+        let residual = render_capped_for(
+            SecretScanChannel::Stdout,
+            b"artifact/sk-live-daemon-preview",
+            false,
+            4096,
+        );
+        assert_eq!(residual, "[REDACTED]");
+
+        let clean = render_capped_for(SecretScanChannel::Stdout, b"build finished\n", false, 4096);
+        assert_eq!(clean, "build finished\n");
+
+        let stdout = preview_profile_digest(SecretScanChannel::Stdout);
+        assert_eq!(stdout, preview_profile_digest(SecretScanChannel::Stdout));
+        assert_ne!(stdout, preview_profile_digest(SecretScanChannel::Event));
+        assert_ne!(
+            preview_profile_digest(SecretScanChannel::Stderr),
+            preview_profile_digest(SecretScanChannel::Event)
+        );
+    }
+}

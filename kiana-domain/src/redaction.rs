@@ -16,9 +16,12 @@
 //!
 //! 这里实现的是可被上层调用的领域工具，不是自动套在所有输出上的中间件。
 //! `encode_bounded_*` 会组合结构校验、脱敏、哨兵检查和大小限制；其他调用点可能只调用其中一部分。
-//! 例如，`kiana-eventlog/src/event_store_core.rs` 的通用事件存储（EventStore）校验调用
-//! `storage_security::validate_secret_free()`，其实现比较结构化脱敏前后的值，**没有调用本文件的哨兵扫描器**。
-//! 因而不能把本文件或 `SecretScanChannel` 的存在理解为所有事件日志（EventLog）写入都自动经过扫描。
+//! 例如，`kiana-eventlog/src/event_store_core.rs` 的通用事件存储（EventStore）校验先调用
+//! `storage_security::validate_secret_free()`（比较结构化脱敏前后的值），再额外调用本文件的
+//! `scan_secret_value_with_limit(SecretScanChannel::Event, ...)` 补上脱敏不会重写的形状
+//! （`sk-` token 前缀、`proxy-authorization:` 文本标记、NUL/超限输入）。
+//! 但仍不能把本文件或 `SecretScanChannel` 的存在理解为所有事件日志（EventLog）写入都自动经过扫描：
+//! 覆盖范围取决于每个写入边界是否显式调用了这些 API。
 //!
 //! 主要调用方包括 Domain 的审计/模型事件/遥测验证、Core 的审计与 Trace 导出、Runner 的输出处理、
 //! Daemon 的子进程输出，以及 Entrypoints 的 Web/流式展示。它们各自在自己的数据边界调用这些工具；
@@ -568,7 +571,8 @@ pub fn redact_text_with_profile(profile: &RedactionProfile, text: &str) -> Resul
 ///
 /// 【调用者】Runner、Daemon、Entrypoints、Domain/Core 的多个显式输出校验点会把自己的文本和
 /// `SecretScanChannel` 传进来。通道只是诊断标签，真正决定是否扫描的是调用方是否调用了本函数。
-/// `EventStore` 的通用 `validate_secret_free()` 路径不调用它。
+/// `EventStore` 的 `validate_secret_free()` 路径不调用文本扫描；`kiana-eventlog` 的存储校验另外
+/// 调用 `scan_secret_value_with_limit(SecretScanChannel::Event, ...)` 补上脱敏不重写的残留形状。
 ///
 /// 【检查内容】有界/NUL 输入、常见凭证与认证头 marker、合法 JSON 中的非空敏感字段、URL 用户信息、
 /// 有限形状的 JWT，以及 `sk-` token 前缀。规则面向常见泄漏形状，可能漏掉未覆盖的凭证格式，也可能

@@ -31,11 +31,15 @@ pub(crate) enum AppendPlan {
 /// 【调用者】`JournalState::plan_legacy` 以及事务计划路径会调用；通常此时 adapter 已取得
 /// 自己的锁，因此此方法虽不写状态，却可能在锁内完成结构校验。
 /// 【检查顺序】先检查 aggregate metadata 的完整性；带现代流元数据且载荷为对象时再按 domain
-/// registry 校验；随后检查事件身份链接、audit/governance 契约和载荷中是否有禁止保存的 secret。
+/// registry 校验；随后检查事件身份链接、audit/governance 契约，再检查载荷中是否有禁止保存的
+/// secret：`validate_secret_free()` 拒绝任何会被结构化脱敏改写的字段（含 JWT、URL userinfo）；
+/// INT-13 的 `scan_secret_value` 再拒绝脱敏不会重写的文本形状（`sk-` token 前缀、
+/// `proxy-authorization:` 文本标记、NUL 或超限输入）。
 /// 【副作用】现代契约校验失败时会向 stderr 写一条只含 kind、错误码和载荷 key 名称的日志；
 /// 随后返回 `PortError::Failed`，不会让计划继续走到 apply/写盘。
 /// 【兼容边界】旧事件和非对象 payload 不进入对象 registry 分支，但仍经过其余适用检查；
-/// 是否应进一步收紧该条件属于数据格式迁移决策，不能在这里靠注释暗示格式已统一。
+/// 两道 secret 检查对所有事件都执行，因此兼容路径也不会把未脱敏的凭证形状写入存储。
+/// 是否应进一步收紧 registry 分支属于数据格式迁移决策，不能在这里靠注释暗示格式已统一。
 pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), PortError> {
     validate_stream_metadata(event)?;
     // 仅当事件带 aggregate/stream 版本元数据且载荷是对象时，按当前 domain registry 校验。
@@ -63,6 +67,15 @@ pub(crate) fn validate_event_for_storage(event: &RuntimeEvent) -> Result<(), Por
     governance_contract::validate_runtime_event(event).map_err(PortError::Failed)?;
     kiana_domain::validate_secret_free(&event.data)
         .map_err(|error| PortError::Failed(format!("eventlog_{error}")))?;
+    // `validate_secret_free` 的差异比较覆盖脱敏会改写的形状；这里再跑一次共享哨兵扫描，
+    // 补上 `sk-` token 前缀、`proxy-authorization:` 文本标记与 NUL/超限输入，
+    // finding 不含原始文本。
+    kiana_domain::scan_secret_value_with_limit(
+        kiana_domain::SecretScanChannel::Event,
+        &event.data,
+        kiana_domain::MAX_JOURNAL_EVENT_BYTES,
+    )
+    .map_err(|finding| PortError::Failed(format!("eventlog_{finding}")))?;
     Ok(())
 }
 
