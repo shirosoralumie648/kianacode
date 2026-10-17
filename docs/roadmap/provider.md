@@ -357,7 +357,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-23 单层重试、绝对时限和取消传递　🔄
+#### P4-J7-23 单层重试、绝对时限和取消传递　✅
 
 - **依赖**：`P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15`。
 - **改动位置**：provider/retry/gateway、ModelError、daemon admission、core/runner 取消及预算衔接。
@@ -366,7 +366,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`retryable_429_then_success_records_two_attempts`、`retry_after_http_date_uses_injected_clock`；保留已有 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`。
 - **退出 / 证据**：测试断言真实请求数、dispatch 数、终态数与资源释放；SDK 隐式重试为零；模型未知用量与工具 result_unknown 分开。
 
-- **已实现切片（CI 待跑、build 未验证）**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Transport retry 计入 attempt budget，不占用独立 repair budget。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。集成快照的 workspace 格式检查通过，但未运行测试或 build。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
+- **本次实现**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Transport retry 计入 attempt budget，不占用独立 repair budget。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。
+- **拒绝与回归 fixture**：先拒绝 `cancel_during_retry_backoff_prevents_next_attempt`（退避中取消，第二次 dispatch 不发生）、`post_send_unknown_is_not_retried_automatically`（发送后未知只产生一次 dispatch、零终态成功）、`tls_failure_is_not_transient`（provider 单元夹具：TLS/未知 connect 失败不进入可重试集合）、`oversized_retry_after_does_not_retry_early`（Retry-After 超出绝对 deadline 时退出而不是提前重试）、`cancel_during_model_admission_wait_prevents_dispatch`（fake `ModelBudgetPort` 停在 admission 队列：取消后恰一个终态、零 dispatch、零 permit 消费/结算）、`observed_delta_prevents_retry_even_for_retryable_rejection` 与 `provider_503_rejection_does_not_retry_even_with_no_known_effect`（已见 delta 或非白名单 status 不重发）；再成功 `retryable_429_then_success_records_two_attempts`、`each_retry_is_admitted_again_with_a_fresh_permit`（每次 retry 重新 `reserve_prepared`/`consume_prepared`，admitted attempt id 与 dispatch attempt id 一一对应、lease digest 各不相同）、`provider_retries_do_not_consume_the_separate_repair_budget`、`attempt_reservations_settle_or_mark_unknown_and_never_dangle`（发送过的拒绝保守记 unknown、恢复尝试记 settled、`reserved_tokens` 归零、未报告用量按预留计费，模型侧 unknown 不派生工具结果）、`cancel_while_the_model_turn_is_pending_emits_one_terminal_state`、`cancel_racing_with_model_completion_keeps_one_terminal_state_per_observer`（start/cancel 竞争 8 次：每次观察恰一个终态、不同时 completed+cancelled、取消响应永不报完成）、`retry_after_http_date_uses_injected_clock`（注入时钟解析 HTTP 日期并作废过期日期）；保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`（daemon 持久日志恰一个终态事件）。Core source guard 绑定 `MAX_PROVIDER_ATTEMPTS`、typed classifier、`attempt_reservation.mark_unknown(measured)?`、`retry_reservation` 元数据、SDK `retry(never)` 与全部夹具名。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖，`docs/roadmap.md` §1.1 行 400 记 ✅（CI pending）；专属 `.github/workflows/p4-j7-23-provider-retry.yml`（`workflow_dispatch`-only）跑 `cargo fetch --locked`、`cargo fmt --all --check`、provider lib 夹具、`kiana-runner --test p4_j7_23_retry`、retry classifier lib 夹具、daemon 流式取消回归与 Core guard；自动 lane 是统一 `ci.yml` 的 `kiana-provider`、`kiana-runner`（整 crate，自动涵盖新夹具）与 `kiana-core-s5/6`（列出 `p4_j7_23_provider_retry_guard`）。本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt --all`），CI 回执未等待，proof 上限 `source`；SDK 隐式重试只由源码配置守卫绑定，durable attempt journal、受保护 replay 计费与 live/physical provider 证据仍开放。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
 
 <a id="step-p4-j7-24"></a>
 
