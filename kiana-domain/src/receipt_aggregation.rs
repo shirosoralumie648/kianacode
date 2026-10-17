@@ -202,6 +202,10 @@ impl ReceiptAggregation {
             if cost_breakdown.has_unknown() && self.cost_micros.is_some() {
                 return Err("receipt_cost_unknown_must_remain_visible".to_owned());
             }
+            let (micros, estimated) = legacy_cost_from_breakdown(cost_breakdown);
+            if self.cost_micros != micros || self.cost_estimated != estimated {
+                return Err("receipt_cost_breakdown_legacy_mismatch".to_owned());
+            }
         }
         if let Some(effect_usage) = &self.effect_usage {
             effect_usage.validate()?;
@@ -237,6 +241,26 @@ fn canonical_event_ids(mut values: Vec<EventId>) -> Vec<EventId> {
     values.sort();
     values.dedup();
     values
+}
+
+/// The legacy flat cost fields are a projection of the typed breakdown, never a second source.
+/// A receipt decoded from JSON must keep both views consistent; the caller cannot set an
+/// estimate flag or a micros value that the breakdown does not support.
+fn legacy_cost_from_breakdown(breakdown: &crate::ReceiptCostBreakdown) -> (Option<u64>, bool) {
+    if breakdown.has_unknown() {
+        return (None, false);
+    }
+    match (
+        breakdown.estimated_total.as_ref(),
+        breakdown.measured_total.as_ref(),
+    ) {
+        (Some(amount), None) => {
+            let micros = u64::try_from(amount.micros).ok();
+            (micros, micros.is_some())
+        }
+        (None, Some(amount)) => (u64::try_from(amount.micros).ok(), false),
+        _ => (None, false),
+    }
 }
 
 fn unique_event_ids(values: &[EventId]) -> bool {
