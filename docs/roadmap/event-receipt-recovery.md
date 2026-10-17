@@ -486,12 +486,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-22 — Cancel recovery and stop confirmation　⏳
+##### ER-22 — Cancel recovery and stop confirmation　✅
 
 - **落点：** `kiana-core/lifecycle.rs`、`dispatch.rs`、daemon supervisor；关联 `P0-J1-01..04`、`CAP-17`。
 - **动作：** cancellation generation 覆盖 queued/pending/started；为每个 execution 保存 stop request/ack/observed process state；只在全部必要 stop/effect 事实确认后写 `run.cancelled`。
 - **先拒绝：** `cancel_before_dispatch_has_zero_effect`、`cancel_after_dispatch_without_stop_is_unknown`、`late_result_cannot_resurrect_run`。
 - **成功/回归：** cancel 与 approval、spawn、handler result、terminal append、daemon shutdown 的屏障注入测试。
+- **验收（测试名与卡片名对齐）：** 拒绝路径由树内行为夹具覆盖并接入 `.github/workflows/er22-cancel-recovery.yml`：`kiana-core/tests/control_plane.rs` 有 `cancel_before_dispatch_has_zero_effect`、`cancel_after_dispatch_without_stop_is_unknown`、`late_result_cannot_resurrect_run`；成功/回归由既有 `cancelled_packet_transitions_cell_and_packet_to_cancelled`、`cancel_after_awaiting_approval_does_not_resume_the_pending_invocation` 与 daemon 夹具 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`、`cancel_stops_in_flight_shell_before_it_writes`、`cancel_after_awaiting_approval_rejects_later_approve` 覆盖；`er22_cancel_recovery_guard` 保留三个 source guard 并新增夹具命名/接线守卫 `cancel_behavioural_fixtures_are_wired`。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 source guard 与基线，没有可运行的拒绝/成功夹具。本次在既有 `control_plane` target 上补齐三种拒绝行为：派发前取消（待审批 invocation）零副作用且只落一条 `run.cancelled`、派发后在飞 effect 未确认停止时落 `result_unknown:cancel_stop_unconfirmed`、已确认取消后的迟到完成返回 `run_terminal_conflict` 且不追加第二终态；daemon lane 重跑 mid-stream/停止确认/审批取消三个 stop 证据夹具。proof_level 维持 source；本地未编译未运行，CI 回执未等待；跨进程 supervisor 持久化、掉电恢复、物理进程终止证明与外部 effect 对账仍开放。
 
 <a id="step-er-23"></a>
 
