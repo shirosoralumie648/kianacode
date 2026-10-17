@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 CP-27 翻 ✅（非阻塞存储/可信时钟/有界负载行为夹具，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 224（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/control-plane.md（CP-27 卡 +验收对齐与 2026-10-17 当前证据段）；kiana-core/tests/cp27_nonblocking_limits.rs（新增行为夹具 target）；.github/workflows/cp27-nonblocking-limits.yml（+运行与 --no-run 编译步）；scripts/ci/test-shards.json（纳入 cp27_nonblocking_limits 并认领既有未纳入分片的 er19_job_handle）；kiana-core/tests/cp27_nonblocking_limits_guard.rs（未改，继续固定源码侧上限/fence/worker 顺序）
+worktree_status: 行 224 🔄 → ✅（CI pending）；只改本 Step 相关夹具/workflow/分片与共享文档（roadmap §1.1 该行、§3 变更日志、详细卡、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/awk/git diff）与手工 rustfmt 风格对齐；.github/workflows/cp27-nonblocking-limits.yml 运行既有 source guard 与新增 `cargo test -p kiana-core --test cp27_nonblocking_limits --locked -- --test-threads=1` 及对应 `--no-run`（test target 自动涵盖新用例，无新 target/执行路径/manifest 变更）
+cwd·environment: worktree /workspace/kianacode-worktrees/CP-27，分支 step/cp-27-20261017-1（基线 master 312ab639）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: kiana-core/tests/cp27_nonblocking_limits.rs——`cp_clock_rollback_cannot_extend_authority`（`FixedClock` 伪造 `ClockPort`：`observe(None)` → `Trusted` 且 `require_trusted` 通过；回退 wall/monotonic 样本 → `ClockTrust::Rollback`，`require_trusted`/`allows_before`/`clamp_deadline` 与 `require_trusted_deadline(&behind, Some(&first), 2_000_000)` 均以 `clock_untrusted` 拒绝；前向可信样本 `require_trusted_deadline(..., 2_000_000)` 通过且 `validate_transition_from` 通过，同一前向样本对已过期 deadline `1_000_500` → `clock_deadline_expired`；篡改持久化观测 `wall_now_unix_ms` → `clock_observation_invalid`）；`cp_pending_and_event_limits_fail_without_resource_leak`（真实 `MemoryEventLog`：单事件批 `CommitOutcome::Committed`；`MAX_TRANSITION_EVENTS+1` 批 `validate()` 返回 `journal_batch_event_limit` 且 `commit_transition` 返回 `PortError::Failed("journal_batch_event_limit")`，`read_command` 为空、`read_all().len()==1`、`read_from(0,10)` 游标仍为 1；超 payload 批 → `journal_event_size_limit`、超 read-set 批 → `journal_read_set_limit`，均不追加第二条事实）；`cp_slow_storage_does_not_starve_cancellation`（占满 `Semaphore(1)` 时预置取消的 `wait_for_cancellation` 在 5s 上界内立即返回；`ObservabilityQueue::new(2)` 满后 best-effort `Log` → `BestEffortDropped{reason:"best_effort_queue_full"}`、关键项 `Approval` → `CriticalQueueFull`，`stats` depth=2/dropped_best_effort_total=1/critical_rejected_total=1；`flush_cancellable` 取消 → `FlushCancelled`；`BlockingBroker`（handler `pending().await`）预置取消的 `execute_cancellable` 返回 `PortError::Failed("result_unknown:cancel_stop_unconfirmed")` 且调用计数为 0）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CP-27 卡三条命名验收此前只有 source guard（源码标记）与基线，无可运行行为证据；本次新增真实 domain/ports 契约夹具，覆盖时钟回退/篡改 fail-closed 且不延长 authority、journal 事件/payload/read-set 上限结构化拒绝且无事实/回执泄漏、慢存储不饿死取消与满队列不阻塞生产者、biased 取消在 handler 之前判定，并接入 CP-27 workflow；行 224 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；夹具用进程内 `MemoryEventLog` 与内存队列，不覆盖 daemon I/O adapters 的真实磁盘有界 worker/`spawn_blocking` 路径；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）；卡片「交付」要求的代表性负载下延迟/内存/日志增长基线（环境、数据规模、阈值依据）仍未交付；跨重启时间可信/持久 expiry、durable/live/physical 与真实慢盘/磁盘满仍开放
+reviewer: root integration agent；CP-27 非阻塞存储/可信时钟/有界负载行为夹具与上限/取消路径静态复核
+```
+
 ### 2026-10-17 ER-19 翻 ✅（worker/process handle 与 fencing token 行为夹具，CI-only 口径）
 
 ```text
