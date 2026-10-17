@@ -1,6 +1,9 @@
 # CI-07 SecretStore 与 CredentialLease 基线
 
-> 快照日期：2026-10-08。局部 connector effect-boundary 验收已在受控本地 fixture 执行；整卡仍未完成。
+> 快照日期：2026-10-08。局部 connector effect-boundary 验收已在受控本地 fixture 执行。
+> 2026-10-17 收口（CI-only 口径）：卡片退出条件已在源码层覆盖——narrow backend registry 与
+> 进程内撤销围栏落地并有 deny-first fixture，roadmap 行由 🔄 提升 ✅（CI pending）；durable/
+> 跨进程 revoke、真实 keyring/file/OS backend、OAuth 与 live/physical effect 仍开放。
 
 ## Effect boundary
 
@@ -73,3 +76,43 @@ reported maximum RSS 463692/292700/131388 KiB respectively, with no swap.
 This closes only exact metadata binding at the existing issuance-time validation boundary. The
 adapter still lacks effect-time wall-clock validation, a server-owned cross-clone one-shot replay
 fence, and durable/restart revocation; those remain CI-07/INT-06/INT-11 follow-up work.
+
+## 2026-10-17 narrow backend registry and revocation fence
+
+This slice closes the two remaining card reject items that were still open at source level:
+`revoked` references and the narrow `env`/`keyring`/`file`/`os` adapter registry as an *enforced*
+contract rather than dead placeholders.
+
+- `SecretBackend::from_store_name` is the narrow registry: `env`/`inline`/`keyring`/`file`/`os`
+  map to their exact adapter, and any other name has no adapter. `validate_effect_backend` is
+  called at the transport effect boundary (and by the fenced store on every read) and fails closed
+  with `credential_backend_unsupported:<store>` for the protected backends,
+  `credential_backend_unknown:<store>` for unknown names, and `credential_backend_mismatch:<store>`
+  when the resolved store handle does not own the reference.
+- `CredentialRevocations` is a narrow, in-process revocation watermark keyed by the reference
+  identity (`store`/`key`/`purpose`/`audience`), holding only metadata and never a secret value.
+  Generations are monotonic: recording an older generation cannot lift an earlier revocation.
+  `RevocationFencedStore` wraps every resolved connection store, so both the admission-time
+  revision check and the effect-time issuance fail with `credential_secret_ref_revoked` **before**
+  the protected source is read. `ProviderGateway::revoke_credential_ref` records the watermark.
+- The Broker gains `consume_credential_lease_with_revocation`: a generation at or below the
+  server-owned watermark is refused with `credential_secret_ref_revoked` before validation or
+  consumption, and the denied lease is returned untouched.
+
+Fixtures: `kiana-provider` unit fixtures cover the registry mapping, backend validation denials,
+and the revocation fence denying without touching a counting fake adapter; the new
+`revoked_credential_fails_closed_before_any_provider_connection` integration fixture drives
+`complete_admitted` against a stub `TcpListener` and asserts `credential_secret_ref_revoked`, no
+deltas and **zero** provider connections; the Broker fixture asserts a revoked generation does not
+consume the lease and an absent watermark still admits exactly once. The core source guard records
+the registry/revocation markers. All targets are already wired into
+`.github/workflows/ci07-secret-store.yml` (provider `credentials::tests`, provider
+`ci07_secret_store`, Broker `ci07_credential_lease`, core guard); no manifest or workflow change is
+needed.
+
+Limitations (unchanged and explicit): the revocation watermark is process-local and non-durable —
+restart, cross-process propagation and event-sourced/`generation` CAS revocation remain CI-09/11
+and ER/PD work, and nothing yet calls `revoke_credential_ref` from the daemon product path. The
+`keyring`/`file`/`os` adapters still refuse rather than read a protected source, so no protected
+backend, HSM, physical memory erasure or live provider effect is claimed. proof_level stays
+`source`; no local test/build ran in this session and the CI receipt is not awaited.
