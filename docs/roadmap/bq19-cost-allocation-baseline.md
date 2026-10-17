@@ -56,3 +56,33 @@ provider/project truth, import invoices or authorize financial budgets. A `Shari
 against the supplied authority snapshot but grant persistence/consumption remains the existing
 ControlPlane boundary. Parent/child workflow accounting, daily/window checkpoints and recovery
 remain BQ-20/BQ-21 and later CompanyOS work.
+
+## 2026-10-17 completion slice (CI-only)
+
+The source slice above was kept; this pass closes the card's deny column and success column with
+deny-first fixtures and a single-rule grant check.
+
+| Added / hardened | Where | Why |
+|---|---|---|
+| `CostAllocationLedger` + `CostAllocationAppendOutcome` | `kiana-domain/src/billing_allocation.rs` | one usage leaf can be charged exactly once; duplicate allocation id, conflicting replay digest, reused source event and source-cursor regression fail closed. Replay of the identical fact returns the original leaf |
+| `CostAllocation::validate_grant_binding` | domain | Domain owns the exact/active/`cost.allocate` grant rule; Core delegates instead of re-implementing it |
+| `CostAllocation::validate_wire_attribution` | domain | wire scope, source project and grant reference are assertions compared field by field; mismatches fail before an event exists |
+| negative amount fences | domain | `cost_allocation_estimated_amount_negative` / `cost_allocation_measured_amount_negative`; zero stays a legal explicit observation |
+| `CostAllocationAdmission::authorize_wire_attribution`, `ControlPlane::admit_cost_allocation_wire` | `kiana-core/src/billing_allocation.rs` | the wire path reaches the same ControlPlane facade and error classification as the trusted path |
+| recomputation in `CostAllocationProjection::validate` | `kiana-query/src/allocation_projector.rs` | hand-edited totals are refused (`cost_allocation_projection_totals_recompute_mismatch`) and duplicate `source_event_ids` are refused |
+| `CostAllocationPortfolio` + `project_cost_allocation_portfolio` | query | CO-45 portfolio view is folded once from the same leaf set with a leaf-set digest; row leaf counts must equal the ledger total |
+
+Fixture matrix after this slice (deny first): domain 8, core 4, query 8. Guards pin the markers,
+refusal-code matrix, fixture names, the manual lane commands and the `scripts/ci/test-shards.json`
+bindings (`kiana-domain-s1/4` lists `bq19_cost_allocation`; `kiana-core-s1/6` lists
+`bq19_cost_allocation` and `bq19_cost_allocation_guard`; `kiana-query` is a whole-crate shard).
+
+Manual lane: `.github/workflows/bq19-cost-allocation.yml` (`workflow_dispatch`-only,
+`permissions: contents: read`, `cargo fetch --locked`, `cargo fmt --all --check`, five test targets
+with `--test-threads=1` and five `--no-run` compile steps).
+
+Known limits after the completion slice: local tests/build/check/clippy/smoke were not run and CI
+receipts are not awaited, so the proof ceiling stays `source`. Allocation facts are still not
+durably appended here; cross-process CAS, quota settlement, invoice import, daily/window rollups,
+parent/child recovery and live/physical billing evidence remain BQ-20/BQ-21/BQ-22 and later.
+
