@@ -23,7 +23,7 @@
 //! | `inbox` | 按 next-turn/next-step 分队列的输入接收与认领 |
 //! | `compact` | 根据预算压缩历史，并保留完整的近期消息组 |
 //! | `stream_normalizer` | 每个 attempt 的增量累积与最终输出验证 |
-//! | `progress` | domain 进度 reducer 的导出层；当前 harness 保存 tracker，但未调用 observe |
+//! | `progress` | domain 进度 reducer 的导出层与证据适配器；harness 在已知工具结果/空 turn 上调用 observe |
 //! | `budget` | 按调用方 scope 共享的内存预算账本，不授予执行权限 |
 //! | `retry` | 重试条件、次数/deadline 检查与退避计算，不另起重试循环 |
 //! | `tool_batch_scheduler` | 有界并行只读组与独占屏障的批次执行器；只调度调用方闭包，不执行工具 |
@@ -110,7 +110,8 @@ pub use model::{
 
 // ■ 进度 reducer
 // observe 消费 ProgressInput 证据并返回 ProgressDecision；默认值限定证据窗口与停滞次数。
-// harness 当前只保存和校验 tracker，实际连续重复工具调用检查在 record_tool_call 中。
+// harness 在每次已知工具结果与空 turn 时调用 observe，并按决定注入一次性反馈、等待澄清
+// 或停止 turn；checkpoint/restore 携带 tracker，连续重复工具调用检查仍在 record_tool_call。
 // failure_digest 生成失败原因摘要，不提供完整脱敏保证。
 pub use progress::{
     failure_digest, ProgressAction, ProgressDecision, ProgressEvidence, ProgressInput,

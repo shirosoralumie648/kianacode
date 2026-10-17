@@ -4,6 +4,12 @@
 //! reference or advancing JobHandle cursor can prove movement.  Model prose alone cannot.  The
 //! reducer is pure and bounded so repeated failures, A→B→A cycles, empty turns and stop-hook
 //! feedback cannot create an unbounded repair loop.
+//!
+//! Two boundedness rules matter when the reducer is wired into a live loop:
+//! an empty turn never counts as progress, and the repeated-failure window only counts
+//! failures since the last observable progress.  A legitimate long job poll that advances its
+//! cursor/heartbeat is progress; an unchanged poll is a bounded wait that follows the same
+//! feedback → clarification → blocked ladder instead of waiting forever.
 
 use crate::json_digest;
 use serde::{Deserialize, Serialize};
@@ -239,10 +245,15 @@ impl ProgressTracker {
             }
         }
         let previous = self.history.last();
-        let progressed = previous
-            .map(|previous| input.evidence.progressed_from(previous))
-            .transpose()?
-            .unwrap_or(!input.empty_turn);
+        // 空 turn 没有任何可观测产出：即使证据形状与上一条不同，也不构成进展。
+        let progressed = if input.empty_turn {
+            false
+        } else {
+            previous
+                .map(|previous| input.evidence.progressed_from(previous))
+                .transpose()?
+                .unwrap_or(!input.empty_turn)
+        };
         let cycle_detected = self.history.len() >= 2
             && self.history[self.history.len() - 2].evidence_digest
                 == input.evidence.evidence_digest
@@ -256,6 +267,11 @@ impl ProgressTracker {
         } else {
             self.consecutive_stall.saturating_add(1)
         };
+        if effective_progress {
+            // 「相同失败反复修复」只在无进展窗口内累计；任何可观测进展都会重新开始计数，
+            // 避免正常的失败-修复-再失败迭代被当成无限重试。
+            self.failure_history.clear();
+        }
         if let Some(failure) = &input.failure_digest {
             self.failure_history.push(failure.clone());
             if self.failure_history.len() > self.window_limit {
