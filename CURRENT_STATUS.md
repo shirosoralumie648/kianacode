@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 H22 翻 ✅（Harness · 真正保留工作状态的 Compaction：plan/generate/validate 三段、模型摘要绑定权威证据、三条行为夹具 + focused lane，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 488（🔄 → ✅，CI pending）与 §3 变更日志（2026-10-17 `H22` 行）；docs/roadmap/harness.md H22 卡（⏳ → ✅，验收名补 `h22_` 前缀并新增「行为证据（2026-10-17，CI-only）」段）；docs/roadmap/h22-compaction-baseline.md（重写为 plan/generate/validate、证据绑定与失败暂停）；kiana-runner/src/compact.rs（COMPACTION_PLAN_SCHEMA / COMPACTION_EXPLANATION_SCHEMA、EXTERNALIZE_RESULT_TOKENS=512、plan_compaction/summary_request_messages/parse_compaction_summary/validate_summary_for_plan/build_compacted_view/explain_compaction）；kiana-runner/src/harness.rs（compact_history、bind_compaction_evidence、compaction_explanation、purpose=Compaction 的 COMPACT_SUMMARY_BUDGET_TOKENS 上限）；kiana-domain/src/compact_summary.rs（parse_model_output/validate_shape/stamp_digest、MAX_COMPACT_SUMMARY_BYTES）；kiana-runner/src/lib.rs（新导出）
+worktree_status: 行 488 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/守卫/工作流/baseline 并单点回填共享文档（roadmap §1.1 该行、§3 变更日志、H22 卡、CURRENT_STATUS 顶部、上下文记忆基线重钉与加注）；压缩仍是 runner 内的上下文视图编排，不新增执行循环、不改变 Invocation/approval/任务状态，模型可见工具面仍为五个；无 Cargo.toml/Cargo.lock/package.json 变化
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/run、make、npm、smoke 或验收脚本；按会话要求每次提交前运行 `cargo fmt --all`（exit 0；范围外基线遗留 `kiana-entrypoints/src/workbench_chat.rs` 的 rustfmt 漂移未纳入提交，按 master 原样还原）；只运行静态 `bash scripts/ci/validate-doc-references.sh`（733 文档全部引用可解析）、`python3 scripts/roadmap-goal.py`（749 步解析，H22 翻 ✅ 后 H23 进入 ready）与 `bash scripts/ci/validate-workflows.sh`（本机缺 ruby 未完成；改以 python3 复跑其 test-shard 覆盖检查（33 members/41 shards/1507 targets）与全部 261 个 workflow YAML 解析，均通过）
+cwd·environment: worktree /workspace/kianacode-worktrees/H22，分支 step/h22-20261017-1（基线 master 99c0d3871241 = H21 合并头）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: 先拒绝（runner 行为，`kiana-runner/tests/h22_compaction_behavior.rs`）：`h22_summary_cannot_forge_completed_tool_or_approval`（模型摘要引用不在权威投影里的 `event:` 完成事实 → `compact_summary_evidence_not_authoritative`；未确认审批 → `compact_summary_evidence_not_confirmed`；模型自报 evidence/digest 被丢弃；harness 路径上 `Failed("compact_summary_unavailable:…")`、无 Completed/无 CapabilityRequested、解释为 None、被拒摘要后不再发任务请求）；再成功：`h22_compaction_keeps_pending_pairs_and_latest_goal`（最新组含未决 assistant/tool 对逐字保留、最新目标保留、折叠区大结果外置成 `result:<digest>`、重复观测只计一次、摘要输入不再读外置正文、无新摘要时不发明占位摘要）、`h22_agent_continues_task_after_two_compactions_without_repeating_completed_edit`（两次模型摘要压缩后 agent 仍看到已完成编辑，`apply_patch` 只被申请一次；摘要请求 purpose=Compaction、tools 为空、第二次带 `[previous summary to supersede]`、折叠大结果已外置）；domain：`compact_summary_parses_bounded_model_output_and_stamps_the_digest`、`compact_summary_evidence_must_come_from_the_authoritative_projection`；守卫 `h22_behaviour_fixtures_are_wired_into_the_diagnostic_lane`；daemon：`over_budget_run_records_compact_on_receipt`（单组只做有界截断 → `summary_present=false`）、`continue_after_compact_still_writes_golden_path`（第二段以真实模型摘要折叠较旧组后仍写出 golden path）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待（本地仅 `cargo fmt --all`、doc-reference 检查、roadmap-goal 解析与 python 复跑的 workflow YAML/test-shard 静态检查）
+status_change: H22 从「占位压缩器只保留近期组、摘要由本地确定性抽取、真实 ModelClient 调用与证据绑定开放」补成卡片三条编号要求的实现：①plan/generate/validate 分段（外置/去重先于选组；最新完整组、最新目标与未决对永远保留；放不下就 `compact_latest_group_exceeds_budget` 在任何模型调用前暂停）②版本化 CompactSummary 由已准入 ModelClient 生成（purpose=Compaction、tools 为空、独立有界 prompt 与预算，`compaction_tools_denied` 兜底）③引用必须命中服务端权威证据且 `confirmed`，摘要不改变 Invocation/approval/任务状态，摘要失败保留原视图并暂停。row 488 `🔄` → `✅`（CI pending）
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical（夹具编译与运行、`include_str!` 接线守卫与 focused lane 回执均依赖 GitHub Actions）
+limitations: 本地未编译未运行，编译与运行正确性依赖 GitHub Actions；权威证据投影由调用方绑定（H23 才从事件投影持久化派生），摘要尚未成为独立事件/artifact，跨进程恢复、源数据撤销传播与缓存失效在 H23/H24；`compaction_explanation` 只是展示/审计对象，不是收据；token 数是本地保守估计（≈4 bytes/token），不代表 provider tokenizer 或计费
+reviewer: root integration agent；plan/generate/validate 边界、模型摘要证据绑定与失败暂停、行为夹具断言、guard/lane 接线与 roadmap/baseline/CURRENT_STATUS 回填的静态复核
+```
+
 ### 2026-10-17 P4-J7-19 翻 ✅（Gemini Interactions：stateless 流式编解码、requires_action 终态、thought/hosted 拒绝夹具与端点核对，CI-only 口径）
 
 ```text

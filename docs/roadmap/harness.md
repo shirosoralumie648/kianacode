@@ -497,7 +497,9 @@ sequenceDiagram
 
 <a id="step-h22"></a>
 
-#### H22 — 真正保留工作状态的 Compaction　⏳
+#### H22 — 真正保留工作状态的 Compaction　✅
+
+当前 source slice 与 CI-only 证据见 [`h22-compaction-baseline.md`](h22-compaction-baseline.md)。
 
 **关联原单元**：`P1-J2-01/02`、`P1-J3-03`、`P1-L1-01`。**依赖**：H05、H11、H15、H20、H21。
 
@@ -505,8 +507,9 @@ sequenceDiagram
 2. 定义版本化 `CompactSummary`：goal、constraints、decisions、completed actions、verification refs、workspace revisions、pending work、next action、source event range。真实摘要经已准入的 ModelClient 请求生成，purpose=compaction、tools 为空，使用独立且有界的预算。
 3. 摘要只允许引用存在的证据，不改变 Invocation/approval/任务状态；校验来源、容量、最近指令和边界。摘要失败可尝试一次受限重试或保留原视图；仍超上下文就暂停，不能用无摘要占位继续失忆执行。
 
-**先拒绝**：`summary_cannot_forge_completed_tool_or_approval`、`compaction_keeps_pending_pairs_and_latest_goal`。**再成功**：`agent_continues_task_after_two_compactions_without_repeating_completed_edit`。
+**先拒绝**：`h22_summary_cannot_forge_completed_tool_or_approval`。**再成功**：`h22_compaction_keeps_pending_pairs_and_latest_goal`、`h22_agent_continues_task_after_two_compactions_without_repeating_completed_edit`。
 **交付**：替换当前占位压缩器的产品证据；验证保留语义和后续行为，而不仅是 token 数下降。
+**行为证据（2026-10-17，CI-only）**：`kiana-runner/src/compact.rs` 把压缩拆成纯函数 `plan_compaction(messages, trigger, retain)`（先按内容 digest 外置超过 `EXTERNALIZE_RESULT_TOKENS`=512 的工具观测为 `result:<digest>` 并去重重复观测，再从新到旧选较旧完整组折叠；最新完整组、最新目标与未决 assistant/tool 对永远保留，最新组放不下先有界截断、截断后仍超过 `retain` 则 `compact_latest_group_exceeds_budget` 在任何模型调用前失败）、`summary_request_messages`（折叠区与旧摘要正文有界到 `COMPACT_SUMMARY_PROMPT_MAX_TOKENS`=4096，模型只看到折叠区）、`parse_compaction_summary`/`validate_summary_for_plan`（丢弃模型自报 evidence 与 digest、来源条数按计划覆盖，引用只认服务端 `bind_compaction_evidence` 绑定的同 kind `confirmed` 条目）、`build_compacted_view`（无新摘要时沿用旧摘要或只保留截断后的近期组，绝不发明本地占位摘要）与 `explain_compaction`；`kiana-runner/src/harness.rs` 用 `compact_history` 统一实现 plan→generate→validate（摘要走已准入 `ModelClient`、purpose=Compaction、tools 为空、`COMPACT_SUMMARY_BUDGET_TOKENS`=32768 的发送前上限；摘要失败保留原视图并 `Failed("compact_summary_unavailable:<reason>")`，不做第二次模型调用）；`kiana-domain/src/compact_summary.rs` 增 `parse_model_output`（有界 JSON、服务端重算 digest、规范化来源条数）与 `MAX_COMPACT_SUMMARY_BYTES`=16384；`kiana-runner/tests/h22_compaction_behavior.rs` 用捕获型 fake provider 驱动三条卡片命名夹具（先拒绝 `h22_summary_cannot_forge_completed_tool_or_approval`：伪造完成/审批引用使运行暂停、无 Completed/CapabilityRequested、解释为 None、被拒摘要后不再发任务请求；`h22_compaction_keeps_pending_pairs_and_latest_goal`：未决对与最新目标逐字保留、大结果外置、重复观测只计一次；`h22_agent_continues_task_after_two_compactions_without_repeating_completed_edit`：两次模型摘要压缩后 `apply_patch` 只被申请一次、第二次摘要提示带旧摘要）；`kiana-domain/tests/h22_compact_summary.rs`、`kiana-runner/tests/h22_compact_guard.rs`（含 `h22_behaviour_fixtures_are_wired_into_the_diagnostic_lane`）与 daemon 两条既有压缩夹具同步更新；`.github/workflows/h22-compaction-diagnostic.yml` 重建为单 job（fmt、三个 target、逐夹具 `--exact` 与 `--no-run`）。真实 provider tokenizer/计费、摘要 artifact 持久化、跨进程恢复与源撤销传播分别属 H23/H24（见 baseline）。
 
 <a id="step-h23"></a>
 

@@ -11,6 +11,8 @@
 > 2026-10-17（CM-12）重新钉扎：unified retrieval 落地后 `memory_retrieval.rs` 把排名委托给 Domain
 > `rank_retrieval()`，重钉该行 SHA-256；同时补钉 `harness_memory.rs`（`0cc42418` 对 H17/CAP-19 daemon
 > 源码套 rustfmt 后遗留的过期钉扎，非 CM-12 行为改动）。下表其余哈希未变。
+> 2026-10-17（H22）重新钉扎：working-state compaction 落地后只重钉 `compact.rs` 一行 SHA-256，
+> 并与验收测试期望同步；§2/§3 的压缩行按 H22 现状加注，下表其余哈希未变。
 
 ## 1. 快照
 
@@ -32,7 +34,7 @@
 | memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `48bd7ae6184853b2e0def1a07cdc1f465640ab7a2e9c3eb068d8fd5cbb325a97` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
-| 上下文压缩 | `kiana-runner/src/compact.rs` | `6e3c08972ca24ac02334fafada0f689c5302eb6bc0b8ad6291acbb18cef063f6` |
+| 上下文压缩 | `kiana-runner/src/compact.rs` | `595f2385fe1602c0300ce14c60311532166774af4776fdce76eac107bcc293db` |
 | 数据治理 | `kiana-daemon/src/data_governance.rs` | `b701f7e5ba539addedb89e824488da3cd62fca23af449da26d53043d76265fe4` |
 
 reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 个顶层文件（`agentdb.rvf`、`agentdb.rvf.lock`、`ruvector.db`、`COMPANYOS-REFERENCES.md`，只登记不计入）。与专项 §24.3 一致；完整清单编在验收测试里。
@@ -46,7 +48,7 @@ reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 �
 | Memory 写入 | `harness_memory.rs:54-71` 注册 memory.search/write/review；`:201-302` 模型写入固定 `origin=model`、Candidate/Draft、supersedes=None；scratch 即时可见（`.kiana/memory/instance/{session}.jsonl`） |
 | Memory 检索 | `memory_retrieval.rs`（CM-12 起把排名委托给 Domain `rank_retrieval()`：exact/BM25-CJK → 可选 dense → RRF60 → MMR）负责 dense 模型加载、manifest/hash 校验与降级原因；dense 需要 `KIANA_MEMORY_EMBEDDING_MANIFEST` 指向 `token-vectors` 格式 manifest（求和归一化，无 ONNX）；缺 manifest 降级 sparse |
 | 蒸馏 | `memory_distillation.rs` 终态排队、CAS claim、内部模型 run、引文校验；`memory_proposals.rs` 人工接受候选 |
-| 压缩 | `compact.rs:142-144` 保留 system + 最近 user，丢弃 assistant/tool 历史，放 `(no summary available)` 占位 |
+| 压缩 | `compact.rs:142-144` 保留 system + 最近 user，丢弃 assistant/tool 历史，放 `(no summary available)` 占位（H22 起改为 plan/generate/validate：最新完整组、最新目标与未决 assistant/tool 对保留，摘要由准入模型生成并绑定服务端权威证据，不再有本地占位摘要） |
 
 ## 3. 基线缺口（29-agent survey + 24 项对抗复核，全部 still-true）
 
@@ -67,7 +69,7 @@ reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 �
 10. promote/reject 不幂等：成功后重放同 revision 撞 guard 返回 Conflict 而非已提升记录。
 11. `content_hash` 仅 sha256(text)：同文本不同 source/evidence 不区分。
 12. 检索相关性为子串包含计数（`memory_score_match`）+ rank_records 叠加。
-13. 压缩产出占位符而非真实摘要；源 cursor/CAS 与删除失效缺失。
+13. 压缩产出占位符而非真实摘要；源 cursor/CAS 与删除失效缺失。（占位摘要已由 H22 解决：摘要来自准入模型且只认服务端权威证据；源 cursor/CAS 与删除失效仍属 H23，缺口后半段成立。）
 14. 检索命中收据不区分 retrieved/selected/sent/cited。
 
 **测试覆盖（RED 记录）**
