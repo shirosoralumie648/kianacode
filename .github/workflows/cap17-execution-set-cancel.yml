@@ -29,6 +29,15 @@ jobs:
       - name: Run cancel race fixtures
         run: cargo test -p kiana-daemon --test p0_j1_04_cancel_race --locked -- --test-threads=1
       - run: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
+      - name: Run CAP-17 execution-set deny-first fixtures
+        run: |
+          for fixture in \
+            cancel_waits_for_all_inflight_executions_and_hooks \
+            dropping_blocking_write_future_does_not_confirm_stop \
+            cancel_after_dispatch_cannot_release_writable_scope_early \
+            late_completion_and_stop_report_after_cancel_are_fenced; do
+            cargo test -p kiana-core --test cap17_execution_set_cancel_guard "$fixture" --locked -- --exact --test-threads=1
+          done
       - name: Run CAP-17 source guard
         run: cargo test -p kiana-core --test cap17_execution_set_cancel_guard --locked -- --test-threads=1
       - name: Compile selected Core targets

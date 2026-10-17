@@ -187,6 +187,7 @@ mod security_fence;
 mod security_incident;
 mod sessions;
 mod span_projection;
+mod stop_tracker;
 mod telemetry_separation;
 mod trace_export;
 mod turn_outcome;
@@ -701,7 +702,7 @@ pub struct ControlPlane {
     invocation_projection_event_ids: Mutex<HashMap<RunId, HashSet<String>>>,
     pending_invocations: Mutex<HashMap<ApprovalId, PendingInvocation>>,
     cancellations: Mutex<HashMap<RunId, watch::Sender<bool>>>,
-    capability_stops: Mutex<HashMap<RunId, watch::Sender<Option<bool>>>>,
+    capability_stops: Mutex<HashMap<RunId, Arc<stop_tracker::RunStopChannel>>>,
     active_terminal_scopes: Mutex<HashMap<RunId, Arc<RunTerminalScope>>>,
     path_locks: Mutex<HashMap<String, String>>,
     durable_path_locks: Mutex<HashMap<String, Vec<PathLockLease>>>,

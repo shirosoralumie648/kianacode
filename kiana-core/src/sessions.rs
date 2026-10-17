@@ -82,19 +82,26 @@ impl ControlPlane {
         Err(PortError::Conflict("session_assignment_contention".to_owned()).into())
     }
     pub(crate) async fn await_capability_stop(&self, run_id: RunId) -> bool {
-        let receiver = self
+        // 读取的是整个 run 的停止集合，而不是单个布尔量：并发执行的每个能力都有独立状态。
+        let channel = self
             .capability_stops
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(&run_id)
-            .map(watch::Sender::subscribe);
-        let Some(mut receiver) = receiver else {
+            .cloned();
+        let Some(channel) = channel else {
+            // 还没有任何已登记的执行：没有需要停止的进程，视为已收敛。
             return true;
         };
+        let mut receiver = channel.subscribe();
+        // 请求停止集合内所有仍未解决的项；重复取消幂等，不会再次前进 epoch。
+        channel.begin_stop();
         tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                if let Some(confirmed) = *receiver.borrow() {
-                    return confirmed;
+                match channel.resolution() {
+                    kiana_domain::StopSetResolution::Confirmed => return true,
+                    kiana_domain::StopSetResolution::Unconfirmed => return false,
+                    kiana_domain::StopSetResolution::Pending => {}
                 }
                 if receiver.changed().await.is_err() {
                     return false;
@@ -369,6 +376,12 @@ impl ControlPlane {
 
     pub(crate) fn clear_cancel(&self, run_id: RunId) {
         self.cancellations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&run_id);
+        // 同时丢弃 run 级 execution 停止集合：终态后不再有在飞执行，保留旧集合会让下一次
+        // turn 的取消读到上一轮的 `Stopped`/`StopUnconfirmed` 项。新的执行会重新创建集合。
+        self.capability_stops
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .remove(&run_id);
