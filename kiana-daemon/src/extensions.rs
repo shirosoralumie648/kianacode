@@ -1434,13 +1434,29 @@ fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{activation_state, verify_manifest_signature};
-    use kiana_domain::{
-        ExtensionEffect, ExtensionManifest, ExtensionNetworkPolicy, ExtensionRequires,
-        ExtensionSignature, ExtensionType, EXTENSION_MANIFEST_SCHEMA,
+    use super::{
+        activation_state, canonical_project, verify_manifest_signature, ExtensionRegistry,
+        InstalledExtension, REGISTRY_SCHEMA,
     };
+    use crate::local_packages::{decode_hex, sha256, LocalDir};
+    use async_trait::async_trait;
+    use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
+    use kiana_domain::{
+        AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
+        CapabilityResult, ExecutionScope, ExtensionEffect, ExtensionExecutionScope,
+        ExtensionManifest, ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires,
+        ExtensionSignature, ExtensionType, ProjectIdentity, RequestId, RiskLevel, RuntimeEvent,
+        ScopeDimension, ScopeLimit, ScopeSet, SessionId, EXTENSION_MANIFEST_SCHEMA,
+        EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
+    };
+    use kiana_ports::{CapabilityBrokerPort, EventStorePort, ExecutionPermitVerifierPort, PortError};
     use ring::signature::{Ed25519KeyPair, KeyPair};
+    use serde_json::json;
     use std::collections::{BTreeMap, BTreeSet};
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn hex(bytes: &[u8]) -> String {
         bytes.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -1482,6 +1498,286 @@ mod tests {
         }
     }
 
+    struct FixturePackage {
+        manifest: ExtensionManifest,
+        bytes: Vec<u8>,
+        package_sha256: String,
+        trusted_keys: BTreeMap<String, BTreeMap<String, String>>,
+    }
+
+    struct CountingHandler {
+        calls: Arc<AtomicUsize>,
+        binding_version: &'static str,
+    }
+
+    struct NoopHandler {
+        binding_version: &'static str,
+    }
+
+    struct AllowPermits;
+
+    #[async_trait]
+    impl ExecutionPermitVerifierPort for AllowPermits {
+        async fn verify_and_consume(
+            &self,
+            _request: &AuthorizedCapabilityRequest,
+        ) -> Result<(), PortError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl CapabilityHandler for NoopHandler {
+        fn binding_version(&self) -> &'static str {
+            self.binding_version
+        }
+
+        async fn execute(
+            &self,
+            request: AuthorizedCapabilityRequest,
+        ) -> Result<CapabilityResult, PortError> {
+            Ok(CapabilityResult::success(
+                request.request.request_id,
+                serde_json::Value::Null,
+            ))
+        }
+    }
+
+    #[async_trait]
+    impl CapabilityHandler for CountingHandler {
+        fn binding_version(&self) -> &'static str {
+            self.binding_version
+        }
+
+        async fn execute(
+            &self,
+            request: AuthorizedCapabilityRequest,
+        ) -> Result<CapabilityResult, PortError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(CapabilityResult::success(
+                request.request.request_id,
+                json!({"fixture": "extension-admission"}),
+            ))
+        }
+    }
+
+    fn package_content_hash(files: &BTreeMap<String, String>) -> String {
+        use sha2::{Digest, Sha256};
+        let mut digest = Sha256::new();
+        digest.update(b"kiana.extension-content.v1\0");
+        for (path, encoded) in files {
+            let content = decode_hex(encoded).expect("hex fixture content");
+            digest.update((path.len() as u64).to_le_bytes());
+            digest.update(path.as_bytes());
+            digest.update((content.len() as u64).to_le_bytes());
+            digest.update(&content);
+        }
+        format!("{:x}", digest.finalize())
+    }
+
+    fn fixture_package() -> FixturePackage {
+        let key_pair = Ed25519KeyPair::from_seed_unchecked(&[9_u8; 32]).expect("seed");
+        let files = BTreeMap::from([(
+            "SKILL.md".to_owned(),
+            hex("Fixture skill body; declarations never grant permission.".as_bytes()),
+        )]);
+        let mut signed = manifest(String::new());
+        signed.content_hash = package_content_hash(&files);
+        let signature = key_pair.sign(&signed.signing_bytes().expect("signing bytes"));
+        signed.signature.value = hex(signature.as_ref());
+        signed.validate().expect("fixture manifest");
+        let package = ExtensionPackage {
+            schema: EXTENSION_PACKAGE_SCHEMA.to_owned(),
+            manifest: signed.clone(),
+            files,
+        };
+        let bytes = serde_json::to_vec(&package).expect("fixture package bytes");
+        let package_sha256 = sha256(&bytes);
+        let trusted_keys = BTreeMap::from([(
+            "fixture-publisher".to_owned(),
+            BTreeMap::from([(
+                "fixture-key".to_owned(),
+                hex(key_pair.public_key().as_ref()),
+            )]),
+        )]);
+        FixturePackage {
+            manifest: signed,
+            bytes,
+            package_sha256,
+            trusted_keys,
+        }
+    }
+
+    fn fixture_root(label: &str) -> PathBuf {
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("time");
+        let stamp = stamp.as_nanos();
+        let root = std::env::temp_dir().join(format!("kiana-ext25-{label}-{stamp}"));
+        std::fs::create_dir_all(root.join("project")).expect("fixture project dir");
+        root
+    }
+
+    fn fixture_registry(
+        root: &Path,
+        package: &FixturePackage,
+        events: Arc<dyn EventStorePort>,
+    ) -> Arc<ExtensionRegistry> {
+        let cache_root = root.join("extensions").join("packages");
+        LocalDir::open(&cache_root, true)
+            .expect("fixture cache root")
+            .publish(&format!("{}.json", package.package_sha256), &package.bytes)
+            .expect("publish fixture package");
+        Arc::new(ExtensionRegistry {
+            events,
+            cache_root,
+            state_root: root.join("extensions").join("state"),
+            trusted_keys: package.trusted_keys.clone(),
+        })
+    }
+
+    fn installed_state(package: &FixturePackage, state: &str) -> InstalledExtension {
+        InstalledExtension {
+            manifest: package.manifest.clone(),
+            package_sha256: package.package_sha256.clone(),
+            state: state.to_owned(),
+            installed_by: "fixture".to_owned(),
+            source_request_id: RequestId::new(),
+        }
+    }
+
+    async fn append_registry_state(
+        events: &Arc<dyn EventStorePort>,
+        scope_id: &str,
+        version: u64,
+        state: &InstalledExtension,
+    ) {
+        let event = RuntimeEvent::new(
+            RequestId::new(),
+            1,
+            "extension.lifecycle",
+            json!({"schema": REGISTRY_SCHEMA, "state": state}),
+        )
+        .expect("registry event")
+        .with_stream_metadata(EXTENSION_STREAM, scope_id, version);
+        events
+            .append_expected(event, Some(version - 1))
+            .await
+            .expect("append registry event");
+    }
+
+    fn project_scope(root: &Path) -> (String, String) {
+        let fixture = root.join("project");
+        let project = canonical_project(fixture.to_str().expect("fixture project utf8"))
+            .expect("fixture project");
+        let scope_id = sha256(project.to_string_lossy().as_bytes());
+        (project.to_string_lossy().to_string(), scope_id)
+    }
+
+    fn execution_scope(request: &CapabilityRequest) -> ExecutionScope {
+        let permission_scope = ScopeSet::new(
+            ScopeDimension::Restricted(vec![request.operation.clone()]),
+            ScopeDimension::NotApplicable,
+            ScopeDimension::NotApplicable,
+            ScopeDimension::NotApplicable,
+            ScopeLimit::NotApplicable,
+            ScopeLimit::NotApplicable,
+        )
+        .expect("fixture permission scope");
+        let principal = AuthenticatedPrincipalRef::local();
+        let project = ProjectIdentity::new(
+            "/repo",
+            "/repo",
+            None,
+            None,
+            kiana_domain::json_digest(&json!("trusted")),
+        )
+        .expect("fixture project identity");
+        let mut scope = ExecutionScope {
+            schema: kiana_domain::EXECUTION_SCOPE_SCHEMA.to_owned(),
+            version: kiana_domain::EXECUTION_SCOPE_SCHEMA_VERSION,
+            principal,
+            project,
+            session_id: SessionId::new("ext25-fixture"),
+            run_id: None,
+            turn_id: None,
+            cell_id: None,
+            grant_refs: Vec::new(),
+            budget_lease_id: None,
+            work_packet_id: None,
+            environment_id: "kiana-local".to_owned(),
+            workspace_revision: None,
+            permission_scope: permission_scope.clone(),
+            read_roots: vec!["/repo".to_owned()],
+            write_roots: Vec::new(),
+            read_denies: Vec::new(),
+            write_denies: Vec::new(),
+            memory_scopes: Vec::new(),
+            server_scopes: Vec::new(),
+            network_policy: Vec::new(),
+            authority_epoch: 1,
+            trust_revision: kiana_domain::json_digest(&json!("trusted")),
+            data_epoch: 1,
+            cancellation_epoch: 1,
+            deadline_unix_ms: u64::MAX,
+            fencing_token: 1,
+            catalog_digest: kiana_domain::capability_action_catalog_digest(),
+            action_digest: kiana_domain::capability_action_digest(request),
+            permission_scope_digest: permission_scope.digest(),
+            scope_digest: String::new(),
+        };
+        scope.scope_digest = scope.digest();
+        scope
+    }
+
+    fn extension_request(
+        project_root: &str,
+        role_id: &str,
+        scope: &ExtensionExecutionScope,
+    ) -> AuthorizedCapabilityRequest {
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Query,
+            "memory.search",
+            json!({
+                "query": "ext25 admission fixture",
+                "project_root": project_root,
+                "role_id": role_id,
+                "_extension_scopes": serde_json::to_value(scope).expect("scope json"),
+            }),
+        )
+        .with_risk(RiskLevel::ReadOnly);
+        kiana_domain::normalize_capability_action(&mut request).expect("normalize fixture request");
+        request.execution_scope = Some(execution_scope(&request));
+        AuthorizedCapabilityRequest::new("extension:ext25-fixture", request).expect("authorized")
+    }
+
+    fn sealed_broker(
+        admission: Arc<dyn ExtensionAdmission>,
+        calls: Arc<AtomicUsize>,
+    ) -> CapabilityBroker {
+        let mut broker = CapabilityBroker::new();
+        for operation in kiana_domain::ACTION_OPERATIONS {
+            let descriptor =
+                kiana_domain::capability_action_descriptor(operation).expect("descriptor");
+            let handler: Arc<dyn CapabilityHandler> = if *operation == "memory.search" {
+                Arc::new(CountingHandler {
+                    calls: calls.clone(),
+                    binding_version: descriptor.binding_version,
+                })
+            } else {
+                Arc::new(NoopHandler {
+                    binding_version: descriptor.binding_version,
+                })
+            };
+            broker
+                .register_static(descriptor.capability, *operation, handler)
+                .expect("register fixture handler");
+        }
+        broker.validate_catalog_bindings().expect("sealed catalog");
+        broker.set_permit_verifier(Arc::new(AllowPermits));
+        broker.set_extension_admission(admission);
+        broker
+    }
+
     #[test]
     fn extension_signature_is_verified_before_install() {
         let key_pair = Ed25519KeyPair::from_seed_unchecked(&[7_u8; 32]).expect("seed");
@@ -1518,5 +1814,155 @@ mod tests {
     #[test]
     fn extension_install_state_is_staged_before_explicit_enable() {
         assert_eq!(activation_state(&manifest(String::new())), "staged");
+    }
+
+    /// EXT-25 behavioral fixture: the host folds a signed, enabled fixture package, then the
+    /// broker and the daemon admission recheck the live registry immediately before dispatch.
+    /// Deny-first: role drift, stale generation, disabled and revoked states must fail with
+    /// stable reason codes and zero handler calls before the passing control case runs.
+    #[tokio::test]
+    async fn extension_admission_rechecks_live_registry_before_dispatch() {
+        let package = fixture_package();
+        let root = fixture_root("admission");
+        let (project_root, scope_id) = project_scope(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        append_registry_state(&events, &scope_id, 1, &installed_state(&package, "enabled")).await;
+
+        // The host issues the scope from the committed registry snapshot, never from the prompt.
+        let (sections, scopes, provenance) = registry
+            .skill_context(&project_root, "builder")
+            .await
+            .expect("enabled fixture skill context");
+        assert_eq!(sections.len(), 1);
+        assert_eq!(scopes.len(), 1);
+        assert_eq!(provenance.len(), 1);
+        let issued_scope = scopes.into_iter().next().expect("issued scope");
+        assert_eq!(issued_scope.registry_generation, 1);
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let broker = sealed_broker(registry.clone(), calls.clone());
+
+        // (a) role drift: the request role no longer matches the signed scope.
+        let drift = extension_request(&project_root, "architect", &issued_scope);
+        assert_eq!(
+            registry
+                .check(&drift, &issued_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("role drift must fail closed"),
+            PortError::Failed("extension_scope_role_mismatch".to_owned())
+        );
+        assert_eq!(
+            broker
+                .execute(drift)
+                .await
+                .expect_err("role drift must not dispatch"),
+            PortError::Failed("extension_scope_role_mismatch".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // (b) stale registry generation: disabling advances the registry to generation 2, so the
+        // scope captured at generation 1 must fail closed even though role and package match.
+        append_registry_state(&events, &scope_id, 2, &installed_state(&package, "disabled")).await;
+        let stale = extension_request(&project_root, "builder", &issued_scope);
+        assert_eq!(
+            registry
+                .check(&stale, &issued_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("stale generation must fail closed"),
+            PortError::Failed("extension_scope_generation_stale".to_owned())
+        );
+        assert_eq!(
+            broker
+                .execute(stale)
+                .await
+                .expect_err("stale generation must not dispatch"),
+            PortError::Failed("extension_scope_generation_stale".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // (c) disabled package: even a scope recomputed at the current generation must not
+        // authorize execution while the live registry state is not enabled.
+        let disabled_scope = ExtensionExecutionScope::new(
+            &package.manifest,
+            package.package_sha256.clone(),
+            2,
+            "builder",
+            issued_scope.issued_at_unix_ms,
+            issued_scope.expires_at_unix_ms,
+        )
+        .expect("disabled fixture scope");
+        let disabled = extension_request(&project_root, "builder", &disabled_scope);
+        assert_eq!(
+            registry
+                .check(&disabled, &disabled_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("disabled package must fail closed"),
+            PortError::Failed("extension_execution_snapshot_inactive".to_owned())
+        );
+        assert_eq!(
+            broker
+                .execute(disabled)
+                .await
+                .expect_err("disabled package must not dispatch"),
+            PortError::Failed("extension_execution_snapshot_inactive".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // (d) revoked package: the next generation keeps failing closed with the same code.
+        append_registry_state(&events, &scope_id, 3, &installed_state(&package, "revoked")).await;
+        let revoked_scope = ExtensionExecutionScope::new(
+            &package.manifest,
+            package.package_sha256.clone(),
+            3,
+            "builder",
+            issued_scope.issued_at_unix_ms,
+            issued_scope.expires_at_unix_ms,
+        )
+        .expect("revoked fixture scope");
+        let revoked = extension_request(&project_root, "builder", &revoked_scope);
+        assert_eq!(
+            registry
+                .check(&revoked, &revoked_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("revoked package must fail closed"),
+            PortError::Failed("extension_execution_snapshot_inactive".to_owned())
+        );
+        assert_eq!(
+            broker
+                .execute(revoked)
+                .await
+                .expect_err("revoked package must not dispatch"),
+            PortError::Failed("extension_execution_snapshot_inactive".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // Control: an enabled registry at the matching generation admits once and dispatches.
+        let control_root = fixture_root("control");
+        let (control_project, control_scope_id) = project_scope(&control_root);
+        let control_events: Arc<dyn EventStorePort> =
+            Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let control_registry = fixture_registry(&control_root, &package, control_events.clone());
+        append_registry_state(
+            &control_events,
+            &control_scope_id,
+            1,
+            &installed_state(&package, "enabled"),
+        )
+        .await;
+        let (_, control_scopes, _) = control_registry
+            .skill_context(&control_project, "builder")
+            .await
+            .expect("control skill context");
+        let control_scope = control_scopes.into_iter().next().expect("control scope");
+        let control = extension_request(&control_project, "builder", &control_scope);
+        control_registry
+            .check(&control, &control_scope.contract(ExtensionEffect::ReadOnly))
+            .await
+            .expect("control admission passes");
+        let control_broker = sealed_broker(control_registry.clone(), calls.clone());
+        let result = control_broker.execute(control).await.expect("control dispatch");
+        assert_eq!(result.output["fixture"], json!("extension-admission"));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }

@@ -1,0 +1,27 @@
+name: "EXT-25 · Signed skill server binding baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ext25-signed-skill:
+    name: "EXT-25 · Signed skill server binding baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Compile kiana-daemon library tests
+        run: cargo test -p kiana-daemon --lib --locked --no-run
+      - name: Run kiana-domain ext25_signed_skill_scope
+        run: cargo test -p kiana-domain --test ext25_signed_skill_scope --locked -- --test-threads=1
+      - name: Run kiana-daemon extension admission fixture
+        run: cargo test -p kiana-daemon --lib extension_admission_rechecks_live_registry_before_dispatch --locked -- --test-threads=1
