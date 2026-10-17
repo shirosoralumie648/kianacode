@@ -442,3 +442,46 @@ proof-level_change: source only; no local_behavior, durable, live or physical pr
 limitations: not a real single-transaction cross-store commit (crash/power-loss semantics unproven); no retention/deletion/GC of orphan blobs; journal is a bounded append-only sidecar without compaction; workspace delta line counts are a bounded multiset summary, not a patch; product UI rendering is UI-22; cross-process and durable guarantees unproven
 reviewer: root integration agent; CO-06 static review of the publication window, reconciliation classification and read-only projection
 ```
+
+## 20. Fact-backed historical original and the named deny matrix (2026-10-17)
+
+The admitted original is durable in two independent places: the immutable store copy and the Company
+fact that admitted it. §19 kept the projection working only while the derived store copy stayed
+readable, so a lost/corrupt blob turned the historical original unavailable even though the commit
+point still held the bounded snapshot. This slice closes that gap without weakening any check.
+
+`ControlPlane::artifact_workspace_delta` now prefers `store.read_artifact(reference)` and, only when
+that read fails (missing/corrupt blob, or no store injected), falls back to the committed fact's
+bounded snapshot. The fallback is never trusted as-is: `fact_backed_original` re-runs
+`validate_artifact_reference_content(reference, snapshot)` before serving it, so a drifted or
+fabricated snapshot is refused exactly like a drifted blob. The projection records
+`historical_source_committed_fact` in `limitations` so a caller can tell which source answered, and
+the marker disappears once the verified store copy is readable again. It never reads the mutable
+workspace as the original.
+
+`kiana-core/tests/co06_company_artifact_wiring_guard.rs` pins the order — store read, then the
+disclosed marker, then the re-verified fact fallback — and requires the fallback helper to call
+`validate_artifact_reference_content`; retention stays free of any fact append.
+
+The card's named deny fixture `company_evidence_rejects_foreign_run_changed_content_and_missing_blob`
+is now in the daemon history target and runs the real ControlPlane/CompanyProof chain: a readable
+EventLog fact for a run this project never authorized → `company_evidence_owner_mismatch`; a
+never-registered artifact id → `company_artifact_not_registered`; a legacy text reference whose
+workspace source was rewritten → `company_artifact_changed`; a committed immutable reference whose
+blob was removed → `artifact_blob_missing` (fail-closed error, not a response). Every denial asserts
+the canonical Company fact count is unchanged, and the run then proves the admitted snapshot is
+still reviewable even after the blob is gone. Restoring the verified blob returns the projection to
+the store copy.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/src/company.rs (fact_backed_original + artifact_workspace_delta fallback); kiana-core/tests/co06_company_artifact_wiring_guard.rs (+1 guard); kiana-daemon/tests/co06_company_artifact_history.rs (+1 named deny fixture + company_artifact_fact helper); docs/roadmap.md §1.1 row 065 + §3; docs/roadmap/companyos.md CO-06 card; CURRENT_STATUS.md
+worktree_status: CO-06 roadmap row 065 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具与共享文档回填；无 Cargo.toml/Cargo.lock/package.json 变化，未改 scripts/ci/test-shards.json（沿用既有 shard 与 co06-artifact-evidence.yml）
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与 `bash scripts/ci/validate-doc-references.sh`（732 documents，通过）
+cwd·environment: worktree /workspace/kianacode-worktrees/CO-06，分支 step/co-06-20261017-3（基线 master b6cf2ef30290）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: core `co06_company_artifact_wiring_guard` +1（`artifact_original_readback_prefers_the_store_and_verifies_the_fact_fallback`：store read < `historical_source_committed_fact` 标记 < fact 兜底调用，且兜底 helper 必须调用 `validate_artifact_reference_content`）；daemon `co06_company_artifact_history` +1（`company_evidence_rejects_foreign_run_changed_content_and_missing_blob`：foreign run / 未注册 id / legacy 改写 / blob 缺失四种拒绝各断言 canonical fact count 不变；移除已提交 blob 后 `artifact_workspace_delta` 报 Changed + `historical_source_committed_fact` + historical_size_bytes=原件长度，并断言 fact 快照仍等于批准原件；恢复 blob 后标记消失）
+exit_code: 本地未运行；CI 回执未等待
+status_change: 卡片命名的先拒绝/再成功两个夹具都在树内且已接入既有 CO-06 CI 目标，row 065 提升 ✅（CI pending）；历史原件在 derived store copy 丢失时仍可复查且 discloses 来源，拒绝路径不追加状态型 Company fact
+proof-level_change: source only；本地未编译/未运行，无 local_behavior/durable/live/physical 提升
+limitations: 本地未编译未运行测试，编译/运行正确性依赖 GitHub Actions；fact 兜底只在 store 读失败时生效，不替代真正的单事务跨 store 原子提交（崩溃/掉电语义仍未证明）；retention 仅有 policy-gated plan/apply，跨进程 orphan deletion/GC、journal compaction、UI 差异渲染（UI-22）与 durable/live/physical 未获
+reviewer: root integration agent; CO-06 static review of the fact-backed original fallback, guard ordering and the named deny matrix
+```
