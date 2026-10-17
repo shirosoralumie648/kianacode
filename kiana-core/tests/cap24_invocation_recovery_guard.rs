@@ -269,3 +269,98 @@ fn retry_and_reconciliation_are_separate_from_replay() {
         }
     }
 }
+
+/// CAP-24 行为夹具的接线守卫：夹具名绑定夹具源码、focused lane 与 baseline，先拒绝序保持不变，
+/// 两条 lane 都执行同一个 `--lib` 模块，且不允许用 `#[ignore]` 把行为证据变成占位符。
+#[test]
+fn cap24_behavioural_fixtures_are_wired_and_deny_first() {
+    let fixtures_source = include_str!("../src/recovery_invocation_tests.rs");
+    let recovery = include_str!("../src/recovery.rs");
+    let lane = include_str!("../../.github/workflows/cap24-invocation-recovery.yml");
+    let ci = include_str!("../../.github/workflows/ci.yml");
+    let baseline = include_str!("../../docs/roadmap/cap24-invocation-recovery-baseline.md");
+
+    let fixtures = [
+        "restart_never_reexecutes_unknown_non_idempotent_call",
+        "changed_input_or_descriptor_causes_replay_divergence",
+        "redacted_snapshot_cannot_be_used_as_executable_payload",
+        "foreign_owner_cannot_read_or_resume_another_runs_invocation",
+        "completed_result_is_reused_from_facts_and_terminal_replay_is_denied",
+        "pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed",
+    ];
+    for fixture in fixtures {
+        assert!(
+            fixtures_source.contains(&format!("async fn {fixture}(")),
+            "CAP-24 fixture {fixture} is missing from the in-module fixture source"
+        );
+        assert!(
+            lane.contains(fixture),
+            "CAP-24 fixture {fixture} is not wired into the focused lane"
+        );
+        assert!(
+            baseline.contains(fixture),
+            "CAP-24 fixture {fixture} is not recorded in the baseline"
+        );
+    }
+    // 行为夹具是证据而不是占位符：不得被 `#[ignore]` 或删除。
+    assert!(!fixtures_source.contains("#[ignore]"));
+
+    // 夹具只能通过 recovery 模块的 `#[path]` 接线编译；这条接线必须留在生产模块里。
+    assert!(recovery.contains("#[path = \"recovery_invocation_tests.rs\"]"));
+    assert!(recovery.contains("mod invocation_tests;"));
+
+    // focused lane 与统一 lane 都必须运行同一个 `--lib` 模块：kiana-core 的分片只跑显式
+    // integration target，因此自动回执必须另有 `--lib` 运行点。
+    for lane_source in [lane, ci] {
+        assert!(
+            lane_source.contains("cargo test -p kiana-core --lib recovery::invocation_tests::"),
+            "CAP-24 invocation fixtures are not run by the lane"
+        );
+    }
+    assert!(lane.contains("--exact"));
+
+    // 先拒绝序：重启不重放、输入/描述符漂移、脱敏不可复活、外来主体拒读都必须排在
+    // 完成结果复用与待批重建这两条回归/成功夹具之前。
+    let position = |fixture: &str| {
+        lane.find(fixture)
+            .unwrap_or_else(|| panic!("CAP-24 fixture {fixture} missing from the focused lane"))
+    };
+    let restart = position("restart_never_reexecutes_unknown_non_idempotent_call");
+    let divergence = position("changed_input_or_descriptor_causes_replay_divergence");
+    let redacted = position("redacted_snapshot_cannot_be_used_as_executable_payload");
+    let foreign = position("foreign_owner_cannot_read_or_resume_another_runs_invocation");
+    let completed = position("completed_result_is_reused_from_facts_and_terminal_replay_is_denied");
+    let pending = position("pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed");
+    assert!(
+        restart < divergence,
+        "the restart deny must run before the divergence deny"
+    );
+    assert!(
+        divergence < redacted,
+        "the divergence deny must run before the redaction deny"
+    );
+    assert!(
+        redacted < foreign,
+        "the redaction deny must run before the foreign-owner deny"
+    );
+    assert!(
+        foreign < completed,
+        "the deny fixtures must run before the completed-result reuse regression"
+    );
+    assert!(
+        completed < pending,
+        "the completed-result reuse regression must run before the pending-rebuild fixture"
+    );
+
+    // 卡片另外两条成功/回归子弹（有界重试、对账不重试且只追加证据）由既有行为 target 提供：
+    // 本次只把它们接进本步 lane，不新增 test target、不改 Cargo/manifest 与分片。
+    for target in [
+        "--test dep25_effect_reconcile_route",
+        "--test p4_j7_23_retry",
+    ] {
+        assert!(
+            lane.contains(target),
+            "CAP-24 retry/reconciliation receipt missing from the focused lane: {target}"
+        );
+    }
+}

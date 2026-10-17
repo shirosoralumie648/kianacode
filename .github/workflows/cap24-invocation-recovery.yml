@@ -34,6 +34,22 @@ jobs:
       - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --locked -- --test-threads=1
       - name: Run CAP-24 source guard
         run: cargo test -p kiana-core --test cap24_invocation_recovery_guard --locked -- --test-threads=1
+      - name: Run bounded retry and reconciliation behaviour fixtures
+        run: cargo test -p kiana-core --test dep25_effect_reconcile_route --locked -- --test-threads=1
+      - run: cargo test -p kiana-runner --test p4_j7_23_retry --locked -- --test-threads=1
+      - name: Run CAP-24 invocation recovery fixtures
+        run: 'cargo test -p kiana-core --lib recovery::invocation_tests:: --locked -- --test-threads=1'
+      - name: Run CAP-24 deny-first fixtures individually
+        run: |
+          for fixture in \
+            recovery::invocation_tests::restart_never_reexecutes_unknown_non_idempotent_call \
+            recovery::invocation_tests::changed_input_or_descriptor_causes_replay_divergence \
+            recovery::invocation_tests::redacted_snapshot_cannot_be_used_as_executable_payload \
+            recovery::invocation_tests::foreign_owner_cannot_read_or_resume_another_runs_invocation \
+            recovery::invocation_tests::completed_result_is_reused_from_facts_and_terminal_replay_is_denied \
+            recovery::invocation_tests::pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed; do
+            cargo test -p kiana-core --lib "$fixture" --locked -- --exact --test-threads=1
+          done
       - name: Compile selected domain targets
         run: cargo test -p kiana-domain --test co08_replay --no-run --locked
       - run: cargo test -p kiana-domain --test h14_invocation_resume --no-run --locked
@@ -45,3 +61,8 @@ jobs:
       - run: cargo test -p kiana-core --test er25_retry_policy_guard --no-run --locked
       - run: cargo test -p kiana-core --test h13_invocation_ledger_guard --no-run --locked
       - run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --no-run --locked
+      - name: Compile retry and reconciliation behaviour targets
+        run: cargo test -p kiana-core --test dep25_effect_reconcile_route --no-run --locked
+      - run: cargo test -p kiana-runner --test p4_j7_23_retry --no-run --locked
+      - name: Compile in-module CAP-24 fixtures
+        run: cargo test -p kiana-core --lib --no-run --locked
