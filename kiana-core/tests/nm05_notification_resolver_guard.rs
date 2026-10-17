@@ -9,6 +9,13 @@ fn notification_resolver_requires_server_context_and_never_dispatches() {
         "server_project_id",
         "validate_for_subscription",
         "notification_recipient_subscription_not_found",
+        "SecurityAuthoritySnapshot",
+        "require_trusted_for_effect",
+        "notification_epoch_rollback",
+        "notification_epoch_stale",
+        "notification_role_self_report",
+        "notification_subscription_scope_widening",
+        "NotificationEntryPoint",
     ] {
         assert!(source.contains(marker), "resolver marker missing: {marker}");
     }
