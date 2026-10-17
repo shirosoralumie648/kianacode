@@ -891,9 +891,14 @@ async fn foreign_owner_cannot_read_or_resume_another_runs_invocation() {
     {
         let events: Arc<dyn EventStorePort> =
             Arc::new(JsonlEventLog::open(&path).expect("open cap24 durable journal"));
-        for fact in
+        for mut fact in
             std::iter::once(run_authorized(run_id, &context, 1)).chain(pending.events.clone())
         {
+            // The product path redacts every payload inside `append_event` before the store sees
+            // it. These hand-built facts must pass through the same redaction, otherwise the
+            // server-owned numeric `execution_scope.fencing_token` reads as an unhandled secret at
+            // the storage boundary and nothing can be appended at all.
+            fact.data = crate::redaction::redact_event_value(&fact.data);
             events.append(fact).await.expect("append cap24 fact");
         }
         let runner = Arc::new(Cap24Runner::new(pending_tool_state(), false));
