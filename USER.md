@@ -90,6 +90,27 @@ CLI 输出约定：`--json` 在成功时只向 stdout 写一个 `kiana.cli-outpu
 `result_unknown`、取消和策略拒绝分别使用稳定退出码 8、130、3；SIGINT 为 130，broken pipe
 为 141。TTY 文本是可丢弃的展示视图，有界且不会替代 receipt/EventLog 事实。
 
+稳定退出码表（唯一来源是 `kiana-client` 的 `CLI_EXIT_CODE_TABLE`，`--json` 的 DTO 与
+`--quiet` 的退出码只是同一份分类的两个投影）：
+
+| 退出码 | 含义 |
+|---:|---|
+| 0 | 成功/in-flight/完成且没有结构化错误 |
+| 1 | 执行失败（含无法识别的新错误类，保守回退） |
+| 2 | 请求或 schema 不合法 |
+| 3 | 策略/权限拒绝 |
+| 4 | 需要审批 |
+| 5 | 状态冲突或目标不存在 |
+| 6 | 预算/容量上限 |
+| 7 | 不可用或超时 |
+| 8 | 结果未知，必须先对账，绝不当作成功 |
+| 130 | 取消或 SIGINT |
+| 141 | 管道断开（SIGPIPE） |
+
+`--json` 只写 DTO：stdout 永远不会有日志行、ANSI 或第二条记录，管道断开时按 141 结束；
+`--quiet` 只保留退出码与 stderr 上的警告/错误；`--paginate`（仅 TTY）按行切页，footer 只报告
+页码位置，页宽和输出上限都由 adapter 给定的预算决定，超出即失败关闭而不是无界打印。
+
 ```bash
 # 文件管理器：在项目目录打开终端，然后
 kiana trust .

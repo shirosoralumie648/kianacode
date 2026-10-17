@@ -428,7 +428,7 @@ limitations）；`kiana-entrypoints/tests/ui10_cli_boundary_guard.rs` 2 条守�
 
 
 
-#### UI-11 · CLI JSON/TTY/exit code presenter　🔄
+#### UI-11 · CLI JSON/TTY/exit code presenter　✅
 
 - 依赖：UI-02/10。代码：CLI presenter、稳定 exit code 和 stderr/stdout 分流。
 - 步骤：JSON 输出只写 schema DTO；TTY 输出可读但不成为事实；错误/警告/receipt 分流；Unknown、Cancelled、PolicyDenied 各有稳定 code。
@@ -440,6 +440,35 @@ limitations）；`kiana-entrypoints/tests/ui10_cli_boundary_guard.rs` 2 条守�
 stdout/stderr 分流、locale/pagination/no-TTY fences、warning/error bounds，以及 GitHub-only
 deny-first fixtures/source guard；见 [UI-11 baseline](ui11-cli-presenter-baseline.md)。证明等级为
 `source`，CI 结果未等待。
+
+2026-10-17 收口切片把「纯 presenter + 6 条夹具 + 单一 source guard」补成卡片退出条件收口。
+`CLI_EXIT_CODE_TABLE` 成为唯一退出码表（11 行：0/1/2/3/4/5/6/7/8/130/141，各带 wire name 与
+meaning），与 `CliExitCode::ALL`/`wire_name`/`meaning`/`parse_name` 以及
+`CapabilityErrorCode::policy().cli_exit` 双向绑定，`from_capability_error` 公开但数值与原私有实现
+逐一对应；`CliSignal::parse` 归一 SIGINT/SIGPIPE 别名，未知名字不发明退出类。adapter 侧新增
+`CliStreamFault` + `write_cli_presentation` + `exit_code_after_write`：首个写故障即返回、不重试、
+不开文件、不 spawn pager，信号类故障（EPIPE→141、interrupted→130）覆盖响应退出类，普通 io
+故障绝不覆盖策略拒绝码。`CliPagerPlan` 对已限界的 TTY body 按行切页：页拼接回原文逐字节相等、
+超预算单行独占一页、footer 预算先留出所以页脚恒在，`page_bytes` 下界/footer 预留/页数上限
+（`cli_pager_page_bytes_invalid`/`cli_pager_too_many_pages`）一律失败关闭；pagination 不是 pager，
+不读用户按键、不发终端控制序列、不重跑命令。`CliLocale::from_env_value` 让 locale 只影响标签
+（乱码回落 English，绝不当 gate），`CliPresentation::stdout_is_pipe_safe` 证明 JSON 管道里混不进
+日志行或 ANSI。验收：`kiana-client/tests/ui11_cli_presenter.rs` 10 条先拒绝优先夹具（退出表↔代码
+双向、lifecycle 场景、信号与写流、locale、`CapabilityErrorCode::ALL` 与 `policy().cli_exit` 遍历、
+逐字节 golden（TTY/quiet）+ JSON 单行 DTO 键序与 error 原样 + 分页逐页拼接、12 行拒绝码、pager
+预算、writer 首个故障停止且不覆盖拒绝码、同一 `ResponseEnvelope` 经 `stable_error_from_response`
+与 CLI 分类一致）+ 声明式 fixture
+[`kiana-client/tests/fixtures/ui11-cli-presenter.json`](../../kiana-client/tests/fixtures/ui11-cli-presenter.json)
+（11 行退出表 / 11 行 lifecycle 场景 / 2 信号 / 3 写流故障 / 7 locale / 12 golden case / 12 行拒绝
+矩阵 / 11 行 Web-CLI parity / required+forbidden / limitations）；
+`kiana-entrypoints/tests/ui11_cli_presenter_guard.rs` 2 条守卫（纯投影 + fixture `required`/`forbidden`
+双向绑定；fixture↔夹具名↔golden 名↔手动 lane↔整 crate 分片↔USER.md↔baseline，且冻结
+`kiana-entrypoints/src/cli.rs` 不得出现第二套 presenter/退出表）。手动 lane 为
+[`.github/workflows/ui11-cli-presenter.yml`](../../.github/workflows/ui11-cli-presenter.yml)
+（`workflow_dispatch`-only、`permissions: contents: read`、fetch + fmt 门 + 两个 target + `--no-run`），
+自动 lane 仍是统一 `ci.yml` 的 `kiana-client`/`kiana-entrypoints` 整 crate 分片；`USER.md` 记录
+`--json`/`--quiet` 契约与同一张退出码表。证明等级为 `source`，CI 结果未等待；真实 PTY/管道字节
+证据、冻结 `cli.rs` 迁移与 durable/live/physical 证据仍开放。
 
 <a id="step-ui-12"></a>
 

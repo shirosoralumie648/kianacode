@@ -1,0 +1,743 @@
+{
+  "schema": "kiana.ui11-cli-presenter.v1",
+  "command": "status",
+  "request_id": "00000000-0000-4000-8000-000000000011",
+  "payload": {
+    "receipt": {
+      "digest": "sha256:demo",
+      "id": "receipt-1"
+    }
+  },
+  "pretty_payload": "{\n  \"receipt\": {\n    \"digest\": \"sha256:demo\",\n    \"id\": \"receipt-1\"\n  }\n}",
+  "exit_codes": [
+    {
+      "code": 0,
+      "name": "success",
+      "success": true,
+      "meaning": "accepted, in-flight or completed presentation without a structured error"
+    },
+    {
+      "code": 1,
+      "name": "execution_failed",
+      "success": false,
+      "meaning": "execution failed"
+    },
+    {
+      "code": 2,
+      "name": "invalid_request",
+      "success": false,
+      "meaning": "invalid request or unsupported schema"
+    },
+    {
+      "code": 3,
+      "name": "permission_denied",
+      "success": false,
+      "meaning": "policy or permission denial"
+    },
+    {
+      "code": 4,
+      "name": "approval_required",
+      "success": false,
+      "meaning": "approval is required"
+    },
+    {
+      "code": 5,
+      "name": "conflict",
+      "success": false,
+      "meaning": "conflict or not-found class"
+    },
+    {
+      "code": 6,
+      "name": "capacity",
+      "success": false,
+      "meaning": "capacity or budget limit"
+    },
+    {
+      "code": 7,
+      "name": "unavailable",
+      "success": false,
+      "meaning": "unavailable or timed out"
+    },
+    {
+      "code": 8,
+      "name": "result_unknown",
+      "success": false,
+      "meaning": "result is unknown and must be reconciled before any retry"
+    },
+    {
+      "code": 130,
+      "name": "cancelled",
+      "success": false,
+      "meaning": "cancelled or interrupted (SIGINT)"
+    },
+    {
+      "code": 141,
+      "name": "broken_pipe",
+      "success": false,
+      "meaning": "broken pipe on stdout or stderr (SIGPIPE)"
+    }
+  ],
+  "exit_code_scenarios": [
+    {
+      "name": "completed_without_a_diagnostic",
+      "status": "completed",
+      "error": null,
+      "code": 0,
+      "name_expected": "success"
+    },
+    {
+      "name": "denied_lifecycle_is_a_policy_denial",
+      "status": "denied",
+      "error": null,
+      "code": 3,
+      "name_expected": "permission_denied"
+    },
+    {
+      "name": "blocked_with_a_structural_reason_keeps_the_reason_class",
+      "status": "blocked",
+      "error": "project_untrusted",
+      "code": 3,
+      "name_expected": "permission_denied"
+    },
+    {
+      "name": "awaiting_approval_is_not_a_failure_to_retry",
+      "status": "awaiting_approval",
+      "error": null,
+      "code": 4,
+      "name_expected": "approval_required"
+    },
+    {
+      "name": "cancelled_keeps_the_signal_class",
+      "status": "cancelled",
+      "error": null,
+      "code": 130,
+      "name_expected": "cancelled"
+    },
+    {
+      "name": "result_unknown_never_returns_zero",
+      "status": "result_unknown",
+      "error": "result_unknown:response_lost",
+      "code": 8,
+      "name_expected": "result_unknown"
+    },
+    {
+      "name": "budget_is_a_capacity_class",
+      "status": "failed",
+      "error": "budget_exceeded",
+      "code": 6,
+      "name_expected": "capacity"
+    },
+    {
+      "name": "unclassified_failure_falls_back_to_failed",
+      "status": "failed",
+      "error": null,
+      "code": 1,
+      "name_expected": "execution_failed"
+    },
+    {
+      "name": "unknown_reason_from_a_newer_server_fails_closed",
+      "status": "blocked",
+      "error": "future_unknown_reason_from_a_newer_server",
+      "code": 1,
+      "name_expected": "execution_failed"
+    },
+    {
+      "name": "completed_with_an_error_is_never_success",
+      "status": "completed",
+      "error": "result_unknown:response_lost",
+      "code": 8,
+      "name_expected": "result_unknown"
+    },
+    {
+      "name": "in_flight_states_are_not_failures",
+      "status": "running",
+      "error": null,
+      "code": 0,
+      "name_expected": "success"
+    }
+  ],
+  "signals": [
+    {
+      "name": "sigint",
+      "code": 130,
+      "parse": ["SIGINT", "sigint", "INT", "interrupt"]
+    },
+    {
+      "name": "broken_pipe",
+      "code": 141,
+      "parse": ["SIGPIPE", "EPIPE", "broken_pipe", " pipe "]
+    }
+  ],
+  "stream_faults": [
+    {
+      "name": "broken_pipe",
+      "kind": "broken_pipe",
+      "fault": "broken_pipe",
+      "signal": "broken_pipe",
+      "code": 141
+    },
+    {
+      "name": "interrupted",
+      "kind": "interrupted",
+      "fault": "interrupted",
+      "signal": "sigint",
+      "code": 130
+    },
+    {
+      "name": "io",
+      "kind": "other",
+      "fault": "io",
+      "signal": null,
+      "code": null
+    }
+  ],
+  "locales": [
+    { "value": "zh_CN.UTF-8", "wire": "zh" },
+    { "value": "zh", "wire": "zh" },
+    { "value": "zh-Hans", "wire": "zh" },
+    { "value": "en_US.UTF-8", "wire": "en" },
+    { "value": "C", "wire": "en" },
+    { "value": "", "wire": "en" },
+    { "value": "not-a-locale", "wire": "en" }
+  ],
+  "cases": [
+    {
+      "name": "json_success_is_one_dto_on_stdout_and_warnings_on_stderr",
+      "mode": "json",
+      "status": "completed",
+      "error": null,
+      "warnings": ["stale cache"],
+      "tty": false,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 0,
+        "stdout_kind": "json_document",
+        "stdout_keys": [
+          "schema",
+          "command_id",
+          "command",
+          "request_id",
+          "mode",
+          "status",
+          "payload",
+          "error",
+          "warnings"
+        ],
+        "stderr": "warning: stale cache\n",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "json_failure_is_one_dto_on_stderr_and_never_zero",
+      "mode": "json",
+      "status": "result_unknown",
+      "error": "result_unknown:response_lost",
+      "warnings": [],
+      "tty": false,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 8,
+        "stdout_kind": "empty",
+        "stderr_kind": "json_document",
+        "stderr_keys": [
+          "schema",
+          "command_id",
+          "command",
+          "request_id",
+          "mode",
+          "status",
+          "payload",
+          "error"
+        ],
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "json_error_on_a_completed_status_still_fails",
+      "mode": "json",
+      "status": "completed",
+      "error": "result_unknown:response_lost",
+      "warnings": [],
+      "tty": false,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 8,
+        "stdout_kind": "empty",
+        "stderr_kind": "json_document",
+        "stderr_keys": [
+          "schema",
+          "command_id",
+          "command",
+          "request_id",
+          "mode",
+          "status",
+          "payload",
+          "error"
+        ],
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "tty_success_zh_renders_a_bounded_text_view",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": ["stale cache"],
+      "tty": true,
+      "locale": "zh",
+      "paginate": false,
+      "max_tty_bytes": 4096,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 0,
+        "stdout_kind": "text",
+        "stdout": "状态: completed\n{\n  \"receipt\": {\n    \"digest\": \"sha256:demo\",\n    \"id\": \"receipt-1\"\n  }\n}\n",
+        "stderr": "警告: stale cache\n",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": false
+      }
+    },
+    {
+      "name": "tty_failure_keeps_the_body_and_diagnostics_off_stdout",
+      "mode": "tty",
+      "status": "failed",
+      "error": "budget_exceeded",
+      "warnings": ["stale cache"],
+      "tty": true,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 4096,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 6,
+        "stdout_kind": "empty",
+        "stderr": "status: failed\n{\n  \"receipt\": {\n    \"digest\": \"sha256:demo\",\n    \"id\": \"receipt-1\"\n  }\n}\nerror: budget_exceeded\nwarning: stale cache\n",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "tty_failure_without_a_diagnostic_names_the_status_line",
+      "mode": "tty",
+      "status": "blocked",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 4096,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 3,
+        "stdout_kind": "empty",
+        "stderr": "status: blocked\n{\n  \"receipt\": {\n    \"digest\": \"sha256:demo\",\n    \"id\": \"receipt-1\"\n  }\n}\nerror: blocked\n",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "tty_output_is_truncated_at_the_adapter_bound",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 64,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 0,
+        "stdout_kind": "text",
+        "stdout": "status: completed\n{\n  \"receipt\": {\n    \"digest\": \"sha256:demo...",
+        "stderr": "",
+        "truncated": true,
+        "paginated": false,
+        "pipe_safe": false
+      }
+    },
+    {
+      "name": "quiet_success_is_an_exit_code_only_view",
+      "mode": "quiet",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": false,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 0,
+        "stdout_kind": "empty",
+        "stderr": "",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "quiet_denial_suppresses_stdout_and_keeps_the_reason",
+      "mode": "quiet",
+      "status": "denied",
+      "error": "permission_denied",
+      "warnings": [],
+      "tty": false,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 3,
+        "stdout_kind": "empty",
+        "stderr": "error: permission_denied\n",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "quiet_cancel_names_the_status_line",
+      "mode": "quiet",
+      "status": "cancelled",
+      "error": null,
+      "warnings": ["stale cache"],
+      "tty": false,
+      "locale": "en",
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "expect": {
+        "exit": 130,
+        "stdout_kind": "empty",
+        "stderr": "warning: stale cache\nerror: cancelled\n",
+        "truncated": false,
+        "paginated": false,
+        "pipe_safe": true
+      }
+    },
+    {
+      "name": "tty_pagination_splits_on_lines_without_losing_bytes",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "locale": "en",
+      "paginate": true,
+      "max_tty_bytes": 1024,
+      "page_bytes": 256,
+      "payload": {
+        "receipt": {
+          "digest": "sha256:demo",
+          "files": [
+            "src/a.rs",
+            "src/b.rs",
+            "src/c.rs",
+            "src/d.rs",
+            "src/e.rs",
+            "src/f.rs",
+            "src/g.rs",
+            "src/h.rs",
+            "src/i.rs",
+            "src/j.rs",
+            "src/k.rs",
+            "src/l.rs",
+            "src/m.rs",
+            "src/n.rs",
+            "src/o.rs",
+            "src/p.rs"
+          ],
+          "id": "receipt-1"
+        }
+      },
+      "expect": {
+        "exit": 0,
+        "stdout_kind": "paginated",
+        "page": 1,
+        "page_count": 2,
+        "body_bytes": 401,
+        "line_count": 25,
+        "stderr": "",
+        "truncated": false,
+        "paginated": true,
+        "require_a_single_line_page": false
+      }
+    },
+    {
+      "name": "tty_pagination_keeps_an_over_budget_line_whole_on_its_own_page",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "locale": "en",
+      "paginate": true,
+      "max_tty_bytes": 1024,
+      "page_bytes": 256,
+      "payload": {
+        "receipt": {
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "id": "receipt-1"
+        }
+      },
+      "expect": {
+        "exit": 0,
+        "stdout_kind": "paginated",
+        "page": 1,
+        "page_count": 3,
+        "body_bytes": 496,
+        "line_count": 7,
+        "stderr": "",
+        "truncated": false,
+        "paginated": true,
+        "require_a_single_line_page": true
+      }
+    }
+  ],
+  "denied": [
+    {
+      "name": "tty_mode_without_a_tty",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": false,
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_tty_output_requires_tty"
+    },
+    {
+      "name": "pager_without_a_tty",
+      "mode": "quiet",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": false,
+      "paginate": true,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_pager_requires_tty"
+    },
+    {
+      "name": "pager_for_json_mode",
+      "mode": "json",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "paginate": true,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_pager_requires_tty"
+    },
+    {
+      "name": "pager_page_budget_below_the_minimum",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "paginate": true,
+      "max_tty_bytes": 65536,
+      "page_bytes": 0,
+      "code": "cli_pager_page_bytes_invalid"
+    },
+    {
+      "name": "pager_page_budget_leaves_no_room_for_the_footer",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "paginate": true,
+      "max_tty_bytes": 300,
+      "page_bytes": 256,
+      "code": "cli_pager_page_bytes_invalid"
+    },
+    {
+      "name": "output_limit_zero",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "paginate": false,
+      "max_tty_bytes": 0,
+      "page_bytes": 4096,
+      "code": "cli_presenter_output_limit_invalid"
+    },
+    {
+      "name": "output_limit_above_the_protocol_bound",
+      "mode": "json",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": false,
+      "paginate": false,
+      "max_tty_bytes": 1048577,
+      "page_bytes": 4096,
+      "code": "cli_presenter_output_limit_invalid"
+    },
+    {
+      "name": "tty_pagination_with_more_pages_than_the_bound",
+      "mode": "tty",
+      "status": "completed",
+      "error": null,
+      "warnings": [],
+      "tty": true,
+      "paginate": true,
+      "max_tty_bytes": 1000000,
+      "page_bytes": 256,
+      "payload_kind": "many_lines",
+      "line_count": 9000,
+      "code": "cli_pager_too_many_pages"
+    },
+    {
+      "name": "ansi_in_a_json_diagnostic",
+      "mode": "json",
+      "status": "completed",
+      "error": "\u001b[31mred",
+      "warnings": [],
+      "tty": false,
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_output_error_invalid"
+    },
+    {
+      "name": "secret_shaped_warning",
+      "mode": "json",
+      "status": "completed",
+      "error": null,
+      "warnings": ["authorization: Bearer secret"],
+      "tty": false,
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_output_warning_invalid"
+    },
+    {
+      "name": "oversized_warning",
+      "mode": "json",
+      "status": "completed",
+      "error": null,
+      "warnings": ["x"],
+      "warning_repeat": 513,
+      "tty": false,
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_output_warning_invalid"
+    },
+    {
+      "name": "oversized_diagnostic",
+      "mode": "json",
+      "status": "failed",
+      "error": "x",
+      "error_repeat": 513,
+      "warnings": [],
+      "tty": false,
+      "paginate": false,
+      "max_tty_bytes": 65536,
+      "page_bytes": 4096,
+      "code": "cli_output_error_invalid"
+    }
+  ],
+  "parity": [
+    { "status": "completed", "error": null, "cli_exit": 0, "ui_error": null, "retry": null },
+    {
+      "status": "completed",
+      "error": "result_unknown:response_lost",
+      "cli_exit": 8,
+      "ui_error": "unknown",
+      "retry": "query_original"
+    },
+    { "status": "denied", "error": null, "cli_exit": 3, "ui_error": "permission_denied", "retry": "do_not_retry" },
+    {
+      "status": "blocked",
+      "error": "project_untrusted",
+      "cli_exit": 3,
+      "ui_error": "permission_denied",
+      "retry": "do_not_retry"
+    },
+    {
+      "status": "awaiting_approval",
+      "error": null,
+      "cli_exit": 4,
+      "ui_error": "approval_required",
+      "retry": "do_not_retry"
+    },
+    { "status": "cancelled", "error": null, "cli_exit": 130, "ui_error": "cancelled", "retry": "do_not_retry" },
+    { "status": "failed", "error": "budget_exceeded", "cli_exit": 6, "ui_error": "capacity", "retry": "do_not_retry" },
+    { "status": "failed", "error": null, "cli_exit": 1, "ui_error": "failed", "retry": "do_not_retry" },
+    { "status": "failed", "error": "timed_out", "cli_exit": 7, "ui_error": "failed", "retry": "do_not_retry" },
+    { "status": "failed", "error": "conflict", "cli_exit": 5, "ui_error": "conflict", "retry": "do_not_retry" },
+    {
+      "status": "blocked",
+      "error": "invalid_arguments",
+      "cli_exit": 2,
+      "ui_error": "invalid_request",
+      "retry": "do_not_retry"
+    }
+  ],
+  "required": [
+    "present_cli_output",
+    "write_cli_presentation",
+    "exit_code_after_write",
+    "CliExitCode",
+    "CliSignal",
+    "CliStreamFault",
+    "CliPagerPlan",
+    "CliLocale",
+    "CLI_EXIT_CODE_TABLE",
+    "CLI_PAGER_FOOTER_PREFIX",
+    "CLI_MIN_PAGE_BYTES",
+    "CLI_MAX_PAGE_COUNT",
+    "CLI_MAX_PAGER_FOOTER_BYTES",
+    "CLI_DEFAULT_PAGE_BYTES",
+    "kiana.cli-output.v1",
+    "cli_tty_output_requires_tty",
+    "cli_pager_requires_tty",
+    "cli_pager_page_bytes_invalid",
+    "cli_pager_too_many_pages",
+    "cli_presenter_output_limit_invalid",
+    "result_unknown",
+    "cancelled",
+    "permission_denied",
+    "broken_pipe"
+  ],
+  "forbidden": [
+    "DaemonHost",
+    "ControlPlane",
+    "CapabilityBroker",
+    "KianaHarness",
+    "EventStore",
+    "EventLog",
+    "std::process::Command",
+    "std::process::exit",
+    "std::fs::",
+    "reqwest::",
+    "tokio::spawn"
+  ],
+  "limitations": "Exit codes report the server-provided classification; receipt correctness, session existence, approval validity and durable recovery stay EventLog/ControlPlane-owned. Pagination is a bounded page split of one TTY body, not a pager: no process, no terminal control, no read-back of the user's answer. The frozen kiana-entrypoints/src/cli.rs is not migrated to this presenter; no local compilation or test run happened for this slice, so byte-level pipe/PTY evidence and Web parity beyond the shared response classification remain open."
+}
