@@ -269,3 +269,38 @@ fn cancellation_regression_fixtures_are_ci_bound() {
         "H02 fixture",
     );
 }
+
+/// ER-22 behavioural fixtures must exist in the shared `control_plane` target and stay
+/// deny-first; the source guards above only prove the shape of the cancellation read path.
+#[test]
+fn cancel_behavioural_fixtures_are_wired() {
+    let fixtures = include_str!("control_plane.rs");
+    let workflow = include_str!("../../.github/workflows/er22-cancel-recovery.yml");
+    for name in [
+        "async fn cancel_before_dispatch_has_zero_effect",
+        "async fn cancel_after_dispatch_without_stop_is_unknown",
+        "async fn late_result_cannot_resurrect_run",
+    ] {
+        assert!(
+            fixtures.contains(name),
+            "ER-22 behavioural fixture missing: {name}"
+        );
+    }
+    assert!(
+        !fixtures.contains("#[ignore]"),
+        "ER-22 behavioural fixtures must not be ignored"
+    );
+    assert!(
+        workflow.contains("--test control_plane"),
+        "ER-22 workflow must run the behavioural control_plane fixtures"
+    );
+    for forbidden in [
+        "cancelled_without_stop_confirmation_is_success",
+        "late_result_resurrects_run",
+    ] {
+        assert!(
+            !fixtures.contains(forbidden),
+            "ER-22 cancellation fixture widened authority: {forbidden}"
+        );
+    }
+}

@@ -14,6 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
@@ -31,6 +33,13 @@ jobs:
       - run: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
       - name: Run ER-22 source guard
         run: cargo test -p kiana-core --test er22_cancel_recovery_guard --locked -- --test-threads=1
+      - name: Run ER-22 cancellation behaviour fixtures
+        run: cargo test -p kiana-core --test control_plane cancel --locked -- --test-threads=1
+      - run: cargo test -p kiana-core --test control_plane late_result_cannot_resurrect_run --locked -- --test-threads=1
+      - name: Run daemon cancellation stop-confirmation fixtures
+        run: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test daemon_host cancel_stops_in_flight_shell_before_it_writes --locked -- --test-threads=1
+      - run: cargo test -p kiana-daemon --test daemon_host cancel_after_awaiting_approval_rejects_later_approve --locked -- --test-threads=1
       - name: Compile ER-22 Core guard targets
         run: cargo test -p kiana-core --test p0_j1_01_cancellation_guard --no-run --locked
       - run: cargo test -p kiana-core --test p0_j1_02_cancellation_guard --no-run --locked
@@ -42,3 +51,7 @@ jobs:
         run: cargo test -p kiana-runner --test h08_cancellation_guard --no-run --locked
       - name: Compile ER-22 source guard target
         run: cargo test -p kiana-core --test er22_cancel_recovery_guard --no-run --locked
+      - name: Compile ER-22 behaviour fixture target
+        run: cargo test -p kiana-core --test control_plane --no-run --locked
+      - name: Compile ER-22 daemon stop-confirmation target
+        run: cargo test -p kiana-daemon --test daemon_host --no-run --locked
