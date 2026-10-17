@@ -487,8 +487,12 @@ pub use telemetry_separation::{
     TELEMETRY_SEPARATION_REPORT_SCHEMA,
 };
 pub use trace_export::{
-    exportable_status, foreign_parent_link, LocalTraceExporter, NoopTraceExporter,
+    exportable_status, foreign_parent_link, otlp_export_digest, otlp_export_json,
+    ForeignAnnotation, ForeignTraceContext, LocalTraceExporter, NoopTraceExporter,
     TraceExportConfig, TraceExportDisposition, TraceExportError, TraceExportReceipt,
+    TraceExportStats, TraceSamplingDecision, TraceSamplingReason, MAX_FOREIGN_ANNOTATIONS,
+    MAX_FOREIGN_CONTEXT_BYTES, MAX_FOREIGN_KEY_BYTES, MAX_FOREIGN_VALUE_BYTES,
+    OTLP_MAPPING_LIMITATIONS, OTLP_MAPPING_SCHEMA,
 };
 pub use turn_outcome::{annotate_output, propose_turn_outcome, TURN_OUTCOME_CORE_SCHEMA};
 pub use ui_actions::UiActionAuthoritySnapshot;
