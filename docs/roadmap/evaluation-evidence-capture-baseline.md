@@ -12,10 +12,16 @@ redaction-safe.
 `infra_flush_unknown` / `InfraUnknown` receipt, preventing a missing flush acknowledgement from
 being reported as an evaluation pass. Once finished, the collector is closed against late writes.
 
+The capture also exposes a fail-closed bridge to the domain `EvalVerdict`: `EvalCaptureStatus::
+blocks_eval_pass` is true for every state except `Flushed`, and
+`EvalCaptureReceipt::apply_flush_invariant` downgrades a candidate `Pass` to `Blocked` whenever the
+capture did not flush cleanly. A flush failure can therefore never surface as an evaluation pass.
+
 ## Evidence and limits
 
 - `kiana-daemon/tests/eq14_evidence_capture.rs` covers event/reference/command-receipt collection,
-  secret rejection, closed-state behavior and flush-failure Unknown classification.
+  secret rejection, closed-state behavior, flush-failure Unknown classification and the named
+  `event_flush_failure_never_returns_eval_pass` fixture.
 - `kiana-core/tests/eq14_evidence_capture_guard.rs` protects the reference-only/no-second-fact-
   source boundary. GitHub Actions runs the fixtures; local tests are intentionally not executed.
 

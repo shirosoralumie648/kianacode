@@ -23,6 +23,9 @@ fn evaluation_evidence_capture_is_reference_only_and_flush_fail_closed() {
         "receipt_refs",
         "infra_flush_unknown",
         "EvalCaptureStatus::InfraUnknown",
+        "blocks_eval_pass",
+        "apply_flush_invariant",
+        "EvalVerdict::Blocked",
     ] {
         assert!(
             runtime.contains(marker),

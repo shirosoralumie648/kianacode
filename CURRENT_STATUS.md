@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 EQ-14 翻 ✅（证据采集与 flush fail-closed 不变量，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 186（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/evaluation-evidence-capture-baseline.md（新增 fail-closed bridge 段）；kiana-daemon/src/eval_runtime.rs（+impl EvalCaptureStatus::blocks_eval_pass、+EvalCaptureReceipt::apply_flush_invariant、导入 kiana_domain::EvalVerdict）；kiana-daemon/tests/eq14_evidence_capture.rs（+event_flush_failure_never_returns_eval_pass 与拒绝夹具）；kiana-core/tests/eq14_evidence_capture_guard.rs（+blocks_eval_pass/apply_flush_invariant/EvalVerdict::Blocked marker）；.github/workflows/eq14-evidence-capture.yml 为已合并的布线，未改
+worktree_status: 行 186 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未改五个模型工具面、未新增外部依赖、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与手工 rustfmt 风格对齐；.github/workflows/eq14-evidence-capture.yml 运行 `cargo test -p kiana-daemon --test eq14_evidence_capture --locked -- --test-threads=1`、`cargo test -p kiana-core --test eq14_evidence_capture_guard --locked -- --test-threads=1`、`cargo fmt --all --check` 与 target-scoped `--no-run`（同一 test target 自动涵盖新用例，未新增步骤/目标）
+cwd·environment: worktree /workspace/kianacode-worktrees/EQ-14，分支 step/eq-14-20261017-1（基线 master b5f560cdf479）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon `eq14_evidence_capture` 新增命名夹具 `event_flush_failure_never_returns_eval_pass`（成功：`finish(Ok)` → `Flushed`，`blocks_eval_pass()` 为 false 且 `apply_flush_invariant(Pass)=Pass`；拒绝：`finish(Err)` → `infra_flush_unknown`/`InfraUnknown`，`blocks_eval_pass()` 为 true 且 `apply_flush_invariant(Pass)=Blocked`，`Fail` 保持不变，`Open` 亦 blocking，安全违规 `SafetyViolation` 同样降级为 `Blocked`）与 `evidence_capture_rejects_invalid_events_references_and_receipts`（重复 event_id、零序号、超 256 KiB 事件以 `eval_capture_event_invalid`/`eval_capture_event_too_large` 拒绝；secret 引用 `eval_capture_invocation_ref_invalid`；游标回退/非十六进制摘要 `eval_capture_command_receipt_invalid`；随后合法 command receipt 仍被接受）；既有采集成功路径、secret 事件拒绝、closed-state、flush→Unknown 夹具不变；core `eq14_evidence_capture_guard` 增补 fail-closed bridge marker 并继续禁止第二事实源（无 CapabilityBroker/KianaHarness/tokio::spawn/reqwest/std::net/fs::write）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: EQ-14 卡「采集 RuntimeEvent、Invocation、Artifact、Receipt 引用和 command receipt；flush 失败产生 infra/Unknown」在源码层与夹具层齐备；本切片补齐验收命名与 fail-closed 不变量——非 `Flushed` 采集经类型化桥接把候选 `EvalVerdict::Pass` 降级为 `Blocked`，因此 flush 失败永远不会被报告为评估 pass；行 186 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；capture 仍是有界内存投影，未接入 live EventStore observer、未持有 durable artifact/receipt store，也未在真实 DaemonHost target 上采集（该 target 的 launch/fault/restart 与质量结果持久化属 EQ-15+/EQ-30+/EQ-38+）；`apply_flush_invariant` 只对 capture 自身的 flush 状态 fail-closed，不替代后续 evaluator 的失败/证据判断；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；EQ-14 evidence capture/flush boundary 静态复核
+```
+
 ### 2026-10-17 PD-06 翻 ✅（JSONL v2 checksum/fsync/lock/尾部恢复拒绝与恢复夹具收口，CI-only 口径）
 
 ```text
