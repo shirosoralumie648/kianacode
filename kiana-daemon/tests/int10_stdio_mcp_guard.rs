@@ -19,6 +19,14 @@ fn int10_stdio_adapter_is_confined_and_fail_closed() {
         "mcp_server_scope_not_authority",
         "conditional",
         "capability_handshake_checked",
+        "mcp_server_binding_mismatch",
+        "mcp_connector_transport_unsupported",
+        "mcp_project_untrusted",
+        "mcp_executable_changed",
+        "mcp_snapshot_required",
+        "McpSessionState::Closed",
+        "retract_unavailable_tools",
+        "mcp_session_not_terminal",
     ] {
         assert!(
             adapter.contains(marker)
@@ -45,5 +53,22 @@ fn int10_stdio_adapter_is_confined_and_fail_closed() {
     assert!(adapter.contains("client.stop().await"));
     assert!(
         adapter.contains("CapabilityAdapterCapability") || adapter.contains("CapabilityHandshake")
+    );
+    // Exactly one spawn point: every handshake child comes from the confined client, and the
+    // negotiation outcome is only reported after the confirmed stop next to it.
+    assert_eq!(
+        adapter.matches("ConfinedMcpClient::connect(").count(),
+        1,
+        "the adapter must have a single confined spawn point"
+    );
+    assert!(
+        adapter.contains("client.stop().await") && adapter.contains("(Ok(handshake), Ok(_))"),
+        "the handshake result must only be reported after a confirmed stop"
+    );
+    assert!(
+        domain.contains("pub fn retract_unavailable_tools")
+            && domain.contains("mcp_session_not_terminal")
+            && domain.contains("pub retracted: bool"),
+        "the terminal reclaim contract must stay domain-owned"
     );
 }

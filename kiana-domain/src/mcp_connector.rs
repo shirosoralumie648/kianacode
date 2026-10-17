@@ -170,6 +170,10 @@ impl McpDeclaredTool {
 
 /// A capability is derived from a Kiana operation and binding snapshot.  The only scope-related
 /// material crossing the handshake boundary is a digest of the server-owned intersection.
+///
+/// `retracted` records that a terminal session reclaimed this capability.  The advertised name and
+/// schema digests stay as evidence, but a retracted tool can never be available in the same
+/// handshake again: a reclaim is not a temporary state that a later transition can undo.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct McpToolCapability {
@@ -182,6 +186,8 @@ pub struct McpToolCapability {
     pub binding_scope_digest: String,
     pub available: bool,
     pub conditional: bool,
+    #[serde(default)]
+    pub retracted: bool,
 }
 
 impl McpToolCapability {
@@ -200,6 +206,7 @@ impl McpToolCapability {
             binding_scope_digest,
             available: binding_scopes.contains(&declared.required_scope),
             conditional: declared.conditional || !binding_scopes.contains(&declared.required_scope),
+            retracted: false,
         }
     }
 
@@ -214,6 +221,7 @@ impl McpToolCapability {
                 .as_deref()
                 .is_some_and(|digest| !valid_digest(digest))
             || !self.available && !self.conditional
+            || self.retracted && self.available
         {
             return Err("mcp_tool_capability_invalid".to_owned());
         }
@@ -297,6 +305,7 @@ impl McpCapabilityHandshake {
                     })),
                     available: false,
                     conditional: true,
+                    retracted: false,
                 });
                 continue;
             };
@@ -333,6 +342,33 @@ impl McpCapabilityHandshake {
         Ok(())
     }
 
+    /// Reclaim every unreachable capability once the session is terminal.
+    ///
+    /// A server advertisement that has no server-owned operation mapping, or whose declared scope
+    /// is not in the binding intersection, stays conditional for the lifetime of the session. When
+    /// the child is gone there is nothing left that could promote it, so the capability is
+    /// retracted: the advertised name and schema digests remain auditable evidence, while
+    /// `available` can no longer flip back to `true`. Retraction is idempotent and digest-bound;
+    /// a live session is refused with `mcp_session_not_terminal`.
+    pub fn retract_unavailable_tools(&mut self) -> Result<Vec<String>, String> {
+        if !self.state.terminal() {
+            return Err("mcp_session_not_terminal".to_owned());
+        }
+        let mut reclaimed = Vec::new();
+        for tool in &mut self.tools {
+            if !tool.available && !tool.retracted {
+                tool.retracted = true;
+                reclaimed.push(tool.tool_name.clone());
+            }
+        }
+        if !reclaimed.is_empty() {
+            self.catalog_digest = json_digest(&json!({ "tools": &self.tools }));
+            self.handshake_digest = self.digest();
+            self.validate()?;
+        }
+        Ok(reclaimed)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != MCP_CAPABILITY_HANDSHAKE_SCHEMA
             || self.transport != MCP_STDIO_TRANSPORT
@@ -346,6 +382,7 @@ impl McpCapabilityHandshake {
             || !valid_digest(&self.handshake_digest)
             || self.tools.len() > MCP_MAX_HANDSHAKE_TOOLS
             || self.handshake_digest != self.digest()
+            || self.tools.iter().any(|tool| tool.retracted) && !self.state.terminal()
         {
             return Err("mcp_capability_handshake_invalid".to_owned());
         }
