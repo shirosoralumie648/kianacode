@@ -32,6 +32,10 @@ jobs:
       - run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --locked -- --test-threads=1
       - name: Run ER-20 source guard
         run: cargo test -p kiana-core --test er20_restart_projector_guard --locked -- --test-threads=1
+      - name: Run ER-20 restart projector behaviour fixtures
+        run: cargo test -p kiana-core --test er20_restart_projector --locked -- --test-threads=1
+      - name: Run ER-20 daemon startup/restart fixtures
+        run: cargo test -p kiana-daemon --test er20_restart_startup --locked -- --test-threads=1
       - name: Compile selected Core targets
         run: cargo test -p kiana-core --test pd06_jsonl_guard --no-run --locked
       - run: cargo test -p kiana-core --test pd09_projector_guard --no-run --locked
@@ -42,3 +46,5 @@ jobs:
       - name: Compile daemon and ER-20 guard targets
         run: cargo test -p kiana-daemon --test p2_m2_01_ui_projection --no-run --locked
       - run: cargo test -p kiana-core --test er20_restart_projector_guard --no-run --locked
+      - run: cargo test -p kiana-core --test er20_restart_projector --no-run --locked
+      - run: cargo test -p kiana-daemon --test er20_restart_startup --no-run --locked
