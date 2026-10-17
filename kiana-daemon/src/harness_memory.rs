@@ -93,7 +93,11 @@ fn project_root_matches_execution_scope(
     };
     [&project.root, &project.canonical_root]
         .into_iter()
-        .any(|allowed| fs::canonicalize(allowed).map(|path| path == canonical).unwrap_or(false))
+        .any(|allowed| {
+            fs::canonicalize(allowed)
+                .map(|path| path == canonical)
+                .unwrap_or(false)
+        })
 }
 
 fn server_memory_scope(
@@ -1767,7 +1771,10 @@ mod tests {
             write_roots: vec![project_root.to_owned()],
             read_denies: Vec::new(),
             write_denies: Vec::new(),
-            memory_scopes: memory_scopes.iter().map(|value| (*value).to_owned()).collect(),
+            memory_scopes: memory_scopes
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
             server_scopes: Vec::new(),
             network_policy: Vec::new(),
             authority_epoch: 1,
@@ -1935,7 +1942,10 @@ mod tests {
     async fn memory_scope_cannot_be_replaced_by_model_arguments() {
         let root = temp_memory_path("cap19-scope-deny");
         fs::create_dir_all(&root).unwrap();
-        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let events: std::sync::Arc<dyn EventStorePort> =
             std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
         let scope = MemoryScope {
@@ -2044,7 +2054,10 @@ mod tests {
 
         let root = temp_memory_path("cap19-symlink");
         fs::create_dir_all(&root).unwrap();
-        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let events: std::sync::Arc<dyn EventStorePort> =
             std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
         let scope = MemoryScope {
@@ -2112,7 +2125,10 @@ mod tests {
     async fn memory_cancel_does_not_report_success_before_writer_stops() {
         let root = temp_memory_path("cap19-cancel");
         fs::create_dir_all(&root).unwrap();
-        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let session = "session-cap19-cancel";
         let collection = MemoryCollection::parse("scratch").unwrap();
         let path = collection_path_scoped(&collection, &project_root, session, None).unwrap();
@@ -2207,7 +2223,10 @@ mod tests {
     async fn legal_memory_write_and_search_commit_inside_the_server_scope() {
         let root = temp_memory_path("cap19-success");
         fs::create_dir_all(&root).unwrap();
-        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let session = "session-cap19-success";
         let events: std::sync::Arc<dyn EventStorePort> =
             std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
@@ -2301,7 +2320,10 @@ mod tests {
     async fn revoked_source_stops_new_writes_inside_the_server_scope() {
         let root = temp_memory_path("cap19-revoked");
         fs::create_dir_all(&root).unwrap();
-        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
         let session = "session-cap19-revoked";
         fs::create_dir_all(root.join(".kiana")).unwrap();
         fs::write(

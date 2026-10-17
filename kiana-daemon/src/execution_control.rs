@@ -763,9 +763,9 @@ fn restart_continuation(
         .rev()
         .find(|event| event.kind == "process.finished")
         .map(|event| event.data["outcome"].clone())
-        .unwrap_or_else(|| {
-            json!({"state":"result_unknown","stop_confirmed":false,"automatic_retry":false})
-        });
+        .unwrap_or_else(
+            || json!({"state":"result_unknown","stop_confirmed":false,"automatic_retry":false}),
+        );
     let handle = serde_json::from_value::<JobHandle>(identity["job_handle"].clone())
         .map_err(|_| error("job_handle_invalid"))?;
     Ok(
@@ -2513,7 +2513,10 @@ mod h17_job_handle {
         }
 
         // 拒绝：句柄绑定了另一个 Turn 范围，而请求声称没有 turn。
-        let scoped = rebound(&fixture.handle, json!({"turn_id": TurnId::new().to_string()}));
+        let scoped = rebound(
+            &fixture.handle,
+            json!({"turn_id": TurnId::new().to_string()}),
+        );
         let scoped_fixture = restarted_with(&root, scoped, None).await;
         deny(
             scoped_fixture
@@ -2810,7 +2813,10 @@ mod h17_job_handle {
                 seen["job_handle"]["start_invocation_id"],
                 expected["start_invocation_id"]
             );
-            assert_eq!(seen["job_handle"]["handle_digest"], expected["handle_digest"]);
+            assert_eq!(
+                seen["job_handle"]["handle_digest"],
+                expected["handle_digest"]
+            );
         }
 
         // 每次操作有自己的 invocation，且都不复用已消费的 start invocation。

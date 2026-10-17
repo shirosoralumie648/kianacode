@@ -79,7 +79,10 @@ fn behavior_fixtures_cover_named_acceptance() {
         "h17_behavior_poll_does_not_restart_job",
         "h17_behavior_long_command_has_one_job_and_distinct_operation_invocations",
     ] {
-        assert!(source.contains(fixture), "H17 behavior fixture missing: {fixture}");
+        assert!(
+            source.contains(fixture),
+            "H17 behavior fixture missing: {fixture}"
+        );
     }
     // 重启路径只解释已落盘事实的这一函数是行为夹具的唯一入口，不能被就地内联回去。
     assert!(source.contains("fn restart_continuation("));
@@ -102,9 +105,18 @@ fn behavioural_fixtures_are_wired_into_the_h17_lane() {
         "h17_behavior_poll_does_not_restart_job",
         "h17_behavior_long_command_has_one_job_and_distinct_operation_invocations",
     ] {
-        assert!(source.contains(fixture), "H17 behavior fixture missing: {fixture}");
-        assert!(baseline.contains(fixture), "H17 baseline missing: {fixture}");
-        assert!(workflow.contains(fixture), "H17 workflow fixture missing: {fixture}");
+        assert!(
+            source.contains(fixture),
+            "H17 behavior fixture missing: {fixture}"
+        );
+        assert!(
+            baseline.contains(fixture),
+            "H17 baseline missing: {fixture}"
+        );
+        assert!(
+            workflow.contains(fixture),
+            "H17 workflow fixture missing: {fixture}"
+        );
     }
 
     // focused workflow 必须同时复核：domain 句柄边界、daemon 源码守卫、daemon lib 行为夹具，
