@@ -4,6 +4,29 @@
 //! executes a capability, or treats optimistic state as an EventLog fact.  The reducer consumes
 //! typed snapshot/feed/action inputs and returns a new store, which makes replay and hydrate
 //! deterministic and keeps every surface on one state path.
+//!
+//! State path (one path, no second authority):
+//!
+//! ```text
+//! server snapshot / entity feed delta --> revision-checked authoritative entity
+//! optimistic submission --> pending (protected, expires or rolls back)
+//! pending -- Applied --> authoritative
+//! pending -- Rejected / expiry --> previous baseline (never a stale one)
+//! pending -- Unknown --> unknown (protected, original idempotency key kept)
+//! sequence gap / pending conflict / epoch change --> snapshot required (position fenced)
+//! ```
+//!
+//! Fences that keep a presenter honest:
+//!
+//! * revisions never move backwards, and one entity key keeps exactly one item;
+//! * an already applied event identifier is refused, so a replayed frame cannot become a second
+//!   item;
+//! * a server payload must name its entity kind explicitly — a frame without an entity envelope
+//!   is refused instead of being guessed into a run entity;
+//! * the draft namespace belongs to the local input layer (UI-12/UI-14), never to server input or
+//!   to a hydrated snapshot;
+//! * a pending or unknown entity is never evicted, never overwritten by a snapshot, and never
+//!   allowed to hide a newer authoritative revision behind an optimistic value.
 
 use kiana_domain::json_digest;
 use kiana_protocol::{
@@ -76,6 +99,8 @@ pub enum UiEntityLifecycle {
 }
 
 impl UiEntityLifecycle {
+    /// Protected entries are local state that no cache eviction, snapshot merge or authority
+    /// reset may silently drop or overwrite.
     fn protected(self) -> bool {
         matches!(self, Self::OptimisticPending | Self::Unknown)
     }
@@ -164,6 +189,9 @@ pub enum UiStoreGapReason {
     FeedGap,
     EpochReset,
     SnapshotRequired,
+    /// A newer authoritative revision arrived for an entity that still has a local pending or
+    /// unknown value; the local value is kept and a snapshot is required.
+    PendingConflict,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -304,6 +332,13 @@ impl UiEntityStoreSnapshot {
         required(&self.epoch, "ui_store_snapshot_epoch", 256)?;
         let mut keys = BTreeSet::new();
         for entity in &self.entities {
+            if entity.key.kind == UiEntityKind::Draft {
+                // Drafts are local input state owned by the TTY/controller layer; a snapshot that
+                // claims one is forged or tampered and is refused before the digest check.
+                return Err(UiStoreError::Invalid(
+                    "ui_store_snapshot_draft_entity".to_owned(),
+                ));
+            }
             entity.validate()?;
             if entity.workspace != self.scope.workspace
                 || entity.session_id != self.scope.session_id
@@ -449,6 +484,19 @@ impl UiEntityStore {
 
     pub fn entities(&self) -> impl Iterator<Item = &UiEntity> {
         self.entities.values()
+    }
+
+    /// Every entity of one namespace.  Run, connection, submission, inbox and artifact entries
+    /// are stored under distinct keys, so a presenter reads each view separately instead of
+    /// keeping its own copy of the state.
+    pub fn entities_of_kind(&self, kind: UiEntityKind) -> impl Iterator<Item = &UiEntity> + '_ {
+        self.entities
+            .values()
+            .filter(move |entity| entity.key.kind == kind)
+    }
+
+    pub fn count_of_kind(&self, kind: UiEntityKind) -> usize {
+        self.entities_of_kind(kind).count()
     }
 
     pub fn len(&self) -> usize {
@@ -690,10 +738,22 @@ impl UiEntityStore {
         revision: u64,
         value: Value,
     ) -> Result<(), UiStoreError> {
-        if let Some(current) = self.entities.get(&key) {
-            if current.lifecycle.protected() {
-                return Ok(());
+        let revision = revision.max(1);
+        let protected_revision = self
+            .entities
+            .get(&key)
+            .filter(|entity| entity.lifecycle.protected())
+            .map(|entity| entity.revision);
+        if let Some(current_revision) = protected_revision {
+            // A snapshot never overwrites local pending/unknown state, but a server value at or
+            // beyond the local revision becomes the rollback baseline, so a later rejection or
+            // expiry restores the server's latest value instead of resurrecting a stale one.
+            if revision >= current_revision {
+                self.refresh_rollback_baselines(&key, revision, value);
             }
+            return Ok(());
+        }
+        if let Some(current) = self.entities.get(&key) {
             if revision < current.revision {
                 return Err(UiStoreError::StaleRevision(key.id));
             }
@@ -704,12 +764,74 @@ impl UiEntityStore {
             session_id: self.scope.session_id.clone(),
             tab_id: self.scope.tab_id.clone(),
             epoch: self.epoch.clone(),
-            revision: revision.max(1),
+            revision,
             lifecycle: UiEntityLifecycle::Authoritative,
             value,
             source_event_id: None,
         };
         self.insert_entity(entity)
+    }
+
+    /// Replace the rollback baseline of every optimistic record for one key.
+    fn refresh_rollback_baselines(&mut self, key: &UiEntityKey, revision: u64, value: Value) {
+        if !self.optimistic.values().any(|update| &update.key == key) {
+            return;
+        }
+        let baseline = UiEntity {
+            key: key.clone(),
+            workspace: self.scope.workspace.clone(),
+            session_id: self.scope.session_id.clone(),
+            tab_id: self.scope.tab_id.clone(),
+            epoch: self.epoch.clone(),
+            revision,
+            lifecycle: UiEntityLifecycle::Authoritative,
+            value,
+            source_event_id: None,
+        };
+        for update in self.optimistic.values_mut() {
+            if &update.key == key {
+                update.previous = Some(baseline.clone());
+            }
+        }
+    }
+
+    /// Record a gap without moving the projection position: the caller resolves it with an
+    /// explicit snapshot hydrate instead of applying frames on top of an incomplete view.
+    fn gap_transition(
+        &self,
+        reason: UiStoreGapReason,
+        observed_sequence: u64,
+        epoch: String,
+    ) -> UiStoreTransition {
+        let mut store = self.clone();
+        store.needs_snapshot = true;
+        store.gap = Some(UiStoreGap {
+            reason,
+            expected_sequence: self.feed_sequence.saturating_add(1),
+            observed_sequence,
+            epoch,
+        });
+        UiStoreTransition {
+            store,
+            change: UiStoreChange::SnapshotRequired,
+        }
+    }
+
+    /// Adopt a boundary from a new authority generation.  Authoritative entities belonged to the
+    /// previous epoch and are dropped, while local pending/unknown state survives with its
+    /// rollback baseline; later deltas stay fenced until an explicit snapshot hydrate.
+    fn adopt_authority_epoch(
+        &self,
+        frame: UiFeedFrameV1,
+    ) -> Result<UiStoreTransition, UiStoreError> {
+        let mut next = self.preserve_local_state(frame.cursor.authority_epoch.clone())?;
+        next.feed_sequence = frame.cursor.feed_sequence;
+        next.seen_event_ids.insert(frame.event_id.clone());
+        next.compact_seen_events();
+        Ok(UiStoreTransition {
+            store: next,
+            change: UiStoreChange::SnapshotRequired,
+        })
     }
 
     fn reduce_feed(
@@ -725,63 +847,77 @@ impl UiEntityStore {
         }
         frame.validate().map_err(UiStoreError::Invalid)?;
         if frame.kind == UiFeedFrameKind::Gap {
-            let mut next = self.clone();
-            next.needs_snapshot = true;
-            next.gap = Some(UiStoreGap {
-                reason: UiStoreGapReason::FeedGap,
-                expected_sequence: self.feed_sequence.saturating_add(1),
-                observed_sequence: frame.cursor.feed_sequence,
-                epoch: frame.cursor.authority_epoch.clone(),
-            });
-            return Ok(UiStoreTransition {
-                store: next,
-                change: UiStoreChange::SnapshotRequired,
-            });
+            return Ok(self.gap_transition(
+                UiStoreGapReason::FeedGap,
+                frame.cursor.feed_sequence,
+                frame.cursor.authority_epoch.clone(),
+            ));
         }
+        // An event identifier that was already applied can never become a second item, and the
+        // check runs before any position bookkeeping can accept it again.
+        if self.seen_event_ids.contains(&frame.event_id) {
+            return Err(UiStoreError::DuplicateEvent(frame.event_id.clone()));
+        }
+        let position = frame.cursor.feed_sequence;
+        let marker = matches!(
+            frame.kind,
+            UiFeedFrameKind::SnapshotBoundary
+                | UiFeedFrameKind::Heartbeat
+                | UiFeedFrameKind::Unknown
+        );
         if !self.epoch.is_empty() && frame.cursor.authority_epoch != self.epoch {
-            return Err(UiStoreError::EpochMismatch);
+            if frame.kind != UiFeedFrameKind::SnapshotBoundary {
+                return Err(UiStoreError::EpochMismatch);
+            }
+            return self.adopt_authority_epoch(frame);
         }
-        if self.needs_snapshot && frame.kind != UiFeedFrameKind::SnapshotBoundary {
+        if self.needs_snapshot && !marker {
             return Err(UiStoreError::GapRequired);
         }
-        if frame.cursor.feed_sequence <= self.feed_sequence {
-            if self.seen_event_ids.contains(&frame.event_id) {
-                return Err(UiStoreError::DuplicateEvent(frame.event_id));
+        let initial_boundary = frame.kind == UiFeedFrameKind::SnapshotBoundary
+            && self.feed_sequence == 0
+            && self.seen_event_ids.is_empty();
+        let replay_at_position = frame.replay && position == self.feed_sequence;
+        if !initial_boundary && !replay_at_position {
+            if position < self.feed_sequence {
+                return Err(UiStoreError::DuplicateFrame(frame.event_id.clone()));
             }
-            return Err(UiStoreError::DuplicateFrame(frame.event_id));
+            if position == self.feed_sequence && !marker {
+                return Err(UiStoreError::DuplicateFrame(frame.event_id.clone()));
+            }
         }
         let expected = self.feed_sequence.saturating_add(1);
-        if self.feed_sequence > 0 && frame.cursor.feed_sequence != expected {
+        if !initial_boundary && !replay_at_position && position > expected {
+            // A frame that skips a position cannot be applied on top of an incomplete view.
+            return Ok(self.gap_transition(
+                UiStoreGapReason::SequenceGap,
+                position,
+                frame.cursor.authority_epoch.clone(),
+            ));
+        }
+        if marker {
             let mut next = self.clone();
-            next.needs_snapshot = true;
-            next.gap = Some(UiStoreGap {
-                reason: UiStoreGapReason::SequenceGap,
-                expected_sequence: expected,
-                observed_sequence: frame.cursor.feed_sequence,
-                epoch: frame.cursor.authority_epoch.clone(),
-            });
-            return Ok(UiStoreTransition {
-                store: next,
-                change: UiStoreChange::SnapshotRequired,
-            });
-        }
-        let mut next = self.clone();
-        next.epoch = frame.cursor.authority_epoch.clone();
-        next.feed_sequence = frame.cursor.feed_sequence;
-        next.seen_event_ids.insert(frame.event_id.clone());
-        next.compact_seen_events();
-        if frame.kind == UiFeedFrameKind::SnapshotBoundary {
-            next.needs_snapshot = false;
-            next.gap = None;
-            return Ok(UiStoreTransition {
-                store: next,
-                change: UiStoreChange::SnapshotHydrated,
-            });
-        }
-        if matches!(
-            frame.kind,
-            UiFeedFrameKind::Heartbeat | UiFeedFrameKind::Unknown
-        ) {
+            if position > next.feed_sequence {
+                next.feed_sequence = position;
+            }
+            next.epoch = frame.cursor.authority_epoch.clone();
+            next.seen_event_ids.insert(frame.event_id.clone());
+            next.compact_seen_events();
+            if frame.kind == UiFeedFrameKind::SnapshotBoundary {
+                // The boundary only reports the current server position; it may clear the snapshot
+                // requirement only when no earlier frame reported a gap.
+                if next.gap.is_none() {
+                    next.needs_snapshot = false;
+                }
+                return Ok(UiStoreTransition {
+                    store: next,
+                    change: if next.needs_snapshot {
+                        UiStoreChange::SnapshotRequired
+                    } else {
+                        UiStoreChange::SnapshotHydrated
+                    },
+                });
+            }
             return Ok(UiStoreTransition {
                 store: next,
                 change: UiStoreChange::EntityUpdated,
@@ -797,26 +933,44 @@ impl UiEntityStore {
         if event_session.is_some_and(|value| value != self.scope.session_id) {
             return Err(UiStoreError::ScopeMismatch);
         }
+        let kind = parse_entity_kind(object.get("entity_kind").and_then(Value::as_str))?;
         let id = object
             .get("entity_id")
             .or_else(|| object.get("id"))
             .and_then(Value::as_str)
             .ok_or_else(|| UiStoreError::Invalid("ui_feed_entity_id_missing".to_owned()))?;
-        let kind = parse_entity_kind(object.get("entity_kind").and_then(Value::as_str))?;
-        let revision = object
-            .get("revision")
-            .and_then(Value::as_u64)
-            .unwrap_or(frame.cursor.feed_sequence)
-            .max(1);
+        let revision = match object.get("revision") {
+            Some(value) => value
+                .as_u64()
+                .filter(|revision| *revision > 0)
+                .ok_or_else(|| {
+                    UiStoreError::Invalid("ui_feed_entity_revision_invalid".to_owned())
+                })?,
+            None => frame.cursor.feed_sequence.max(1),
+        };
         let key = UiEntityKey::new(kind, id.to_owned())?;
-        if let Some(current) = next.entities.get(&key) {
+        if let Some(current) = self.entities.get(&key) {
             if current.lifecycle.protected() {
-                return Err(UiStoreError::StaleRevision(key.id));
+                // An optimistic value never hides a newer authoritative revision, and the frame is
+                // not recorded as applied: the caller is told a snapshot is required while the
+                // local value and the projection position stay where they are.
+                return Ok(self.gap_transition(
+                    UiStoreGapReason::PendingConflict,
+                    position,
+                    frame.cursor.authority_epoch.clone(),
+                ));
             }
             if revision <= current.revision {
                 return Err(UiStoreError::StaleRevision(key.id));
             }
         }
+        let mut next = self.clone();
+        if position > next.feed_sequence {
+            next.feed_sequence = position;
+        }
+        next.epoch = frame.cursor.authority_epoch.clone();
+        next.seen_event_ids.insert(frame.event_id.clone());
+        next.compact_seen_events();
         let entity = UiEntity {
             key,
             workspace: next.scope.workspace.clone(),
@@ -958,7 +1112,13 @@ impl UiEntityStore {
                     } else {
                         next.entities.remove(&update.key);
                     }
-                } else {
+                } else if next
+                    .entities
+                    .get(&key)
+                    .is_some_and(|entity| entity.lifecycle == UiEntityLifecycle::OptimisticPending)
+                {
+                    // An accepted command that lost its staged record still rolls back its pending
+                    // placeholder; an authoritative entity is never deleted by a stale settlement.
                     next.entities.remove(&key);
                 }
                 next.unknown_commands.remove(&idempotency_key);
@@ -1067,14 +1227,22 @@ impl UiEntityStore {
 }
 
 fn parse_entity_kind(value: Option<&str>) -> Result<UiEntityKind, UiStoreError> {
-    match value.unwrap_or("run") {
-        "run" => Ok(UiEntityKind::Run),
-        "connection" | "session" => Ok(UiEntityKind::Connection),
-        "submission" | "command" => Ok(UiEntityKind::Submission),
-        "draft" => Ok(UiEntityKind::Draft),
-        "inbox" | "action" => Ok(UiEntityKind::Inbox),
-        "artifact" => Ok(UiEntityKind::Artifact),
-        other => Err(UiStoreError::Invalid(format!(
+    match value {
+        // A server payload must name its namespace explicitly; a frame without an entity envelope
+        // is refused instead of being guessed into a run entity.
+        None => Err(UiStoreError::Invalid(
+            "ui_feed_entity_kind_missing".to_owned(),
+        )),
+        Some("run") => Ok(UiEntityKind::Run),
+        Some("connection" | "session") => Ok(UiEntityKind::Connection),
+        Some("submission" | "command") => Ok(UiEntityKind::Submission),
+        // Drafts are local input state (UI-12/UI-14) and never arrive from the authority.
+        Some("draft") => Err(UiStoreError::Invalid(
+            "ui_feed_draft_kind_forbidden".to_owned(),
+        )),
+        Some("inbox" | "action") => Ok(UiEntityKind::Inbox),
+        Some("artifact") => Ok(UiEntityKind::Artifact),
+        Some(other) => Err(UiStoreError::Invalid(format!(
             "ui_entity_kind_unknown:{other}"
         ))),
     }
