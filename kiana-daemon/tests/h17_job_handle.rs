@@ -68,3 +68,20 @@ fn long_command_has_one_job_and_distinct_operation_invocations() {
         );
     }
 }
+
+/// 四个命名验收必须仍落在 daemon lib 行为夹具里（防静默删除或改回纯文本守卫）。
+#[test]
+fn behavior_fixtures_cover_named_acceptance() {
+    let source = include_str!("../src/execution_control.rs");
+    for fixture in [
+        "h17_behavior_foreign_job_handle_cannot_receive_stdin_or_cancel",
+        "h17_behavior_pid_reuse_cannot_attach_to_other_process",
+        "h17_behavior_poll_does_not_restart_job",
+        "h17_behavior_long_command_has_one_job_and_distinct_operation_invocations",
+    ] {
+        assert!(source.contains(fixture), "H17 behavior fixture missing: {fixture}");
+    }
+    // 重启路径只解释已落盘事实的这一函数是行为夹具的唯一入口，不能被就地内联回去。
+    assert!(source.contains("fn restart_continuation("));
+    assert!(source.contains("restart_continuation(id, &request.request.operation"));
+}

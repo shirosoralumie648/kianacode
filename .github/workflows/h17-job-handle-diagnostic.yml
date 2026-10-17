@@ -7,25 +7,29 @@ permissions:
   contents: read
 
 jobs:
-  focused-tests:
-    name: H17 ${{ matrix.name }}
+  job-handle:
+    name: H17 job handle fixtures
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: domain-job-handle
-            package: kiana-domain
-            target: h17_job_handle
-          - name: daemon-job-handle
-            package: kiana-daemon
-            target: h17_job_handle
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
-      - name: Run focused H17 target
-        run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1
+      - name: Check formatting
+        run: cargo fmt -p kiana-daemon -p kiana-domain --check
+      - name: Run domain job handle fixtures
+        run: cargo test -p kiana-domain --test h17_job_handle --locked -- --test-threads=1
+      - name: Run daemon job handle guard
+        run: cargo test -p kiana-daemon --test h17_job_handle --locked -- --test-threads=1
+      - name: Run daemon job handle behavior fixtures
+        run: cargo test -p kiana-daemon --lib --locked -- --test-threads=1 h17
+      - name: Compile domain job handle target
+        run: cargo test -p kiana-domain --test h17_job_handle --no-run --locked
+      - name: Compile daemon job handle guard target
+        run: cargo test -p kiana-daemon --test h17_job_handle --no-run --locked
+      - name: Compile daemon behavior fixtures
+        run: cargo test -p kiana-daemon --lib --no-run --locked
