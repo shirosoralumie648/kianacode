@@ -454,7 +454,7 @@ cancel/timeout/crash
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| <a id="step-sc-18"></a>SC-18 | kiana-domain SecretRef、kiana-ports SecretStore | SC-04,SC-09,SC-17 | wire/log/event 带 secret value；未知 provider/account/目的；SecretRef 可转移 | opaque ref schema、store adapter、sentinel secret negative fixture |
+| <a id="step-sc-18"></a>SC-18 | kiana-domain SecretRef、kiana-ports SecretStore | SC-04,SC-09,SC-17 | wire/log/event 带 secret value；未知 provider/account/目的；SecretRef 可转移 | opaque ref schema、store adapter、sentinel secret negative fixture；domain `sc18_secret_ref`、ports `sc18_secret_store` deny-first 行为夹具 + `sc18_secret_ref_guard` 源守卫，接入 `sc18-secret-ref.yml`（CI pending） |
 | <a id="step-sc-19"></a>SC-19 | kiana-daemon secret lease、rotation/revocation | SC-18,SC-15 | lease 过期仍注入、重复使用、吊销后继续请求、恢复复制明文 | one-shot TTL、revoke/rotate receipt、crash/restore 无 secret 泄露 |
 | <a id="step-sc-20"></a>SC-20 | kiana-domain redaction、Broker/Provider/Runner/Event boundaries | SC-03,SC-18 | key 外 secret、Bearer/API key、provider echo、argv/env/stdout/stderr 未脱敏 | schema + recursive text redaction、失败时 fail closed、fixture 覆盖所有出口 |
 | <a id="step-sc-21"></a>SC-21 | kiana-domain DataClass/Purpose/DataBoundary | SC-02,SC-05,SC-20 | 未分类内容进入 provider/trace/index/export；purpose 变更不重审 | ingress label、目的/范围 evaluator、unknown 按高敏等级处理 |
