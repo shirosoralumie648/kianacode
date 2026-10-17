@@ -335,6 +335,17 @@ impl ControlPlane {
         ) {
             return self.reject_company(&context, &reason).await;
         }
+        // CO-09: go/no-go needs a recorded intake entry. A project either keeps the Initiative that
+        // converted into it or the explicit direct-intake record that names the skipped Initiative
+        // and preserves the objective ancestry. The check runs at the command boundary so legacy
+        // events still replay through the domain transition, while a fresh approval cannot be
+        // submitted without intake provenance. The versioned business charter path keeps its own
+        // organization/assignment authority and is deliberately not gated here.
+        if let CompanyCommand::ApproveProject { project_id, .. } = &request.command {
+            if let Err(reason) = state.project_intake_provenance(project_id) {
+                return self.reject_company(&context, reason).await;
+            }
+        }
         let command_id = CompanyCommandReceipt::command_id(
             &company_aggregate_id(&context),
             &request.idempotency_key,

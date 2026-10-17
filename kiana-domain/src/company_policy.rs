@@ -636,7 +636,8 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         | CompanyCommand::StartChartering { .. }
         | CompanyCommand::PauseProject { .. }
         | CompanyCommand::ResumeProject { .. }
-        | CompanyCommand::RequestChange { .. } => &["sponsor", "pm"],
+        | CompanyCommand::RequestChange { .. }
+        | CompanyCommand::RecordDirectIntake { .. } => &["sponsor", "pm"],
         CompanyCommand::RequestCancelProject { .. }
         | CompanyCommand::ConfirmCancelProject { .. }
         | CompanyCommand::FailProject { .. }
@@ -808,6 +809,7 @@ impl CompanyMutationClass {
             | CompanyCommand::SubmitInitiative { .. }
             | CompanyCommand::AdvanceInitiative { .. } => Self::Objective,
             CompanyCommand::ProposeProject { .. }
+            | CompanyCommand::RecordDirectIntake { .. }
             | CompanyCommand::StartChartering { .. }
             | CompanyCommand::ApproveProject { .. }
             | CompanyCommand::RejectProject { .. }
@@ -1025,8 +1027,14 @@ impl CompanyMutationPermission {
             CompanyMutationClass::Objective => &[
                 "objective_initial_state_invalid",
                 "objective_owner_mismatch",
+                "objective_organization_owner_mismatch",
                 "objective_measurement_method_required",
                 "objective_outcome_measurement_required",
+                "initiative_information_gaps_invalid",
+                "initiative_information_gaps_required",
+                "initiative_conversion_requires_approval",
+                "initiative_already_converted",
+                "initiative_project_already_linked",
                 "initiative_objective_approval_required",
             ],
             CompanyMutationClass::Project => &[
@@ -1036,6 +1044,13 @@ impl CompanyMutationPermission {
                 "project_sponsor_mismatch",
                 "project_budget_required",
                 "project_objective_not_active",
+                "project_intake_provenance_required",
+                "project_intake_objective_ancestry_mismatch",
+                "direct_intake_reason_invalid",
+                "direct_intake_objective_required",
+                "direct_intake_project_not_pending",
+                "direct_intake_initiative_ancestry_conflict",
+                "direct_intake_conflict",
             ],
             CompanyMutationClass::Budget => &[
                 "company_project_not_budgetable",

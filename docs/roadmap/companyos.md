@@ -191,14 +191,15 @@
 
 
 
-#### CO-09 · Objective 与 Initiative 受理和取舍　🔄
+#### CO-09 · Objective 与 Initiative 受理和取舍　✅
 
 - **归属**：`P3-I-01`、`P3-I-02`。
 - **依赖**：CO-08。
-- **代码与产物**：domain Objective/Initiative、core Company handlers、受理提案 schema；当前 source slice 与 CI-only 证据见 [`co09-company-intake-baseline.md`](co09-company-intake-baseline.md)。
-- **实现顺序**：①录入问题、目标 owner、metric/baseline/target/单位/方向/窗口；②Initiative 补 hypothesis、价值/成本/风险、资料缺口和取舍决定；③批准后转换为 Project 引用，重复转换返回原结果，拒绝/撤回保留历史。
+- **代码与产物**：domain Objective/Initiative、`DirectProjectIntake`/`ProjectIntakeProvenance`、`CompanyCommand::RecordDirectIntake`、core `handle_company_command` 受理门、受理提案 schema；当前 source slice 与 CI-only 证据见 [`co09-company-intake-baseline.md`](co09-company-intake-baseline.md)。
+- **实现顺序**：①录入问题、目标 owner、metric/baseline/target/单位/方向/窗口；②Initiative 补 hypothesis、价值/成本/风险、资料缺口（`information_gaps`，需显式评估）和取舍决定；③批准后转换为 Project 引用，重复转换返回原结果，拒绝/撤回保留历史；④直接立项必须留下 `RecordDirectIntake` 显式跳过入口并保留 objective 祖先。
 - **先拒绝**：`initiative_cannot_convert_without_approved_objective_and_sponsor_decision`；NaN、时间窗倒置、错误 owner/organization 和缺测量方法均不能批准。
 - **再成功 / 退出**：`approved_initiative_converts_once_and_keeps_objective_ancestry`；允许直接立项但需记录跳过 Initiative 的明确入口，不能丢失目标关系。
+- **2026-10-17 收口切片（CI-only）**：审批组织归属门、`information_gaps` 评估门、转换重查与幂等、`RecordDirectIntake` + `project_intake_provenance` 投影、ControlPlane `ApproveProject` 受理来源门、7 条先拒绝优先域夹具与 2 条核心守卫、手动 lane `.github/workflows/co09-company-intake.yml`；proof 上限 source，CI 回执未等待。
 
 <a id="co-10"></a>
 
