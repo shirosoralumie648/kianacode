@@ -5,6 +5,11 @@
 //! rebuilt without creating one charge per dimension.  Ownership comes from the server-owned
 //! scope; wire supplied scope is only an assertion that must match it.  Cross-project attribution
 //! requires an active, exact `SharingGrant` and never falls back to a caller supplied project.
+//!
+//! `CostAllocationLedger` is a deterministic, side-effect-free reducer that refuses a second
+//! charge for one usage leaf, a duplicate allocation/source event or a source-cursor regression.
+//! It does not append EventLog facts, settle reservations or authorize anything; callers persist
+//! the accepted leaf through the existing ControlPlane/EventLog transaction.
 
 use crate::{
     json_digest, BillingUnknownReason, CellId, CostBreakdown, CostBreakdownKind, EventId, Money,
@@ -13,6 +18,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::BTreeMap;
 
 pub const COST_ALLOCATION_SCHEMA: &str = "kiana.cost-allocation.v1";
 pub const COST_ALLOCATION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -147,6 +153,9 @@ impl AllocationCostKind {
                 rate_card_version,
             } => {
                 amount.validate()?;
+                if amount.micros < 0 {
+                    return Err("cost_allocation_estimated_amount_negative".to_owned());
+                }
                 if rate_card_id.as_uuid().is_nil() || *rate_card_version == 0 {
                     return Err("cost_allocation_rate_card_invalid".to_owned());
                 }
@@ -156,6 +165,9 @@ impl AllocationCostKind {
                 provider_receipt,
             } => {
                 amount.validate()?;
+                if amount.micros < 0 {
+                    return Err("cost_allocation_measured_amount_negative".to_owned());
+                }
                 ProviderReceiptRef::new(provider_receipt.as_str().to_owned())
                     .map(|_| ())
                     .map_err(|_| "cost_allocation_provider_receipt_invalid".to_owned())?;
@@ -333,13 +345,75 @@ impl CostAllocation {
         Ok(())
     }
 
+    /// Check the server-owned sharing grant that this allocation claims.
+    ///
+    /// A same-project allocation must not carry a grant.  A cross-project allocation must carry
+    /// exactly this grant and the grant must be active at `now_unix_ms` under `authority_epoch`
+    /// and explicitly allow `cost.allocate`.  The reference binding was already compared in
+    /// `validate`; this method adds the live grant checks so Domain and ControlPlane share one
+    /// rule instead of drifting apart.
+    pub fn validate_grant_binding(
+        &self,
+        grant: &SharingGrant,
+        now_unix_ms: u64,
+        authority_epoch: u64,
+    ) -> Result<(), String> {
+        if self.source_project_id == self.scope.project_id {
+            return Err("cost_allocation_same_project_grant_unexpected".to_owned());
+        }
+        grant.validate()?;
+        let Some(reference) = self.sharing_grant.as_ref() else {
+            return Err("cost_allocation_sharing_grant_reference_required".to_owned());
+        };
+        if !reference.matches(grant) {
+            return Err("cost_allocation_sharing_grant_reference_mismatch".to_owned());
+        }
+        if !grant.active_at(now_unix_ms, authority_epoch) {
+            return Err("cost_allocation_sharing_grant_inactive".to_owned());
+        }
+        if !grant
+            .operations
+            .iter()
+            .any(|operation| operation == COST_ALLOCATION_OPERATION)
+        {
+            return Err("cost_allocation_sharing_grant_operation_missing".to_owned());
+        }
+        Ok(())
+    }
+
     /// Compare a wire-supplied scope with the immutable server-owned allocation scope. A wire
     /// actor/project/workflow/cell/run assertion never grants ownership.
     pub fn validate_wire_scope(&self, reported: &AllocationScope) -> Result<(), String> {
+        self.validate_wire_attribution(
+            reported,
+            self.source_project_id,
+            self.sharing_grant.as_ref(),
+        )
+    }
+
+    /// Compare every wire-reported attribution field with the server-owned fact.
+    ///
+    /// Scope, source project and grant reference are assertions on the request; a mismatch in any
+    /// of them is refused before an event is built and never silently rewrites the allocation.
+    pub fn validate_wire_attribution(
+        &self,
+        reported_scope: &AllocationScope,
+        reported_source_project: ProjectId,
+        reported_grant: Option<&SharingGrantRef>,
+    ) -> Result<(), String> {
         self.validate()?;
-        reported.validate()?;
-        if reported != &self.scope {
+        reported_scope.validate()?;
+        if let Some(grant) = reported_grant {
+            grant.validate()?;
+        }
+        if reported_scope != &self.scope {
             return Err("cost_allocation_wire_scope_mismatch".to_owned());
+        }
+        if reported_source_project != self.source_project_id {
+            return Err("cost_allocation_wire_source_project_mismatch".to_owned());
+        }
+        if reported_grant != self.sharing_grant.as_ref() {
+            return Err("cost_allocation_wire_sharing_grant_mismatch".to_owned());
         }
         Ok(())
     }
@@ -376,5 +450,94 @@ impl CostAllocation {
             "revision": self.revision,
             "source_digest": self.source_digest,
         }))
+    }
+}
+
+/// Result of appending one allocation leaf to the in-memory ledger.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CostAllocationAppendOutcome {
+    /// A new leaf was accepted once.
+    Appended(CostAllocation),
+    /// The same allocation id and digest were seen again; the original fact is returned and no
+    /// second charge is created.
+    Replayed(CostAllocation),
+}
+
+/// Deterministic, append-only reducer over allocation leaves.
+///
+/// It enforces the BQ-19 uniqueness rule: one `usage_id` may be charged exactly once, no matter
+/// how many organization/project/workflow/cell/run labels the leaf carries and no matter whether a
+/// later request calls itself parent or child. It stores no mutable amount, exposes no
+/// update/delete operation and never appends EventLog facts itself.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CostAllocationLedger {
+    allocations: BTreeMap<crate::CostAllocationId, CostAllocation>,
+    usage_leaves: BTreeMap<UsageId, crate::CostAllocationId>,
+    source_events: BTreeMap<EventId, crate::CostAllocationId>,
+    source_cursor: u64,
+}
+
+impl CostAllocationLedger {
+    /// Append one leaf or replay the original fact for an identical repeat.
+    ///
+    /// Refusals: a different fact for a known allocation id (`cost_allocation_replay_conflict`),
+    /// a second charge for the same usage leaf (`cost_allocation_usage_already_charged`), a reused
+    /// source event (`cost_allocation_source_event_duplicate`) and a source cursor that does not
+    /// strictly increase (`cost_allocation_source_cursor_regression`).
+    pub fn append(
+        &mut self,
+        allocation: CostAllocation,
+    ) -> Result<CostAllocationAppendOutcome, String> {
+        allocation.validate()?;
+        if let Some(existing) = self.allocations.get(&allocation.allocation_id) {
+            if existing.allocation_digest == allocation.allocation_digest {
+                return Ok(CostAllocationAppendOutcome::Replayed(existing.clone()));
+            }
+            return Err("cost_allocation_replay_conflict".to_owned());
+        }
+        if self.usage_leaves.contains_key(&allocation.usage_id) {
+            return Err("cost_allocation_usage_already_charged".to_owned());
+        }
+        if self.source_events.contains_key(&allocation.source_event_id) {
+            return Err("cost_allocation_source_event_duplicate".to_owned());
+        }
+        if allocation.source_cursor <= self.source_cursor {
+            return Err("cost_allocation_source_cursor_regression".to_owned());
+        }
+        self.source_cursor = allocation.source_cursor;
+        self.usage_leaves
+            .insert(allocation.usage_id, allocation.allocation_id);
+        self.source_events
+            .insert(allocation.source_event_id, allocation.allocation_id);
+        self.allocations
+            .insert(allocation.allocation_id, allocation.clone());
+        Ok(CostAllocationAppendOutcome::Appended(allocation))
+    }
+
+    /// Borrow the single allocation charged for a usage leaf, if any.
+    pub fn allocation_for_usage(&self, usage_id: UsageId) -> Option<&CostAllocation> {
+        self.usage_leaves
+            .get(&usage_id)
+            .and_then(|allocation_id| self.allocations.get(allocation_id))
+    }
+
+    /// Borrow one allocation by its id.
+    pub fn allocation(&self, allocation_id: crate::CostAllocationId) -> Option<&CostAllocation> {
+        self.allocations.get(&allocation_id)
+    }
+
+    /// Iterate accepted leaves in allocation-id order.
+    pub fn allocations(&self) -> impl Iterator<Item = &CostAllocation> {
+        self.allocations.values()
+    }
+
+    /// Number of accepted (never duplicated) leaves.
+    pub fn leaf_count(&self) -> usize {
+        self.allocations.len()
+    }
+
+    /// Highest source cursor accepted so far.
+    pub fn source_cursor(&self) -> u64 {
+        self.source_cursor
     }
 }

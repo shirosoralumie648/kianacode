@@ -17,14 +17,17 @@
 //! 项目转账，也不把 `source` 级事件投影说成现实支出证明。
 
 use kiana_domain::{
-    AllocationCostKind, CostAllocation, CostAllocationId, EventId, OrganizationId, ProjectId,
-    RunId, RuntimeEvent, SchemaVersion, UsageId, WorkflowInstanceId, COST_ALLOCATION_EVENT,
+    json_digest, AllocationCostKind, CostAllocation, CostAllocationId, EventId, OrganizationId,
+    ProjectId, RunId, RuntimeEvent, SchemaVersion, UsageId, WorkflowInstanceId,
+    COST_ALLOCATION_EVENT,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const COST_ALLOCATION_PROJECTION_SCHEMA: &str = "kiana.cost-allocation-projection.v1";
 pub const COST_ALLOCATION_PROJECTION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const COST_ALLOCATION_PORTFOLIO_SCHEMA: &str = "kiana.cost-allocation-portfolio.v1";
+pub const COST_ALLOCATION_PORTFOLIO_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 /// 从成本分摊事件重建失败时使用的 Query 层错误分类。
 ///
@@ -164,13 +167,14 @@ pub struct CostAllocationProjection {
 }
 
 impl CostAllocationProjection {
-    /// 校验投影头部、run 归属、usage 唯一性和各 totals 的局部金额合法性。
+    /// 校验投影头部、run 归属、usage 唯一性、来源事件唯一性和各 totals 的局部金额合法性。
     ///
     /// 【调用者】`project_cost_allocations()` 生成对象后立即调用；外部调用方也可再次验证。
-    /// 【拒绝条件】schema/version/run/cursor/source-event 数量不符，run total 无效，allocation 不属于
-    /// 当前 run 或重复 usage，以及任一维度 totals 自身不合法时返回结构化错误。
-    /// 【边界】validator 不检查 source_event_ids 唯一性，不将每条 allocation 重算到所有维度并比较，
-    /// 也不证明事件在 EventStore 中已持久化；builder 才执行事件 ID、sequence 和元数据绑定检查。
+    /// 【拒绝条件】schema/version/run/cursor/source-event 数量不符，来源事件 ID 重复，run total
+    /// 无效，allocation 不属于当前 run 或重复 usage，任一维度 totals 自身不合法，以及任一 totals
+    /// 无法由 `allocations` 逐条重算时返回结构化错误。
+    /// 【边界】validator 不从 EventStore 读取事实、不证明事件已持久化，也不检查事件 sequence；
+    /// 它只证明内存中的明细与汇总互相自洽。
     pub fn validate(&self) -> Result<(), CostAllocationProjectionError> {
         if self.schema != COST_ALLOCATION_PROJECTION_SCHEMA
             || !self
@@ -188,8 +192,14 @@ impl CostAllocationProjection {
         self.run_totals
             .validate()
             .map_err(CostAllocationProjectionError::Invalid)?;
+        let mut event_ids = BTreeSet::new();
         let mut usage_ids = BTreeSet::new();
-        for allocation in &self.allocations {
+        for (event_id, allocation) in self.source_event_ids.iter().zip(&self.allocations) {
+            if !event_ids.insert(*event_id) {
+                return Err(CostAllocationProjectionError::Invalid(
+                    "cost_allocation_projection_source_event_duplicate".to_owned(),
+                ));
+            }
             allocation
                 .validate()
                 .map_err(CostAllocationProjectionError::Invalid)?;
@@ -210,7 +220,68 @@ impl CostAllocationProjection {
                 .validate()
                 .map_err(CostAllocationProjectionError::Invalid)?;
         }
+        let recomputed = Self::fold_dimensions(&self.allocations)
+            .map_err(CostAllocationProjectionError::Invalid)?;
+        if recomputed.0 != self.run_totals
+            || recomputed.1 != self.organization_totals
+            || recomputed.2 != self.project_totals
+            || recomputed.3 != self.workflow_totals
+            || recomputed.4 != self.cell_totals
+        {
+            return Err(CostAllocationProjectionError::Invalid(
+                "cost_allocation_projection_totals_recompute_mismatch".to_owned(),
+            ));
+        }
         Ok(())
+    }
+
+    /// 由明细叶子重新折叠 run 与四个平行维度汇总。
+    ///
+    /// 每个叶子在 run 和每个适用维度各计一次；返回的五个汇总必须与投影中保存的值逐项相等，
+    /// 否则说明有人手工改写过 totals。该函数只读，不修改投影。
+    fn fold_dimensions(
+        allocations: &[CostAllocation],
+    ) -> Result<
+        (
+            AllocationTotals,
+            BTreeMap<OrganizationId, AllocationTotals>,
+            BTreeMap<ProjectId, AllocationTotals>,
+            BTreeMap<WorkflowInstanceId, AllocationTotals>,
+            BTreeMap<kiana_domain::CellId, AllocationTotals>,
+        ),
+        String,
+    > {
+        let mut run_totals = AllocationTotals::default();
+        let mut organization_totals: BTreeMap<OrganizationId, AllocationTotals> = BTreeMap::new();
+        let mut project_totals: BTreeMap<ProjectId, AllocationTotals> = BTreeMap::new();
+        let mut workflow_totals: BTreeMap<WorkflowInstanceId, AllocationTotals> = BTreeMap::new();
+        let mut cell_totals: BTreeMap<kiana_domain::CellId, AllocationTotals> = BTreeMap::new();
+        for allocation in allocations {
+            run_totals.add(&allocation.cost)?;
+            organization_totals
+                .entry(allocation.scope.organization_id)
+                .or_default()
+                .add(&allocation.cost)?;
+            project_totals
+                .entry(allocation.scope.project_id)
+                .or_default()
+                .add(&allocation.cost)?;
+            workflow_totals
+                .entry(allocation.scope.workflow_id)
+                .or_default()
+                .add(&allocation.cost)?;
+            cell_totals
+                .entry(allocation.scope.cell_id)
+                .or_default()
+                .add(&allocation.cost)?;
+        }
+        Ok((
+            run_totals,
+            organization_totals,
+            project_totals,
+            workflow_totals,
+            cell_totals,
+        ))
     }
 
     /// 获取指定项目的平行金额视图；无该项目叶子时返回 None。
@@ -239,6 +310,158 @@ impl CostAllocationProjection {
     /// run total 相加会重复统计同一笔分摊。
     pub fn ledger_total(&self) -> &AllocationTotals {
         &self.run_totals
+    }
+}
+
+/// CO-45 portfolio 视图中的一行：一个 `(organization, project)` 组合在同一批叶子上的折叠。
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CostAllocationPortfolioEntry {
+    pub organization_id: OrganizationId,
+    pub project_id: ProjectId,
+    pub totals: AllocationTotals,
+}
+
+/// 由同一批 allocation 叶子重算的 CO-45 portfolio 只读视图。
+///
+/// 它不重新读取 EventLog、不保存第二份金额，只把 `CostAllocationProjection` 的叶子按
+/// `(organization, project)` 再折叠一次，用于验证 portfolio 视图可以从账本叶子确定性重算。
+/// 每个叶子只进入一行；行与行之间是互不重叠的 project 视图，行内 totals 与 run total 一样
+/// 来自同一叶子集合，因此行总额与账本总额一致时才是合法视图。
+#[derive(Clone, Debug, PartialEq)]
+pub struct CostAllocationPortfolio {
+    pub schema: &'static str,
+    pub version: SchemaVersion,
+    pub run_id: RunId,
+    pub source_cursor: u64,
+    pub ledger_total: AllocationTotals,
+    pub projects: Vec<CostAllocationPortfolioEntry>,
+    /// 由叶子集合确定性重算的摘要；相同叶子重算得到同一摘要，不依赖 event ID。
+    pub recompute_digest: String,
+}
+
+impl CostAllocationPortfolio {
+    /// 从已经过唯一性/身份校验的投影折叠 portfolio 视图。
+    ///
+    /// 【拒绝条件】投影自身无效、行折叠时币种混合或整数溢出、行叶子数之和与账本叶子数不符、
+    /// 以及最终摘要无法自证时返回结构化错误。
+    pub fn from_projection(
+        projection: &CostAllocationProjection,
+    ) -> Result<Self, CostAllocationProjectionError> {
+        projection.validate()?;
+        let mut by_project: BTreeMap<(OrganizationId, ProjectId), AllocationTotals> =
+            BTreeMap::new();
+        for allocation in &projection.allocations {
+            by_project
+                .entry((
+                    allocation.scope.organization_id,
+                    allocation.scope.project_id,
+                ))
+                .or_default()
+                .add(&allocation.cost)
+                .map_err(CostAllocationProjectionError::Invalid)?;
+        }
+        let projects = by_project
+            .into_iter()
+            .map(
+                |((organization_id, project_id), totals)| CostAllocationPortfolioEntry {
+                    organization_id,
+                    project_id,
+                    totals,
+                },
+            )
+            .collect();
+        let mut portfolio = Self {
+            schema: COST_ALLOCATION_PORTFOLIO_SCHEMA,
+            version: COST_ALLOCATION_PORTFOLIO_VERSION,
+            run_id: projection.run_id,
+            source_cursor: projection.source_cursor,
+            ledger_total: projection.run_totals.clone(),
+            projects,
+            recompute_digest: String::new(),
+        };
+        portfolio.recompute_digest = portfolio.fresh_digest();
+        portfolio.validate()?;
+        Ok(portfolio)
+    }
+
+    /// 取某个组织的某个项目视图；不存在时返回 None。
+    pub fn project(
+        &self,
+        organization_id: OrganizationId,
+        project_id: ProjectId,
+    ) -> Option<&AllocationTotals> {
+        self.projects
+            .iter()
+            .find(|entry| {
+                entry.organization_id == organization_id && entry.project_id == project_id
+            })
+            .map(|entry| &entry.totals)
+    }
+
+    /// 校验 schema/版本/run、行叶子数之和与账本一致、行互不重复且摘要自洽。
+    pub fn validate(&self) -> Result<(), CostAllocationProjectionError> {
+        if self.schema != COST_ALLOCATION_PORTFOLIO_SCHEMA
+            || !self
+                .version
+                .is_compatible_with(&COST_ALLOCATION_PORTFOLIO_VERSION)
+            || self.run_id.as_uuid().is_nil()
+            || self.source_cursor == 0
+            || self.projects.is_empty()
+        {
+            return Err(CostAllocationProjectionError::Invalid(
+                "cost_allocation_portfolio_header_invalid".to_owned(),
+            ));
+        }
+        self.ledger_total
+            .validate()
+            .map_err(CostAllocationProjectionError::Invalid)?;
+        let mut leaf_count = 0u64;
+        let mut previous: Option<(OrganizationId, ProjectId)> = None;
+        for entry in &self.projects {
+            entry
+                .totals
+                .validate()
+                .map_err(CostAllocationProjectionError::Invalid)?;
+            if let Some(previous) = previous {
+                if previous >= (entry.organization_id, entry.project_id) {
+                    return Err(CostAllocationProjectionError::Invalid(
+                        "cost_allocation_portfolio_project_duplicate".to_owned(),
+                    ));
+                }
+            }
+            previous = Some((entry.organization_id, entry.project_id));
+            leaf_count = leaf_count
+                .checked_add(entry.totals.leaf_count)
+                .ok_or_else(|| {
+                    CostAllocationProjectionError::Invalid(
+                        "cost_allocation_total_overflow".to_owned(),
+                    )
+                })?;
+        }
+        if leaf_count != self.ledger_total.leaf_count {
+            return Err(CostAllocationProjectionError::Invalid(
+                "cost_allocation_portfolio_total_mismatch".to_owned(),
+            ));
+        }
+        if self.recompute_digest != self.fresh_digest() {
+            return Err(CostAllocationProjectionError::Invalid(
+                "cost_allocation_portfolio_digest_mismatch".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 只依赖叶子集合的确定性摘要；同批叶子重算必然得到同一值。
+    pub fn fresh_digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "run_id": self.run_id,
+            "source_cursor": self.source_cursor,
+            "ledger_total": self.ledger_total,
+            "projects": self.projects,
+        }))
     }
 }
 
@@ -374,6 +597,21 @@ pub fn project_cost_allocation(
     events: &[RuntimeEvent],
 ) -> Result<CostAllocationProjection, CostAllocationProjectionError> {
     project_cost_allocations(run_id, events)
+}
+
+/// 从事件切片重算 CO-45 portfolio 视图（按 organization/project 折叠同一批叶子）。
+///
+/// 【调用者】portfolio/成本视图入口；当前仓内直接调用点是 BQ-19 fixture。
+/// 【输入】与 `project_cost_allocations()` 相同：目标 run 和 RuntimeEvent 切片。
+/// 【核心流程】先走完整投影（身份、顺序、唯一 usage、金额校验），再把明细叶子按
+/// `(organization, project)` 折叠一次，并用行叶子数之和与 run total 交叉验证。
+/// 【失败与影响】任一投影错误、币种混合、金额溢出或行/账本叶子数不符都会返回错误；函数只读，
+/// 不写 ledger、不消费 reservation，也不改变上游事件。
+pub fn project_cost_allocation_portfolio(
+    run_id: RunId,
+    events: &[RuntimeEvent],
+) -> Result<CostAllocationPortfolio, CostAllocationProjectionError> {
+    CostAllocationPortfolio::from_projection(&project_cost_allocations(run_id, events)?)
 }
 
 /// 静态源码守卫使用的只读标记；它本身不在运行时控制 projector 的行为。

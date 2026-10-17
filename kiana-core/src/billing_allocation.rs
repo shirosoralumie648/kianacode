@@ -26,8 +26,8 @@
 //! 可以进入事件提交阶段”，不表示成本已经 durable、已开票或已经影响财务权威。
 
 use kiana_domain::{
-    AllocationScope, CostAllocation, ProjectId, RuntimeEvent, SharingGrant, COST_ALLOCATION_EVENT,
-    COST_ALLOCATION_OPERATION,
+    AllocationScope, CostAllocation, ProjectId, RuntimeEvent, SharingGrant, SharingGrantRef,
+    COST_ALLOCATION_EVENT,
 };
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -127,12 +127,43 @@ impl CostAllocationAdmission {
         )
     }
 
+    /// 拒绝 wire 自报的全部归属字段：scope、source project 与 sharing grant 引用。
+    ///
+    /// 这是 `authorize_wire` 的完整版本：wire 报告被当作断言逐字段与 allocation 事实比较，
+    /// 任一漂移都在事件成形前返回分类错误；通过后仍复用同一份服务端 scope/source project/
+    /// grant 规则。调用方不要把 wire 报告改写成 allocation 再去授权。
+    #[allow(clippy::too_many_arguments)]
+    pub fn authorize_wire_attribution(
+        allocation: &CostAllocation,
+        reported_scope: &AllocationScope,
+        reported_source_project: ProjectId,
+        reported_grant: Option<&SharingGrantRef>,
+        trusted_scope: &AllocationScope,
+        trusted_source_project: ProjectId,
+        sharing_grant: Option<&SharingGrant>,
+        now_unix_ms: u64,
+        authority_epoch: u64,
+    ) -> Result<(), CostAllocationAdmissionError> {
+        allocation
+            .validate_wire_attribution(reported_scope, reported_source_project, reported_grant)
+            .map_err(CostAllocationAdmissionError::WireScopeInvalid)?;
+        Self::authorize(
+            allocation,
+            trusted_scope,
+            trusted_source_project,
+            sharing_grant,
+            now_unix_ms,
+            authority_epoch,
+        )
+    }
+
     /// 校验 allocation 是否有权使用给定的 SharingGrant。
     ///
     /// 同项目归属不需要 grant，反而带 grant 会被拒绝，防止把不必要的跨项目授权混入事实；
     /// 跨项目归属必须同时满足：调用方提供 grant、grant 自身有效、allocation 引用精确匹配、
     /// grant 在 `now_unix_ms` 和 `authority_epoch` 下 active，并显式允许成本归属操作。
-    /// 失败只返回分类错误，不消费 grant、不延长有效期，也不创建事件。
+    /// 通过后由 Domain 的 `validate_grant_binding` 单一规则复核引用/时效/操作名，失败只返回
+    /// 分类错误，不消费 grant、不延长有效期，也不创建事件。
     fn authorize_sharing_grant(
         allocation: &CostAllocation,
         grant: Option<&SharingGrant>,
@@ -152,26 +183,9 @@ impl CostAllocationAdmission {
                 "cross_project_sharing_grant_required".to_owned(),
             ));
         };
-        grant
-            .validate()
-            .map_err(CostAllocationAdmissionError::SharingGrantInvalid)?;
-        let Some(reference) = allocation.sharing_grant.as_ref() else {
-            return Err(CostAllocationAdmissionError::SharingGrantInvalid(
-                "allocation_sharing_grant_ref_required".to_owned(),
-            ));
-        };
-        if !reference.matches(grant)
-            || !grant.active_at(now_unix_ms, authority_epoch)
-            || !grant
-                .operations
-                .iter()
-                .any(|operation| operation == COST_ALLOCATION_OPERATION)
-        {
-            return Err(CostAllocationAdmissionError::SharingGrantInvalid(
-                "sharing_grant_scope_or_expiry_invalid".to_owned(),
-            ));
-        }
-        Ok(())
+        allocation
+            .validate_grant_binding(grant, now_unix_ms, authority_epoch)
+            .map_err(CostAllocationAdmissionError::SharingGrantInvalid)
     }
 
     /// 把已验证的 allocation 封装成一条 `cost.allocation` RuntimeEvent。
@@ -229,6 +243,36 @@ impl super::ControlPlane {
     ) -> Result<(), CostAllocationAdmissionError> {
         CostAllocationAdmission::authorize(
             allocation,
+            trusted_scope,
+            trusted_source_project,
+            sharing_grant,
+            now_unix_ms,
+            authority_epoch,
+        )
+    }
+
+    /// 以 `ControlPlane` 方法形式暴露带 wire 归属校验的准入。
+    ///
+    /// 与 `admit_cost_allocation` 相同，只是先在事件成形前拒绝 wire 自报的 scope/source
+    /// project/grant 漂移；它仍然只做内存校验，不写事件、不消费审批、不结算账单。
+    #[allow(clippy::too_many_arguments)]
+    pub fn admit_cost_allocation_wire(
+        &self,
+        allocation: &CostAllocation,
+        reported_scope: &AllocationScope,
+        reported_source_project: ProjectId,
+        reported_grant: Option<&SharingGrantRef>,
+        trusted_scope: &AllocationScope,
+        trusted_source_project: ProjectId,
+        sharing_grant: Option<&SharingGrant>,
+        now_unix_ms: u64,
+        authority_epoch: u64,
+    ) -> Result<(), CostAllocationAdmissionError> {
+        CostAllocationAdmission::authorize_wire_attribution(
+            allocation,
+            reported_scope,
+            reported_source_project,
+            reported_grant,
             trusted_scope,
             trusted_source_project,
             sharing_grant,

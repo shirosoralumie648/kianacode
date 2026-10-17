@@ -97,8 +97,10 @@ pub mod workspace_snapshot;
 // 下面的重导出让上层可以从 `kiana_query::...` 访问稳定的 crate API。
 // 它们没有改变调用方的数据流，也不会绕过各自模块中的校验和效果边界。
 pub use allocation_projector::{
-    project_cost_allocation, project_cost_allocations, AllocationTotals, CostAllocationProjection,
-    CostAllocationProjectionError, COST_ALLOCATION_PROJECTION_SCHEMA,
+    project_cost_allocation, project_cost_allocation_portfolio, project_cost_allocations,
+    AllocationTotals, CostAllocationPortfolio, CostAllocationPortfolioEntry,
+    CostAllocationProjection, CostAllocationProjectionError, COST_ALLOCATION_PORTFOLIO_SCHEMA,
+    COST_ALLOCATION_PORTFOLIO_VERSION, COST_ALLOCATION_PROJECTION_SCHEMA,
     COST_ALLOCATION_PROJECTION_VERSION,
 };
 pub use audit_projector::{
