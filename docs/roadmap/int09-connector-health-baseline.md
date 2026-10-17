@@ -26,11 +26,46 @@ destructive probe, raw credential resolution or a second execution loop.
   malformed or foreign facts. Protocol/client/Workbench surfaces consume the nested typed fact
   and display only status, stale state and bounded limitations.
 
+## 2026-10-17 completion slice (CI-only)
+
+- Scope classification now wins over credential classification (`forbidden`, `permission_denied`,
+  `insufficient_scope`, `scope_denied`, ...). A 403 is never reported as an invalid credential.
+- Probe errors are reduced by `redacted_connector_probe_error_code`: non-JSON bodies, HTML,
+  multiline text, Authorization headers, `sk-` tokens and over-long strings collapse to
+  `connector_probe_failed`; fixture evidence failures map to `endpoint_unreachable`.
+- A health fact cannot mix `verified`/`connectivity_only` with an error code, cannot carry a
+  secret-sentinel limitation, and must match both the binding id and the connector id.
+- The daemon only probes when the definition declares a read-only operation and the binding
+  grants its scope. A write-only connector is `unsupported` with
+  `connector_read_only_probe_unsupported`, never a destructive probe or a credential error.
+- Retrying the same server request id returns the original health fact and event id without a
+  second append. A failed probe leaves the binding active and does not touch the credential ref.
+- Query projections keep all seven health classes distinct; protocol/Workbench projections reject
+  a row cursor beyond the projection cursor and duplicate binding rows, and render only the
+  typed status/stale/limitations fields.
+
+Fixtures:
+
+- domain `scope_errors_are_never_reported_as_invalid_credentials`,
+  `probe_failures_collapse_non_json_text_and_never_echo_the_body`,
+  `health_fact_rejects_conflicting_status_and_secret_bearing_limitations`, plus the registry
+  connector-relabel denial.
+- query `projection_keeps_every_health_class_distinct_and_redacted`,
+  `projection_rejects_a_health_fact_that_relabels_the_connector`.
+- daemon `read_only_health_is_connectivity_only_redacted_and_replays_the_original_fact`,
+  `health_refuses_destructive_probe_foreign_scope_and_revoked_binding`,
+  `health_separates_missing_scope_from_unsupported_destructive_connectors`.
+- entrypoints `workbench_health_renders_every_class_without_provider_material`,
+  `workbench_health_rejects_unknown_oversized_and_duplicate_projection_rows`; Core source guard
+  keeps the handler free of deletion/revocation and external transport markers.
+
 ## CI-only evidence
 
 GitHub Actions runs the domain classification/registry fixtures, query projection fixtures, Core
-and Workbench source guards and a targeted compile. Local Cargo tests, builds, checks, clippy and
-smoke commands are intentionally not run and CI is not awaited.
+and Workbench source guards, the daemon `DaemonHost → ControlPlane → Broker → EventStore` health
+behaviour fixtures and targeted compiles through `.github/workflows/int09-connector-health.yml`.
+Local Cargo tests, builds, checks, clippy and smoke commands are intentionally not run and CI is
+not awaited.
 
 ## Evidence boundary and limitations
 

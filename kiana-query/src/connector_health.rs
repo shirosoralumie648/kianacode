@@ -178,8 +178,13 @@ pub fn project_connector_health(
                     serde_json::from_value(event.data["health"].clone())
                         .map_err(|_| "connector_health_fact_invalid".to_owned())?;
                 fact.validate()?;
-                if !bindings.contains_key(&fact.binding_id) {
-                    return Err("connector_health_binding_missing".to_owned());
+                let binding = bindings
+                    .get(&fact.binding_id)
+                    .ok_or_else(|| "connector_health_binding_missing".to_owned())?;
+                // A health fact is scoped to both the binding and the connector identity. A
+                // caller-supplied `connector_id` must not relabel another binding's health.
+                if binding.definition.connector_id != fact.connector_id {
+                    return Err("connector_health_connector_mismatch".to_owned());
                 }
                 // BTreeMap 提供稳定输出顺序；同一 ID 的值按输入切片顺序覆盖。
                 latest.insert(fact.binding_id.clone(), (cursor, fact, event.data_epoch));
