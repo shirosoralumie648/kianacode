@@ -11,8 +11,8 @@ use kiana_core::ControlPlane;
 use kiana_domain::ClockObservation;
 use kiana_domain::{
     canonical_journal_bytes, json_digest, redact_text, redact_value, AuthorizedCapabilityRequest,
-    CapabilityErrorCode, CapabilityKind, CapabilityResult, CommandReceipt, ModelDelta, ModelOutput,
-    ModelRequest, ModelToolCall, ModelUsage, RunId, RuntimeEvent,
+    CapabilityErrorCode, CapabilityKind, CapabilityResult, CommandReceipt, EvalVerdict, ModelDelta,
+    ModelOutput, ModelRequest, ModelToolCall, ModelUsage, RunId, RuntimeEvent,
 };
 use kiana_ports::{CapabilityBrokerPort, FixtureStore, ModelClient, PortError};
 use kiana_protocol::{RequestEnvelope, ResponseEnvelope};
@@ -637,6 +637,15 @@ pub enum EvalCaptureStatus {
     SafetyViolation,
 }
 
+impl EvalCaptureStatus {
+    /// A capture that did not flush cleanly can never contribute to a passing evaluation.
+    /// Only `Flushed` clears this gate; an open, infra/Unknown or safety-violation capture
+    /// keeps the evaluation blocked.
+    pub const fn blocks_eval_pass(self) -> bool {
+        !matches!(self, EvalCaptureStatus::Flushed)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EvalCaptureReceipt {
@@ -681,6 +690,18 @@ impl EvalCaptureReceipt {
             return Err("eval_capture_receipt_limit".to_owned());
         }
         Ok(())
+    }
+
+    /// Fail-closed bridge to the domain evaluation verdict: a candidate `Pass` is preserved
+    /// only when this capture actually flushed cleanly. An open, infra/Unknown or
+    /// safety-violation capture downgrades `Pass` to `Blocked`, so an event flush failure can
+    /// never be reported as an evaluation pass.
+    pub fn apply_flush_invariant(&self, verdict: EvalVerdict) -> EvalVerdict {
+        if self.status.blocks_eval_pass() && verdict == EvalVerdict::Pass {
+            EvalVerdict::Blocked
+        } else {
+            verdict
+        }
     }
 }
 
