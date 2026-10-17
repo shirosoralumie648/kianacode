@@ -442,6 +442,20 @@ impl kiana_ports::ExecutionPermitVerifierPort for JournalPermitVerifier {
         {
             return Err(dispatch_error("execution_permit_invalid"));
         }
+        // 预算/资源预留必须与本条 prepared 事实绑定在同一 CAS 记录：若记录声明了预留快照
+        // （非 null），它必须带有能由记录本身与 permit read-set 重算出来的绑定摘要。缺失摘要
+        // 意味着“已准备但未能证明预留随同一事务提交”，漂移则意味着快照被改写/错配；两种都必须在
+        // 消费许可（写 dispatching/executing）之前拒绝，不能带病进入 handler。
+        let reservation = &records[0].data["cell_reservation"];
+        if !reservation.is_null() {
+            let expected = json!(kiana_domain::dispatch_reservation_digest(
+                reservation,
+                &permit.authority_versions,
+            ));
+            if records[0].data.get("reservation_digest") != Some(&expected) {
+                return Err(dispatch_error("execution_permit_reservation_unbound"));
+            }
+        }
         let now = now_ms()?;
         let project_identity = project_root_identity(&permit.context.project_root)?;
         if permit.version != DISPATCH_PERMIT_VERSION
@@ -1283,7 +1297,7 @@ impl ControlPlane {
         } else {
             None
         };
-        let event = RuntimeEvent::new(
+        let mut event = RuntimeEvent::new(
             dispatch_command_id,
             1,
             "execution.prepared",
@@ -1302,8 +1316,16 @@ impl ControlPlane {
         )
         .map_err(|error| dispatch_error(&error.to_string()))?
         .with_stream_metadata("execution_permit", execution_id.to_string(), 1);
-        let mut event = event;
         event.data = super::redaction::redact_event_value(&event.data);
+        // 预算与资源预留必须与本条 prepared 事实同属一个 CAS 记录：在脱敏**之后**对最终写入的
+        // `cell_reservation` 快照与 permit 的 authority read-set 计算绑定摘要。这样许可消费方
+        // （Broker verifier）可以从记录本身重算并发现“prepared 事实存在但预留缺失/漂移”，
+        // 不必信任 Core 内存中的一次性判断；尚未满足预算/锁时也不会写到这里。
+        let reservation_digest = kiana_domain::dispatch_reservation_digest(
+            &event.data["cell_reservation"],
+            &permit.authority_versions,
+        );
+        event.data["reservation_digest"] = json!(reservation_digest);
         events.push(event);
         let batch = TransitionBatch {
             command_id: dispatch_command_id,
@@ -1485,6 +1507,25 @@ impl ControlPlane {
             .await
             .map_err(|e| dispatch_error(&format!("result_unknown:result_commit_failed:{e}")))?;
         Ok(result)
+    }
+
+    /// 从已提交事实对一次 execution 做派发崩溃分类。
+    ///
+    /// 【调用者】恢复/对账路径在重启后调用；用来判断某次 execution 是否可能已进入 handler，
+    /// 从而决定是补写 Unknown 终结事实、按既有终态收敛，还是（尚未准备）直接视为从未派发。
+    /// 【输入/输出】execution id；返回 [`kiana_domain::DispatchCrashClass`]，只由 `execution_permit`
+    /// 流的已提交记录决定。
+    /// 【副作用与边界】只读 EventStore，不消费 permit、不调用 Broker、不写事件。分类表达的是提交
+    /// 边界，不是外部副作用的现实状态；`EffectPossiblyStarted`/`ResultCommitted` 一律按效果未知处理。
+    pub async fn classify_dispatch_execution(
+        &self,
+        execution_id: &ExecutionId,
+    ) -> Result<kiana_domain::DispatchCrashClass, PortError> {
+        let records = self
+            .events
+            .read_stream("execution_permit", &execution_id.to_string())
+            .await?;
+        Ok(kiana_domain::classify_dispatch_stream(&records))
     }
 }
 

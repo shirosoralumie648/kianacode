@@ -793,6 +793,7 @@ macro_rules! invocation_fields {
             "permit_digest",
             "invocation",
             "cell_reservation",
+            "reservation_digest",
             "effect_usage",
             "owner_digest",
             "lease_digest",

@@ -22,7 +22,7 @@
 //! 与快照一致，不是签名、来源认证或权限授予。
 use crate::{
     AggregateVersion, ApprovalId, CapabilityRequest, ExecutionId, InvocationId, RequestContext,
-    RequestId, RunId, SchemaVersion, TurnId,
+    RequestId, RunId, RuntimeEvent, SchemaVersion, TurnId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -244,4 +244,101 @@ pub fn derived_request_id(purpose: &str, subject: &str) -> RequestId {
     bytes[6] = (bytes[6] & 0x0f) | 0x50;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     RequestId::from_uuid(uuid::Uuid::from_bytes(bytes))
+}
+
+/// 计算 `execution.prepared` 中“预算与资源预留”快照的绑定摘要。
+///
+/// 【用途】准备事实与预算/资源预留必须作为**同一条 CAS 记录**存在。把已脱敏的
+/// `cell_reservation` 快照与 permit 固定的 authority read-set 一起摘要，使消费方可以从记录
+/// 本身重算：若预留快照与许可读集不再对应（被改写、来自另一份许可或版本漂移），摘要就不再匹配。
+///
+/// 【边界】摘要只证明两个**已存储值**相互一致，不证明预留此刻仍被持有、不证明 handler 已运行，
+/// 也不是密钥签名。真正的“仍可执行”判断由 permit 的时限、authority 版本比较和一次性消费 CAS 完成。
+pub fn dispatch_reservation_digest(
+    cell_reservation: &Value,
+    authority_versions: &[AggregateVersion],
+) -> String {
+    crate::json_digest(&json!({
+        "cell_reservation": cell_reservation,
+        "authority_versions": authority_versions,
+    }))
+}
+
+/// 一次执行许可流的崩溃分类。
+///
+/// 【为什么需要】`execution.prepared` 与 permit 的一次性消费是分开提交的：进程可能在准备后、
+/// 派发 CAS 前、或派发之后崩溃。恢复/对账路径必须**仅凭已提交事实**判断“handler 是否可能已开始”，
+/// 不能依赖内存布尔值、UI 时间线或“看起来成功”的文本。
+///
+/// 【它证明什么】分类只描述提交边界：`NotPrepared`/`PreparedUndispatched` 表示派发事务未提交，
+/// 因而 handler 未被本 execution 调用；`EffectPossiblyStarted`/`ResultCommitted` 表示派发事务已提交，
+/// 效果对恢复路径而言是未知的，不能当作“肯定没发生”。它不证明外部副作用的现实状态，也不构成
+/// 跨外部服务的 exactly-once。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DispatchCrashClass {
+    /// 流中没有 `execution.prepared`：本 execution 不可能开始 handler，可安全视为从未派发。
+    NotPrepared,
+    /// 只有 `execution.prepared`：派发事务提交前崩溃。handler 未被调用，但许可仍需以 Unknown 终结。
+    PreparedUndispatched,
+    /// `invocation.dispatching` 已提交而 `invocation.executing` 缺失：消费 CAS 是原子的，这样的前缀
+    /// 表示记录损坏或来自不兼容写入者，不能据此推断 handler 已开始。
+    DispatchUnconfirmed,
+    /// `invocation.dispatching` 与 `invocation.executing` 均已提交：handler 可能已开始，效果未知。
+    EffectPossiblyStarted,
+    /// 已存在 `execution.result_committed`：本次执行有终态事实，无需再补写终结事件。
+    ResultCommitted,
+    /// 事件顺序、流版本或种类违反派发合同，不能据此推断 handler 是否开始。
+    Corrupt,
+}
+
+impl DispatchCrashClass {
+    /// handler 是否可能已经运行；为真时结果必须保持 Unknown，不能当作已知失败重试。
+    pub fn handler_may_have_started(self) -> bool {
+        matches!(self, Self::EffectPossiblyStarted | Self::ResultCommitted)
+    }
+
+    /// 是否已有终态事实，恢复路径无需再补写终结事件。
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::ResultCommitted)
+    }
+
+    /// 是否需要为这条孤儿许可补写唯一的 Unknown 终结事实。
+    pub fn requires_unknown_terminal(self) -> bool {
+        matches!(self, Self::PreparedUndispatched)
+    }
+}
+
+/// 仅根据已提交的 `execution_permit` 流记录，对一次派发做崩溃分类。
+///
+/// 【输入/输出】按 stream version 顺序排列的记录切片；返回 [`DispatchCrashClass`]。
+/// 【校验顺序】先确认每条记录都有连续递增的 stream version（缺失或跳号一律 `Corrupt`），再按
+/// 种类序列匹配派发合同。未知/重复/乱序序列一律 `Corrupt`，绝不回退到“乐观等于未派发”。
+/// 【副作用】纯函数，不访问 EventStore、不消费许可、不调用 Broker。
+pub fn classify_dispatch_stream(records: &[RuntimeEvent]) -> DispatchCrashClass {
+    for (index, event) in records.iter().enumerate() {
+        if event.stream_version != Some(index as u64 + 1) {
+            return DispatchCrashClass::Corrupt;
+        }
+    }
+    let kinds = records
+        .iter()
+        .map(|event| event.kind.as_str())
+        .collect::<Vec<_>>();
+    match kinds.as_slice() {
+        [] => DispatchCrashClass::NotPrepared,
+        ["execution.prepared"] => DispatchCrashClass::PreparedUndispatched,
+        ["execution.prepared", "invocation.dispatching"] => DispatchCrashClass::DispatchUnconfirmed,
+        ["execution.prepared", "invocation.dispatching", "invocation.executing"] => {
+            DispatchCrashClass::EffectPossiblyStarted
+        }
+        [
+            "execution.prepared",
+            "invocation.dispatching",
+            "invocation.executing",
+            "execution.result_committed",
+        ] => DispatchCrashClass::ResultCommitted,
+        // pre-Broker 终结路径：permit 未被消费，直接以 Unknown 关账。
+        ["execution.prepared", "execution.result_committed"] => DispatchCrashClass::ResultCommitted,
+        _ => DispatchCrashClass::Corrupt,
+    }
 }
