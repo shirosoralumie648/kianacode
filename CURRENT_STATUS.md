@@ -15,6 +15,21 @@ limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Acti
 reviewer: root integration agent；ER-13 delivery 共享路径与 crash/restart fixture 静态复核
 ```
 
+### 2026-10-17 CP-13 翻 ✅（许可证准备事务、permit-consume 线性化与三入口拒绝夹具，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 129（🔄 → ✅）与 §3 变更日志；docs/roadmap/control-plane.md#step-cp-13（标题 🔄 → ✅、模块步骤表行、当前证据段）；kiana-core/tests/cp13_dispatch.rs（参数化 DispatchMode=direct/Harness/approval-resume + 未绑定预留拒绝）；kiana-core/tests/cp13_dispatch_guard.rs（新增 cp13_prepare_consumes_approval_and_mints_permit_in_one_transaction）；既有 kiana-core/src/dispatch.rs / kiana-domain/src/dispatch.rs / kiana-capability-broker/src/lib.rs / kiana-domain/tests/cp13_dispatch_permit.rs / .github/workflows/cp13-dispatch-permit.yml 保持不变
+worktree_status: 行 129 🔄 → ✅（CI pending）；只改本 Step 相关夹具与共享文档（roadmap 行/变更日志、专项卡、CURRENT_STATUS）的单点回填；无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与 rustfmt 1.10.0-stable (58cf8f9c35, edition 2021) 对两个改动 .rs 执行 `rustfmt --edition 2021 --check`（clean）
+cwd·environment: worktree /workspace/kianacode-worktrees/CP-13，分支 step/cp-13-20261017-2（基线 master b6cf2ef30290）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: Core `cp13_dispatch` 三个验收夹具（`cp_forged_authorization_string_is_not_a_permit`、`cp_cancel_before_dispatch_commit_starts_no_handler`、`cp_replayed_permit_never_dispatches_twice`）改为遍历 direct/Harness/approval-resume 三入口重复同一组断言：伪造授权串（policy:/approval:/opaque/permit:）与未知 execution id 在 handler 前拒绝且只留 `execution.prepared`、派发前取消写零 handler 且无 permit.consume 回执、重放只能有一 handler 调用且 `[prepared, invocation.dispatching, invocation.executing]`；`cp_prepared_reservation_that_is_not_bound_to_the_transaction_is_rejected` 覆盖绑定/篡改预留摘要；新增 `cp13_dispatch_guard::cp13_prepare_consumes_approval_and_mints_permit_in_one_transaction` 以源码索引固定「审批消费事件→permit 构造→同一 TransitionBatch 提交」顺序、direct 路径 invocation=null、以及 broker 中 `capability_unregistered` 先于 `verify_and_consume`，并交叉引用 CAP-01 的 `unregistered_operation_does_not_fallback_to_shell`/`descriptor_binding_version_mismatch_never_dispatches`；既有 `cp13_dispatch_permit`（许可/崩溃分类/预留摘要）与 `cap05_permit`（permit/effect deny-first）不变
+exit_code: 本地未运行；CI 回执未等待（三 target 沿用 `cp13-dispatch-permit.yml` 与 scripts/ci/test-shards.json 既有登记，无需改 workflow）
+status_change: CP-13 卡退出条件（Prepared 事务同批写许可+预算/资源预留+once approval 消费、permit-consume CAS 线性化后写 dispatching/executing 才调 handler、崩溃分类 fail-closed、direct/Harness/approval-resume 三入口覆盖）在源码层覆盖且夹具接入既有 CI lane，行 129 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行测试，编译/运行正确性依赖 GitHub Actions；夹具只证明提交边界上的 handler 调用计数与事件顺序，不证明外部副作用、跨进程恢复或 across-provider exactly-once；approval-resume 模式以 permit 绑定 approval_id 覆盖消费后路径，未在真实 ControlPlane+JournalApprovalStore 上复跑 prepared+consumed 的原子提交；lease/fence 的跨进度事实、live authority epoch、durable journal 与 CI 回执均未获
+reviewer: root integration agent；CP-13 静态复核
+```
+
 ### 2026-10-17 SC-10 翻 ✅（approver scope 与一次性消费回执，CI-only 口径）
 
 ```text
