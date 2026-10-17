@@ -547,12 +547,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-27 — 四入口统一只读 receipt/recovery commands　⏳
+##### ER-27 — 四入口统一只读 receipt/recovery commands　✅
 
 - **落点：** `kiana-entrypoints`、`kiana-client/protocol`、`DaemonHost`；关联 `CP-21/22`、`P2-M2..M7`、`CO-40/41`。
 - **动作：** CLI/Workbench/Web/Desktop 只调用同一 DaemonHost query/command；展示使用安全 DTO；resume/cancel/reconcile/restore 都回 ControlPlane，不在入口执行副作用。
 - **先拒绝：** `entrypoint_cannot_parse_or_mutate_eventlog`、`ui_supplied_owner_or_scope_is_denied`、`receipt_query_never_starts_execution`。
 - **成功/回归：** 四入口同一 run 的 cursor、receipt、pending 和 incident 一致，权限/错误码一致。
+- **验收（测试名与卡片名对齐）：** `entrypoint_cannot_parse_or_mutate_eventlog` 由 `er27_entrypoint_parity_guard` 的 source guard 覆盖（入口不出现 `EventLog::`/`MemoryEventLog::`/`ModelClient`/`CapabilityBroker`/`execute_authorized_request(`/`auto_approve` 等绕过 marker）；`ui_supplied_owner_or_scope_is_denied`、`receipt_query_never_starts_execution` 与成功/回归由树内行为夹具覆盖并接入 `.github/workflows/er27-entrypoint-parity.yml`：`kiana-daemon/tests/er27_entrypoint_receipt_recovery.rs` 以真实 `DaemonHost` + 零调用 Runner + `MemoryEventLog` 驱动同一只读路径，CLI/Workbench/Web/Desktop 只以 `EntryPointKind` correlation label 区分——先拒绝 `er27_ui_supplied_owner_or_scope_is_denied`（伪造 actor → `AUTH_CALLER_UNTRUSTED`、伪造 department → `role_department_mismatch`、伪造 role → `role_unknown`，且零 Runner send/restore、零新增事实）、`er27_receipt_query_never_starts_execution_for_unknown_run`（未知 run → `receipt_not_found`，不合成空收据）、`er27_same_denial_error_code_across_four_entrypoints`（畸形 schema 四入口同一 `protocol_schema_unsupported`）；成功/回归 `er27_receipt_query_is_read_only_and_agrees_across_four_entrypoints`（四入口 `run_receipt.receipt_digest` 一致、零 Runner send/restore、事实集不变）与 `er27_recovery_commands_agree_and_stay_read_only`（terminal `resume` → `ResultUnknown` + `run_resume_terminal_completed`、`cancel` → `Completed` + `already_terminal:true`、`pending` → `Completed` + 空 approvals，且不追加 `execution.prepared`/`invocation.dispatching`/`run.resume_prepared`/`run.cancelled`）；`er27_entrypoint_parity_guard` 保留既有 source guard 并新增夹具命名/接线守卫 `behavioural_fixtures_are_wired_into_the_er27_lane`。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 source guard（marker 匹配）、baseline 与专属 workflow，没有可运行的拒绝/成功夹具。本次在 `kiana-daemon/tests/`（既有 crate `tests/` 自动发现、`kiana-daemon` 为 targets=None 整 crate shard，无新 shard/manifest/lockfile 变化）补齐先拒绝与回归行为并接入 `er27-entrypoint-parity.yml`（含 `--no-run`）；proof_level 维持 source；本地未编译未运行，CI 回执未等待；Desktop 进程监督、外部传输、cursor/incident 全量一致性与 live/physical 交付仍开放。
 
 <a id="step-er-28"></a>
 
