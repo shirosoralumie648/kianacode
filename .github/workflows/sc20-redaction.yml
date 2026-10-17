@@ -21,12 +21,16 @@ jobs:
         run: cargo fmt --all --check
       - name: Run domain redaction fixtures
         run: cargo test -p kiana-domain --test er03_redaction --locked -- --test-threads=1
+      - name: Run SC-20 exit-boundary fixtures
+        run: cargo test -p kiana-domain --test sc20_redaction_exits --locked -- --test-threads=1
       - name: Run existing redaction source guard
         run: cargo test -p kiana-core --test er03_redaction_guard --locked -- --test-threads=1
       - name: Run SC-20 cross-boundary guard
         run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --locked -- --test-threads=1
       - name: Compile domain redaction target
         run: cargo test -p kiana-domain --test er03_redaction --no-run --locked
+      - name: Compile SC-20 exit-boundary target
+        run: cargo test -p kiana-domain --test sc20_redaction_exits --no-run --locked
       - name: Compile Core redaction guard target
         run: cargo test -p kiana-core --test er03_redaction_guard --no-run --locked
       - name: Compile SC-20 boundary guard target
