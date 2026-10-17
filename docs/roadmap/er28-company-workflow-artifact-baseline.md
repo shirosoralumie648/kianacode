@@ -39,3 +39,17 @@ source_snapshot / worktree_status / command_argv / cwd·environment /
 fixture·cassette / exit_code / status change / proof-level change /
 limitations / reviewer
 ```
+
+## 5. 2026-10-17 completion slice (CI-only)
+
+卡片命名的三条拒绝路径与「Builder→Review→Acceptance→Delivery→Close 跨边界引用可重建」成功列已补成树内行为夹具；仍只声明 `feature_status=implemented`、`proof_level=source`，不等待 CI 回执。
+
+| Fixture | 断言 |
+|---|---|
+| `company_success_cannot_be_inferred_from_run_completed`（`kiana-domain/tests/er28_runtime_evidence.rs`） | runtime receipt `Completed` 且 `validate()` 通过、绑定 event refs/artifact 时，清空 acceptance 后 `Close(Success)` 仍以 `business_closing_required_acceptance_missing` 拒绝且 `closeout.receipts` 为空；同一 runtime 的显式 `Close(Failure)` 成功并写 `Failed` |
+| `closing_without_evidence_is_denied`（同上） | legacy bundle 缺 runtime receipt/evidence → `business_closing_runtime_evidence_missing`；空或未登记 `evidence_refs` → `business_evidence_unverified`；`all_runs_stopped=false` 的未决 runtime → `business_closing_unresolved_effects` |
+| `er28_builder_review_acceptance_delivery_close_refs_rebuild_from_events_and_artifacts`（同上） | bundle 的 event refs 命中 `proof.events`、artifact refs 命中注册 artifact、review digest 与 acceptance 一致且 reviewer run 独立、delivery 绑定已接受 target、closing receipt 的 run/acceptance/delivery/evidence refs 全部可解析 |
+| `workflow_replay_does_not_execute_effect`（`kiana-workflow/tests/er28_workflow_observation.rs`） | AgentTask Advance 只返回 `WorkflowEffect::Dispatch` intent，节点保持 `Reserved` 且无伪造 receipt/incident/output；同一提交事实重放得到逐字段相同状态与同一 intent；重复 Advance → `workflow_execution_in_flight`；`durable.rs` 无 `KianaHarness`/`CapabilityBroker`/`tokio::spawn`/`std::process::Command` 执行面 |
+| `er28_behavioural_fixtures_are_wired_into_the_ci_shards`（`kiana-core/tests/er28_company_workflow_artifact_guard.rs`） | 夹具名与 `#[ignore]` 负断言；统一 `ci.yml` 分片绑定：`er28_runtime_evidence` 在 `kiana-domain-s3/4`、`er28_company_workflow_artifact_guard` 在 `kiana-core-s3/6`、`kiana-workflow` 为 `targets: null` 整 crate 自动发现 |
+
+接线与限制：没有新增独立 lane（统一 `ci.yml` 的既有分片已覆盖这些 target，`scripts/ci/test-shards.json` 与 `ci.yml` 未改）；本地未编译未运行，CI 回执未等待；跨进程 projection、独立 incident inbox、artifact 内容持久化与外部 provider delivery reconciliation 仍不在本步骤。
