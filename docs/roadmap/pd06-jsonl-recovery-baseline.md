@@ -59,3 +59,42 @@ proof-level_change: recursive parser refusal is locally verified; no durable/liv
 limitations: duplicate-key rejection is scoped to this JSONL parser; duplicate handling in other wire boundaries, fsync/power-loss/kill-9, cross-process contention, recovery/indexing and physical durability remain separate or open; this does not claim the JSONL adapter is durable
 reviewer: root integration agent with PD-06 read-only storage audit; focused JSONL duplicate-key reviewer
 ```
+
+## 2026-10-17 Denial and recovery fixtures close out the card (CI-only)
+
+The card's deny column (torn middle, checksum, directory replacement, disk full, lock invalidation,
+writer worker crash) and success column (kill-9/reopen keeps the complete prefix, observable
+Flush/Shutdown ack, bounded throughput without silently dropping data) now each have a tree-resident
+fixture. This slice adds only fixtures and guards; `kiana-eventlog/src/jsonl.rs` is unchanged.
+
+- `jsonl_v2_rejects_a_corrupt_middle_record_without_truncating_or_exposing`: a corrupt record between
+  two valid v2 records fails as `eventlog_corrupt` and the file is not truncated.
+- `jsonl_v2_refuses_directory_replacement_after_open`: after the pinned parent is renamed and a
+  same-named directory is recreated, `append` fails as `eventlog_parent_changed`; the moved parent
+  keeps the committed prefix and the replacement directory receives nothing.
+- `jsonl_v2_refuses_a_replaced_or_hardlinked_writer_lock`: replacing `.jsonl.lock` with a symlink or
+  hardlink fails the next operation as `eventlog_symlink_rejected` / `eventlog_hardlink_rejected`.
+- `jsonl_v2_refuses_an_over_capacity_log_before_exposing_any_fact`: a log longer than
+  `MAX_JOURNAL_LOG_BYTES` (a bounded stand-in for disk full) is refused with `eventlog_disk_limit`
+  before any fact is exposed.
+- `jsonl_v2_flush_and_shutdown_acks_are_observable_and_close_rejects_writes`: `flush` returns a
+  durable cursor, `close` returns `closed`, and post-close writes fail as `eventlog_closed`.
+- `jsonl_v2_reopen_keeps_the_complete_prefix_and_repairs_only_the_torn_tail`: an incomplete v2 tail
+  after a committed frame is truncated on reopen while the complete prefix is preserved byte for
+  byte; a second reopen is stable.
+
+`kiana-core/tests/pd06_jsonl_guard.rs` adds the matching fail-closed markers (parent / symlink /
+hardlink / disk-limit / worker / closed / file-removed) and still rejects a widened fact source.
+
+```text
+source_snapshot: docs/roadmap.md §1.1 row 200 (🔄 → ✅, CI pending) and §3 changelog; kiana-eventlog/tests/pd06_jsonl_recovery.rs; kiana-core/tests/pd06_jsonl_guard.rs
+worktree_status: row 200 🔄 → ✅ (CI pending); fixtures/guards and shared docs only; kiana-eventlog/src/jsonl.rs unchanged; no Cargo.toml/Cargo.lock/package.json change
+command_argv: CI-only; no local cargo/make/npm/smoke run; .github/workflows/pd06-jsonl-recovery.yml runs pd06_jsonl_recovery and pd06_jsonl_guard with format and target-scoped --no-run
+cwd·environment: worktree /workspace/kianacode-worktrees/PD-06, branch step/pd-06-20261017-1 (base master ce32b8741ae9); GitHub Actions ubuntu-latest is the runner (result not awaited)
+fixture·cassette: pd06_jsonl_recovery +5 fixtures (corrupt middle, directory replacement, lock replacement, over-capacity, flush/close ack, v2 reopen prefix) and extended source markers; pd06_jsonl_guard +9 fail-closed markers
+exit_code: not run locally; CI result not awaited
+status_change: PD-06 deny and success columns are covered at the source/fixture level; row 200 ✅ (CI pending) / feature_status=implemented
+proof-level_change: source only; no local_behavior/durable/live/physical promotion
+limitations: fixtures run on ubuntu-latest/temp (not production roots); a sparse file stands in for a real ENOSPC; no physical power-loss, real kill -9, or cross-process flock contention is demonstrated; multi-process backpressure is PD-27, the fault matrix is PD-30, and the platform/filesystem matrix is PD-32; a checksum detects corruption, not privileged replacement
+reviewer: root integration agent; PD-06 JSONL v2 frame/checksum/fsync/lock/tail-recovery static review
+```
