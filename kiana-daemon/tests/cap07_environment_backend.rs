@@ -157,7 +157,10 @@ async fn probe_reports_missing_runtime_binary_with_stable_unavailable_code() {
     let scope_a = scope("owner-1", "scope-1");
     match adapter.probe(&scope_a).await {
         Err(PortError::Unavailable(reason)) => {
-            assert!(reason.starts_with("container_runtime_unavailable:"), "got {reason}");
+            assert!(
+                reason.starts_with("container_runtime_unavailable:"),
+                "got {reason}"
+            );
         }
         other => panic!("missing runtime binary must fail closed, got {other:?}"),
     }

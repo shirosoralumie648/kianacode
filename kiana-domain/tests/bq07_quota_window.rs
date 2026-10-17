@@ -130,7 +130,10 @@ fn quota_budget_check_at_rejects_untrusted_and_pre_window_clock() {
 fn quota_window_rolls_on_exact_boundaries_without_partial_second_drift() {
     // 毫秒整数运算不存在亚秒漂移：结束前一毫秒的 retry-after 恰为 1，起始和翻转时刻恰为整窗。
     let before = QuotaWindow::from_clock(&clock(119_999), 60_000).unwrap();
-    assert_eq!((before.start_unix_ms, before.end_unix_ms), (60_000, 120_000));
+    assert_eq!(
+        (before.start_unix_ms, before.end_unix_ms),
+        (60_000, 120_000)
+    );
     assert_eq!(before.retry_after_ms(119_999).unwrap(), 1);
     assert_eq!(before.until_next_window_ms(119_999).unwrap(), 1);
 
@@ -140,7 +143,10 @@ fn quota_window_rolls_on_exact_boundaries_without_partial_second_drift() {
 
     // 窗口结束的精确毫秒同时开启下一个对齐窗口；旧窗口重试延迟精确归零。
     let rolled = QuotaWindow::from_clock(&clock(180_000), 60_000).unwrap();
-    assert_eq!((rolled.start_unix_ms, rolled.end_unix_ms), (180_000, 240_000));
+    assert_eq!(
+        (rolled.start_unix_ms, rolled.end_unix_ms),
+        (180_000, 240_000)
+    );
     assert_eq!(start.until_next_window_ms(180_000).unwrap(), 0);
     assert_eq!(start.retry_after_ms(180_000).unwrap(), 0);
 }

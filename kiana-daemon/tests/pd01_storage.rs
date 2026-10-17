@@ -401,7 +401,10 @@ fn daemon_storage_surface_roots_are_identical_across_surfaces() {
     for binding in &bindings {
         assert_eq!(binding.root_id, roots[0].root_id);
         assert_eq!(binding.canonical_path, roots[0].canonical_path);
-        assert_eq!(binding.owner_scope_digest, roots[0].owner_scope.scope_digest);
+        assert_eq!(
+            binding.owner_scope_digest,
+            roots[0].owner_scope.scope_digest
+        );
         assert_eq!(binding.instance_id, LOCAL_STORAGE_INSTANCE_ID);
         assert_eq!(binding.authority_epoch, LOCAL_STORAGE_AUTHORITY_EPOCH);
     }
@@ -429,11 +432,17 @@ fn daemon_storage_surface_binding_rejects_scope_and_digest_tampering() {
     let mut drifted = binding.clone();
     drifted.instance_id = "foreign-instance".to_owned();
     drifted.binding_digest = drifted.digest();
-    assert_eq!(drifted.validate().unwrap_err(), "storage_surface_binding_scope_invalid");
+    assert_eq!(
+        drifted.validate().unwrap_err(),
+        "storage_surface_binding_scope_invalid"
+    );
 
     let mut forged = binding;
     forged.canonical_path = "/tmp/kiana-pd01-elsewhere".to_owned();
-    assert_eq!(forged.validate().unwrap_err(), "storage_surface_binding_digest_mismatch");
+    assert_eq!(
+        forged.validate().unwrap_err(),
+        "storage_surface_binding_digest_mismatch"
+    );
 
     std::env::remove_var("KIANA_HOME");
     if let Some(value) = previous {
@@ -484,11 +493,15 @@ fn daemon_storage_identity_survives_a_new_process() {
 
     let previous = std::env::var_os("KIANA_HOME");
     std::env::set_var("KIANA_HOME", &home);
-    let (root, binding) = resolve_surface_storage_root(StorageSurface::Workbench, &project, "owner")
-        .expect("surface root after restart");
+    let (root, binding) =
+        resolve_surface_storage_root(StorageSurface::Workbench, &project, "owner")
+            .expect("surface root after restart");
     let lease = StorageLease::acquire(root).unwrap();
     assert_eq!(binding.root_id, lease.root().root_id);
-    assert_eq!(lease.identity().store_id.to_string(), created_store_id.trim());
+    assert_eq!(
+        lease.identity().store_id.to_string(),
+        created_store_id.trim()
+    );
     lease.release().unwrap();
 
     std::env::remove_var("KIANA_HOME");

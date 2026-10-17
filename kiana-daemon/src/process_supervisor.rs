@@ -330,8 +330,7 @@ mod er19_tests {
         command.process_group(0);
         let mut child = command.spawn().expect("spawn sleep");
         let process_group_id = child.id().expect("leader pid");
-        let report =
-            ProcessSupervisor::stop("er19-live", &mut child, Some(process_group_id)).await;
+        let report = ProcessSupervisor::stop("er19-live", &mut child, Some(process_group_id)).await;
         assert!(report.confirmed, "live stop must confirm: {report:?}");
         assert!(report.leader_reaped);
         assert_eq!(report.process_group, ProcessGroupState::Empty);

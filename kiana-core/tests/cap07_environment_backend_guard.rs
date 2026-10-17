@@ -195,7 +195,10 @@ fn cap07_behavioural_fixtures_are_wired() {
         "find_bwrap_denies_missing_binary_on_path_with_stable_code",
         "bwrap_plan_denies_non_executable_explicit_binary_before_planning",
     ] {
-        assert!(sandbox.contains(name), "CAP-07 sandbox deny fixture missing: {name}");
+        assert!(
+            sandbox.contains(name),
+            "CAP-07 sandbox deny fixture missing: {name}"
+        );
     }
     for marker in [
         "--test cap07_environment_backend",
@@ -203,7 +206,10 @@ fn cap07_behavioural_fixtures_are_wired() {
         "cap07_environment_backend_guard",
         "bubblewrap",
     ] {
-        assert!(workflow.contains(marker), "CAP-07 workflow missing: {marker}");
+        assert!(
+            workflow.contains(marker),
+            "CAP-07 workflow missing: {marker}"
+        );
     }
     for forbidden in [
         "fallback_to_host",

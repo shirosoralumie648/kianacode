@@ -347,7 +347,10 @@ fn human_inbox_decide_with_scope_enforces_approver_scope() {
     let decision = ApprovalDecision::Approve;
     let approved = item.decide_with_scope(&scope, decision, 100).unwrap();
     assert_eq!(approved.status, HumanInboxStatus::Approved);
-    assert_eq!(approved.decided_by.as_ref().unwrap().principal_id, "reviewer-principal");
+    assert_eq!(
+        approved.decided_by.as_ref().unwrap().principal_id,
+        "reviewer-principal"
+    );
 
     let wrong_command = ApproverScope::new(
         approver(),
@@ -421,7 +424,10 @@ fn human_inbox_consume_emits_one_shot_receipt() {
     assert!(receipt.validate().is_ok());
 
     let encoded = receipt.to_json().unwrap();
-    assert_eq!(ApprovalConsumptionReceipt::from_json(&encoded).unwrap(), receipt);
+    assert_eq!(
+        ApprovalConsumptionReceipt::from_json(&encoded).unwrap(),
+        receipt
+    );
 
     // One-shot: the consumed item cannot be consumed a second time.
     assert!(consumed.consume_with_receipt(200).is_err());

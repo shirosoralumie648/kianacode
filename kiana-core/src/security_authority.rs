@@ -265,7 +265,10 @@ impl SecurityAuthorityProvenance {
             &self.trust_revision,
             "security_authority_provenance_trust_revision",
         )?;
-        validate_digest(&self.provenance_digest, "security_authority_provenance_digest")?;
+        validate_digest(
+            &self.provenance_digest,
+            "security_authority_provenance_digest",
+        )?;
         if self.provenance_digest != self.digest() {
             return Err("security_authority_provenance_digest_mismatch".to_owned());
         }

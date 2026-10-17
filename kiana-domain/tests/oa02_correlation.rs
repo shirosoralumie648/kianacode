@@ -465,15 +465,8 @@ fn trail_threads_authenticated_ingress_through_the_execution_spine() {
         .unwrap()
         .with_invocation(invocation_id, execution_id)
         .unwrap();
-    let attempt = AttemptRef::new(
-        run_id,
-        turn_id,
-        invocation_id,
-        execution_id,
-        command_id,
-        2,
-    )
-    .unwrap();
+    let attempt =
+        AttemptRef::new(run_id, turn_id, invocation_id, execution_id, command_id, 2).unwrap();
     let trail = trail
         .with_attempt(attempt.clone())
         .unwrap()
@@ -500,16 +493,28 @@ fn trail_threads_authenticated_ingress_through_the_execution_spine() {
                 entry.context.parent_span_id,
                 Some(trail.entries()[index - 1].context.span_id.clone())
             );
-            assert_ne!(entry.context.span_id, trail.entries()[index - 1].context.span_id);
+            assert_ne!(
+                entry.context.span_id,
+                trail.entries()[index - 1].context.span_id
+            );
         }
     }
     assert_eq!(
-        trail.context_at(CorrelationStage::Invocation).unwrap().attempt,
+        trail
+            .context_at(CorrelationStage::Invocation)
+            .unwrap()
+            .attempt,
         Some(attempt)
     );
     assert_eq!(
-        trail.context_at(CorrelationStage::Provider).unwrap().attempt,
-        trail.context_at(CorrelationStage::Invocation).unwrap().attempt
+        trail
+            .context_at(CorrelationStage::Provider)
+            .unwrap()
+            .attempt,
+        trail
+            .context_at(CorrelationStage::Invocation)
+            .unwrap()
+            .attempt
     );
     assert_eq!(trail.event_correlation().unwrap().source_cursor, Some(9));
     trail.validate().unwrap();
@@ -531,15 +536,17 @@ fn trail_rejects_out_of_order_and_terminal_advances() {
     assert_eq!(
         trail
             .clone()
-            .with_attempt(AttemptRef::new(
-                RunId::new(),
-                TurnId::new(),
-                InvocationId::new(),
-                ExecutionId::new(),
-                RequestId::new(),
-                1,
+            .with_attempt(
+                AttemptRef::new(
+                    RunId::new(),
+                    TurnId::new(),
+                    InvocationId::new(),
+                    ExecutionId::new(),
+                    RequestId::new(),
+                    1,
+                )
+                .unwrap()
             )
-            .unwrap())
             .unwrap_err(),
         "correlation_attempt_requires_invocation"
     );
@@ -563,7 +570,10 @@ fn trail_rejects_out_of_order_and_terminal_advances() {
         trail.clone().event_log(2).unwrap_err(),
         "correlation_trail_terminal"
     );
-    assert_eq!(trail.clone().broker().unwrap_err(), "correlation_trail_terminal");
+    assert_eq!(
+        trail.clone().broker().unwrap_err(),
+        "correlation_trail_terminal"
+    );
 }
 
 #[test]
@@ -649,9 +659,7 @@ fn trail_async_recovery_uses_a_link_and_a_new_span() {
         .unwrap();
 
     assert_eq!(
-        trail
-            .async_recovery(SpanLinkKind::Parent)
-            .unwrap_err(),
+        trail.async_recovery(SpanLinkKind::Parent).unwrap_err(),
         "correlation_async_parent_link_forbidden"
     );
 
@@ -669,7 +677,10 @@ fn trail_async_recovery_uses_a_link_and_a_new_span() {
     assert_eq!(recovery.context.source_cursor, None);
     assert_eq!(
         recovery.context.span_links,
-        vec![SpanLink::new(upstream.current_span(), SpanLinkKind::FollowsFrom)]
+        vec![SpanLink::new(
+            upstream.current_span(),
+            SpanLinkKind::FollowsFrom
+        )]
     );
 
     let recovered = recovery.trail().unwrap();

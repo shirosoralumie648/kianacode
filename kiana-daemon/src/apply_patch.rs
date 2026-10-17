@@ -854,7 +854,9 @@ pub(crate) fn patch_affected_paths(patch: &str) -> Result<Vec<String>, PortError
             Hunk::AddFile { path, .. } | Hunk::DeleteFile { path } => {
                 targets.push(declared_path(&path)?);
             }
-            Hunk::UpdateFile { path, move_path, .. } => {
+            Hunk::UpdateFile {
+                path, move_path, ..
+            } => {
                 targets.push(declared_path(&path)?);
                 if let Some(moved) = move_path {
                     // move 的目标同样落在写集内，不能只授权源路径。
@@ -1984,7 +1986,10 @@ mod tests {
         assert_eq!(preview["patch_digest"], committed["patch_digest"]);
         assert_eq!(preview["before_hashes"], committed["before_hashes"]);
         assert_eq!(preview["hunk_count"], committed["hunk_count"]);
-        assert_eq!(affected_target_set(&preview), affected_target_set(&committed));
+        assert_eq!(
+            affected_target_set(&preview),
+            affected_target_set(&committed)
+        );
         let expected = vec![
             "added.txt".to_owned(),
             "moved.txt".to_owned(),
@@ -2535,7 +2540,10 @@ mod tests {
     }
 
     fn current_revision(root: &Path, paths: &[&str]) -> String {
-        let paths = paths.iter().map(|path| (*path).to_owned()).collect::<Vec<_>>();
+        let paths = paths
+            .iter()
+            .map(|path| (*path).to_owned())
+            .collect::<Vec<_>>();
         let current = capture_checkpoint_files(root, &paths).unwrap();
         kiana_domain::json_digest(&serde_json::json!(current))
     }
@@ -2619,7 +2627,10 @@ mod tests {
         let preview = preview_checkpoint(&target).unwrap();
         assert_eq!(preview.writes_performed, false);
         assert_eq!(preview.changes.len(), 1);
-        assert_eq!(preview.current_revision, current_revision(&root, &["file.txt"]));
+        assert_eq!(
+            preview.current_revision,
+            current_revision(&root, &["file.txt"])
+        );
         assert_eq!(preview.target_revision, target.workspace_revision);
         assert_eq!(
             fs::read_to_string(root.join("file.txt")).unwrap(),

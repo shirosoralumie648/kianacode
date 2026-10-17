@@ -2227,7 +2227,10 @@ mod tests {
         assert!(sink.finish().unwrap().tail.is_empty());
         // After finish, new pushes run as independent complete text; a marker plus value is closed
         // with the same placeholder rather than emitted raw.
-        assert_eq!(sink.push("token=oa03-after-finish").unwrap(), "token=[REDACTED]");
+        assert_eq!(
+            sink.push("token=oa03-after-finish").unwrap(),
+            "token=[REDACTED]"
+        );
         assert!(!sink.failed());
     }
 }

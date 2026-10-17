@@ -127,7 +127,10 @@ fn intent_binds_account_purpose_and_separated_downstream_audience() {
     // Deriving an intent never dispatches an effect.
     assert_eq!(intent.broker_calls, 0);
     assert_eq!(intent.occurrence_digest.len(), "sha256:".len() + 64);
-    assert_eq!(intent.occurrence_key(), "connector-ingress:source-1:event-1");
+    assert_eq!(
+        intent.occurrence_key(),
+        "connector-ingress:source-1:event-1"
+    );
 }
 
 #[test]
@@ -261,7 +264,10 @@ fn derived_intent_is_fail_closed_against_tampering_and_unknown_fields() {
         let mut value = serde_json::to_value(&original).unwrap();
         mutate(&mut value);
         let tampered: ConnectorIngressIntent = serde_json::from_value(value).unwrap();
-        assert_eq!(tampered.validate().unwrap_err(), "connector_ingress_intent_invalid");
+        assert_eq!(
+            tampered.validate().unwrap_err(),
+            "connector_ingress_intent_invalid"
+        );
     }
 
     let mut value = serde_json::to_value(&original).unwrap();

@@ -65,13 +65,11 @@ impl RunnerPort for ZeroCallRunner {
         Err(PortError::Unavailable("restart_must_not_send".to_owned()))
     }
 
-    async fn restore(
-        &self,
-        _run_id: RunId,
-        _checkpoint: Value,
-    ) -> Result<(), PortError> {
+    async fn restore(&self, _run_id: RunId, _checkpoint: Value) -> Result<(), PortError> {
         self.restores.fetch_add(1, Ordering::SeqCst);
-        Err(PortError::Unavailable("restart_must_not_restore".to_owned()))
+        Err(PortError::Unavailable(
+            "restart_must_not_restore".to_owned(),
+        ))
     }
 }
 
@@ -164,7 +162,11 @@ async fn er20_restart_never_auto_resumes_pending_run() {
     assert_eq!(restores.load(Ordering::SeqCst), 0);
     let after = events.read_all().await.unwrap();
     assert_eq!(before.len(), after.len());
-    for kind in ["execution.prepared", "invocation.dispatching", "run.resume_prepared"] {
+    for kind in [
+        "execution.prepared",
+        "invocation.dispatching",
+        "run.resume_prepared",
+    ] {
         assert!(
             after.iter().all(|event| event.kind.as_str() != kind),
             "restart rebuild must not append {kind}"
@@ -204,7 +206,11 @@ fn er20_rebuild_lists_multiple_pending_approvals_and_fences_resources() {
             json!({"approval_id": approval_b, "state": ApprovalState::Active}),
         ),
         event(5, "lease.issued", json!({"lease_id": lease_id})),
-        event(6, "cell.started", json!({"cell_id": cell_id, "lifecycle": "running"})),
+        event(
+            6,
+            "cell.started",
+            json!({"cell_id": cell_id, "lifecycle": "running"}),
+        ),
         event(
             7,
             "cell.cancel_requested",

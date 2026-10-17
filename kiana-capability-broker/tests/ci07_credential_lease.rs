@@ -161,7 +161,10 @@ fn broker_refuses_revoked_generation_before_consuming_the_lease() {
         ),
         Err(kiana_ports::PortError::Conflict(code)) if code == "credential_secret_ref_revoked"
     ));
-    assert_eq!(lease, before, "revocation denial must not consume the lease");
+    assert_eq!(
+        lease, before,
+        "revocation denial must not consume the lease"
+    );
 
     // Without a watermark, or with a watermark below the lease generation, the fence admits.
     consume_credential_lease_with_revocation(

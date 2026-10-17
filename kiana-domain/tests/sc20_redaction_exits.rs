@@ -62,7 +62,10 @@ fn unkeyed_text_secret_is_masked_under_a_benign_key() {
     assert_eq!(redacted["notes"], "token=[REDACTED]");
     let rendered = redacted.to_string();
     assert!(!rendered.contains("sc20-benign-key-secret"));
-    assert_eq!(redact_text("bearer sc20-plain-bearer tail"), "bearer [REDACTED] tail");
+    assert_eq!(
+        redact_text("bearer sc20-plain-bearer tail"),
+        "bearer [REDACTED] tail"
+    );
 }
 
 /// Provider exit: a raw Provider/transport error is projected into a bounded object that
@@ -161,7 +164,10 @@ fn unresolved_secret_shapes_fail_closed_without_returning_raw_input() {
 fn redaction_schemas_are_versioned_and_closed() {
     assert_eq!(REDACTION_PROFILE_SCHEMA, "kiana.redaction-profile.v1");
     assert_eq!(SECRET_SENTINEL_SCAN_SCHEMA, "kiana.secret-sentinel-scan.v1");
-    assert_eq!(REDACTED_ERROR_PROJECTION_SCHEMA, "kiana.redacted-error-projection.v1");
+    assert_eq!(
+        REDACTED_ERROR_PROJECTION_SCHEMA,
+        "kiana.redacted-error-projection.v1"
+    );
     let profile = RedactionProfile::for_signal(RedactionSignal::Audit);
     profile.validate().unwrap();
     let encoded = serde_json::to_string(&profile).unwrap();

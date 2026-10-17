@@ -150,7 +150,10 @@ fn revoked_slot_denies_further_lease_consume_and_rotate() {
     assert_eq!(receipt.schema, SECRET_REVOCATION_RECEIPT_SCHEMA);
     assert_eq!(receipt.revoked_generation, 1);
     assert!(receipt.validate().is_ok());
-    assert_eq!(authority.slot_status(&reference).unwrap(), SecretLeaseStatus::Revoked);
+    assert_eq!(
+        authority.slot_status(&reference).unwrap(),
+        SecretLeaseStatus::Revoked
+    );
 
     let consume_denied = authority
         .consume_lease(
@@ -230,7 +233,10 @@ fn rotation_receipt_is_generation_fenced() {
     assert_eq!(receipt.previous_generation, 1);
     assert_eq!(receipt.next_generation, 2);
     assert!(receipt.validate().is_ok());
-    assert_eq!(authority.slot_status(&reference).unwrap(), SecretLeaseStatus::Active);
+    assert_eq!(
+        authority.slot_status(&reference).unwrap(),
+        SecretLeaseStatus::Active
+    );
 
     let stale = authority
         .rotate(
@@ -478,7 +484,10 @@ fn restore_rejects_plaintext_and_round_trips_secret_free() {
 
     let restored = SecretLeaseAuthority::new();
     assert_eq!(restored.restore_from_journal(&payload).unwrap(), 1);
-    assert_eq!(restored.slot_status(&reference(2)).unwrap(), SecretLeaseStatus::Revoked);
+    assert_eq!(
+        restored.slot_status(&reference(2)).unwrap(),
+        SecretLeaseStatus::Revoked
+    );
 
     // A journal record carrying a raw value is rejected before any state is rebuilt.
     let mut tampered: Vec<Value> = serde_json::from_str(&payload).expect("journal value");

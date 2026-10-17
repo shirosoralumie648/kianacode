@@ -1007,7 +1007,9 @@ impl CorrelationTrail {
     }
 
     pub fn with_run(self, run_id: RunId) -> Result<Self, String> {
-        let context = self.advanced_context(CorrelationStage::Run)?.with_run(run_id)?;
+        let context = self
+            .advanced_context(CorrelationStage::Run)?
+            .with_run(run_id)?;
         self.append(CorrelationStage::Run, context)
     }
 

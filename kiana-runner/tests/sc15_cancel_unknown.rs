@@ -80,7 +80,10 @@ fn cancel_does_not_start_a_second_request_or_dispatch_tools() {
     assert!(repeated.intents.is_empty());
 
     // A late model step after cancel is refused; no new driver iteration is admitted.
-    let step = DriverInput::BeginStep { step_id: StepId::new(), step: 2 };
+    let step = DriverInput::BeginStep {
+        step_id: StepId::new(),
+        step: 2,
+    };
     let denied = transition(&cancelling.frame, step).unwrap_err();
     assert_eq!(
         invalid_transition(denied),
@@ -88,7 +91,10 @@ fn cancel_does_not_start_a_second_request_or_dispatch_tools() {
     );
 
     // A late tool call after cancel is refused instead of dispatching new effects.
-    let output = DriverInput::ModelOutput { tool_count: 1, complete: false };
+    let output = DriverInput::ModelOutput {
+        tool_count: 1,
+        complete: false,
+    };
     let denied = transition(&cancelling.frame, output).unwrap_err();
     assert_eq!(
         invalid_transition(denied),
@@ -99,13 +105,18 @@ fn cancel_does_not_start_a_second_request_or_dispatch_tools() {
 #[test]
 fn unconfirmed_effect_enters_recovery_instead_of_success() {
     let driver = model_pending();
-    let tools = DriverInput::ModelOutput { tool_count: 1, complete: false };
+    let tools = DriverInput::ModelOutput {
+        tool_count: 1,
+        complete: false,
+    };
     let tool_pending = transition(&driver.frame, tools).unwrap();
     assert_eq!(tool_pending.frame.phase, HarnessPhase::ToolPending);
     assert_eq!(tool_pending.frame.pending_tools, 1);
 
     // effect_known=false means the driver must reconcile, not settle as a known result.
-    let unknown_result = DriverInput::ToolResult { effect_known: false };
+    let unknown_result = DriverInput::ToolResult {
+        effect_known: false,
+    };
     let recovery = transition(&tool_pending.frame, unknown_result).unwrap();
     assert_eq!(recovery.frame.phase, HarnessPhase::RecoveryRequired);
     assert_eq!(recovery.frame.terminal, None);
@@ -113,7 +124,10 @@ fn unconfirmed_effect_enters_recovery_instead_of_success() {
 
     // A "model finished" message that arrives while the effect is still unknown cannot be
     // laundered into a Completed terminal.
-    let finished = DriverInput::ModelOutput { tool_count: 0, complete: true };
+    let finished = DriverInput::ModelOutput {
+        tool_count: 0,
+        complete: true,
+    };
     let denied = transition(&recovery.frame, finished).unwrap_err();
     assert_eq!(
         invalid_transition(denied),
@@ -121,7 +135,9 @@ fn unconfirmed_effect_enters_recovery_instead_of_success() {
     );
 
     // The only terminal the recovery frame may carry is Unknown.
-    let terminal = DriverInput::Terminal { outcome: DriverTerminal::Unknown };
+    let terminal = DriverInput::Terminal {
+        outcome: DriverTerminal::Unknown,
+    };
     let unknown = transition(&recovery.frame, terminal).unwrap();
     assert_eq!(unknown.frame.terminal, Some(DriverTerminal::Unknown));
     assert_eq!(unknown.frame.phase, HarnessPhase::TurnFinished);
@@ -139,20 +155,29 @@ fn recover_unknown_from_a_running_turn_keeps_the_result_unknown() {
 #[test]
 fn a_terminal_outcome_cannot_be_rewritten() {
     let driver = model_pending();
-    let finished = DriverInput::ModelOutput { tool_count: 0, complete: true };
+    let finished = DriverInput::ModelOutput {
+        tool_count: 0,
+        complete: true,
+    };
     let completed = transition(&driver.frame, finished).unwrap();
     assert_eq!(completed.frame.terminal, Some(DriverTerminal::Completed));
     assert_eq!(completed.frame.phase, HarnessPhase::TurnFinished);
 
     // Completed cannot be relabelled Cancelled/Failed/Unknown: there is no second terminal.
-    for outcome in [DriverTerminal::Cancelled, DriverTerminal::Failed, DriverTerminal::Unknown] {
+    for outcome in [
+        DriverTerminal::Cancelled,
+        DriverTerminal::Failed,
+        DriverTerminal::Unknown,
+    ] {
         let terminal = DriverInput::Terminal { outcome };
         let denied = transition(&completed.frame, terminal).unwrap_err();
         assert!(matches!(denied, DriverError::TerminalConflict));
     }
 
     // Re-asserting the same outcome is idempotent and emits no second terminal intent.
-    let again = DriverInput::Terminal { outcome: DriverTerminal::Completed };
+    let again = DriverInput::Terminal {
+        outcome: DriverTerminal::Completed,
+    };
     let repeated = transition(&completed.frame, again).unwrap();
     assert_eq!(repeated.frame.terminal, Some(DriverTerminal::Completed));
     assert!(repeated.intents.is_empty());

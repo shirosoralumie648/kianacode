@@ -2023,7 +2023,10 @@ while True:
             .prepare(&context, &cap20_request("cap20-fixture", &root, &context))
             .await
             .expect("discovery prepare pins the executable");
-        assert_eq!(prepared.arguments["mcp_snapshot"]["schema"], "kiana.mcp-snapshot.v1");
+        assert_eq!(
+            prepared.arguments["mcp_snapshot"]["schema"],
+            "kiana.mcp-snapshot.v1"
+        );
         std::fs::write(&script, "#!/bin/sh\nexit 0\n").unwrap();
         let handler = McpHandler {
             registry: registry.clone(),

@@ -102,7 +102,10 @@ impl StorageSurfaceBinding {
         if self.canonical_path.trim().is_empty() {
             return Err("storage_surface_binding_path_invalid".to_owned());
         }
-        require_digest(&self.owner_scope_digest, "storage_surface_binding_owner_scope_digest")?;
+        require_digest(
+            &self.owner_scope_digest,
+            "storage_surface_binding_owner_scope_digest",
+        )?;
         require_digest(&self.binding_digest, "storage_surface_binding_digest")?;
         if self.binding_digest != self.digest() {
             return Err("storage_surface_binding_digest_mismatch".to_owned());

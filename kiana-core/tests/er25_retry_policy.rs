@@ -54,10 +54,15 @@ fn unknown_effect_never_auto_retries() {
         !decision.retry,
         "unknown effect must not auto-retry: {decision:?}"
     );
-    assert_eq!(decision.deny_reason, Some(RetryDenyReason::SideEffectUnknown));
+    assert_eq!(
+        decision.deny_reason,
+        Some(RetryDenyReason::SideEffectUnknown)
+    );
     assert_eq!(decision.next_attempt, 0);
     assert_eq!(decision.delay_ms, 0);
-    decision.validate().expect("a denial is a well-formed decision");
+    decision
+        .validate()
+        .expect("a denial is a well-formed decision");
 
     // A partial delta already reached the user; it can never be replayed as a fresh attempt.
     let pre_send = ModelError::transport("connect_reset", ModelRetryClass::BeforeSend, false);
@@ -177,7 +182,9 @@ fn transient_before_dispatch_creates_a_bounded_new_attempt() {
     assert!(decision.delay_ms >= 100, "backoff must be positive");
     assert!(decision.delay_ms <= policy.max_backoff_ms);
     assert_eq!(decision.deny_reason, None);
-    decision.validate().expect("a retry is a well-formed decision");
+    decision
+        .validate()
+        .expect("a retry is a well-formed decision");
 }
 
 /// A known no-effect rejection retries under the bounded backoff and honors `Retry-After`.
@@ -210,12 +217,7 @@ fn absolute_deadline_bounds_backoff_before_a_new_attempt() {
     refused.retry_after_ms = Some(900);
     // Only 100ms remain, so the 900ms Retry-After backoff cannot fit before the deadline.
     let decision = policy
-        .classify(
-            1,
-            1,
-            deadline - 100,
-            &observe(&refused, false, true),
-        )
+        .classify(1, 1, deadline - 100, &observe(&refused, false, true))
         .expect("classify");
     assert!(
         !decision.retry,
@@ -243,7 +245,8 @@ fn duplicate_idempotency_key_is_fenced_at_the_attempt_reservation() {
     sent.dispatch().expect("dispatch");
     assert_eq!(sent.state, RetryAttemptState::Sent);
     assert_eq!(
-        sent.cancel().expect_err("a sent attempt cannot be cancelled"),
+        sent.cancel()
+            .expect_err("a sent attempt cannot be cancelled"),
         "retry_attempt_cancel_race_terminal"
     );
     // Settling twice, or dispatching a settled attempt, is refused.

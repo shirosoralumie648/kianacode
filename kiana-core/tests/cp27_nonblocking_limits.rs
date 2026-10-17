@@ -21,8 +21,8 @@ use kiana_domain::{
 use kiana_eventlog::MemoryEventLog;
 use kiana_ports::{
     require_trusted_deadline, wait_for_cancellation, CapabilityBrokerPort, ClockPort,
-    EventStorePort, ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError, PortError,
-    QueuedObservabilityItem,
+    EventStorePort, ObservabilityQueue, ObservabilityQueueClass, ObservabilityQueueError,
+    PortError, QueuedObservabilityItem,
 };
 use serde_json::json;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -186,14 +186,21 @@ async fn cp_pending_and_event_limits_fail_without_resource_leak() {
     // The over-limit batch is refused with a stable code by both the pure validator and the store.
     let too_many = too_many_events_batch(RequestId::new());
     let rejected_command = too_many.command_id;
-    assert_eq!(too_many.validate().unwrap_err(), "journal_batch_event_limit");
+    assert_eq!(
+        too_many.validate().unwrap_err(),
+        "journal_batch_event_limit"
+    );
     assert_eq!(
         store.commit_transition(too_many).await.unwrap_err(),
         PortError::Failed("journal_batch_event_limit".to_owned())
     );
 
     // The rejected command left no committed fact, receipt or cursor movement behind.
-    assert!(store.read_command(&rejected_command).await.unwrap().is_none());
+    assert!(store
+        .read_command(&rejected_command)
+        .await
+        .unwrap()
+        .is_none());
     assert_eq!(store.read_all().await.unwrap().len(), 1);
     let page = store.read_from(0, 10).await.unwrap();
     assert_eq!(page.events.len(), 1);
@@ -202,11 +209,15 @@ async fn cp_pending_and_event_limits_fail_without_resource_leak() {
 
     // Payload and read-set ceilings expose the same structured failure surface.
     assert_eq!(
-        oversized_event_batch(RequestId::new()).validate().unwrap_err(),
+        oversized_event_batch(RequestId::new())
+            .validate()
+            .unwrap_err(),
         "journal_event_size_limit"
     );
     assert_eq!(
-        oversized_read_set_batch(RequestId::new()).validate().unwrap_err(),
+        oversized_read_set_batch(RequestId::new())
+            .validate()
+            .unwrap_err(),
         "journal_read_set_limit"
     );
 
@@ -263,7 +274,10 @@ async fn cp_slow_storage_does_not_starve_cancellation() {
     );
     let approval_item = QueuedObservabilityItem::critical(ObservabilityQueueClass::Approval, 3);
     let rejected = queue.try_enqueue(approval_item);
-    assert!(matches!(rejected, Err(ObservabilityQueueError::CriticalQueueFull { .. })));
+    assert!(matches!(
+        rejected,
+        Err(ObservabilityQueueError::CriticalQueueFull { .. })
+    ));
     let stats = queue.stats();
     assert_eq!(stats.depth, 2);
     assert_eq!(stats.dropped_best_effort_total, 1);

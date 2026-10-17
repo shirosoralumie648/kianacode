@@ -163,7 +163,10 @@ fn cp26_hard_denial_chain_never_records_a_confirmed_effect() {
     assert_eq!(records[1].action_kind, AuditActionKind::Capability);
     for record in &records {
         assert_eq!(record.decision, AuditDecision::Denied);
-        assert_eq!(record.reason_code.as_deref(), Some("policy_denied_capability"));
+        assert_eq!(
+            record.reason_code.as_deref(),
+            Some("policy_denied_capability")
+        );
     }
 }
 
@@ -209,7 +212,10 @@ fn cp26_unknown_chain_stays_unknown_until_reconciled() {
 
     assert_eq!(records[0].action_kind, AuditActionKind::Capability);
     assert_eq!(records[0].decision, AuditDecision::Unknown);
-    assert_eq!(records[0].reason_code.as_deref(), Some("handler_result_unknown"));
+    assert_eq!(
+        records[0].reason_code.as_deref(),
+        Some("handler_result_unknown")
+    );
     assert_eq!(records[1].action_kind, AuditActionKind::Recovery);
     assert_eq!(records[1].decision, AuditDecision::Staged);
     assert_eq!(records[2].action_kind, AuditActionKind::Recovery);
@@ -267,5 +273,8 @@ fn cp26_secret_never_appears_in_projected_explain_row() {
 
     assert!(!explain.contains(SECRET_SENTINEL));
     assert!(explain.contains("[REDACTED]"));
-    assert_eq!(records[0].reason_code.as_deref(), Some("denied api_key=[REDACTED]"));
+    assert_eq!(
+        records[0].reason_code.as_deref(),
+        Some("denied api_key=[REDACTED]")
+    );
 }

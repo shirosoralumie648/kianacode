@@ -149,8 +149,8 @@ use kiana_domain::{
     derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
     CapabilityResult, InputId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
     QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StepId,
-    StepIdentity, StreamingRedactionSink, StreamingRedactor, ToolObservation, ToolObservationStatus,
-    TurnId,
+    StepIdentity, StreamingRedactionSink, StreamingRedactor, ToolObservation,
+    ToolObservationStatus, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{

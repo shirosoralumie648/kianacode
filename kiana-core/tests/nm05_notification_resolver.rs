@@ -4,9 +4,10 @@ use kiana_core::{
 };
 use kiana_domain::{
     json_digest, AssignmentDirectory, AssignmentId, AuthenticatedPrincipalRef, DepartmentSnapshot,
-    DepartmentSpec, MessageId, Notification, NotificationChannel, OrganizationId, ProjectAssignment,
-    ProjectAssignmentId, ProjectId, ProjectIdentity, ProjectTrustSnapshot, RequestContext,
-    RoleAssignment, RoleAssignmentStatus, SecurityContextId, Subscription, SubscriptionStatus,
+    DepartmentSpec, MessageId, Notification, NotificationChannel, OrganizationId,
+    ProjectAssignment, ProjectAssignmentId, ProjectId, ProjectIdentity, ProjectTrustSnapshot,
+    RequestContext, RoleAssignment, RoleAssignmentStatus, SecurityContextId, Subscription,
+    SubscriptionStatus,
 };
 use serde_json::json;
 
@@ -149,8 +150,8 @@ fn authority_snapshot(trusted: bool) -> SecurityAuthoritySnapshot {
         )
         .unwrap();
     let trust = ProjectTrustSnapshot::from_project(&project, trusted, "fixture", 1).unwrap();
-    let department = DepartmentSnapshot::from_spec(&DepartmentSpec::executing(), 1, AUTHORITY_EPOCH)
-        .unwrap();
+    let department =
+        DepartmentSnapshot::from_spec(&DepartmentSpec::executing(), 1, AUTHORITY_EPOCH).unwrap();
     SecurityAuthoritySnapshot::from_parts(
         SecurityContextId::new(),
         principal,
@@ -396,14 +397,7 @@ fn resolver_rejects_untrusted_expired_epoch_and_cross_project() {
     );
     assert_eq!(
         resolver
-            .resolve(
-                NotificationEntryPoint::Cli,
-                &claims,
-                &note,
-                &[],
-                100,
-                0,
-            )
+            .resolve(NotificationEntryPoint::Cli, &claims, &note, &[], 100, 0,)
             .unwrap_err(),
         "notification_epoch_invalid"
     );
@@ -623,7 +617,10 @@ fn resolver_subscription_narrows_and_rebuilds_on_revision() {
         )
         .unwrap();
     assert_eq!(after.targets.len(), 1);
-    assert_eq!(after.targets[0].subscription_id, replacement.subscription_id);
+    assert_eq!(
+        after.targets[0].subscription_id,
+        replacement.subscription_id
+    );
 }
 
 #[test]

@@ -2001,7 +2001,10 @@ mod h15_output_read {
             }
             let page = read_output_at(&archive, &read).expect("verified page");
             assembled.push_str(page["text"].as_str().expect("page text"));
-            assert_eq!(page["content_digest"], output["output_ref"]["content_digest"]);
+            assert_eq!(
+                page["content_digest"],
+                output["output_ref"]["content_digest"]
+            );
             if page["complete"] == json!(true) {
                 break;
             }

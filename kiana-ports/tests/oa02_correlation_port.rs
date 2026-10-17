@@ -125,15 +125,8 @@ fn trail_port_threads_ingress_through_the_spine_and_rejects_out_of_order() {
     let trail = trail_port
         .with_invocation(&trail, invocation_id, execution_id)
         .unwrap();
-    let attempt = AttemptRef::new(
-        run_id,
-        turn_id,
-        invocation_id,
-        execution_id,
-        command_id,
-        1,
-    )
-    .unwrap();
+    let attempt =
+        AttemptRef::new(run_id, turn_id, invocation_id, execution_id, command_id, 1).unwrap();
     let trail = trail_port.with_attempt(&trail, attempt).unwrap();
     let trail = trail_port.provider(&trail).unwrap();
     let trail = trail_port.broker(&trail).unwrap();
@@ -141,7 +134,10 @@ fn trail_port_threads_ingress_through_the_spine_and_rejects_out_of_order() {
 
     assert_eq!(trail.current_stage(), CorrelationStage::EventLog);
     assert_eq!(trail.entries().len(), CorrelationStage::ORDERED.len());
-    assert_eq!(trail.current().trace_id, trail.entries()[0].context.trace_id);
+    assert_eq!(
+        trail.current().trace_id,
+        trail.entries()[0].context.trace_id
+    );
     assert_eq!(trail.event_correlation().unwrap().source_cursor, Some(5));
 
     let recovery = trail_port

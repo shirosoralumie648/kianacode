@@ -81,7 +81,10 @@ fn unknown_cancellation_keeps_stop_unconfirmed_and_terminal_transition_is_one_wa
 #[test]
 fn non_terminal_cancellation_cannot_claim_a_confirmed_stop() {
     let fact = stopping_fact();
-    for state in [RunCancellationState::Requested, RunCancellationState::Stopping] {
+    for state in [
+        RunCancellationState::Requested,
+        RunCancellationState::Stopping,
+    ] {
         assert_eq!(
             RunCancellationFact::new(
                 fact.run_id,
@@ -152,7 +155,10 @@ fn terminal_cancellation_states_are_one_way() {
         (ResultUnknown, Stopping),
         (ResultUnknown, ResultUnknown),
     ] {
-        assert!(from.transition(to).is_err(), "{from:?}->{to:?} must be denied");
+        assert!(
+            from.transition(to).is_err(),
+            "{from:?}->{to:?} must be denied"
+        );
     }
 }
 

@@ -1,10 +1,9 @@
 use kiana_domain::{
     json_digest, ArtifactOrphanRetention, ArtifactOrphanRetentionDecision, ArtifactProvenance,
-    ArtifactPublicationIntent, ArtifactPublicationReconciliation,
-    ArtifactPublicationRetentionPlan, ArtifactPublicationRetentionPolicy, ArtifactPublicationState,
-    ArtifactPublicationVerdict, ArtifactVersion, ArtifactWorkspaceDelta,
-    ArtifactWorkspaceDeltaState, Criterion, CriterionId, EventId, EvidenceId, EvidenceRef,
-    InvocationId, ProjectId, RunId, MAX_ARTIFACT_ORPHAN_COUNT,
+    ArtifactPublicationIntent, ArtifactPublicationReconciliation, ArtifactPublicationRetentionPlan,
+    ArtifactPublicationRetentionPolicy, ArtifactPublicationState, ArtifactPublicationVerdict,
+    ArtifactVersion, ArtifactWorkspaceDelta, ArtifactWorkspaceDeltaState, Criterion, CriterionId,
+    EventId, EvidenceId, EvidenceRef, InvocationId, ProjectId, RunId, MAX_ARTIFACT_ORPHAN_COUNT,
 };
 use uuid::Uuid;
 
@@ -606,8 +605,7 @@ fn artifact_orphan_retention_needs_a_bounded_policy_and_an_abandoned_window() {
         .unwrap_err(),
         "artifact_orphan_retention_duplicate"
     );
-    let capped =
-        ArtifactPublicationRetentionPolicy::new(1_000, 1, true, "co06-retention").unwrap();
+    let capped = ArtifactPublicationRetentionPolicy::new(1_000, 1, true, "co06-retention").unwrap();
     assert_eq!(
         ArtifactPublicationRetentionPlan::new(
             capped,
@@ -680,14 +678,8 @@ fn artifact_orphan_retention_needs_a_bounded_policy_and_an_abandoned_window() {
         "artifact_orphan_retention_plan_unbacked"
     );
     assert_eq!(
-        ArtifactPublicationRetentionPlan::new(
-            permitting.clone(),
-            false,
-            0,
-            Vec::new(),
-            0,
-        )
-        .unwrap_err(),
+        ArtifactPublicationRetentionPlan::new(permitting.clone(), false, 0, Vec::new(), 0,)
+            .unwrap_err(),
         "artifact_orphan_retention_plan_invalid"
     );
     let plan_only_plan = ArtifactPublicationRetentionPlan::new(
