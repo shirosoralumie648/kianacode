@@ -22,15 +22,59 @@ and rate-card revision while keeping estimated, measured and unknown cost separa
 
 ## CI-only fixtures
 
-`.github/workflows/p4-j7-24-usage-settlement.yml` runs the domain settlement fixture, provider
-source guard, Core boundary guard, formatting and workspace test-target compilation on GitHub
-Actions. The workflow path filter includes the current CM-36 `kiana-domain/src/memory_workbench.rs`
-module so a fresh remote run can pass the repository-wide format gate; that result is pending and
-unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
+`.github/workflows/p4-j7-24-usage-settlement.yml` is a `workflow_dispatch`-only lane with
+`permissions: contents: read`; it runs `cargo fetch --locked`, `cargo fmt --all --check` and the
+three focused fixtures (`-p kiana-domain --test p4_j7_24_usage_settlement`,
+`-p kiana-provider --test p4_j7_24_usage_containment`,
+`-p kiana-core --test p4_j7_24_usage_settlement_guard`, each `--locked -- --test-threads=1`). The
+automatic lane is the unified `ci.yml`: `kiana-domain-s3/4` lists `p4_j7_24_usage_settlement`,
+`kiana-provider` is a `targets=null` whole-crate shard (so the new target is discovered
+automatically) and `kiana-core-s5/6` lists `p4_j7_24_usage_settlement_guard`. Results are pending
+and unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
 
 The fixtures cover missing provider/rate-card usage, explicit non-nil execution identity binding,
 measured receipt attachment, exact replay, conflicting attempt settlement, run identity drift and
 the absence of Broker/EventLog/network authority in the value adapters.
+
+## 2026-10-17 completion slice (CI-only)
+
+The 2026-10-17 slice (per-protocol containment, the attempt reserve/dispatch/settle/release ledger
+and the late-usage correction) was written in a CI-only session: only `cargo fmt --all` was run
+locally, and no build, check, clippy, smoke or test command was executed. Its results are source
+plus CI wiring only and stay unobserved until the manual lane or the unified shards report.
+
+- `kiana-domain/src/provider_usage_settlement.rs`: `ProviderUsageContainment` declares the cache
+  read/write and reasoning relationships per wire protocol as three-way (`Some(true)` contained,
+  `Some(false)` disjoint, `None` undeclared); `PricedUnits`/`ChargeableUsage` count every reported
+  token once with checked arithmetic and refuse a declaration the numbers contradict
+  (`provider_usage_containment_violated:<field>`) or cannot prove
+  (`provider_usage_containment_unprovable:<field>`). `RateCardSnapshot` pins
+  source/currency/validity/version/digest, `ProviderUsageCorrection` appends late usage carrying
+  `replaces_settlement_digest`, and `ProviderUsageAttemptLedger` records
+  reserve/dispatch/settle/release/correct. Unknown consumption keeps the reserved upper bound
+  charged, a charge above the hold is committed before `provider_usage_charge_exceeds_reservation`
+  (mirroring the CP-11 rule that an overspend fact is never dropped), only a never-dispatched hold
+  can be released, a replay is idempotent by digest, and a delta observation is refused at
+  settlement (`provider_usage_delta_observation_not_settleable`). `from_usage` keeps its previous
+  conservative rule; only `from_usage_with_protocol` consumes the table. A self-hosted route
+  (`OllamaChat`) can never present a zero-priced card as a priced call.
+- `kiana-domain/src/billing_pricing.rs`: `estimate` keeps its behaviour through `estimate_inner`,
+  and `estimate_with_containment` charges a contained dimension once while an undeclared overlap
+  still yields `Unsupported` instead of a priced estimate.
+- Fixtures: `kiana-domain/tests/p4_j7_24_usage_settlement.rs` covers the card's acceptance list
+  (`missing_usage_and_price_remain_unknown`, `usage_overflow_is_rejected`,
+  `concurrent_model_calls_cannot_overspend_reserved_budget`,
+  `cumulative_cache_and_reasoning_usage_is_not_double_counted`,
+  `failed_attempt_usage_is_retained`, `replayed_usage_is_settled_once`) plus
+  `delta_observation_is_not_settled_as_cumulative`, the identity/execution/run/release/rate-card
+  scope fail-closed cases and the over-reservation commit;
+  `kiana-provider/tests/p4_j7_24_usage_containment.rs` normalizes one raw response per protocol and
+  proves the table matches what the adapter extracts (OpenAI chat/responses contained, Gemini cache
+  contained but thinking tokens additive, Anthropic disjoint, Legacy/Ollama undeclared) and that
+  known tokens without a rate card never become a billed amount;
+  `kiana-core/tests/p4_j7_24_usage_settlement_guard.rs` binds the new markers, adds
+  `billing_pricing.rs` to the checked sources and keeps the value-layer boundary (no authority, no
+  event write, no wrapping/saturating arithmetic).
 
 ## Evidence ceiling and limitations
 
@@ -41,6 +85,13 @@ claim durable reservation/CAS, provider invoice reconciliation, project/org fina
 capacity queues, live provider billing, cross-process replay or physical external effects. BQ-10+
 and later Provider/Receipt/EventLog steps must consume these contracts before any budget or cost
 statement can be promoted.
+
+The 2026-10-17 completion slice stays under the same ceiling: `ProviderUsageAttemptLedger` is a
+deterministic in-memory value boundary, so durable reservation/CAS, the production ControlPlane
+caller, Receipt projection of the new cost/unknown states and cross-process replay are still open.
+Token counting is explicitly not a bill — an unpriced dimension keeps the estimate unknown and a
+self-hosted route keeps `Unknown{Unsupported}` even with a zero-priced card; the new fixtures are
+source plus CI wiring whose receipts were not awaited.
 
 ## 2026-10-06 current-head settlement invariant receipt
 
