@@ -46,6 +46,24 @@ impl ReleaseArtifactSubject {
         bounded(&self.media_type, "release_artifact_media_type")?;
         digest(&self.digest, "release_artifact_digest")
     }
+
+    /// Bind the exact bytes named by this subject to the manifest. The caller supplies the
+    /// observed digest and size; a filename, tag or media type is never accepted as evidence.
+    pub fn verify_bytes(
+        &self,
+        observed_digest: &str,
+        observed_size_bytes: u64,
+    ) -> Result<(), String> {
+        self.validate()?;
+        digest(observed_digest, "release_artifact_observed_digest")?;
+        if self.digest != observed_digest {
+            return Err("release_artifact_digest_mismatch".to_owned());
+        }
+        if self.size_bytes != observed_size_bytes {
+            return Err("release_artifact_size_mismatch".to_owned());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -131,6 +149,9 @@ impl ReleaseManifest {
             artifact.validate()?;
             if !names.insert(&artifact.name) {
                 return Err("release_manifest_artifact_duplicate".to_owned());
+            }
+            if first_mismatched_version_token(&artifact.name, &self.tag).is_some() {
+                return Err("release_manifest_artifact_tag_mismatch".to_owned());
             }
         }
         if self.manifest_digest != self.digest() {
@@ -224,6 +245,9 @@ impl ReleaseProvenance {
             return Err("release_provenance_header_invalid".to_owned());
         }
         bounded(&self.build_type, "release_provenance_build_type")?;
+        if !self.build_type.starts_with("https://slsa.dev/") {
+            return Err("release_provenance_build_type_invalid".to_owned());
+        }
         bounded(&self.builder_id, "release_provenance_builder_id")?;
         bounded(&self.source_revision, "release_provenance_source_revision")?;
         for (value, field) in [
@@ -438,6 +462,10 @@ impl ReleaseVerificationReport {
             || provenance.toolchain_digest != expected_toolchain_digest
         {
             "release_verification_toolchain_mismatch"
+        } else if provenance.source_tree_digest != manifest.source_tree_digest {
+            "release_verification_source_tree_digest_mismatch"
+        } else if provenance.cargo_lock_digest != manifest.cargo_lock_digest {
+            "release_verification_cargo_lock_digest_mismatch"
         } else if provenance.subject_manifest_digest != manifest.manifest_digest {
             "release_verification_provenance_subject_mismatch"
         } else if signature.subject_manifest_digest != manifest.manifest_digest {
@@ -528,6 +556,41 @@ fn safe_name(value: &str, field: &str) -> Result<(), String> {
         return Err(format!("{field}_invalid"));
     }
     Ok(())
+}
+
+/// Version-like tokens (`v` followed by a digit, reaching to the end of the digits/dots run)
+/// inside an artifact filename. A filename is never authority, but when it claims a version it
+/// must not contradict the signed tag.
+fn version_tokens(name: &str) -> Vec<&str> {
+    let bytes = name.as_bytes();
+    let mut tokens = Vec::new();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        let boundary = index == 0 || !bytes[index - 1].is_ascii_alphanumeric();
+        if boundary
+            && (bytes[index] == b'v' || bytes[index] == b'V')
+            && index + 1 < bytes.len()
+            && bytes[index + 1].is_ascii_digit()
+        {
+            let start = index;
+            index += 1;
+            while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'.') {
+                index += 1;
+            }
+            tokens.push(&name[start..index]);
+        } else {
+            index += 1;
+        }
+    }
+    tokens
+}
+
+fn first_mismatched_version_token<'a>(name: &'a str, tag: &str) -> Option<&'a str> {
+    version_tokens(name).into_iter().find(|token| {
+        // Pre-release/build tags agree with the filename when the full tag extends the
+        // token at a separator (e.g. tag `v1.2.3-rc.1` with filename `...-v1.2.3-rc.1.tar.gz`).
+        *token != tag && !(tag.starts_with(*token) && tag[token.len()..].starts_with('-'))
+    })
 }
 
 fn digest(value: &str, field: &str) -> Result<(), String> {

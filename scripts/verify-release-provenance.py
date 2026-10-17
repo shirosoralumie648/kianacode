@@ -35,14 +35,18 @@ def digest_bytes(value: bytes) -> str:
 
 def digest_value(value: Any) -> str:
     return digest_bytes(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode()
     )
 
 
 def require_digest(value: Any, field: str) -> str:
     if not isinstance(value, str) or len(value) != len(DIGEST_PREFIX) + 64:
         fail(f"{field}_invalid")
-    if not value.startswith(DIGEST_PREFIX) or any(c not in "0123456789abcdef" for c in value[7:]):
+    if not value.startswith(DIGEST_PREFIX) or any(
+        c not in "0123456789abcdef" for c in value[7:]
+    ):
         fail(f"{field}_invalid")
     return value
 
@@ -88,14 +92,22 @@ def verify_manifest(manifest: dict[str, Any]) -> None:
         "manifest_digest",
     }
     strict_object(manifest, allowed, "release_manifest")
-    if manifest.get("schema") != "kiana.release-manifest.v1" or manifest.get("version") != VERSION:
+    if (
+        manifest.get("schema") != "kiana.release-manifest.v1"
+        or manifest.get("version") != VERSION
+    ):
         fail("release_manifest_header_invalid")
     require_text(manifest.get("release_id"), "release_manifest_release_id")
     tag = require_text(manifest.get("tag"), "release_manifest_tag")
     if not tag.startswith("v") or any(ch in tag for ch in "/\\ "):
         fail("release_manifest_tag_invalid")
     require_text(manifest.get("source_revision"), "release_manifest_source_revision")
-    for key in ("source_tree_digest", "cargo_lock_digest", "toolchain_digest", "sbom_digest"):
+    for key in (
+        "source_tree_digest",
+        "cargo_lock_digest",
+        "toolchain_digest",
+        "sbom_digest",
+    ):
         require_digest(manifest.get(key), f"release_manifest_{key}")
     require_text(manifest.get("builder_id"), "release_manifest_builder_id")
     artifacts = manifest.get("artifacts")
@@ -117,11 +129,16 @@ def verify_manifest(manifest: dict[str, Any]) -> None:
         require_text(artifact.get("kind"), "release_artifact_kind")
         require_text(artifact.get("target"), "release_artifact_target")
         require_digest(artifact.get("digest"), "release_artifact_digest")
-        if not isinstance(artifact.get("size_bytes"), int) or artifact["size_bytes"] < 0:
+        if (
+            not isinstance(artifact.get("size_bytes"), int)
+            or artifact["size_bytes"] < 0
+        ):
             fail("release_artifact_size_invalid")
         require_text(artifact.get("media_type"), "release_artifact_media_type")
     expected = dict(manifest)
-    manifest_digest = require_digest(manifest.get("manifest_digest"), "release_manifest_digest")
+    manifest_digest = require_digest(
+        manifest.get("manifest_digest"), "release_manifest_digest"
+    )
     expected.pop("manifest_digest", None)
     if manifest_digest != digest_value(expected):
         fail("release_manifest_digest_mismatch")
@@ -143,14 +160,25 @@ def verify_provenance(provenance: dict[str, Any], manifest: dict[str, Any]) -> N
         "provenance_digest",
     }
     strict_object(provenance, allowed, "release_provenance")
-    if provenance.get("schema") != "kiana.release-provenance.v1" or provenance.get("version") != VERSION:
+    if (
+        provenance.get("schema") != "kiana.release-provenance.v1"
+        or provenance.get("version") != VERSION
+    ):
         fail("release_provenance_header_invalid")
-    build_type = require_text(provenance.get("build_type"), "release_provenance_build_type")
+    build_type = require_text(
+        provenance.get("build_type"), "release_provenance_build_type"
+    )
     if not build_type.startswith("https://slsa.dev/"):
         fail("release_provenance_build_type_invalid")
     for key in ("builder_id", "source_revision"):
         require_text(provenance.get(key), f"release_provenance_{key}")
-    for key in ("invocation_digest", "source_tree_digest", "cargo_lock_digest", "toolchain_digest", "subject_manifest_digest"):
+    for key in (
+        "invocation_digest",
+        "source_tree_digest",
+        "cargo_lock_digest",
+        "toolchain_digest",
+        "subject_manifest_digest",
+    ):
         require_digest(provenance.get(key), f"release_provenance_{key}")
     materials = provenance.get("materials")
     if not isinstance(materials, list) or not materials or len(materials) > 128:
@@ -164,7 +192,9 @@ def verify_provenance(provenance: dict[str, Any], manifest: dict[str, Any]) -> N
             fail("release_provenance_material_duplicate")
         uris.add(uri)
     expected = dict(provenance)
-    provenance_digest = require_digest(provenance.get("provenance_digest"), "release_provenance_digest")
+    provenance_digest = require_digest(
+        provenance.get("provenance_digest"), "release_provenance_digest"
+    )
     expected.pop("provenance_digest", None)
     if provenance_digest != digest_value(expected):
         fail("release_provenance_digest_mismatch")
@@ -190,7 +220,10 @@ def verify_signature(signature: dict[str, Any], manifest: dict[str, Any]) -> str
         "attestation_digest",
     }
     strict_object(signature, allowed, "release_signature")
-    if signature.get("schema") != "kiana.release-signature-attestation.v1" or signature.get("version") != VERSION:
+    if (
+        signature.get("schema") != "kiana.release-signature-attestation.v1"
+        or signature.get("version") != VERSION
+    ):
         fail("release_signature_header_invalid")
     if signature.get("algorithm") not in {"ed25519", "sigstore", "external"}:
         fail("release_signature_algorithm_invalid")
@@ -206,7 +239,9 @@ def verify_signature(signature: dict[str, Any], manifest: dict[str, Any]) -> str
     if not isinstance(signature.get("verified"), bool):
         fail("release_signature_verified_invalid")
     expected = dict(signature)
-    attestation_digest = require_digest(signature.get("attestation_digest"), "release_signature_attestation_digest")
+    attestation_digest = require_digest(
+        signature.get("attestation_digest"), "release_signature_attestation_digest"
+    )
     expected.pop("attestation_digest", None)
     if attestation_digest != digest_value(expected):
         fail("release_signature_attestation_digest_mismatch")
@@ -245,12 +280,16 @@ def verify(args: argparse.Namespace) -> None:
         file_path = Path(path_value)
         if not file_path.is_file():
             fail("release_verification_artifact_missing")
-        matched = next((row for row in manifest["artifacts"] if row["name"] == name), None)
+        matched = next(
+            (row for row in manifest["artifacts"] if row["name"] == name), None
+        )
         if matched is None:
             fail("release_verification_artifact_name_mismatch")
         data = file_path.read_bytes()
-        if matched["size_bytes"] != len(data) or matched["digest"] != digest_bytes(data):
+        if matched["digest"] != digest_bytes(data):
             fail("release_verification_artifact_digest_mismatch")
+        if matched["size_bytes"] != len(data):
+            fail("release_verification_artifact_size_mismatch")
     print(
         json.dumps(
             {
@@ -303,7 +342,9 @@ def self_test() -> None:
             "source_tree_digest": common["source_tree_digest"],
             "cargo_lock_digest": common["cargo_lock_digest"],
             "toolchain_digest": common["toolchain_digest"],
-            "materials": [{"uri": "git:fixture", "digest": common["source_tree_digest"]}],
+            "materials": [
+                {"uri": "git:fixture", "digest": common["source_tree_digest"]}
+            ],
             "subject_manifest_digest": common["manifest_digest"],
         }
         provenance["provenance_digest"] = digest_value(provenance)
@@ -320,7 +361,11 @@ def self_test() -> None:
             "verified": True,
         }
         signature["attestation_digest"] = digest_value(signature)
-        for name, value in (("manifest", common), ("provenance", provenance), ("signature", signature)):
+        for name, value in (
+            ("manifest", common),
+            ("provenance", provenance),
+            ("signature", signature),
+        ):
             (root / f"{name}.json").write_text(json.dumps(value), encoding="utf-8")
         (root / "fixture.tar.gz").write_bytes(artifact)
         args = argparse.Namespace(
@@ -374,7 +419,9 @@ def main(argv: list[str]) -> int:
                 "expected_toolchain_digest",
             )
         ):
-            parser.error("manifest, provenance, signature and expected binding flags are required")
+            parser.error(
+                "manifest, provenance, signature and expected binding flags are required"
+            )
         else:
             verify(args)
     except VerificationError as error:
