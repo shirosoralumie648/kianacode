@@ -1,6 +1,16 @@
 {
+  "schema": "kiana.ui13-render-snapshot.v1",
+  "step": "UI-13",
   "run_id": "00000000-0000-0000-0000-000000000013",
   "epoch": "daemon-ui13",
+  "budgets": {
+    "max_items": 512,
+    "max_bytes": 524288,
+    "max_item_bytes": 32768,
+    "max_json_bytes": 16384,
+    "max_diff_bytes": 16384,
+    "max_artifacts_per_response": 64
+  },
   "events": [
     {
       "schema": "kiana.protocol.v1",
@@ -96,5 +106,278 @@
     "Terminal",
     "Artifact",
     "Artifact"
+  ],
+  "scenarios": [
+    {
+      "name": "arrival_order_never_overwrites_a_recorded_error",
+      "epoch": "daemon-ui13",
+      "events": [
+        {
+          "sequence": 1,
+          "event": {
+            "type": "error",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "data": {"code": "provider_timeout", "retry": false}
+          }
+        },
+        {
+          "sequence": 2,
+          "event": {
+            "type": "delta",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "text": "late text must not replace the error"
+          }
+        }
+      ],
+      "expected_kinds": ["Error", "Delta"],
+      "expected_cursor": 2,
+      "expected_terminal": false,
+      "expect_bodies_contain": [
+        {"kind": "Error", "text": "provider_timeout"},
+        {"kind": "Delta", "text": "late text must not replace the error"}
+      ],
+      "expect_bodies_exclude": [
+        {"kind": "Error", "text": "late text must not replace the error"}
+      ]
+    },
+    {
+      "name": "binary_mime_artifact_is_never_inlined",
+      "epoch": "daemon-ui13",
+      "events": [
+        {
+          "sequence": 1,
+          "event": {
+            "type": "terminal",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "response": {
+              "schema": "kiana.protocol.v1",
+              "request_id": "00000000-0000-0000-0000-000000000014",
+              "status": "completed",
+              "output": {
+                "output": {"text": "done"},
+                "artifacts": [
+                  {
+                    "id": "blob-13",
+                    "mime": "application/octet-stream",
+                    "bytes": 4096,
+                    "encoding": "base64",
+                    "data": "UElDTy1CSU5BUlktUEFZTE9BRC0xMw=="
+                  }
+                ]
+              },
+              "error": null
+            }
+          }
+        }
+      ],
+      "expected_kinds": ["Terminal", "Artifact"],
+      "expected_cursor": 1,
+      "expected_terminal": true,
+      "expect_bodies_contain": [
+        {"kind": "Artifact", "text": "binary artifact not rendered inline"}
+      ],
+      "expect_bodies_exclude": [
+        {"kind": "Artifact", "text": "UElDTy1CSU5BUlktUEFZTE9BRC0xMw=="}
+      ]
+    },
+    {
+      "name": "text_diff_artifact_is_labelled_and_bounded",
+      "epoch": "daemon-ui13",
+      "events": [
+        {
+          "sequence": 1,
+          "event": {
+            "type": "terminal",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "response": {
+              "schema": "kiana.protocol.v1",
+              "request_id": "00000000-0000-0000-0000-000000000014",
+              "status": "completed",
+              "output": {
+                "output": {"text": "done"},
+                "artifacts": [
+                  {
+                    "id": "diff-13",
+                    "path": "src/lib.rs",
+                    "mime": "text/x-diff",
+                    "diff": "@@ -1 +1 @@\n-old\n+new"
+                  }
+                ]
+              },
+              "error": null
+            }
+          }
+        }
+      ],
+      "expected_kinds": ["Terminal", "Artifact"],
+      "expected_cursor": 1,
+      "expected_terminal": true,
+      "expect_bodies_contain": [
+        {"kind": "Artifact", "text": "src/lib.rs"},
+        {"kind": "Artifact", "text": "+new"}
+      ],
+      "expect_bodies_exclude": []
+    },
+    {
+      "name": "terminal_fences_late_delta_error_and_approval",
+      "epoch": "daemon-ui13",
+      "events": [
+        {
+          "sequence": 1,
+          "event": {
+            "type": "delta",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "text": "half"
+          }
+        },
+        {
+          "sequence": 2,
+          "event": {
+            "type": "terminal",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "response": {
+              "schema": "kiana.protocol.v1",
+              "request_id": "00000000-0000-0000-0000-000000000014",
+              "status": "completed",
+              "output": {"output": {"text": "done"}},
+              "error": null
+            }
+          }
+        }
+      ],
+      "expected_kinds": ["Delta", "Terminal"],
+      "expected_cursor": 2,
+      "expected_terminal": true,
+      "late_events": [
+        {
+          "sequence": 3,
+          "event": {
+            "type": "delta",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "text": "late delta"
+          }
+        },
+        {
+          "sequence": 3,
+          "event": {
+            "type": "error",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "data": {"code": "late_error"}
+          }
+        },
+        {
+          "sequence": 3,
+          "event": {
+            "type": "approval_requested",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "data": {"approval_id": "late-approval"}
+          }
+        },
+        {
+          "sequence": 3,
+          "event": {
+            "type": "tool_call",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "data": {"tool": "shell"}
+          }
+        }
+      ],
+      "expected_late_applies": [
+        "IgnoredAfterTerminal",
+        "IgnoredAfterTerminal",
+        "IgnoredAfterTerminal",
+        "IgnoredAfterTerminal"
+      ],
+      "expect_bodies_exclude": [
+        {"kind": "Error", "text": "late_error"},
+        {"kind": "Approval", "text": "late-approval"},
+        {"kind": "Delta", "text": "late delta"}
+      ]
+    },
+    {
+      "name": "gap_is_explicit_and_blocks_later_events",
+      "epoch": "daemon-ui13",
+      "events": [
+        {
+          "sequence": 1,
+          "event": {
+            "type": "delta",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "text": "first"
+          }
+        },
+        {
+          "sequence": 3,
+          "event": {
+            "type": "delta",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "text": "skipped a sequence"
+          }
+        }
+      ],
+      "expected_kinds": ["Delta", "Gap"],
+      "expected_cursor": 1,
+      "expected_terminal": false,
+      "late_events": [
+        {
+          "sequence": 4,
+          "event": {
+            "type": "delta",
+            "run_id": "00000000-0000-0000-0000-000000000013",
+            "text": "must wait for a snapshot"
+          }
+        }
+      ],
+      "expected_late_applies": ["GapRequiresSnapshot"],
+      "expect_bodies_exclude": [
+        {"kind": "Delta", "text": "must wait for a snapshot"}
+      ]
+    }
+  ],
+  "fixtures": [
+    "render_snapshot_maps_typed_events_and_terminal_artifacts",
+    "deny_first_cursor_handling_rejects_duplicates_gaps_foreign_runs_and_late_events",
+    "render_is_plain_text_redacted_and_bounded",
+    "untrusted_markdown_is_rendered_as_inert_plain_text",
+    "render_exposes_collapse_loading_and_total_item_limits",
+    "authorization_redaction_preserves_header_spacing_and_safe_following_lines",
+    "arrival_order_and_replays_never_overwrite_the_recorded_error",
+    "tool_results_usage_approvals_and_errors_are_never_assistant_text",
+    "binary_and_unspecified_artifact_payloads_are_never_inlined",
+    "text_diff_artifacts_are_labelled_and_truncated_by_the_declared_policy",
+    "terminal_fences_every_late_event_kind",
+    "gap_marker_blocks_both_typed_and_legacy_delivery_until_reset",
+    "hostile_stream_keeps_items_and_bytes_bounded"
+  ],
+  "required": [
+    "arrival-order-never-overwrites-facts",
+    "tool-results-are-never-assistant-text",
+    "errors-are-never-cleared",
+    "delta-json-and-diff-are-bounded",
+    "binary-mime-is-never-inlined",
+    "terminal-fences-late-events",
+    "unknown-and-limit-markers-are-explicit",
+    "markdown-is-not-interpreted"
+  ],
+  "denied": [
+    "timeline_schema_mismatch",
+    "timeline_event_run_mismatch",
+    "timeline_item_not_found",
+    "binary artifact not rendered inline",
+    "unspecified artifact payload not rendered inline",
+    "render limit reached; additional stream content is hidden",
+    "stream gap detected; hydrate a snapshot before rendering more events",
+    "unknown stream event; refresh the snapshot"
+  ],
+  "propagated_denials": [
+    "stream_epoch_changed",
+    "stream_cursor_invalid",
+    "stream_sequence_gap"
+  ],
+  "limitations": [
+    "process-local disposable projection; not an EventLog projector or durable replay cache",
+    "no OS-backed terminal, browser, live provider or external tool effect",
+    "gap recovery requires a future snapshot/feed client contract",
+    "markdown is left as plain text, not rendered as markup"
   ]
 }

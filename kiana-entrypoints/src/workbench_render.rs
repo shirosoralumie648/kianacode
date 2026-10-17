@@ -3,6 +3,12 @@
 //! This module turns the additive run stream into disposable, plain-text timeline items. It does
 //! not decide run state, execute tool calls, parse markdown, or replace EventLog/Receipt facts.
 //! Cursor/epoch checks are retained at this boundary so a display gap cannot look like success.
+//!
+//! The projection is append-only: an item is written once and later events can neither rewrite an
+//! earlier fact (arrival order is not authority) nor clear a recorded error, tool result, usage row
+//! or approval. Binary MIME artifacts are never inlined, and delta/JSON/diff bodies are bounded by
+//! the per-kind truncation policy below. Display roles are owned here so an entrypoint cannot
+//! re-label a tool result as assistant prose.
 
 use kiana_protocol::{
     redact_text, scan_secret_sentinels, ResponseEnvelope, RunId, RunStreamEnvelope, RunStreamEvent,
@@ -14,8 +20,17 @@ pub const MAX_TIMELINE_ITEMS: usize = 512;
 pub const MAX_TIMELINE_BYTES: usize = 512 * 1024;
 pub const MAX_TIMELINE_ITEM_BYTES: usize = 32 * 1024;
 pub const MAX_TIMELINE_JSON_BYTES: usize = 16 * 1024;
+/// Text/diff artifacts are capped separately: they are the largest single body the Workbench can
+/// receive, and a diff must not be able to fill the timeline budget on its own.
+pub const MAX_TIMELINE_DIFF_BYTES: usize = 16 * 1024;
+/// One terminal response may reference many files; only the first slice is projected so a hostile
+/// response cannot multiply one event into an unbounded item burst.
+pub const MAX_TIMELINE_ARTIFACTS_PER_RESPONSE: usize = 64;
 const TIMELINE_LIMIT_BODY: &str = "render limit reached; additional stream content is hidden";
+const BINARY_ARTIFACT_MARKER: &str = "binary artifact not rendered inline";
+const UNSPECIFIED_PAYLOAD_MARKER: &str = "unspecified artifact payload not rendered inline";
 const MAX_TIMELINE_SCAN_BYTES: usize = MAX_TIMELINE_ITEM_BYTES + 1024;
+const MAX_ARTIFACT_LABEL_CHARS: usize = 256;
 
 /// Bounded display row for a connector probe. UI code receives only typed, redacted projection
 /// data; it never formats provider response bodies, paths or credential references.
@@ -72,6 +87,35 @@ pub enum TimelineItemKind {
     Unknown,
     Gap,
     Limit,
+}
+
+/// Entry-point independent display role of a timeline item.
+///
+/// Only model prose and the terminal response may be rendered as assistant text. Tool results,
+/// usage records, approvals, errors, gaps, unknown markers and limit markers are system rows:
+/// rendering them as assistant prose would let recorded facts read as instructions or answers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimelineDisplayRole {
+    Assistant,
+    System,
+    Changed,
+}
+
+impl TimelineItemKind {
+    /// The single authority for how an item kind is labelled by every entrypoint.
+    pub fn display_role(self) -> TimelineDisplayRole {
+        match self {
+            Self::Delta | Self::Terminal => TimelineDisplayRole::Assistant,
+            Self::Artifact => TimelineDisplayRole::Changed,
+            Self::Usage
+            | Self::ToolCall
+            | Self::Approval
+            | Self::Error
+            | Self::Unknown
+            | Self::Gap
+            | Self::Limit => TimelineDisplayRole::System,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -210,12 +254,16 @@ impl TimelineRenderer {
     }
 
     /// Legacy stream helper used by the current Workbench adapter, whose cursor has already been
-    /// advanced by the daemon subscription path.
+    /// advanced by the daemon subscription path. It keeps the same gap/terminal fences: once the
+    /// projection has reported a gap, no further stream row is rendered until a snapshot hydrates.
     pub fn apply_event(&mut self, event: RunStreamEvent) -> Result<TimelineApply, String> {
         if self.terminal {
             return Ok(TimelineApply::IgnoredAfterTerminal);
         }
         self.ensure_run_id(&event)?;
+        if self.gap_detected {
+            return Ok(TimelineApply::GapRequiresSnapshot);
+        }
         self.legacy_sequence = self.legacy_sequence.saturating_add(1);
         let id = self.item_id(event_kind_name(&event), self.legacy_sequence);
         self.append_event(&event, id)?;
@@ -258,19 +306,20 @@ impl TimelineRenderer {
     }
 
     fn add_artifacts(&mut self, response: &ResponseEnvelope, parent: &str) -> Result<(), String> {
+        let mut projected = 0_usize;
         for key in ["files_changed", "artifacts"] {
             let Some(values) = response.output.get(key).and_then(Value::as_array) else {
                 continue;
             };
-            for (index, value) in values.iter().take(64).enumerate() {
-                let body = value
-                    .as_str()
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| json_text(value));
+            for (index, value) in values.iter().enumerate() {
+                if projected >= MAX_TIMELINE_ARTIFACTS_PER_RESPONSE {
+                    return Ok(());
+                }
+                projected += 1;
                 self.add_item(
                     format!("{parent}:{key}:artifact:{index}"),
                     TimelineItemKind::Artifact,
-                    &body,
+                    &artifact_body(value),
                     true,
                 )?;
             }
@@ -288,18 +337,7 @@ impl TimelineRenderer {
         if self.items.iter().any(|item| item.id == id) {
             return Ok(());
         }
-        let (mut body, mut truncated) = bounded_plain_text(body, MAX_TIMELINE_ITEM_BYTES);
-        if matches!(
-            kind,
-            TimelineItemKind::Usage
-                | TimelineItemKind::ToolCall
-                | TimelineItemKind::Approval
-                | TimelineItemKind::Error
-        ) {
-            let (bounded_json, json_truncated) = bounded_plain_text(&body, MAX_TIMELINE_JSON_BYTES);
-            body = bounded_json;
-            truncated |= json_truncated;
-        }
+        let (body, truncated) = bounded_item_body(kind, body);
         let reserved_limit = TIMELINE_LIMIT_BODY.len();
         if self.items.len() >= MAX_TIMELINE_ITEMS.saturating_sub(1)
             || self
@@ -423,6 +461,168 @@ fn terminal_text(response: &ResponseEnvelope) -> String {
 
 fn json_text(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "[unserializable]".to_owned())
+}
+
+/// Per-kind truncation policy. Delta/Terminal keep the item budget; structured JSON rows and
+/// text/diff artifacts have tighter caps so one record cannot crowd out the rest of the timeline.
+fn bounded_item_body(kind: TimelineItemKind, body: &str) -> (String, bool) {
+    let limit = match kind {
+        TimelineItemKind::Usage
+        | TimelineItemKind::ToolCall
+        | TimelineItemKind::Approval
+        | TimelineItemKind::Error => MAX_TIMELINE_JSON_BYTES,
+        TimelineItemKind::Artifact => MAX_TIMELINE_DIFF_BYTES,
+        TimelineItemKind::Delta
+        | TimelineItemKind::Terminal
+        | TimelineItemKind::Unknown
+        | TimelineItemKind::Gap
+        | TimelineItemKind::Limit => MAX_TIMELINE_ITEM_BYTES,
+    };
+    bounded_plain_text(body, limit)
+}
+
+/// Render one `files_changed`/`artifacts` entry.
+///
+/// A binary MIME (`application/octet-stream`, `image/*`, any non-text type) or an explicitly
+/// encoded payload (`encoding: base64|hex`) is summarized by its label and MIME only: the bytes are
+/// never decoded, inlined or re-encoded. Text/diff artifacts are inlined and bounded by
+/// [`MAX_TIMELINE_DIFF_BYTES`]. A payload with no declared text shape is treated as unspecified and
+/// is not inlined either, so an attacker cannot smuggle a blob through a missing MIME.
+fn artifact_body(value: &Value) -> String {
+    if !value.is_object() {
+        return match value {
+            Value::String(text) => truncate_for_inspection(text),
+            other => truncate_for_inspection(&json_text(other)),
+        };
+    }
+    let label = artifact_label(value);
+    if binary_artifact(value) {
+        return match label {
+            Some(label) => format!("{label}: {BINARY_ARTIFACT_MARKER}"),
+            None => BINARY_ARTIFACT_MARKER.to_owned(),
+        };
+    }
+    match artifact_inline_text(value) {
+        Some(text) => match label {
+            Some(label) => format!("{label}: {}", truncate_for_inspection(&text)),
+            None => truncate_for_inspection(&text),
+        },
+        None => {
+            if has_opaque_payload(value) {
+                match label {
+                    Some(label) => format!("{label}: {UNSPECIFIED_PAYLOAD_MARKER}"),
+                    None => UNSPECIFIED_PAYLOAD_MARKER.to_owned(),
+                }
+            } else {
+                truncate_for_inspection(&json_text(value))
+            }
+        }
+    }
+}
+
+/// True when the artifact declares a non-text MIME or a non-plain encoding.
+fn binary_artifact(value: &Value) -> bool {
+    if let Some(encoding) = value.get("encoding").and_then(Value::as_str) {
+        let encoding = encoding.trim().to_ascii_lowercase();
+        if !matches!(encoding.as_str(), "" | "utf-8" | "utf8" | "plain" | "text") {
+            return true;
+        }
+    }
+    match text_mime(value) {
+        Some(_) => false,
+        None => value.get("mime").is_some() || value.get("mime_type").is_some(),
+    }
+}
+
+/// The declared MIME, when it is a text shape the Workbench may render inline.
+fn text_mime(value: &Value) -> Option<String> {
+    let mime = value
+        .get("mime")
+        .or_else(|| value.get("mime_type"))
+        .and_then(Value::as_str)?
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    if mime.is_empty() {
+        return None;
+    }
+    let text_like = mime.starts_with("text/")
+        || matches!(
+            mime.as_str(),
+            "application/json"
+                | "application/x-ndjson"
+                | "application/jsonl"
+                | "application/xml"
+                | "application/yaml"
+                | "application/x-yaml"
+                | "application/toml"
+                | "application/javascript"
+                | "application/typescript"
+                | "application/sql"
+                | "application/x-diff"
+                | "application/diff"
+        );
+    text_like.then_some(mime)
+}
+
+fn artifact_inline_text(value: &Value) -> Option<String> {
+    let declared_text = text_mime(value).is_some();
+    for key in ["diff", "patch", "text", "snippet", "preview"] {
+        if let Some(text) = value.get(key).and_then(Value::as_str) {
+            return Some(text.to_owned());
+        }
+    }
+    if declared_text {
+        for key in ["content", "body", "data"] {
+            if let Some(text) = value.get(key).and_then(Value::as_str) {
+                return Some(text.to_owned());
+            }
+        }
+    }
+    None
+}
+
+/// A payload field that exists but has no declared text shape must not be inlined or echoed.
+fn has_opaque_payload(value: &Value) -> bool {
+    for key in ["data", "content", "body", "base64", "blob"] {
+        if value.get(key).is_some() {
+            return true;
+        }
+    }
+    // A numeric `bytes` field is a size descriptor, not a payload.
+    value.get("bytes").is_some_and(|bytes| !bytes.is_number())
+}
+
+fn artifact_label(value: &Value) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for key in ["id", "path", "name"] {
+        if let Some(text) = value.get(key).and_then(Value::as_str) {
+            let label = text
+                .chars()
+                .filter(|ch| !ch.is_control())
+                .take(MAX_ARTIFACT_LABEL_CHARS)
+                .collect::<String>();
+            if !label.trim().is_empty() && !parts.contains(&label) {
+                parts.push(label);
+            }
+        }
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
+/// Cap a value before composing a body so a hostile multi-megabyte diff is inspected only up to a
+/// bounded prefix (char-safe; at most 4 bytes per scalar).
+fn truncate_for_inspection(value: &str) -> String {
+    if value.len() <= MAX_TIMELINE_DIFF_BYTES {
+        return value.to_owned();
+    }
+    value.chars().take(MAX_TIMELINE_DIFF_BYTES).collect()
 }
 
 fn bounded_id(value: &str) -> String {

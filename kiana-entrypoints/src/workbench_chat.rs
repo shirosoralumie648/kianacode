@@ -40,7 +40,7 @@ use tokio::sync::mpsc;
 use crate::harness_run;
 use crate::tty_input::{InputTransition, TtyInputState};
 use crate::workbench::WORKBENCH_USAGE;
-use crate::workbench_render::{TimelineItemKind, TimelineRenderer};
+use crate::workbench_render::{TimelineDisplayRole, TimelineRenderer};
 
 const SLASH_HELP: &str =
     "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /connector-health <binding_id>  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
@@ -298,16 +298,12 @@ impl WorkbenchView {
             .cloned()
             .collect();
         for item in self.timeline.items() {
-            let role = match item.kind {
-                TimelineItemKind::Artifact => ChatRole::Changed,
-                TimelineItemKind::Delta | TimelineItemKind::Terminal => ChatRole::Assistant,
-                TimelineItemKind::Approval
-                | TimelineItemKind::Error
-                | TimelineItemKind::Gap
-                | TimelineItemKind::Limit
-                | TimelineItemKind::ToolCall
-                | TimelineItemKind::Unknown
-                | TimelineItemKind::Usage => ChatRole::System,
+            // Display roles are owned by `workbench_render`: a tool result, usage row, approval or
+            // error can never be re-labelled as assistant prose here.
+            let role = match item.kind.display_role() {
+                TimelineDisplayRole::Assistant => ChatRole::Assistant,
+                TimelineDisplayRole::System => ChatRole::System,
+                TimelineDisplayRole::Changed => ChatRole::Changed,
             };
             let mut text = item.body.clone();
             if item.loading {
