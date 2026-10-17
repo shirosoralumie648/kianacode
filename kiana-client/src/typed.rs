@@ -101,8 +101,13 @@ pub struct ClientSession {
 
 /// A listener callback is kept behind an `Arc` so dispatch can release the registry lock before
 /// invoking user code.  A callback never receives a request envelope or a capability handle.
+///
+/// The record also owns the submission token that created the listener.  Releasing or cancelling
+/// that token retires the generation immediately, so a frame that was already in flight can no
+/// longer reach a controller that has moved on.
 pub(crate) struct ListenerRecord {
     pub(crate) generation: u64,
+    pub(crate) cancellation: CancellationToken,
     pub(crate) callback: Arc<dyn Fn(UiFeedFrameV1) + Send + Sync>,
 }
 
@@ -539,6 +544,10 @@ where
 
     /// Install the listener before sending the resume request.  Any failed request removes the
     /// token again, so an old controller cannot receive a late frame after reconnect.
+    ///
+    /// The submission's cancellation token is part of the listener identity: cancelling it (for
+    /// example through the shared controller token) retires the generation even before the
+    /// subscription handle is dropped.
     pub async fn subscribe<F>(
         &self,
         metadata: RequestMetadata,
@@ -555,7 +564,8 @@ where
         if listener_id.trim().is_empty() || listener_id.len() > 256 {
             return Err(ClientError::Protocol("ui_listener_id_invalid".to_owned()));
         }
-        let token = self.register(listener_id.clone(), listener)?;
+        let cancellation = options.cancellation.clone();
+        let token = self.register(listener_id.clone(), cancellation.clone(), listener)?;
         let arguments = json!({"run_id": run_id, "after": after});
         let response = dispatch(
             &self.transport,
@@ -581,7 +591,7 @@ where
                 state: Arc::clone(&self.state),
             },
             token,
-            cancelled: options.cancellation,
+            cancelled: cancellation,
         })
     }
 
@@ -607,6 +617,11 @@ where
         accept_feed_response(response).map(|_| ())
     }
 
+    /// Deliver one server frame to the listener installed under `token`.
+    ///
+    /// A frame is delivered only while the exact listener generation is active: after release,
+    /// after a cancel of the shared submission token, or for any older generation this returns
+    /// [`ClientError::ListenerInactive`] and the callback is never invoked.
     pub fn dispatch(
         &self,
         token: &FeedListenerToken,
@@ -624,7 +639,7 @@ where
             let Some(record) = state.listeners.get(&token.listener_id) else {
                 return Err(ClientError::ListenerInactive);
             };
-            if record.generation != token.generation {
+            if record.generation != token.generation || record.cancellation.is_cancelled() {
                 return Err(ClientError::ListenerInactive);
             }
             Arc::clone(&record.callback)
@@ -636,6 +651,7 @@ where
     fn register<F>(
         &self,
         listener_id: String,
+        cancellation: CancellationToken,
         listener: F,
     ) -> Result<FeedListenerToken, ClientError>
     where
@@ -654,6 +670,7 @@ where
             listener_id.clone(),
             ListenerRecord {
                 generation,
+                cancellation,
                 callback: Arc::new(listener),
             },
         );
@@ -671,7 +688,9 @@ where
         state
             .listeners
             .get(&token.listener_id)
-            .filter(|record| record.generation == token.generation)
+            .filter(|record| {
+                record.generation == token.generation && !record.cancellation.is_cancelled()
+            })
             .map(|_| ())
             .ok_or(ClientError::ListenerInactive)
     }

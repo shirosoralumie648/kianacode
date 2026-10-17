@@ -85,7 +85,11 @@ pub use typed::{
     ActionClient, ActionRequest, ArtifactClient, ArtifactPageRequest, CancellationToken,
     ClientRequestOptions, ClientSession, CommandStatusRequest, FeedClient, FeedListenerToken,
     FeedSubscription, HistoryRequest, QueryClient, SnapshotRequest, TypedClients, UiArtifactPageV1,
-    UiCommandStatusV1, UiHistoryV1, UI_HISTORY_SCHEMA,
+    UiCommandStatusV1, UiHistoryV1, UI_ACTION_CANCEL_OPERATION, UI_ACTION_CONTINUE_OPERATION,
+    UI_ACTION_STATUS_OPERATION, UI_ACTION_SUBMIT_OPERATION, UI_ARTIFACT_PAGE_OPERATION,
+    UI_ARTIFACT_PAGE_SCHEMA, UI_COMMAND_STATUS_SCHEMA, UI_FEED_RESUME_OPERATION,
+    UI_FEED_SUBSCRIBE_OPERATION, UI_HISTORY_SCHEMA, UI_INITIALIZE_OPERATION,
+    UI_QUERY_COMMAND_STATUS_OPERATION, UI_QUERY_HISTORY_OPERATION, UI_QUERY_SNAPSHOT_OPERATION,
 };
 pub use ui_budget::{
     evaluate_budget, UiBudgetDecision, UiBudgetError, UiBudgetSurface, UiResourceBudget,

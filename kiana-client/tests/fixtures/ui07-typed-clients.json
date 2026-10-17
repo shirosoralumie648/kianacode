@@ -1,0 +1,80 @@
+{
+  "schema": "kiana.ui07-typed-clients-fixture.v1",
+  "operations": [
+    "ui.initialize",
+    "ui.query.snapshot",
+    "ui.query.history",
+    "ui.query.command_status",
+    "ui.feed.subscribe",
+    "ui.feed.resume",
+    "ui.artifact.page",
+    "ui.action.submit",
+    "ui.action.cancel",
+    "ui.action.continue",
+    "ui.action.status"
+  ],
+  "facades": ["QueryClient", "FeedClient", "ActionClient", "ArtifactClient"],
+  "lifecycle": ["uninitialized", "ready", "listening", "released", "late", "reconnect", "gap"],
+  "budgets": {
+    "max_page_size": 256,
+    "default_page_size": 64,
+    "default_history_limit": 128,
+    "max_history_limit": 256,
+    "max_limitations": 32
+  },
+  "fixtures": [
+    "typed_query_fails_closed_before_initialize_and_deadline",
+    "accepted_action_is_not_promoted_to_applied_and_wrong_retry_is_denied",
+    "unknown_action_is_queryable_by_original_idempotency_key",
+    "history_rejects_foreign_instance_or_authority_epoch_frames",
+    "feed_listener_is_installed_before_subscribe_and_removed_on_drop",
+    "every_typed_facade_requires_the_same_handshake_and_workspace",
+    "unknown_schemas_are_rejected_before_any_typed_projection",
+    "cancelled_or_expired_requests_never_reach_the_transport",
+    "a_released_listener_generation_never_receives_a_late_frame",
+    "late_and_mismatched_responses_are_fenced_and_the_cancel_hook_is_used",
+    "feed_reconnect_resumes_from_the_server_cursor_and_surfaces_gaps",
+    "a_transport_failure_or_unknown_status_is_never_reported_as_success",
+    "command_status_history_and_artifact_pages_share_the_same_fences",
+    "cancel_and_continue_use_the_typed_action_operations",
+    "typed_clients_share_one_negotiated_session_across_facades",
+    "a_denied_handshake_never_installs_a_session",
+    "ui07_deny_matrix_fixture_stays_wired_to_the_typed_client_source"
+  ],
+  "required": [
+    "client_not_initialized",
+    "client_workspace_mismatch",
+    "client_unknown_schema",
+    "client_duplicate_listener",
+    "client_listener_inactive",
+    "client_command_retry_forbidden",
+    "client_cancelled",
+    "client_deadline_exceeded",
+    "client_late_response",
+    "client_request_id_mismatch",
+    "ui_history_instance_mismatch",
+    "ui_history_epoch_mismatch",
+    "ui_artifact_page_invalid",
+    "Accepted is intentionally returned as Accepted"
+  ],
+  "denied": [
+    "未初始化就发送 query/feed/action/artifact",
+    "跨 workspace target 提交 action 或订阅 feed",
+    "响应 schema 未知仍按 typed 投影解析",
+    "同一 controller 重复注册 listener id",
+    "取消或 deadline 过期后仍把迟到响应当成功",
+    "换了 command id 却复用同一 idempotency key 重投",
+    "把 Accepted 或 HTTP 200 当成 Applied",
+    "把 Unknown 当成 Rejected 或成功",
+    "释放旧 generation 后仍回调旧 controller",
+    "接受坏 digest 或未知 schema 的 artifact/history 页",
+    "本地重新推导 feed cursor 而不是用服务端 cursor",
+    "被拒绝的请求出现在 transport 记录里"
+  ],
+  "limitations": [
+    "客户端只做本地 fence 与 schema 校验，授权、幂等和事实仍由 DaemonHost/ControlPlane 决定",
+    "listener registry 是进程内状态，不是 durable subscription inbox 或跨进程 SSE/socket 订阅",
+    "server 端 ui.initialize/query/feed/action/artifact route 仍属后续入口步骤，本卡只提供 typed client 契约",
+    "proof_level 上限为 source；没有本地运行测试，也不声称 durable/live/physical"
+  ]
+}

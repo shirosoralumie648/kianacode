@@ -273,13 +273,25 @@ lag 与未知进度并给出 `lag` 数值，绝不把投影落后渲染成空列
 
 
 
-#### UI-07 · typed client query/feed/action API　🔄
+#### UI-07 · typed client query/feed/action API　✅
 
 - 依赖：UI-02–06。代码：`kiana-client` 拆出 QueryClient、FeedClient、ActionClient、ArtifactClient，统一 request ID/deadline/cancel。
 - 步骤：提供 initialize、snapshot、history、command status、subscribe/resume、artifact page、submit/cancel/continue；listener 可释放并隔离迟到回调。
 - 先拒绝：未初始化、跨 workspace target、未知 schema、重复 listener、错误 command 重投、取消后继续回调到旧 controller。
 - 成功/回归：typed mock transport 覆盖 timeout、late response、reconnect、gap、Unknown query 和 listener cleanup；不把 HTTP 200 直接当 Applied。
-- 完成产物：client traits、mock transport、请求生命周期图和调用迁移清单。源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
+- 完成产物：client traits、mock transport、请求生命周期图和调用迁移清单。完成切片补齐：`ListenerRecord` 现在同时绑定 listener
+  generation 与创建它的 submission cancellation token（`dispatch`/`resume` 对已释放 generation 或已取消 token 一律
+  `ListenerInactive`，callback 不再被调用）；11 个 operation 常量与三个扩展 schema 常量从 `kiana-client` 导出；
+  `kiana-client/tests/ui07_typed_clients.rs` 换成脚本化 mock transport（记录每个 envelope、request ID 与 cancel hook），
+  17 条先拒绝夹具覆盖未初始化/跨 workspace/未知 schema/重复 listener/取消与过期请求/迟到响应与 cancel hook/
+  listener 代际退休/重连与服务端 cursor/gap 必须交还 presenter/Unknown 原 key 对账/Accepted 不升级 Applied/
+  cancel 只发 command identity；声明式矩阵
+  [`kiana-client/tests/fixtures/ui07-typed-clients.json`](../../kiana-client/tests/fixtures/ui07-typed-clients.json)
+  固定 operation/facade/预算/required/denied；core 守卫新增
+  `ui07_typed_client_lifecycle_stays_wired_to_the_lane_and_the_auto_shards` 绑定夹具名、预算常量、lane 与自动分片。
+  手动 lane 为 [`.github/workflows/ui07-typed-client.yml`](../../.github/workflows/ui07-typed-client.yml)，自动 lane 仍是统一
+  `ci.yml` 的 `kiana-client`/`kiana-daemon` 整 crate 分片与 `kiana-core-s6/6` 的 `ui07_typed_client_guard`。
+  源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
 
 <a id="step-ui-08"></a>
 
