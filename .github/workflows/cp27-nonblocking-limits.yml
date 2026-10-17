@@ -42,12 +42,15 @@ jobs:
       - run: cargo test -p kiana-daemon --test pd01_storage --locked -- --test-threads=1
       - name: Run CP-27 source guard
         run: cargo test -p kiana-core --test cp27_nonblocking_limits_guard --locked -- --test-threads=1
+      - name: Run CP-27 behavioural limits fixtures
+        run: cargo test -p kiana-core --test cp27_nonblocking_limits --locked -- --test-threads=1
       - name: Compile selected domain targets
         run: cargo test -p kiana-domain --test aut02_clock_observation --no-run --locked
       - run: cargo test -p kiana-domain --test pd01_storage --no-run --locked
       - run: cargo test -p kiana-domain --test pd03_health --no-run --locked
       - name: Compile selected Core targets
         run: cargo test -p kiana-core --test cp27_nonblocking_limits_guard --no-run --locked
+      - run: cargo test -p kiana-core --test cp27_nonblocking_limits --no-run --locked
       - run: cargo test -p kiana-core --test pd01_storage_guard --no-run --locked
       - name: Compile EventLog and daemon targets
         run: cargo test -p kiana-eventlog --lib --no-run --locked

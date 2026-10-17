@@ -272,6 +272,7 @@
   "crate": "kiana-core",
   "targets": [
    "cp26_decision_trace_guard",
+   "cp27_nonblocking_limits",
    "cp27_nonblocking_limits_guard",
    "cp28_migration_boundary_guard",
    "cp29_control_plane_authority_guard",
@@ -965,6 +966,7 @@
    "er12_receipt_aggregation",
    "er14_effect_observation",
    "er15_adapter_result",
+   "er19_job_handle",
    "er28_runtime_evidence",
    "er29_data_governance",
    "er31_fault_matrix",
