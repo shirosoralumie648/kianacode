@@ -48,6 +48,7 @@
 
 use kiana_domain::{EventCursor, JournalPage, RuntimeEvent};
 use kiana_ports::{EventStorePort, PortError};
+use std::collections::BTreeSet;
 
 /// 一页已提交的账本事件。
 ///
@@ -93,16 +94,19 @@ impl BillingSourcePage {
     /// 【校验规则】
     ///   ①source_epoch > 0（否则报 Failed）；
     ///   ②page.cursor >= after_cursor（cursor 不能倒退）；
-    ///   ③event count 必须 == (page.cursor - after_cursor)（连续性检查）。
+    ///   ③event count 必须 == (page.cursor - after_cursor)（连续性检查）；
+    ///   ④页内每个事件的全局 ID 必须非 nil 且页内唯一。
     ///
     /// 【错误场景】
     ///   * billing_source_epoch_invalid -> source_epoch == 0；
     ///   * billing_source_cursor_regressed -> page.cursor < after_cursor（倒退）；
-    ///   * billing_source_cursor_not_contiguous -> event count != cursor delta（间隙）。
+    ///   * billing_source_cursor_not_contiguous -> event count != cursor delta（间隙）；
+    ///   * billing_source_event_id_invalid -> 页内事件 ID 为 nil；
+    ///   * billing_source_event_duplicate -> 同一页内出现重复事件 ID。
     ///
     /// 【设计理由】
     /// 这是「防守性编程」：确保投影器拿到的数据一定是合法的、连续的、没有损失的。
-    /// 任何异常（epoch 无效、cursor 倒退、事件数不匹配）都会被及时发现，
+    /// 任何异常（epoch 无效、cursor 倒退、事件数不匹配、事件身份无效）都会被及时发现，
     /// 而不是让投影器在处理错误数据时反复踩坑。
     pub fn new(
         source_epoch: u64,
@@ -122,6 +126,19 @@ impl BillingSourcePage {
             return Err(PortError::Conflict(
                 "billing_source_cursor_not_contiguous".to_owned(),
             ));
+        }
+        let mut seen_event_ids = BTreeSet::new();
+        for event in &page.events {
+            if event.event_id.as_uuid().is_nil() {
+                return Err(PortError::Failed(
+                    "billing_source_event_id_invalid".to_owned(),
+                ));
+            }
+            if !seen_event_ids.insert(event.event_id) {
+                return Err(PortError::Conflict(
+                    "billing_source_event_duplicate".to_owned(),
+                ));
+            }
         }
         let first_cursor =
             if expected_count > 0 {

@@ -183,6 +183,9 @@ pub struct BillingLedgerProjector {
     allocations: BTreeMap<UsageId, AllocationFact>,
     /// 已验证的修正，按 correction ID 保证唯一。
     corrections: BTreeMap<kiana_domain::CostCorrectionId, CorrectionFact>,
+    /// 记录每个账本 entry 上最近一次修正使用的 `cost_ledger` aggregate stream version；
+    /// 修正事件必须在同一聚合上严格递增，不能回退或跳号。
+    correction_streams: BTreeMap<LedgerEntryId, u64>,
 }
 
 impl std::fmt::Debug for BillingLedgerProjector {
@@ -221,6 +224,7 @@ impl BillingLedgerProjector {
             ledger: BTreeMap::new(),
             allocations: BTreeMap::new(),
             corrections: BTreeMap::new(),
+            correction_streams: BTreeMap::new(),
         })
     }
 
@@ -258,6 +262,14 @@ impl BillingLedgerProjector {
     /// 返回重建器绑定的来源世代，用于检查分页调用是否仍指向同一份历史。
     pub fn source_epoch(&self) -> u64 {
         self.source_epoch
+    }
+
+    /// 返回当前已发布快照中的只读隔离记录切片。
+    ///
+    /// 单条坏事实只进入隔离列表、不会静默跳过，也不会改写来源事件；调用方可以按来源游标、
+    /// 事件 ID 或载荷摘要继续查询（见 `BillingProjectionSnapshot` 的查询方法）。
+    pub fn quarantine(&self) -> &[BillingQuarantineRecord] {
+        &self.snapshot.quarantine
     }
 
     /// 原子地折叠一页连续事件，并在整页成功后发布新快照。
@@ -352,9 +364,10 @@ impl BillingLedgerProjector {
         if !self.seen_event_ids.insert(event.event_id) {
             return Err(BillingLedgerProjectionError::SourceEventDuplicate);
         }
-        // replay_fence 把上一位置、当前全局游标和事件 ID 串成哈希链；它是重放顺序摘要，
-        // 不是带密钥的签名，也不能单独证明事件来自可信存储。
-        let fence = next_replay_fence(
+        // replay_fence 把上一位置、当前全局游标和事件 ID 串成哈希链；它与 ControlPlane 的
+        // cursor fence 共用 Domain `billing_replay_fence`，是重放顺序摘要，不是带密钥的签名，
+        // 也不能单独证明事件来自可信存储。
+        let fence = kiana_domain::billing_replay_fence(
             &self.snapshot.source.replay_fence,
             source_cursor,
             event.event_id,
@@ -503,8 +516,10 @@ impl BillingLedgerProjector {
     /// 和 revision 全部相符；因此事件顺序上目标必须先于修正。修正 ID 重复或目标不匹配时
     /// 事件被隔离。修正只进入 correction 集合，后续在 rollup 中单独计入修正栏，不改写原 entry。
     ///
-    /// 【边界】当前这里仅要求 envelope 的 stream version 非零；它没有另外比较同一账本
-    /// aggregate 上连续修正事件的版本号。该行为是静态阅读发现，不能用本注释推断为已修复。
+    /// 【边界】修正事件还必须在目标 entry 的 `cost_ledger` 聚合上严格递增：首个修正的版本
+    /// 必须大于 entry 自身 revision，后续修正必须恰好递增 1；回退与跳号分别以
+    /// `correction_stream_regression` / `correction_stream_gap` 进入 quarantine，不会被
+    /// 静默并入账本。
     fn fold_correction(&mut self, cursor: EventCursor, event: &RuntimeEvent) -> Result<(), String> {
         let fact: CostCorrection = serde_json::from_value(event.data.clone())
             .map_err(|_| "correction_decode_failed".to_owned())?;
@@ -528,6 +543,23 @@ impl BillingLedgerProjector {
         if self.corrections.contains_key(&fact.correction_id) {
             return Err("correction_duplicate".to_owned());
         }
+        let stream_version = event.stream_version.expect("checked non-zero above");
+        let last_stream = self
+            .correction_streams
+            .get(&fact.target_entry_id)
+            .copied()
+            .unwrap_or(target.fact.revision);
+        if stream_version <= last_stream {
+            return Err("correction_stream_regression".to_owned());
+        }
+        let expected = last_stream
+            .checked_add(1)
+            .ok_or_else(|| "correction_stream_gap".to_owned())?;
+        if stream_version != expected {
+            return Err("correction_stream_gap".to_owned());
+        }
+        self.correction_streams
+            .insert(fact.target_entry_id, stream_version);
         self.corrections
             .insert(fact.correction_id, CorrectionFact { cursor, fact });
         Ok(())
@@ -873,18 +905,6 @@ fn utc_day_key(timestamp: u64) -> String {
     let m = mp + if mp < 10 { 3 } else { -9 };
     let y = y + if m <= 2 { 1 } else { 0 };
     format!("{y:04}-{m:02}-{d:02}")
-}
-
-/// 计算一个来源事件加入重放序列后的哈希链位置。
-///
-/// 新摘要同时包含旧摘要、全局游标和事件 ID；改变顺序或替换事件会改变后续 fence。
-/// `json_digest` 是确定性摘要，不是秘密密钥签名，也不能替代对来源存储和访问者的认证。
-fn next_replay_fence(previous: &str, source_cursor: EventCursor, event_id: EventId) -> String {
-    json_digest(&serde_json::json!({
-        "previous": previous,
-        "source_cursor": source_cursor,
-        "event_id": event_id,
-    }))
 }
 
 /// 对外的全量账单投影便捷入口。

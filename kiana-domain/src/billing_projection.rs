@@ -132,6 +132,55 @@ impl ValueDigest {
     }
 }
 
+/// Deterministic replay-fence successor for one committed event position.
+///
+/// The fence chains the previous digest, the global source cursor and the event ID.  It is a
+/// deterministic digest, not a signed or authenticated value, and it never replaces EventLog
+/// authority.  The query projector and the ControlPlane cursor fence both call this function so a
+/// cursor acknowledgement cannot drift from the page it claims to cover.
+pub fn billing_replay_fence(
+    previous: &str,
+    source_cursor: EventCursor,
+    event_id: EventId,
+) -> String {
+    json_digest(&json!({
+        "previous": previous,
+        "source_cursor": source_cursor,
+        "event_id": event_id,
+    }))
+}
+
+/// Extend a bounded replay tail with the event IDs of committed page events.
+///
+/// The tail keeps at most [`MAX_BILLING_SOURCE_EVENT_IDS`] most recent IDs, matching what the
+/// query projector publishes into the snapshot cursor.  The full replay-duplicate set is a
+/// projector-private structure; this helper only describes the bounded, serializable tail.
+pub fn billing_source_event_id_tail(existing: &[EventId], appended: &[EventId]) -> Vec<EventId> {
+    let mut tail: Vec<EventId> = existing.iter().copied().collect();
+    tail.extend(appended.iter().copied());
+    if tail.len() > MAX_BILLING_SOURCE_EVENT_IDS {
+        let trim = tail.len() - MAX_BILLING_SOURCE_EVENT_IDS;
+        tail.drain(..trim);
+    }
+    tail
+}
+
+/// Relative position of a caller-supplied live cursor against a snapshot.
+///
+/// A projection may only be presented as `Current` when it covers exactly the live cursor.  A
+/// snapshot behind the live cursor is `Stale`; a live cursor behind the snapshot means the caller
+/// is replaying an older claim (`Ahead`) and must not overwrite the newer projection state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BillingProjectionFreshness {
+    /// The snapshot covers exactly the supplied live cursor.
+    Current,
+    /// The live cursor is ahead of the snapshot; the projection is stale.
+    Stale,
+    /// The supplied cursor is behind the snapshot; refusing to regress to it.
+    Ahead,
+}
+
 /// A malformed committed fact is retained in the read model instead of being silently skipped.
 /// Quarantine is diagnostic state and never mutates the EventLog fact.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -348,5 +397,56 @@ impl BillingProjectionSnapshot {
             "window_rollups": self.window_rollups,
             "quarantine": self.quarantine,
         }))
+    }
+
+    /// Compare a live/source cursor with the cursor this snapshot actually covers.
+    pub fn freshness_against(&self, live_cursor: EventCursor) -> BillingProjectionFreshness {
+        match self.source.source_cursor.cmp(&live_cursor) {
+            std::cmp::Ordering::Equal => BillingProjectionFreshness::Current,
+            std::cmp::Ordering::Less => BillingProjectionFreshness::Stale,
+            std::cmp::Ordering::Greater => BillingProjectionFreshness::Ahead,
+        }
+    }
+
+    /// Refuse to present the snapshot as fresh at a cursor it does not cover.
+    ///
+    /// A stale projection must not be relabelled fresh (`billing_projection_stale`), and a caller
+    /// must not claim an older cursor describes the current state
+    /// (`billing_projection_cursor_ahead`).  Only an exact cursor match passes.
+    pub fn require_fresh_at(&self, live_cursor: EventCursor) -> Result<(), String> {
+        match self.freshness_against(live_cursor) {
+            BillingProjectionFreshness::Current => Ok(()),
+            BillingProjectionFreshness::Stale => Err("billing_projection_stale".to_owned()),
+            BillingProjectionFreshness::Ahead => Err("billing_projection_cursor_ahead".to_owned()),
+        }
+    }
+
+    /// Quarantine records written by one failed source position, for cursor-based lookup.
+    pub fn quarantine_for_cursor(
+        &self,
+        source_cursor: EventCursor,
+    ) -> Vec<&BillingQuarantineRecord> {
+        self.quarantine
+            .iter()
+            .filter(|record| record.source_cursor == source_cursor)
+            .collect()
+    }
+
+    /// The quarantine record for one committed event ID, if that event failed to fold.
+    pub fn quarantine_for_event(&self, event_id: EventId) -> Option<&BillingQuarantineRecord> {
+        self.quarantine
+            .iter()
+            .find(|record| record.event_id == event_id)
+    }
+
+    /// Quarantine records matching a payload digest, without exposing the raw payload.
+    pub fn quarantine_by_payload_digest(
+        &self,
+        payload_digest: &str,
+    ) -> Vec<&BillingQuarantineRecord> {
+        self.quarantine
+            .iter()
+            .filter(|record| record.payload_digest == payload_digest)
+            .collect()
     }
 }
