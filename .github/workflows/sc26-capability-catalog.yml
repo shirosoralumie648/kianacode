@@ -1,0 +1,42 @@
+name: SC-26 extension manifest and capability catalog
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capability-catalog:
+    name: SC-26 domain catalog fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run SC-26 capability catalog fixtures
+        run: cargo test -p kiana-domain --test sc26_capability_catalog --locked -- --test-threads=1
+      - name: Run SC-26 catalog source and wiring guard
+        run: cargo test -p kiana-domain --test sc26_capability_catalog_guard --locked -- --test-threads=1
+      - name: Run named deny-first fixtures individually
+        run: |
+          for fixture in \
+            read_only_manifest_cannot_request_write_and_provided_tools_do_not_authorize \
+            allowed_tools_declarations_are_descriptive_and_never_enter_the_grant_set \
+            version_capability_and_digest_drift_cannot_reuse_a_catalog_entry \
+            denied_or_unrequested_capabilities_never_authorize \
+            duplicate_identity_and_invalid_catalog_shapes_are_rejected \
+            widened_or_tampered_catalog_entry_is_rejected \
+            catalog_binds_manifest_digest_and_intersects_all_authority_sets
+          do
+            cargo test -p kiana-domain --test sc26_capability_catalog "$fixture" --locked -- --exact --test-threads=1
+          done
+      - name: Compile SC-26 capability catalog target
+        run: cargo test -p kiana-domain --test sc26_capability_catalog --no-run --locked
+      - name: Compile SC-26 catalog guard target
+        run: cargo test -p kiana-domain --test sc26_capability_catalog_guard --no-run --locked

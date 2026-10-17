@@ -4,6 +4,11 @@
 //! effective set is the intersection of host, parent grant and approval capabilities, and the
 //! manifest digest binds the exact signed metadata used for the decision. `provided_capabilities`
 //! and skill `allowed-tools` remain descriptive declarations and never enter the grant set.
+//!
+//! A consumer that already holds a catalog resolves the freshly observed manifest through
+//! [`CapabilityCatalog::authorize_manifest`]. Identity, version, capability-set and digest drift
+//! fail closed before any capability is handed out, and a denied entry hands out nothing while
+//! keeping its requested set and deny reason for audit.
 
 use crate::{json_digest, ExtensionEffect, ExtensionManifest};
 use serde::{Deserialize, Serialize};
@@ -174,6 +179,66 @@ impl CapabilityCatalogEntry {
             "reason": self.reason,
         }))
     }
+
+    /// Hand out one capability, and only one that this sealed entry actually made effective.
+    ///
+    /// The entry validates itself first, so a widened or resealed snapshot cannot be consumed.
+    /// A denied entry hands out nothing and reports its deny reason for audit.
+    pub fn authorize(&self, capability: &str) -> Result<(), String> {
+        self.validate()?;
+        if capability.trim().is_empty() || capability.len() > 256 || capability.contains('\0') {
+            return Err("capability_catalog_request_invalid".to_owned());
+        }
+        if self.decision != CapabilityCatalogDecision::Allowed {
+            return Err(format!("capability_catalog_entry_denied:{}", self.reason));
+        }
+        if !self.effective_capabilities.contains(capability) {
+            return Err(format!("capability_not_effective:{capability}"));
+        }
+        Ok(())
+    }
+
+    /// Compare a freshly observed manifest against the exact metadata this entry was sealed on.
+    ///
+    /// Identity, version, capability-set or digest drift means the entry no longer describes the
+    /// manifest; every drift class fails closed before a caller can reuse the old decision.
+    pub fn check_manifest_drift(&self, manifest: &ExtensionManifest) -> Result<(), String> {
+        self.validate()?;
+        manifest
+            .validate()
+            .map_err(|error| format!("extension_manifest:{error}"))?;
+        if manifest.extension_id != self.extension_id {
+            return Err(format!(
+                "capability_catalog_extension_identity_drift:{}",
+                manifest.extension_id
+            ));
+        }
+        if manifest.version != self.version {
+            return Err(format!(
+                "capability_catalog_manifest_version_drift:{}",
+                manifest.version
+            ));
+        }
+        if manifest.required_capabilities != self.requested_capabilities {
+            let drifted = manifest
+                .required_capabilities
+                .difference(&self.requested_capabilities)
+                .chain(
+                    self.requested_capabilities
+                        .difference(&manifest.required_capabilities),
+                )
+                .next()
+                .cloned()
+                .unwrap_or_default();
+            return Err(format!(
+                "capability_catalog_manifest_capability_drift:{drifted}"
+            ));
+        }
+        if extension_manifest_digest(manifest)? != self.manifest_digest {
+            return Err("capability_catalog_manifest_digest_drift".to_owned());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -253,6 +318,42 @@ impl CapabilityCatalog {
             object.insert("catalog_digest".to_owned(), Value::String(String::new()));
         }
         json_digest(&value)
+    }
+
+    /// Resolve the sealed entry for a manifest, refusing unknown or drifted manifests.
+    ///
+    /// The catalog and the manifest both self-validate first, so a tampered snapshot or a
+    /// malformed manifest cannot select an entry; an unknown extension and every drift class are
+    /// distinct stable reasons.
+    pub fn entry_for_manifest(
+        &self,
+        manifest: &ExtensionManifest,
+    ) -> Result<&CapabilityCatalogEntry, String> {
+        self.validate()?;
+        manifest
+            .validate()
+            .map_err(|error| format!("extension_manifest:{error}"))?;
+        let entry = self
+            .entries
+            .iter()
+            .find(|entry| entry.extension_id == manifest.extension_id)
+            .ok_or_else(|| {
+                format!(
+                    "capability_catalog_extension_unknown:{}",
+                    manifest.extension_id
+                )
+            })?;
+        entry.check_manifest_drift(manifest)?;
+        Ok(entry)
+    }
+
+    /// Deny-first consumer entry point: resolve the manifest, then hand out one capability.
+    pub fn authorize_manifest(
+        &self,
+        manifest: &ExtensionManifest,
+        capability: &str,
+    ) -> Result<(), String> {
+        self.entry_for_manifest(manifest)?.authorize(capability)
     }
 }
 
