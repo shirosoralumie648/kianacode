@@ -18,6 +18,76 @@ pub const OBSERVABILITY_SCHEMA: &str = "kiana.observability.v1";
 pub const AUDIT_RECORD_SCHEMA: &str = "kiana.audit-record.v1";
 pub const AUDIT_EVENT_SCHEMA: &str = "kiana.audit-event.v1";
 pub const AUDIT_EVENT_KIND: &str = "audit.record";
+/// The only keys an append-only audit envelope may carry on the wire.
+pub const AUDIT_EVENT_WIRE_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "event_kind",
+    "append_only",
+    "record",
+    "source_cursor",
+    "source_event_ids",
+    "redaction_profile",
+    "event_digest",
+];
+/// Envelope keys a server-issued audit fact must state explicitly.
+///
+/// `serde(default)` keeps older projections loadable, but an appended audit fact may not omit
+/// the metadata an auditor needs to reconstruct which committed cursor it came from and which
+/// redaction profile was applied.
+pub const AUDIT_EVENT_WIRE_REQUIRED_FIELDS: &[&str] = AUDIT_EVENT_WIRE_FIELDS;
+/// The only keys an audit record may carry on the wire.
+pub const AUDIT_RECORD_WIRE_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "audit_id",
+    "action_kind",
+    "decision",
+    "actor_ref",
+    "target_kind",
+    "target_ref",
+    "source_cursor",
+    "source_event_ids",
+    "authority_epoch",
+    "data_epoch",
+    "request_id",
+    "command_id",
+    "correlation_ref",
+    "causation_ref",
+    "action_digest",
+    "input_digest",
+    "reason_code",
+    "reason",
+    "data_class",
+    "retention_class",
+    "redaction_profile",
+    "payload_recoverable",
+    "attributes",
+    "record_digest",
+];
+/// Record keys a server-issued audit fact must state explicitly: actor, decision, reason and
+/// source cursor are never inferred from serde defaults at the audit wire boundary.
+pub const AUDIT_RECORD_WIRE_REQUIRED_FIELDS: &[&str] = &[
+    "schema",
+    "version",
+    "audit_id",
+    "action_kind",
+    "decision",
+    "actor_ref",
+    "target_kind",
+    "target_ref",
+    "source_cursor",
+    "source_event_ids",
+    "authority_epoch",
+    "data_epoch",
+    "reason",
+    "data_class",
+    "retention_class",
+    "redaction_profile",
+    "payload_recoverable",
+    "attributes",
+    "record_digest",
+];
 pub const AUDIT_PROJECTION_SCHEMA: &str = "kiana.audit-projection.v1";
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-checkpoint.v1";
 pub const AUDIT_QUERY_CURSOR_SCHEMA: &str = "kiana.audit-query-cursor.v1";
@@ -287,6 +357,32 @@ fn validate_digest(value: &str, field: &str) -> Result<(), String> {
     };
     if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(format!("{field}_invalid"));
+    }
+    Ok(())
+}
+
+/// Enforce the exact wire key set and the explicitly required keys of one audit object.
+///
+/// `prefix` names the nested scope (`""` for the envelope, `"record."` for the record) so a
+/// refusal identifies the missing or smuggled key without echoing attacker-controlled text.
+/// A key present with a JSON `null` value counts as missing: an audit fact states its identity
+/// or it does not cross the boundary.
+fn require_audit_wire_fields(
+    object: &serde_json::Map<String, serde_json::Value>,
+    allowed: &[&str],
+    required: &[&str],
+    prefix: &str,
+) -> Result<(), String> {
+    for field in required {
+        if !object.get(*field).is_some_and(|value| !value.is_null()) {
+            return Err(format!("audit_wire_required_field_missing:{prefix}{field}"));
+        }
+    }
+    if let Some(unknown) = object
+        .keys()
+        .find(|key| !allowed.iter().any(|field| field == key))
+    {
+        return Err(format!("audit_wire_unknown_field:{prefix}{unknown}"));
     }
     Ok(())
 }
@@ -1142,6 +1238,40 @@ impl AuditRecordEvent {
         event.event_digest = event.digest();
         event.validate()?;
         Ok(event)
+    }
+
+    /// Strict wire decode for the only audit fact shape the EventLog boundary accepts.
+    ///
+    /// A missing actor, decision, reason or source cursor is reported as
+    /// `audit_wire_required_field_missing:<field>` instead of collapsing into an opaque serde
+    /// error; a smuggled key such as `prompt` or `transcript` is reported as
+    /// `audit_wire_unknown_field:<field>`; every remaining shape error is
+    /// `audit_wire_payload_invalid`. The decoded value is re-validated before it is returned, so
+    /// a caller cannot skip any `AuditRecord`/envelope invariant by decoding instead of building.
+    pub fn from_wire_value(value: serde_json::Value) -> Result<Self, String> {
+        let object = value
+            .as_object()
+            .ok_or_else(|| "audit_wire_payload_object_required".to_owned())?;
+        require_audit_wire_fields(
+            object,
+            AUDIT_EVENT_WIRE_FIELDS,
+            AUDIT_EVENT_WIRE_REQUIRED_FIELDS,
+            "",
+        )?;
+        let record = object
+            .get("record")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| "audit_wire_record_object_required".to_owned())?;
+        require_audit_wire_fields(
+            record,
+            AUDIT_RECORD_WIRE_FIELDS,
+            AUDIT_RECORD_WIRE_REQUIRED_FIELDS,
+            "record.",
+        )?;
+        let decoded: Self =
+            serde_json::from_value(value).map_err(|_| "audit_wire_payload_invalid".to_owned())?;
+        decoded.validate()?;
+        Ok(decoded)
     }
 
     pub fn validate(&self) -> Result<(), String> {

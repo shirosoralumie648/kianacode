@@ -55,8 +55,11 @@ use kiana_domain::{AuditRecordEvent, RuntimeEvent, AUDIT_EVENT_KIND};
 /// 1. **事件类型检查**：如果这不是审计类型（`audit.*`），直接通过（让其他验证器处理）
 /// 2. **类型精确匹配**：如果是 `audit.*` 但不是唯一认可的 `AUDIT_EVENT_KIND`，拒绝 ❌
 /// 3. **脱敏元数据验证**：检查脱敏配置是否合法
-/// 4. **信封格式验证**：尝试解析 JSON 成 `AuditRecordEvent`，格式错误直接拒绝
-/// 5. **信封内部验证**：调用 `AuditRecordEvent::validate()`，规则由合约定义
+/// 4. **信封格式验证**：用域内的严格 wire 解码解析 `AuditRecordEvent`；缺 actor/decision/
+///    reason/source cursor 报 `eventlog_audit_field_missing:<field>`，夹带 prompt/transcript
+///    等未知键或其它形状错误报 `eventlog_audit_payload_invalid`
+/// 5. **信封内部验证**：严格解码内部已完成 `AuditRecordEvent::validate()`，不变量错误以
+///    `eventlog_audit_envelope:<reason>` 暴露
 /// 6. **字段逐个绑定检查**：以下任何一个不匹配都拒绝：
 ///    - 脱敏配置（RuntimeEvent 外层 vs AuditRecordEvent 内层）
 ///    - payload_recoverable 必须是 false（审计记录不可恢复 = 永久）
@@ -117,15 +120,22 @@ pub(crate) fn validate_runtime_event(event: &RuntimeEvent) -> Result<(), String>
         .map_err(|error| format!("eventlog_audit_redaction:{error}"))?;
 
     // 【格式解析】尝试将事件数据 JSON 反序列化成 AuditRecordEvent
-    // 如果 JSON 格式错误，这步就失败 → 拒绝
-    let envelope: AuditRecordEvent = serde_json::from_value(event.data.clone())
-        .map_err(|_| "eventlog_audit_payload_invalid".to_owned())?;
-
-    // 【信封内部验证】调用 AuditRecordEvent::validate() 进行深层检查
-    // 比如检查审计ID是否有效、时间戳是否合理等
-    envelope
-        .validate()
-        .map_err(|error| format!("eventlog_audit_envelope:{error}"))?;
+    // 缺失 actor/decision/reason/source cursor 等身份字段在这里单独定码
+    // （`eventlog_audit_field_missing:<field>`）；未知字段、夹带的 prompt/transcript
+    // 或其它形状错误仍折叠为 `eventlog_audit_payload_invalid`，信封内部不变量错误
+    // 继续以 `eventlog_audit_envelope:<reason>` 前缀暴露。
+    // `from_wire_value` 在域内部完成 `AuditRecordEvent::validate()`，因此这里不再重复调用。
+    let envelope = AuditRecordEvent::from_wire_value(event.data.clone()).map_err(|code| {
+        if let Some(field) = code.strip_prefix("audit_wire_required_field_missing:") {
+            format!("eventlog_audit_field_missing:{field}")
+        } else if code == "audit_wire_record_object_required" {
+            "eventlog_audit_field_missing:record".to_owned()
+        } else if code.starts_with("audit_wire_") {
+            "eventlog_audit_payload_invalid".to_owned()
+        } else {
+            format!("eventlog_audit_envelope:{code}")
+        }
+    })?;
 
     // 【字段绑定 1：脱敏配置一致性】
     // 外层 RuntimeEvent 声称的脱敏配置，必须与内层 AuditRecordEvent 中的一致
