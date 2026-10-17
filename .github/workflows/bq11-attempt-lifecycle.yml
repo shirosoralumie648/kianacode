@@ -1,0 +1,29 @@
+name: BQ-11 model attempt lifecycle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  attempt-lifecycle:
+    name: BQ-11 attempt lifecycle fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run model attempt lifecycle fixtures
+        run: cargo test -p kiana-domain --test bq11_attempt_lifecycle --locked -- --test-threads=1
+      - name: Run BQ-11 Core source guard
+        run: cargo test -p kiana-core --test bq11_attempt_lifecycle_guard --locked -- --test-threads=1
+      - name: Compile BQ-11 domain target
+        run: cargo test -p kiana-domain --test bq11_attempt_lifecycle --no-run --locked
+      - name: Compile BQ-11 Core guard target
+        run: cargo test -p kiana-core --test bq11_attempt_lifecycle_guard --no-run --locked
