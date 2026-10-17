@@ -27,6 +27,15 @@ jobs:
         run: cargo test -p kiana-daemon --test h17_job_handle --locked -- --test-threads=1
       - name: Run daemon job handle behavior fixtures
         run: cargo test -p kiana-daemon --lib --locked -- --test-threads=1 h17
+      - name: Run named H17 behavior fixtures
+        run: |
+          for fixture in \
+            execution_control::h17_job_handle::h17_behavior_foreign_job_handle_cannot_receive_stdin_or_cancel \
+            execution_control::h17_job_handle::h17_behavior_pid_reuse_cannot_attach_to_other_process \
+            execution_control::h17_job_handle::h17_behavior_poll_does_not_restart_job \
+            execution_control::h17_job_handle::h17_behavior_long_command_has_one_job_and_distinct_operation_invocations; do
+            cargo test -p kiana-daemon --lib "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
       - name: Compile domain job handle target
         run: cargo test -p kiana-domain --test h17_job_handle --no-run --locked
       - name: Compile daemon job handle guard target

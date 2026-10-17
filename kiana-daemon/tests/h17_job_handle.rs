@@ -85,3 +85,48 @@ fn behavior_fixtures_cover_named_acceptance() {
     assert!(source.contains("fn restart_continuation("));
     assert!(source.contains("restart_continuation(id, &request.request.operation"));
 }
+
+/// 接线守卫：把卡片命名的先拒绝/成功行为夹具绑定到 daemon lib 模块、baseline 与 H17
+/// focused workflow，避免夹具被删/改名或漏出 CI；它只做源码字符串核对，不运行夹具、
+/// 不构造 DaemonHost，也不读取远程回执。
+#[test]
+fn behavioural_fixtures_are_wired_into_the_h17_lane() {
+    let source = include_str!("../src/execution_control.rs");
+    let workflow = include_str!("../../.github/workflows/h17-job-handle-diagnostic.yml");
+    let baseline = include_str!("../../docs/roadmap/harness-job-handle-baseline.md");
+
+    // 先拒绝三条 + 再成功一条：每一条都必须同时被行为夹具、baseline 目录和 workflow 认领。
+    for fixture in [
+        "h17_behavior_foreign_job_handle_cannot_receive_stdin_or_cancel",
+        "h17_behavior_pid_reuse_cannot_attach_to_other_process",
+        "h17_behavior_poll_does_not_restart_job",
+        "h17_behavior_long_command_has_one_job_and_distinct_operation_invocations",
+    ] {
+        assert!(source.contains(fixture), "H17 behavior fixture missing: {fixture}");
+        assert!(baseline.contains(fixture), "H17 baseline missing: {fixture}");
+        assert!(workflow.contains(fixture), "H17 workflow fixture missing: {fixture}");
+    }
+
+    // focused workflow 必须同时复核：domain 句柄边界、daemon 源码守卫、daemon lib 行为夹具，
+    // 并在编译步覆盖对应 target（夹具名筛选只在同一 target 内生效）。
+    for step in [
+        "cargo fmt -p kiana-daemon -p kiana-domain --check",
+        "cargo test -p kiana-domain --test h17_job_handle",
+        "cargo test -p kiana-daemon --test h17_job_handle",
+        "cargo test -p kiana-daemon --lib",
+    ] {
+        assert!(
+            workflow.contains(step),
+            "H17 focused workflow step missing: {step}"
+        );
+    }
+    assert!(workflow.contains("-- --test-threads=1 h17"));
+    assert!(workflow.contains("--exact"));
+    assert!(workflow.contains("--no-run"));
+
+    // deny-first：重启路径只解释已落盘事实，非 poll 操作一律落到 Unknown 而不会 attach。
+    let restart_call =
+        "return restart_continuation(id, &request.request.operation, &records, arguments);";
+    assert!(source.contains(restart_call));
+    assert!(source.contains("result_unknown:process_handle_unavailable_after_restart"));
+}
