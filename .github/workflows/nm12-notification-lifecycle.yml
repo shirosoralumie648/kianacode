@@ -1,0 +1,33 @@
+name: NM-12 notification lifecycle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-lifecycle:
+    name: NM-12 durable inbox rebuild, retention and lifecycle fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-12 lifecycle domain fixtures
+        run: cargo test -p kiana-domain --test nm12_notification_lifecycle --locked -- --test-threads=1
+      - name: Run NM-12 projector fixtures
+        run: cargo test -p kiana-core --test nm12_notification_projector --locked -- --test-threads=1
+      - name: Run NM-12 source guard
+        run: cargo test -p kiana-core --test nm12_notification_projector_guard --locked -- --test-threads=1
+      - name: Compile NM-12 lifecycle domain target
+        run: cargo test -p kiana-domain --test nm12_notification_lifecycle --no-run --locked
+      - name: Compile NM-12 projector target
+        run: cargo test -p kiana-core --test nm12_notification_projector --no-run --locked
+      - name: Compile NM-12 source guard target
+        run: cargo test -p kiana-core --test nm12_notification_projector_guard --no-run --locked
