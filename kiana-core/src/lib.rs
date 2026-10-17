@@ -440,7 +440,8 @@ pub use revocation_propagation::{
     REVOCATION_REPORT_SCHEMA, REVOCATION_REQUEST_SCHEMA,
 };
 pub use security_authority::{
-    SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
+    SecurityAuthorityProvenance, SecurityAuthoritySnapshot, SECURITY_AUTHORITY_PROVENANCE_SCHEMA,
+    SECURITY_AUTHORITY_PROVENANCE_VERSION, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
     SECURITY_AUTHORITY_SNAPSHOT_VERSION,
 };
 pub use security_context::{SecurityContext, SECURITY_CONTEXT_SCHEMA, SECURITY_CONTEXT_VERSION};

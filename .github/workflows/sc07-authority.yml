@@ -24,9 +24,13 @@ jobs:
         run: cargo test -p kiana-core --test sc07_authority_snapshot --locked -- --test-threads=1
       - name: Run SC-07 source guard
         run: cargo test -p kiana-core --test sc07_authority_guard --locked -- --test-threads=1
+      - name: Run SC-07 daemon assignment enforcement fixture
+        run: cargo test -p kiana-daemon --test sc07_assignment_enforcement --locked -- --test-threads=1
       - name: Compile SC-07 domain target
         run: cargo test -p kiana-domain --test sc07_trust_snapshots --no-run --locked
       - name: Compile SC-07 authority target
         run: cargo test -p kiana-core --test sc07_authority_snapshot --no-run --locked
       - name: Compile SC-07 source guard target
         run: cargo test -p kiana-core --test sc07_authority_guard --no-run --locked
+      - name: Compile SC-07 daemon assignment enforcement target
+        run: cargo test -p kiana-daemon --test sc07_assignment_enforcement --no-run --locked

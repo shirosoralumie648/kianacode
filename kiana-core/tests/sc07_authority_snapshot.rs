@@ -1,4 +1,6 @@
-use kiana_core::{SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA};
+use kiana_core::{
+    SecurityAuthorityProvenance, SecurityAuthoritySnapshot, SECURITY_AUTHORITY_SNAPSHOT_SCHEMA,
+};
 use kiana_domain::{
     json_digest, AssignmentDirectory, AssignmentId, AuthenticatedPrincipalRef, DepartmentSnapshot,
     DepartmentSpec, OrganizationId, ProjectAssignment, ProjectAssignmentId, ProjectId,
@@ -140,6 +142,53 @@ fn authority_snapshot_rejects_foreign_role_project_and_untrusted_effect() {
     let mut tampered = snapshot.to_json().unwrap();
     tampered["assignment"]["project_id"] = json!(kiana_domain::ProjectId::new());
     assert!(SecurityAuthoritySnapshot::from_json(&tampered).is_err());
+}
+
+#[test]
+fn authority_provenance_exposes_server_sources_and_revisions() {
+    let (snapshot, _, _) = fixture(true);
+    let provenance = SecurityAuthorityProvenance::from_authority(
+        &snapshot,
+        "fixture.assignment_directory",
+    )
+    .unwrap();
+    assert_eq!(provenance.project_id, snapshot.assignment.project_id);
+    assert_eq!(
+        provenance.organization_id,
+        snapshot.assignment.organization_id
+    );
+    assert_eq!(provenance.trust_source, "fixture");
+    assert_eq!(
+        provenance.trust_revision,
+        snapshot.project_trust.trust_revision
+    );
+    assert_eq!(
+        provenance.trust_snapshot_revision,
+        snapshot.project_trust.revision
+    );
+    assert!(provenance.trust_trusted);
+    assert_eq!(provenance.role_source, "fixture.assignment_directory");
+    assert_eq!(provenance.role_id, "builder");
+    assert_eq!(
+        provenance.role_revision,
+        snapshot.assignment.assignment_revision
+    );
+    assert_eq!(provenance.department_id, "executing");
+    assert_eq!(
+        provenance.department_revision,
+        snapshot.department.revision
+    );
+    assert_eq!(provenance.authority_epoch, snapshot.authority_epoch);
+    assert_eq!(
+        SecurityAuthorityProvenance::from_json(&provenance.to_json().unwrap()).unwrap(),
+        provenance
+    );
+    let mut tampered = provenance.to_json().unwrap();
+    tampered["role_revision"] = json!(0);
+    assert!(SecurityAuthorityProvenance::from_json(&tampered).is_err());
+    let mut foreign_source = provenance.to_json().unwrap();
+    foreign_source["role_source"] = json!("");
+    assert!(SecurityAuthorityProvenance::from_json(&foreign_source).is_err());
 }
 
 #[test]

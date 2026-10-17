@@ -18,6 +18,21 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
             "authority marker missing: {marker}"
         );
     }
+    for marker in [
+        "SecurityAuthorityProvenance",
+        "SECURITY_AUTHORITY_PROVENANCE_SCHEMA",
+        "trust_source",
+        "trust_revision",
+        "role_source",
+        "role_revision",
+        "department_revision",
+        "provenance_digest",
+    ] {
+        assert!(
+            authority.contains(marker),
+            "authority provenance marker missing: {marker}"
+        );
+    }
     assert!(
         authority.contains("context.project_trusted && !self.project_trust.trusted"),
         "wire trust may not upgrade a server-owned untrusted snapshot"
@@ -40,9 +55,13 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
     for marker in [
         "resolve_assignment_for_project",
         "context_from_assignment",
+        "authority_snapshot_for_assignment",
+        "authority_provenance",
         "project_trust_snapshot",
         "DepartmentSnapshot::from_spec",
         "SecurityAuthoritySnapshot::from_parts",
+        "SecurityAuthorityProvenance::from_authority",
+        "ASSIGNMENT_DIRECTORY_SOURCE",
         "self.principal.identity",
     ] {
         assert!(
@@ -51,7 +70,8 @@ fn authority_snapshot_and_daemon_assignment_paths_are_server_owned() {
         );
     }
     assert!(
-        daemon.contains("let project = self.project_identity(&context.project_root)?;")
+        daemon.contains("fn authority_snapshot_for_assignment")
+            && daemon.contains("let project = self.project_identity(project_root)?;")
             && daemon.contains("assignment.project_id != project.project_id")
             && daemon.contains("authority\n            .validate_request(&context, &project)"),
         "daemon assignment helper must reject foreign projects before authority validation"

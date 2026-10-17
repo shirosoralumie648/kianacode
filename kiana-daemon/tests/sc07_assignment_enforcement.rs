@@ -13,7 +13,7 @@ use kiana_domain::{
     AssignmentId, AuthenticatedPrincipalRef, OrganizationId, ProjectAssignment,
     ProjectAssignmentId, RoleAssignment, RoleAssignmentStatus,
 };
-use kiana_ports::AssignmentDirectoryPort;
+use kiana_ports::{AssignmentDirectoryPort, PortError};
 use kiana_protocol::{
     ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
     RoleSpec,
@@ -381,10 +381,93 @@ fn daemon_handle_calls_server_assignment_enforcement() {
         "with_assignment_enforcement",
         "assignment_enforcement",
         ".enforce_assignment(",
+        "authority_snapshot_for_assignment",
+        "authority_provenance",
+        "ASSIGNMENT_DIRECTORY_SOURCE",
     ] {
         assert!(
             daemon.contains(marker),
             "daemon assignment enforcement marker missing: {marker}"
         );
     }
+}
+
+/// Trust/role source and revision must be answerable from server-owned state without issuing a
+/// role, and must not be answerable for an organization the daemon has no assignment for.
+#[tokio::test]
+async fn authority_provenance_reports_server_sources_and_revisions() {
+    let root = temp_project("sc07-provenance");
+    let organization_id = OrganizationId::new();
+    let host = trusted_host(Arc::new(CountingModel {
+        calls: Arc::new(AtomicUsize::new(0)),
+    }))
+    .with_assignment_enforcement(organization_id);
+    provision_builder_assignment(&host, &root, organization_id).await;
+
+    let provenance = host
+        .authority_provenance(&root.to_string_lossy(), organization_id, "builder", now_ms())
+        .await
+        .expect("server-owned provenance query");
+    assert_eq!(provenance.trust_source, "daemon.project_authority");
+    assert!(provenance.trust_trusted);
+    assert!(provenance.trust_revision.starts_with("sha256:"));
+    assert_eq!(provenance.trust_snapshot_revision, 1);
+    assert_eq!(provenance.role_source, "daemon.assignment_directory");
+    assert_eq!(provenance.role_id, "builder");
+    assert_eq!(provenance.role_revision, 1);
+    assert_eq!(provenance.department_id, "executing");
+    assert_eq!(provenance.department_revision, 1);
+    assert_eq!(provenance.authority_epoch, 2);
+
+    // A foreign organization cannot read an assignment the daemon does not own.
+    let foreign_organization = OrganizationId::new();
+    let denied = host
+        .authority_provenance(&root.to_string_lossy(), foreign_organization, "builder", now_ms())
+        .await
+        .expect_err("foreign organization must not resolve an assignment");
+    let reason = match denied {
+        PortError::Failed(reason) => reason,
+        other => panic!("unexpected provenance denial: {other}"),
+    };
+    assert_eq!(reason, "assignment_expired_or_missing");
+}
+
+/// Project isolation: an assignment for project A must never authorize an effect in project B.
+#[tokio::test]
+async fn assignment_for_another_project_is_rejected_without_effect() {
+    let owned = temp_project("sc07-owned");
+    let foreign = temp_project("sc07-foreign");
+    let organization_id = OrganizationId::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let host = trusted_host(Arc::new(CountingModel {
+        calls: calls.clone(),
+    }))
+    .with_assignment_enforcement(organization_id);
+    provision_builder_assignment(&host, &owned, organization_id).await;
+    let host = Arc::new(host);
+    let client = KianaClient::new(InProcessTransport { host: host.clone() });
+
+    let mut request_metadata = trusted_metadata("sc07-foreign", &foreign);
+    request_metadata.permission_profile = PermissionProfile::Balanced;
+    let response = client
+        .run(
+            request_metadata,
+            "mixed project boundary effect",
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .expect("daemon response");
+
+    assert_eq!(response.status, ExecutionStatus::Blocked, "{response:?}");
+    assert_eq!(
+        response.error.as_deref(),
+        Some("assignment_expired_or_missing")
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "a foreign project assignment must not reach the model"
+    );
+    assert!(!foreign.join("GOLDEN_PATH.txt").exists());
+    assert!(!owned.join("GOLDEN_PATH.txt").exists());
 }
