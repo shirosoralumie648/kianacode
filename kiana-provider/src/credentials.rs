@@ -50,7 +50,8 @@
 //! 请不要把这个当作“密钥已从内存擦除”的证据。
 
 use kiana_domain::{CredentialLease, ModelError, SecretRef, CREDENTIAL_LEASE_DEFAULT_TTL_MS};
-use std::sync::Arc;
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 /// 密钥值的字节上限：64 KiB。
 ///
@@ -89,6 +90,64 @@ pub(crate) enum SecretBackend {
     Keyring,
     File,
     Os,
+}
+
+impl SecretBackend {
+    /// Narrow adapter registry: map a [`SecretRef::store`] name to the exact backend that owns it.
+    /// An unknown store name has no adapter and must be rejected before any read.  The protected
+    /// backends are registered so that a reference naming them is refused explicitly instead of
+    /// being silently served by the environment or an inline value.
+    pub(crate) fn from_store_name(store: &str) -> Option<Self> {
+        match store {
+            "env" => Some(Self::Env),
+            "inline" => Some(Self::Inline),
+            "keyring" => Some(Self::Keyring),
+            "file" => Some(Self::File),
+            "os" => Some(Self::Os),
+            _ => None,
+        }
+    }
+
+    /// Canonical store name used in structured denial codes.  This is metadata from the
+    /// reference, never a secret value.
+    pub(crate) fn store_name(self) -> &'static str {
+        match self {
+            Self::Env => "env",
+            Self::Inline => "inline",
+            Self::Keyring => "keyring",
+            Self::File => "file",
+            Self::Os => "os",
+        }
+    }
+
+    /// Only the local `Env` and compatibility `Inline` adapters are admitted in this slice.
+    pub(crate) fn is_admitted(self) -> bool {
+        matches!(self, Self::Env | Self::Inline)
+    }
+}
+
+/// Reject a reference whose `store` does not match the adapter that would serve it, before the
+/// adapter reads anything.  A reference naming a protected backend fails closed with
+/// `credential_backend_unsupported:<store>`; an unknown store fails with
+/// `credential_backend_unknown:<store>`; a mismatch between the reference and the resolved store
+/// handle fails with `credential_backend_mismatch`.
+pub(crate) fn validate_effect_backend(
+    secret_ref: &SecretRef,
+    store: &dyn SecretStore,
+) -> Result<(), ModelError> {
+    let Some(backend) = SecretBackend::from_store_name(&secret_ref.store) else {
+        let code = format!("credential_backend_unknown:{}", secret_ref.store);
+        return Err(ModelError::invalid(code));
+    };
+    if !backend.is_admitted() {
+        let code = format!("credential_backend_unsupported:{}", backend.store_name());
+        return Err(ModelError::invalid(code));
+    }
+    if store.backend() != backend {
+        let code = format!("credential_backend_mismatch:{}", backend.store_name());
+        return Err(ModelError::invalid(code));
+    }
+    Ok(())
 }
 
 /// A secret store resolves an opaque reference into an effect-scoped lease.  It must never put
@@ -295,6 +354,135 @@ fn materialize(
     })
 }
 
+/// Process-local revocation watermark for opaque credential references.
+///
+/// A watermark is keyed by the reference identity (store/key/purpose/audience) and records the
+/// highest revoked generation.  A reference whose generation is at or below the watermark must
+/// not be resolved or materialized, so the effect boundary refuses it with
+/// `credential_secret_ref_revoked` before any provider request is built.
+///
+/// This is a narrow, in-process fence.  It is deliberately *not* durable: restart, cross-process
+/// propagation and event-sourced revocation belong to the recovery/rotation steps.  The registry
+/// stores only reference metadata and never a secret value.
+#[derive(Clone, Default)]
+pub(crate) struct CredentialRevocations {
+    watermarks: Arc<Mutex<BTreeMap<CredentialIdentity, u64>>>,
+}
+
+/// Reference identity that ignores the generation, so a revocation applies to the whole
+/// credential rather than a single generation.  It carries only `SecretRef` metadata.
+type CredentialIdentity = (String, String, String, String);
+
+impl std::fmt::Debug for CredentialRevocations {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CredentialRevocations")
+            .field("tracked", &self.identity_count())
+            .finish()
+    }
+}
+
+impl CredentialRevocations {
+    fn identity(secret_ref: &SecretRef) -> CredentialIdentity {
+        (
+            secret_ref.store.clone(),
+            secret_ref.key.clone(),
+            secret_ref.purpose.clone(),
+            secret_ref.audience.clone(),
+        )
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, BTreeMap<CredentialIdentity, u64>> {
+        self.watermarks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn identity_count(&self) -> usize {
+        self.lock().len()
+    }
+
+    /// Record a revocation for exactly this reference generation.  Generations are monotonic, so
+    /// recording an older generation cannot lift an earlier revocation.
+    pub(crate) fn revoke(&self, secret_ref: &SecretRef) -> Result<(), ModelError> {
+        secret_ref
+            .validate()
+            .map_err(|_| ModelError::invalid("credential_secret_ref_invalid"))?;
+        let identity = Self::identity(secret_ref);
+        let mut watermarks = self.lock();
+        let watermark = watermarks.entry(identity).or_insert(0);
+        *watermark = (*watermark).max(secret_ref.generation);
+        Ok(())
+    }
+
+    /// Fail closed when the requested generation is at or below the recorded revocation
+    /// watermark.  A denial is read-only and never touches the protected backend.
+    pub(crate) fn check(&self, secret_ref: &SecretRef) -> Result<(), ModelError> {
+        let watermarks = self.lock();
+        let revoked = watermarks
+            .get(&Self::identity(secret_ref))
+            .is_some_and(|watermark| secret_ref.generation <= *watermark);
+        if revoked {
+            return Err(ModelError::invalid("credential_secret_ref_revoked"));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn watermark(&self, secret_ref: &SecretRef) -> Option<u64> {
+        self.lock().get(&Self::identity(secret_ref)).copied()
+    }
+}
+
+/// Wrap an adapter so the narrow backend contract and the revocation fence are enforced before
+/// the adapter can read its protected source.  It delegates only after both checks pass and never
+/// exposes the inner value.
+#[derive(Clone)]
+pub(crate) struct RevocationFencedStore {
+    inner: Arc<dyn SecretStore>,
+    revocations: CredentialRevocations,
+}
+
+impl RevocationFencedStore {
+    pub(crate) fn new(inner: Arc<dyn SecretStore>, revocations: CredentialRevocations) -> Self {
+        Self { inner, revocations }
+    }
+
+    fn admit(&self, secret_ref: &SecretRef) -> Result<(), ModelError> {
+        validate_effect_backend(secret_ref, self.inner.as_ref())?;
+        self.revocations.check(secret_ref)
+    }
+}
+
+impl SecretStore for RevocationFencedStore {
+    fn backend(&self) -> SecretBackend {
+        self.inner.backend()
+    }
+
+    fn current_revision(&self, secret_ref: &SecretRef) -> Result<String, ModelError> {
+        self.admit(secret_ref)?;
+        self.inner.current_revision(secret_ref)
+    }
+
+    fn issue(
+        &self,
+        secret_ref: &SecretRef,
+        provider_account: &str,
+        audience: &str,
+        endpoint_digest: &str,
+        now_unix_ms: u64,
+    ) -> Result<SecretMaterial, ModelError> {
+        self.admit(secret_ref)?;
+        self.inner.issue(
+            secret_ref,
+            provider_account,
+            audience,
+            endpoint_digest,
+            now_unix_ms,
+        )
+    }
+}
+
 /// Environment-backed adapter.  The environment name is an opaque `SecretRef.key`; the value
 /// is looked up only when a request is about to be sent.
 #[derive(Clone, Copy, Debug, Default)]
@@ -482,6 +670,7 @@ impl SecretStore for OsSecretStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn inline_store_issues_and_consumes_a_bound_one_shot_lease() {
@@ -565,5 +754,152 @@ mod tests {
                 .code,
             "credential_backend_unsupported:os"
         );
+    }
+
+    /// Deterministic fake adapter that records how often the protected source was touched.
+    #[derive(Default)]
+    struct CountingStore {
+        reads: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl SecretStore for CountingStore {
+        fn backend(&self) -> SecretBackend {
+            SecretBackend::Env
+        }
+
+        fn current_revision(&self, _secret_ref: &SecretRef) -> Result<String, ModelError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            Ok(kiana_domain::json_digest(&serde_json::json!("fake")))
+        }
+
+        fn issue(
+            &self,
+            secret_ref: &SecretRef,
+            provider_account: &str,
+            audience: &str,
+            endpoint_digest: &str,
+            now_unix_ms: u64,
+        ) -> Result<SecretMaterial, ModelError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            materialize(
+                secret_ref,
+                provider_account,
+                audience,
+                endpoint_digest,
+                now_unix_ms,
+                "fake-sentinel".to_owned(),
+            )
+        }
+    }
+
+    fn fixture_ref(store: &str, key: &str, generation: u64) -> SecretRef {
+        SecretRef::new(
+            store,
+            key,
+            PROVIDER_CREDENTIAL_PURPOSE,
+            "fake-provider",
+            generation,
+        )
+        .expect("fixture ref")
+    }
+
+    #[test]
+    fn backend_registry_maps_every_declared_store_and_unknown_names_have_no_adapter() {
+        for (name, backend) in [
+            ("env", SecretBackend::Env),
+            ("inline", SecretBackend::Inline),
+            ("keyring", SecretBackend::Keyring),
+            ("file", SecretBackend::File),
+            ("os", SecretBackend::Os),
+        ] {
+            assert_eq!(SecretBackend::from_store_name(name), Some(backend));
+            assert_eq!(backend.store_name(), name);
+        }
+        assert_eq!(SecretBackend::from_store_name("vault"), None);
+        assert_eq!(SecretBackend::from_store_name(""), None);
+        assert_eq!(SecretBackend::from_store_name("Env"), None);
+        assert!(SecretBackend::Env.is_admitted());
+        assert!(SecretBackend::Inline.is_admitted());
+        assert!(!SecretBackend::Keyring.is_admitted());
+        assert!(!SecretBackend::File.is_admitted());
+        assert!(!SecretBackend::Os.is_admitted());
+    }
+
+    #[test]
+    fn effect_backend_validation_fails_closed_before_any_read() {
+        let env_ref = fixture_ref("env", "CI07_FAKE_ENV", 1);
+        let store = CountingStore::default();
+        let admitted = validate_effect_backend(&env_ref, &store);
+        assert!(admitted.is_ok());
+
+        let inline_ref = fixture_ref("inline", "fixture", 1);
+        let store = CountingStore::default();
+        let mismatch = validate_effect_backend(&inline_ref, &store);
+        let mismatch = mismatch.err().expect("backend mismatch").code;
+        assert_eq!(mismatch, "credential_backend_mismatch:inline");
+
+        for name in ["keyring", "file", "os"] {
+            let reference = fixture_ref(name, "fixture", 1);
+            let store = CountingStore::default();
+            let denied = validate_effect_backend(&reference, &store);
+            let code = denied.err().expect("protected backend").code;
+            let expected = format!("credential_backend_unsupported:{name}");
+            assert_eq!(code, expected);
+        }
+
+        let unknown = fixture_ref("vault", "fixture", 1);
+        let store = CountingStore::default();
+        let denied = validate_effect_backend(&unknown, &store);
+        let code = denied.err().expect("unknown backend").code;
+        assert_eq!(code, "credential_backend_unknown:vault");
+    }
+
+    #[test]
+    fn revocation_fence_denies_revoked_generation_without_touching_the_store() {
+        let reference = fixture_ref("env", "CI07_REVOKED", 1);
+        let store = CountingStore::default();
+        let reads = store.reads.clone();
+        let revocations = CredentialRevocations::default();
+        let fenced = RevocationFencedStore::new(Arc::new(store), revocations.clone());
+
+        let admitted = fenced.current_revision(&reference);
+        admitted.expect("unrevoked read");
+        assert_eq!(reads.load(Ordering::SeqCst), 1);
+
+        revocations.revoke(&reference).expect("revoke");
+        assert_eq!(revocations.watermark(&reference), Some(1));
+        let outcome = fenced.current_revision(&reference);
+        let denied = outcome.err().expect("revoked read");
+        assert_eq!(denied.code, "credential_secret_ref_revoked");
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            1,
+            "a revoked read must not touch the protected source"
+        );
+        let issue_denied = fenced.issue(&reference, "a", "b", "c", 1_000);
+        assert!(issue_denied.is_err());
+
+        // A rotated generation above the recorded watermark is admitted again.
+        let rotated = fixture_ref("env", "CI07_REVOKED", 2);
+        let rotated_read = fenced.current_revision(&rotated);
+        rotated_read.expect("rotated read");
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn revocation_watermark_is_monotonic_and_metadata_only() {
+        let revocations = CredentialRevocations::default();
+        let older = fixture_ref("env", "CI07_MONO", 3);
+        let newer = fixture_ref("env", "CI07_MONO", 5);
+        revocations.revoke(&newer).expect("revoke newer");
+        revocations.revoke(&older).expect("revoke older");
+        assert_eq!(revocations.watermark(&older), Some(5));
+        assert!(revocations.check(&newer).is_err());
+        let future = fixture_ref("env", "CI07_MONO", 6);
+        assert!(revocations.check(&future).is_ok());
+
+        let debug = format!("{revocations:?}");
+        assert!(debug.contains("tracked"));
+        assert!(!debug.contains("CI07_MONO"));
     }
 }

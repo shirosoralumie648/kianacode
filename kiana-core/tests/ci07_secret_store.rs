@@ -3,6 +3,7 @@ fn credential_effect_boundary_keeps_secret_resolution_out_of_core_and_event_shap
     let domain = include_str!("../../kiana-domain/src/credentials.rs");
     let config = include_str!("../../kiana-provider/src/config.rs");
     let provider = include_str!("../../kiana-provider/src/credentials.rs");
+    let gateway = include_str!("../../kiana-provider/src/lib.rs");
     let transport = include_str!("../../kiana-provider/src/transport.rs");
     let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
     let ports = include_str!("../../kiana-ports/src/lib.rs");
@@ -47,6 +48,21 @@ fn credential_effect_boundary_keeps_secret_resolution_out_of_core_and_event_shap
         );
     }
     for marker in [
+        "from_store_name",
+        "validate_effect_backend",
+        "credential_backend_unknown",
+        "credential_backend_mismatch",
+        "CredentialRevocations",
+        "RevocationFencedStore",
+        "credential_secret_ref_revoked",
+        "pub fn revoke_credential_ref",
+    ] {
+        assert!(
+            provider.contains(marker) || gateway.contains(marker),
+            "credential fence marker missing: {marker}"
+        );
+    }
+    for marker in [
         "credential_store.issue",
         "validate_for",
         ".consume(lease_now)",
@@ -57,7 +73,13 @@ fn credential_effect_boundary_keeps_secret_resolution_out_of_core_and_event_shap
             "transport lease marker missing: {marker}"
         );
     }
-    for marker in ["consume_credential_lease", "effect", "CredentialLease"] {
+    for marker in [
+        "consume_credential_lease",
+        "consume_credential_lease_with_revocation",
+        "credential_secret_ref_revoked",
+        "effect",
+        "CredentialLease",
+    ] {
         assert!(
             broker.contains(marker),
             "broker lease marker missing: {marker}"

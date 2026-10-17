@@ -53,6 +53,7 @@
 
 use crate::{
     config::Connection,
+    credentials::validate_effect_backend,
     response::{decode_json, Accumulator},
 };
 use futures::StreamExt;
@@ -383,6 +384,11 @@ async fn send_inner_attempt(
     //（URL 会进错误信息、进快照）。用摘要就足够做等值比较。
 
     let endpoint_digest = json_digest(&serde_json::json!(connection.endpoint.as_str()));
+    // The effect boundary re-asserts the narrow backend registry: a reference that names a
+    // protected or unknown store is refused here, before the adapter can read anything.
+    if let Some(secret_ref) = connection.credential_ref.as_ref() {
+        validate_effect_backend(secret_ref, connection.credential_store.as_ref())?;
+    }
     let mut material = connection
         .credential_ref
         .as_ref()
