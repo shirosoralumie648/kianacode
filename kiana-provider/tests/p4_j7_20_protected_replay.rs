@@ -675,12 +675,12 @@ fn strip_private_items_removes_only_the_private_dialect() {
 
 #[test]
 fn capture_has_no_material_for_public_only_responses() {
-    let route = anthropic_route();
+    let anthropic = anthropic_route();
     let response = json!({
         "content": [{"type": "text", "text": "public only"}],
         "stop_reason": "end_turn"
     });
-    assert!(capture_from_value(&route, &response)
+    assert!(capture_from_value(&anthropic, &response)
         .expect("capture")
         .is_none());
 
