@@ -44,6 +44,49 @@ hash 只用于 H05 源码漂移复核，不构成 provider 网络、账单或外
 - Provider response parser 对缺 stop、重复 finish、open tool block、截断 SSE、未知 stop 和 refusal 返回稳定 `ModelError`；已有 retry 只允许 `BeforeSend`/`Rejected` 且受剩余 deadline/预算约束。
 - `run.model_turn` metadata 同时记录 typed stop reason 和 bounded ModelOutcome；CLI/模型回灌消费的是这一错误分类，诊断 detail 保留但不参与 retry/authority 决策。
 
+## 3.1 停止 / 错误 / CLI / wire 映射表（H05 交付）
+
+本表是 H05 卡片「停止/错误/CLI/wire 映射表」的收敛点。它是**对照表，不是第二张策略表**：
+归一化与 disposition 的真值在 `kiana-domain::model`，wire 码与策略投影在
+`kiana-protocol::model_failure`，CLI 行在 `kiana-entrypoints::model_failure_presenter`。
+`cli_exit`/`http_status`/`retryable` 全部来自既有 `CapabilityErrorCode::policy()`；模型失败码
+不在该表中，因此保守落在 `ExecutionFailed`（exit 1 / HTTP 500 / 不可自动重试）。
+
+| 归一化停止 / 错误分类 | `ModelFailureClass` | wire 码 | disposition | retry class | CLI exit | HTTP | retryable | 生产者 |
+|---|---|---|---|---|---|---|---|---|
+| `end_turn`（文本正常结束） | 无（成功） | 无 | 无 | 无 | 0 | 200 | 否 | domain `ModelFinish::EndTurn` |
+| `tool_use`（要求工具） | 无（继续） | 无 | 无 | 无 | 0 | 200 | 否 | domain `ModelFinish::ToolUse` |
+| `length` / `max_tokens` | `Truncated` | `model_output_truncated` | `terminal` | `never` | 1 | 500 | 否 | provider parser + runner stop gate |
+| `refusal` / `content_filter` / `SAFETY` | `Refused` | `model_refused` | `terminal` | `never` | 1 | 500 | 否 | provider parser |
+| `pause_turn` | `Paused` | `model_pause_requires_explicit_continue` | `terminal` | `never` | 1 | 500 | 否 | provider parser |
+| `incomplete`（传输未完整关闭） | `TransportIncomplete` | `model_transport_incomplete` | `terminal` | `never` | 1 | 500 | 否 | provider parser（含两个流式事件） |
+| 缺 stop / 未知 stop | `UnknownStop` | `model_stop_reason_unknown` | `terminal` | `never` | 1 | 500 | 否 | domain `ModelFinish::parse` |
+| structured-output 内容校验失败 | `FormatRepair` | `model_format_repair_unavailable` | `format_repair` | `never` | 1 | 500 | 否 | provider `request.rs` |
+| 工具参数 JSON/shape/schema 不合格 | `ToolRepair` | `model_tool_repair_unavailable` | `tool_repair` | `never` | 1 | 500 | 否 | provider parser + domain `validate_model_calls` |
+| provider typed context-limit 信号 | `ContextRepair` | `model_context_repair_unavailable` | `context_repair` | `never` | 1 | 500 | 否 | provider `response.rs`（`error.code=context_length_exceeded`） |
+| typed 传输重试拒绝 | `TransportRetry` | 源错误码（如 `connect_failed`/`provider_http_429`） | `transport_retry` | `before_send`/`rejected` | 1 | 500 | wire=否；由 runner 预算化路径裁决 | runner `retry.rs` |
+| 未识别码 / 非法 / 矛盾 outcome | `Unclassified` | `model_failure_unclassified` | `terminal` | `never` | 1 | 500 | 否 | protocol `ModelFailureSurface` |
+
+**Provider 原始停止文本 → 归一化（`ModelFinish::parse` 的闭合词汇表）**
+
+| adapter | 原始字段 | 原始值 | 归一化停止 |
+|---|---|---|---|
+| Anthropic Messages | `stop_reason` | `end_turn` / `tool_use` / `max_tokens` / `refusal` / `pause_turn` | EndTurn / ToolUse / Length / Refusal / Pause |
+| OpenAI Chat | `choices[].finish_reason` | `stop` / `tool_calls` / `length` / `content_filter` | EndTurn / ToolUse / Length / Refusal |
+| OpenAI Responses | `status` + output item | `completed` / `requires_action` / `incomplete` / `failed` | EndTurn / ToolUse / Incomplete / Terminal 或 ContextRepair |
+| Ollama Chat | `done_reason` | `stop` / `length` | EndTurn（有 tool_calls → ToolUse）/ Length |
+| Gemini Interactions | `status` | `completed` / `requires_action` / `incomplete` | EndTurn / ToolUse / Incomplete |
+| legacy cassette | 缺 `stop_reason` | 无值 | 无工具 → EndTurn；有工具 → ToolUse（`ModelFinish::parse(_, _, legacy=true)`） |
+
+任何不在表内的原始值都归一化为 `Unknown` / `model_stop_reason_unknown`（fail closed）。
+`length` / `refusal` / `pause` / `incomplete` / Unknown 在 Runner 完成或工具派发前终止：不会
+发出 `Completed`，不会产生 `CapabilityRequested`，带工具声明的截断响应整批不执行但仍保留
+可诊断的 `ModelTurn` 元数据。wire/CLI 展示层只追加分类后缀，不改变进程退出码与生命周期状态。
+`kiana-protocol/tests/h05_model_failure_wire.rs` 与
+`kiana-entrypoints/tests/h05_model_failure_presenter.rs` 逐行钉住本表；前者还断言
+`ResponseEnvelope::model_failure()` 只对 `Failed` 生效，`ResultUnknown`/`Cancelled`/
+`AwaitingApproval`/`Running` 的生命周期分类不会被模型诊断文本改写成模型失败。
+
 ## 4. Failure-first fixture matrix
 
 | Fixture | 断言 |

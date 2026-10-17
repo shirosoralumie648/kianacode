@@ -282,6 +282,44 @@ fn response_envelope_exposes_recognized_model_failures_without_collapsing_generi
 }
 
 #[test]
+fn only_failed_status_projects_a_model_failure_and_lifecycle_codes_win() {
+    // 卡片的 fail-closed 要求：模型诊断码不能凌驾生命周期状态。只有 `Failed` 才允许投影
+    // 模型失败 surface；其余状态保留自己的生命周期分类，未知结果永远是未知。
+    let cases = [
+        (
+            ExecutionStatus::ResultUnknown,
+            CapabilityErrorCode::ResultUnknown,
+        ),
+        (ExecutionStatus::Cancelled, CapabilityErrorCode::Cancelled),
+        (
+            ExecutionStatus::AwaitingApproval,
+            CapabilityErrorCode::ApprovalRequired,
+        ),
+        (
+            ExecutionStatus::Running,
+            CapabilityErrorCode::ExecutionFailed,
+        ),
+    ];
+    for (status, code) in cases {
+        let response = envelope(status, Some("model_output_truncated"));
+        assert!(
+            response.model_failure().is_none(),
+            "only Failed responses may project a model failure: {status:?}"
+        );
+        assert_eq!(
+            response.failure_code(),
+            Some(code),
+            "lifecycle classification must win over model diagnostics: {status:?}"
+        );
+    }
+    let failed = envelope(ExecutionStatus::Failed, Some("model_output_truncated"));
+    assert!(
+        failed.model_failure().is_some(),
+        "Failed remains the single model-failure entry"
+    );
+}
+
+#[test]
 fn wire_code_table_matches_the_runner_producers() {
     // 源守卫：wire 表里的稳定码必须仍由 runner 的停止门与 repair 映射实际产生；
     // 这里只读源码标记，不执行 runner/provider。

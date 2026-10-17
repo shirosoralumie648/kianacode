@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 H05 翻 ✅（统一停止原因、错误与重试分类，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md 行 047；docs/roadmap/harness.md#step-h05；docs/roadmap/harness-stop-retry-baseline.md §3.1；kiana-protocol/tests/h05_model_failure_wire.rs（新增 lifecycle 权威性 fixture）
+worktree_status: 行 047 🔄 → ✅；新增停止/错误/CLI/wire 映射表与一个 focused fixture；无 manifest/lockfile、无第二执行路径、未接线自动 repair
+command_argv: CI-only；本地未运行 cargo/build/test/fmt/smoke；静态核对（rg/读取既有 domain/runner/provider/protocol/entrypoints 源码与 fixture）＋ python3 scripts/roadmap-goal.py、bash scripts/ci/validate-workflows.sh、bash scripts/ci/validate-doc-references.sh
+cwd·environment: worktree /workspace/kianacode-worktrees/H05，分支 step/h05-20261017-1；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: 卡片先拒绝 length_stop_never_dispatches_tools_or_completes_turn / refusal_is_not_success / unknown_stop_reason_fails_closed 与再成功 normal_text_stop_finishes_and_tool_stop_continues 均在树内；新增 only_failed_status_projects_a_model_failure_and_lifecycle_codes_win（ResultUnknown/Cancelled/AwaitingApproval/Running 不被模型诊断改写成模型失败，仅 Failed 投影 ModelFailureSurface）；wire/presenter target 已接入 h05-stop-diagnostic.yml 与统一 ci.yml 的 kiana-protocol/kiana-entrypoints 整 crate lane
+exit_code: 本地未运行；CI 回执未等待
+status_change: H05 源码层退出条件覆盖 → implemented（row 047 ✅）；proof_level 维持 source
+proof-level_change: 无；未提升 local_behavior/durable/live/physical
+limitations: 自动 FormatRepair/ToolRepair/ContextRepair 执行未接线（卡片要求仅在显式预算化命令下执行，当前仅分类并以 *_repair_unavailable 到达 wire）；cli_exit/http_status 仅为既有 CapabilityErrorCode 投影，进程退出码未改；workbench/web 渲染与流式展示未接线；完整统一 shard green、live provider、账单/外部效果与物理证明未获；CI 回执未等待
+reviewer: root integration agent；H05 静态复核
+```
+
 ### 2026-10-16/17 第二波 step 切片（P0-A-01b/EQ-11 翻 ✅；ER-13/BQ-07/AUT-07/EXT-25/DEP-03 切片）
 
 ```text
