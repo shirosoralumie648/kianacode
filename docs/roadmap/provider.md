@@ -278,7 +278,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-18 Ollama 原生 NDJSON 与本地模型体验　🔄
+#### P4-J7-18 Ollama 原生 NDJSON 与本地模型体验　✅
 
 - **依赖**：`P4-J7-12`、`P4-J7-14`。
 - **改动位置**：provider/protocols/ollama、catalog、compatibility；Ollama NDJSON fixtures。
@@ -287,8 +287,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`ollama_streams_before_model_completion`、`ollama_tool_result_continuation_uses_stable_local_ids`、`ollama_load_latency_is_distinct_from_generation_latency`。
 - **退出 / 证据**：不自动拉取、创建或删除本地模型；synthetic→native 仅针对通过实际 NDJSON 测试的能力范围。
 - **本次实现**：NDJSON 增量、done/content fail-closed、工具序号稳定 ID 与结果续接、显式 Ollama load timeout、load/generation timing 进入 ModelTurn；专属 CI workflow 已加入。
-- **CI 结果**：GitHub Actions runs `35832638463`（PR）和 `35832756821`（合并后）均在 `cargo fmt --all --check` 因 `kiana-domain/src/memory_workbench.rs` 缺失而失败，测试步骤跳过。CM-36 已补齐该文件；当前提交把它加入 workflow path filter，触发新的 GitHub CI rerun，结果仍 pending/unobserved。
-- **状态**：保持 🔄，proof 上限为 `source`；上述两次 run 均未执行 provider fixtures，不能视作通过。
+- **字节级 NDJSON framing 夹具（2026-10-17 补）**：`kiana-provider/tests/p4_j7_18_ollama_stream.rs` 用 `replay_stream_fixture` 把已捕获的 `/api/chat` 字节按 1/2/3/5/7/11/13/31/64/127 字节任意切分后重放，覆盖卡片步骤 ①③④ 的框架边界——`ollama_ndjson_split_frames_stream_text_before_the_terminal_done_frame`（终端 done 帧之前的增量文本、终端 usage/timing）、`ollama_ndjson_eof_without_done_never_completes_a_run`（EOF 无 done → `provider_stream_incomplete`，`Never` 重试、`request_sent` 与 side-effect unknown 保留）、`ollama_ndjson_unterminated_terminal_line_completes_within_frame_limit`（末行无换行的有界 flush）、`ollama_ndjson_error_frame_never_completes_and_keeps_no_partial_reply`、`ollama_ndjson_done_true_without_done_reason_is_not_a_terminal_completion`、`ollama_tool_ordinals_stay_stable_across_frame_boundaries`（同名工具序号稳定 synthetic ID + wire id 原样保留）、`ollama_tool_arguments_fail_closed_before_any_call_is_usable`（arguments 非对象 / 重复 key 在可用前拒绝）。Core guard 同时把 provider 源码的 `/api/pull|create|delete|copy|push` 负断言扩到 request/response/transport/config 四个文件。
+- **CI 接线**：`.github/workflows/p4-j7-18-ollama.yml`（手动 lane）含 fmt 门、provider lib 夹具、新 framing target、`p4_j7_08_config` 与 core guard；统一 `ci.yml` 的 `kiana-provider` 整 crate 分片与 `kiana-core-s5/6` 分片在 push/PR 上同时自动覆盖。
+- **状态**：行 395 由 🔄 提升 ✅（CI pending，回执未等待）；proof 上限为 `source`。历史 run（35832638463 / 35832756821）只证明当时的 fmt 失败与 CM-36 依赖，不构成本卡通过证据。
 
 <a id="step-p4-j7-19"></a>
 
