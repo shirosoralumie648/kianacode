@@ -1,8 +1,8 @@
 use kiana_domain::{
     normalize_connector_intent, normalize_surface_connector_arguments, AccountBinding,
     ConnectorBindingSnapshot, ConnectorCommand, ConnectorCommandRequest, ConnectorDefinition,
-    ConnectorEffect, ConnectorOperation, ConnectorProtocolErrorCode, ConnectorSurface,
-    ConnectorSurfaceCommand, RequestContext,
+    ConnectorEffect, ConnectorManageAction, ConnectorOperation, ConnectorProtocolErrorCode,
+    ConnectorSurface, ConnectorSurfaceCommand, RequestContext,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -260,6 +260,70 @@ fn surface_normalization_only_accepts_matching_typed_arguments() {
         normalize_surface_connector_arguments(ConnectorSurface::Mcp, "connector.health", &unknown)
             .unwrap_err(),
         "connector_protocol_decode_failed"
+    );
+}
+
+#[test]
+fn manage_and_invoke_commands_are_validated_and_share_the_surface_encoding() {
+    // invoke: binding/operation/payload/idempotency are required and manage-only fields fail.
+    let mut invoke = ConnectorCommandRequest::new(ConnectorCommand::Invoke);
+    assert_eq!(
+        invoke.validate().unwrap_err(),
+        "connector_invoke_fields_invalid"
+    );
+    invoke.binding_id = Some("binding-demo".to_owned());
+    invoke.operation = Some("lookup".to_owned());
+    invoke.payload = Some(json!({"id": "one"}));
+    invoke.idempotency_key = Some("key-1".to_owned());
+    let encoded = ConnectorSurfaceCommand::encode(ConnectorSurface::Web, &invoke).unwrap();
+    assert_eq!(encoded.route, "connector.invoke");
+    let normalized = normalize_connector_intent(
+        ConnectorCommand::Invoke.wire_name(),
+        encoded.arguments,
+        &trusted_context(),
+    )
+    .unwrap();
+    assert_eq!(normalized.route, "connector.invoke");
+
+    // manage list: read-only action, mutation fields are refused.
+    let mut list = ConnectorCommandRequest::new(ConnectorCommand::Manage);
+    assert_eq!(list.validate().unwrap_err(), "connector_action_required");
+    list.action = Some(ConnectorManageAction::List);
+    list.reason = Some("operator evidence".to_owned());
+    assert_eq!(
+        list.validate().unwrap_err(),
+        "connector_manage_list_mutation_fields"
+    );
+    list.reason = None;
+    let encoded = ConnectorSurfaceCommand::encode(ConnectorSurface::Cli, &list).unwrap();
+    let normalized = normalize_connector_intent(
+        ConnectorCommand::Manage.wire_name(),
+        encoded.arguments,
+        &trusted_context(),
+    )
+    .unwrap();
+    assert_eq!(normalized.route, "connector.manage");
+
+    // bind and revoke require their exact field sets; neither accepts the other's fields.
+    let mut bind = ConnectorCommandRequest::new(ConnectorCommand::Manage);
+    bind.action = Some(ConnectorManageAction::Bind);
+    bind.expected_registry_version = Some(1);
+    bind.reason = Some("operator evidence".to_owned());
+    bind.idempotency_key = Some("key-2".to_owned());
+    assert_eq!(
+        bind.validate().unwrap_err(),
+        "connector_bind_fields_required"
+    );
+    let mut revoke = ConnectorCommandRequest::new(ConnectorCommand::Manage);
+    revoke.action = Some(ConnectorManageAction::Revoke);
+    revoke.binding_id = Some("binding-demo".to_owned());
+    revoke.expected_registry_version = Some(1);
+    revoke.reason = Some("operator evidence".to_owned());
+    revoke.idempotency_key = Some("key-3".to_owned());
+    revoke.definition = Some(forged_binding_snapshot().definition);
+    assert_eq!(
+        revoke.validate().unwrap_err(),
+        "connector_revoke_fields_required"
     );
 }
 

@@ -52,7 +52,9 @@ Fixtures (deny first):
 - `kiana-domain/tests/int14_connector_protocol.rs`: `surface_commands_share_one_surface_independent_encoding`,
   `surface_encoding_refuses_forged_authority_before_any_wire_use` (actor/role/risk/endpoint/
   `binding_snapshot` × four surfaces), `surface_command_validation_pins_route_wire_name_and_arguments`,
-  `surface_normalization_only_accepts_matching_typed_arguments`.
+  `surface_normalization_only_accepts_matching_typed_arguments`,
+  `manage_and_invoke_commands_are_validated_and_share_the_surface_encoding` (invoke/manage
+  list/bind/revoke field-set refusals plus valid encodings that normalize to the public route).
 - `kiana-entrypoints/tests/int14_connector_surfaces.rs`: `every_surface_gets_the_same_normalized_health_intent`,
   `generic_surface_paths_reencode_typed_arguments_to_the_same_shape`,
   `reconcile_keeps_the_public_name_but_enters_the_existing_manage_route`,
