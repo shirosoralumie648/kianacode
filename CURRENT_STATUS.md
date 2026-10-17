@@ -1,5 +1,21 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 OA-02 typed correlation bridge（CI-only 口径）
+
+```text
+source_snapshot: 分支 step/oa-02-20261017-1（基于 master 0680c38e4256）；改动仅限本 Step 相关文件——kiana-domain/src/correlation.rs（+CorrelationStage/CorrelationStageEntry/CorrelationTrail/CorrelationRecovery）、kiana-domain/tests/oa02_correlation.rs、kiana-ports/src/lib.rs（+CorrelationTrailPort/DomainCorrelationTrailPort）、kiana-ports/tests/oa02_correlation_port.rs、kiana-daemon/src/lib.rs（+build_ingress_correlation_trail）、kiana-daemon/tests/ci04_ingress.rs、kiana-core/tests/er02_identity_guard.rs、.github/workflows/oa02-correlation.yml、docs/roadmap.md（行 093 与 §3）；提交哈希 待本提交
+worktree_status: OA-02 row 093 由 🔄 提升 ✅（CI pending）/ feature_status=implemented（source 层）；无 manifest/lockfile/package.json 变化，无第二条执行循环，五个模型工具面不变，未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与纯静态脚本 bash scripts/ci/validate-doc-references.sh（732 documents，通过）
+cwd·environment: 仓库根 /workspace/kianacode-worktrees/OA-02；CI 为 GitHub Actions ubuntu-latest（oa02-correlation workflow=workflow_dispatch-only，按调度器触发；回执未等待）
+fixture·cassette: domain `oa02_correlation` 新增 4 个：ingress→run→turn→invocation→provider→broker→eventlog 全链单 trace/identity/scope/command 绑定与 parent 链、乱序/跳级/终止后推进拒绝（correlation_trail_stage_order/terminal）、from_entries 伪造根/stage 顺序/actor/trace/parent 漂移拒绝（correlation_trail_ingress_required/_ingress_parent_forbidden/_stage_order/_identity_drift/_trace_drift/_parent_link）、异步恢复 link+新 span（parent 拒绝、run/turn/attempt/source_cursor 清空、同 trace 新 span、trail 重根可再绑 run）；ports `oa02_correlation_port` 新增 1 个：经 CorrelationTrailPort 走全链 + 乱序拒绝 + async_recovery link+新 span（错误码带 `correlation_trail:` 前缀）；daemon `ci04_ingress` 新增 1 个：build_ingress_correlation_trail 从已认证 ingress 起 trail、ForeignParent link 保留、全链 source_cursor 落账、恢复采 link+新 span；core `er02_identity_guard` 增加 bridge marker 固定（CorrelationStage/Trail/Recovery 与新拒绝码、ports trait、daemon ingress 入口）
+exit_code: 本地未运行（用户指示 CI-only）；CI 回执未等待
+status_change: OA-02 typed bridge 从 domain 单点 context 升级为贯穿执行脊柱的 typed trail + port + daemon ingress 入口；inspect→成功列在源码层有树内证据
+proof-level_change: 维持 source；无 local_behavior/durable/live/physical 提升（本地未运行、CI 未回执）
+limitations: 运行时逐阶段 span 落账与 Run/Turn/Invocation 生命周期属 OA-07，EventLog/exporter 接线属 OA-06/OA-14；trail 目前是进程内 builder，尚未持久化/跨进程传输；Provider/Broker 阶段仅建模 span 派生，未在真实 provider/Broker 路径盖 trace 到事件载荷；未证明 durable 或 live；CI 回执未等待
+reviewer: root integration agent；基于 OA-02 卡片逐条静态核对（先拒绝/成功列 + core guard）
+```
+
+
 ### 2026-10-16/17 第二波 step 切片（P0-A-01b/EQ-11 翻 ✅；ER-13/BQ-07/AUT-07/EXT-25/DEP-03 切片）
 
 ```text
