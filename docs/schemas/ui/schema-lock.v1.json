@@ -19,7 +19,26 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-action-result.v1.json",
       "unknown_field_example": "examples/kiana.ui-action-result.v1.unknown-field.json",
-      "schema_sha256": "sha256:1197ec87ceb8fb88651a5e4bcd53fc6f2b91ea034a042ec6b0001c67bb5ef0ba"
+      "schema_sha256": "sha256:1197ec87ceb8fb88651a5e4bcd53fc6f2b91ea034a042ec6b0001c67bb5ef0ba",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "command_id",
+          "disposition",
+          "retry",
+          "schema"
+        ],
+        "properties": {
+          "command_id": "string",
+          "disposition": "any",
+          "error": "null|object",
+          "receipt": "null|object",
+          "resulting_cursor": "null|object",
+          "resulting_revision": "integer|null",
+          "retry": "#/$defs/retry",
+          "schema": "const"
+        }
+      }
     },
     {
       "id": "kiana.ui-action.v1",
@@ -33,7 +52,34 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-action.v1.json",
       "unknown_field_example": "examples/kiana.ui-action.v1.unknown-field.json",
-      "schema_sha256": "sha256:8e99883eabfb482c915f4e4d4cb64bb7ce910bfb945df727f79f5095b5bf37a7"
+      "schema_sha256": "sha256:8e99883eabfb482c915f4e4d4cb64bb7ce910bfb945df727f79f5095b5bf37a7",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "command_id",
+          "expected_cursor",
+          "expected_epoch",
+          "idempotency_key",
+          "payload",
+          "payload_digest",
+          "schema",
+          "submitted_by",
+          "target_id"
+        ],
+        "properties": {
+          "command_id": "string",
+          "deadline_unix_ms": "integer|null",
+          "expected_cursor": "integer",
+          "expected_epoch": "string",
+          "expected_revision": "integer|null",
+          "idempotency_key": "string",
+          "payload": "any",
+          "payload_digest": "#/$defs/digest",
+          "schema": "const",
+          "submitted_by": "string",
+          "target_id": "string"
+        }
+      }
     },
     {
       "id": "kiana.ui-entity-store-snapshot.v1",
@@ -47,7 +93,36 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-entity-store-snapshot.v1.json",
       "unknown_field_example": "examples/kiana.ui-entity-store-snapshot.v1.unknown-field.json",
-      "schema_sha256": "sha256:61fdfd1470922363df3d4dca11481498d451bbbd7d5ea9f488b3013babdcc141"
+      "schema_sha256": "sha256:61fdfd1470922363df3d4dca11481498d451bbbd7d5ea9f488b3013babdcc141",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "entities",
+          "epoch",
+          "feed_sequence",
+          "max_entities",
+          "needs_snapshot",
+          "optimistic",
+          "schema",
+          "scope",
+          "seen_event_ids",
+          "snapshot_digest",
+          "unknown_commands"
+        ],
+        "properties": {
+          "entities": "array<#/$defs/entity>",
+          "epoch": "string",
+          "feed_sequence": "integer",
+          "max_entities": "integer",
+          "needs_snapshot": "boolean",
+          "optimistic": "array<#/$defs/optimistic>",
+          "schema": "const",
+          "scope": "#/$defs/scope",
+          "seen_event_ids": "array<string>",
+          "snapshot_digest": "#/$defs/digest",
+          "unknown_commands": "array<string>"
+        }
+      }
     },
     {
       "id": "kiana.ui-feed-frame.v1",
@@ -61,7 +136,28 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-feed-frame.v1.json",
       "unknown_field_example": "examples/kiana.ui-feed-frame.v1.unknown-field.json",
-      "schema_sha256": "sha256:de89a2ca0902ff6dce8806e096268bf55eed187e51dc960849066c9421271f37"
+      "schema_sha256": "sha256:de89a2ca0902ff6dce8806e096268bf55eed187e51dc960849066c9421271f37",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "cursor",
+          "event_id",
+          "kind",
+          "replay",
+          "schema",
+          "terminal"
+        ],
+        "properties": {
+          "cursor": "#/$defs/feedCursor",
+          "event": "any",
+          "event_id": "string",
+          "gap": "null|object",
+          "kind": "any",
+          "replay": "boolean",
+          "schema": "const",
+          "terminal": "boolean"
+        }
+      }
     },
     {
       "id": "kiana.ui-handshake-request.v1",
@@ -75,7 +171,23 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-handshake-request.v1.json",
       "unknown_field_example": "examples/kiana.ui-handshake-request.v1.unknown-field.json",
-      "schema_sha256": "sha256:0613f5d012fe8326421dcf504088383ecb0a8f16d2731dbdfb487eaf69ca830d"
+      "schema_sha256": "sha256:0613f5d012fe8326421dcf504088383ecb0a8f16d2731dbdfb487eaf69ca830d",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "client_version",
+          "schema",
+          "surface"
+        ],
+        "properties": {
+          "client_version": "string",
+          "known_authority_epoch": "integer|null",
+          "known_instance_id": "null|string",
+          "requested_capabilities": "array<#/$defs/capabilityRequest>",
+          "schema": "const",
+          "surface": "any"
+        }
+      }
     },
     {
       "id": "kiana.ui-handshake-response.v1",
@@ -89,7 +201,27 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-handshake-response.v1.json",
       "unknown_field_example": "examples/kiana.ui-handshake-response.v1.unknown-field.json",
-      "schema_sha256": "sha256:b5686c5c7e79b7ea98a1b3268dfab738eedf6e68e2d7b4f5ab0671088444aa91"
+      "schema_sha256": "sha256:b5686c5c7e79b7ea98a1b3268dfab738eedf6e68e2d7b4f5ab0671088444aa91",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "authority_epoch",
+          "capabilities",
+          "instance_id",
+          "schema",
+          "server_version",
+          "surface"
+        ],
+        "properties": {
+          "authority_epoch": "integer",
+          "capabilities": "array<#/$defs/capability>",
+          "instance_id": "string",
+          "limitations": "array<#/$defs/limitation>",
+          "schema": "const",
+          "server_version": "string",
+          "surface": "any"
+        }
+      }
     },
     {
       "id": "kiana.ui-snapshot.v1",
@@ -103,7 +235,43 @@
       "deprecated_fields": [],
       "valid_example": "examples/kiana.ui-snapshot.v1.json",
       "unknown_field_example": "examples/kiana.ui-snapshot.v1.unknown-field.json",
-      "schema_sha256": "sha256:36f5e3c5f122c09342396df3e2710146334c1789790e8336eb6daf3c9f1c0979"
+      "schema_sha256": "sha256:36f5e3c5f122c09342396df3e2710146334c1789790e8336eb6daf3c9f1c0979",
+      "frozen_shape": {
+        "deny_unknown_fields": true,
+        "required": [
+          "artifacts",
+          "authority_epoch",
+          "generated_at_unix_ms",
+          "instance_id",
+          "limitations",
+          "notices",
+          "pending_actions",
+          "principal",
+          "runs",
+          "schema",
+          "sessions",
+          "snapshot_cursor",
+          "workspace_id"
+        ],
+        "properties": {
+          "active_session_id": "null|string",
+          "artifacts": "array<object>",
+          "authority_epoch": "integer",
+          "capabilities": "array<object>",
+          "generated_at_unix_ms": "integer",
+          "instance_id": "string",
+          "limitations": "array<#/$defs/limitation>",
+          "next_page": "null|string",
+          "notices": "array<object>",
+          "pending_actions": "array<object>",
+          "principal": "object",
+          "runs": "array<#/$defs/run>",
+          "schema": "const",
+          "sessions": "array<#/$defs/session>",
+          "snapshot_cursor": "#/$defs/cursor",
+          "workspace_id": "string"
+        }
+      }
     }
   ]
 }

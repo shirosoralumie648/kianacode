@@ -3,7 +3,7 @@
   "$id": "kiana.ui-compatibility-matrix.v1",
   "schema": "kiana.ui-compatibility-matrix.v1",
   "version": "1.0",
-  "same_version_policy": "additive_only",
+  "same_version_policy": "frozen_shape",
   "unknown_major_policy": "reject_before_decode",
   "unknown_command_policy": "reject_with_schema_unsupported",
   "rules": [
@@ -68,22 +68,33 @@
     {
       "case_id": "remove_required_field",
       "change": "remove a required field without changing major",
-      "disposition": "reject_schema_change"
+      "disposition": "reject_schema_change",
+      "schema": "kiana.ui-action.v1",
+      "fixture": "negative/kiana.ui-action.v1.remove-required-field.json",
+      "expected_error": "missing required property 'payload_digest'"
     },
     {
       "case_id": "change_field_type",
       "change": "change a field type within the same major",
-      "disposition": "reject_schema_change"
+      "disposition": "reject_schema_change",
+      "schema": "kiana.ui-action.v1",
+      "fixture": "negative/kiana.ui-action.v1.change-field-type.json",
+      "expected_error": "expected type integer"
     },
     {
       "case_id": "unknown_major",
       "change": "receive a schema major that is not in the lock",
-      "disposition": "reject_before_decode"
+      "disposition": "reject_before_decode",
+      "schema": "kiana.ui-action.v1",
+      "fixture": "negative/kiana.ui-action.v1.unknown-major.json",
+      "expected_error": "expected const"
     },
     {
       "case_id": "unknown_command",
       "change": "receive a command name that is not in the negotiated catalog",
-      "disposition": "reject_with_schema_unsupported"
+      "disposition": "reject_with_schema_unsupported",
+      "enforced_by": "kiana-client/tests/ui09_schema_round_trip.rs",
+      "enforced_by_test": "ui09_version_and_command_gates_fail_closed_before_decode"
     }
   ]
 }

@@ -58,7 +58,10 @@ pub const UI_SCHEMA_CONTRACTS: &[UiSchemaContract] = &[
 ];
 
 pub fn schema_contract(id: &str) -> Option<&'static UiSchemaContract> {
-    UI_SCHEMA_CONTRACTS
-        .iter()
-        .find(|contract| contract.id == id)
+    for contract in UI_SCHEMA_CONTRACTS {
+        if contract.id == id {
+            return Some(contract);
+        }
+    }
+    None
 }
