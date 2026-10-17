@@ -177,6 +177,9 @@ pub enum TelemetryRuntimeRefusal {
     SeriesLimit,
     /// The point did not validate against the catalog.
     PointInvalid,
+    /// The guard's catalog does not register the metric it was asked to publish, so the refusal
+    /// names the missing registration rather than re-reporting it as an invalid point.
+    CatalogMissing(String),
 }
 
 impl TelemetryRuntimeRefusal {
@@ -189,6 +192,9 @@ impl TelemetryRuntimeRefusal {
             }
             MetricCardinalityError::SeriesLimit => Self::SeriesLimit,
             MetricCardinalityError::PointInvalid(_) => Self::PointInvalid,
+            MetricCardinalityError::CatalogMissing(metric) => {
+                Self::CatalogMissing((*metric).to_owned())
+            }
         }
     }
 
@@ -199,6 +205,7 @@ impl TelemetryRuntimeRefusal {
             Self::LabelValueInvalid(_) => "telemetry_sink_runtime_label_value_invalid",
             Self::SeriesLimit => "telemetry_sink_runtime_series_limit",
             Self::PointInvalid => "telemetry_sink_runtime_point_invalid",
+            Self::CatalogMissing(_) => "telemetry_sink_runtime_catalog_missing",
         }
     }
 }

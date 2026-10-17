@@ -44,3 +44,40 @@ CI-07's mutable in-process lease object only demonstrates same-object repeated-c
 rejection; it does not prove durable or cross-process replay prevention. Workspace format checks on
 the pre-CM-36 source base were blocked by its missing `memory_workbench.rs`; the current integration
 base includes the CM-36 fix. This workflow's test results remain pending until it runs on GitHub.
+
+## 2026-10-17 completion slice (CI-only)
+
+Adds the Broker-side one-shot fence the earlier slice was missing and closes the four-channel
+(Core/Runner/Event/UI) denial evidence.
+
+- `kiana-capability-broker/src/lib.rs`: `ConnectorCredentialLeaseFence` — a server-owned ledger of
+  `lease_id` → `lease_digest` only. `consume()` refuses a lease identity already admitted
+  (`credential_lease_replayed`, denied copy untouched), otherwise delegates to
+  `consume_connector_credential_invocation` so every binding/operation/idempotency/effect-target/
+  purpose/audience/expiry check still runs before the single admission is recorded.
+- `kiana-daemon/src/connectors.rs`: `ConnectorRegistry` owns
+  `credential_fence: std::sync::Mutex<ConnectorCredentialLeaseFence>` and consumes through
+  `fence.consume(...)` at the adapter effect boundary (the lock is released before the adapter
+  call). The daemon no longer calls the bare helper, so a clone cannot be admitted twice.
+- New deny fixtures: Broker `fence_admits_one_lease_identity_and_refuses_every_clone`,
+  `fence_refuses_a_deserialized_replay_of_one_lease`,
+  `fence_refuses_a_recomputed_digest_forgery_of_one_lease`; domain
+  `consumed_invocation_cannot_be_replayed_after_serialization`,
+  `event_projection_keeps_digests_and_ref_metadata_only` (evidence field set fixed at 13
+  digest/ref-metadata keys, event payload free of `key`/`store`/`secret_value`/`credential_ref`);
+  Runner `kiana-runner/tests/int06_connector_credential_guard.rs`
+  (`runner_mapping_drops_model_supplied_credential_fields`,
+  `runner_tool_surface_declares_no_credential_parameter`,
+  `runner_sources_never_resolve_connector_credentials`).
+- `kiana-core/tests/int06_connector_credential_guard.rs` now requires the daemon to go through
+  `ConnectorCredentialLeaseFence`/`fence.consume(` and forbids the bare
+  `consume_connector_credential_invocation(` call there.
+- CI wiring: manual `.github/workflows/int06-connector-credential.yml` (CI-07 lease fixtures plus
+  the four INT-06 targets, fmt gate, `--no-run` compile steps). Automatic coverage stays with
+  `ci.yml`: `kiana-domain-s3/4`, `kiana-core-s4/6`, and the whole-crate `kiana-capability-broker`
+  and `kiana-runner` shards.
+
+Limitations: the fence is in-process metadata, so it does not survive a daemon restart, does not
+prove cross-process replay prevention, and does not constitute durable/live evidence; effect-time
+secret resolution and real connector transports remain deferred to INT-07/INT-11. Local tests were
+not run in this session; GitHub Actions is the test authority and no receipt has been awaited.

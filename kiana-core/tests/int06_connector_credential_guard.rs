@@ -56,8 +56,15 @@ fn invocation_rejects_credential_overrides_and_bind_is_operator_validated() {
     assert!(broker.contains("consume_connector_credential_invocation"));
     let broker_flat: String = broker.split_whitespace().collect();
     assert!(broker_flat.contains("invocation.consume_for("));
+    assert!(broker.contains("ConnectorCredentialLeaseFence"));
+    assert!(broker.contains("credential_lease_replayed"));
     assert!(daemon.contains("ConnectorCredentialInvocation::issue"));
-    assert!(daemon.contains("consume_connector_credential_invocation"));
+    // The daemon may not consume a lease through the bare helper: the server-owned one-shot
+    // fence must admit each issued lease identity exactly once, even for cloned envelopes.
+    assert!(daemon.contains("ConnectorCredentialLeaseFence"));
+    assert!(daemon.contains("credential_fence: std::sync::Mutex<ConnectorCredentialLeaseFence>"));
+    assert!(daemon.contains("fence.consume("));
+    assert!(!daemon.contains("consume_connector_credential_invocation("));
     assert!(daemon.contains("credential_evidence"));
     assert!(daemon.contains("if let Some(secret_ref) = &snapshot.binding.credential_ref"));
     assert!(domain.contains("#[serde(deny_unknown_fields)]"));

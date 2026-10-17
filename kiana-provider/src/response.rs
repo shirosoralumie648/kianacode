@@ -3176,4 +3176,71 @@ mod tests {
         assert_eq!(reply.output.tool_calls.len(), 1);
         assert!(reply.output.structured.is_none());
     }
+
+    /// A refusal is a refusal, not an empty structured answer: the decoder must not reach the
+    /// "empty output" branch and must not schedule any format repair.
+    #[test]
+    fn refusal_is_not_an_empty_structured_success() {
+        let prepared = structured_prepared(ModelResponseFormat::JsonObject);
+        let error = decode(
+            serde_json::json!({
+                "choices":[{"index":0,"message":{"role":"assistant","refusal":"cannot comply"},"finish_reason":"stop"}]
+            }),
+            &prepared,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "model_refused");
+        assert_ne!(error.code, "model_structured_output_empty");
+        assert_eq!(
+            error.recovery_disposition,
+            ModelRecoveryDisposition::Terminal,
+            "a refusal is not a format repair request"
+        );
+        assert_eq!(error.retry_class, ModelRetryClass::Never);
+        assert!(error.request_sent);
+        assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+    }
+
+    /// Truncated JSON is reported as truncation and is never silently completed. The only JSON
+    /// parser in the provider returns a typed repair error for the partial text, so a caller that
+    /// wants a valid object has to ask the Harness for an explicit budgeted `OutputRepair` call.
+    #[test]
+    fn truncated_json_is_never_repaired_silently() {
+        let schema_format = ModelResponseFormat::JsonSchema {
+            name: "answer".to_owned(),
+            schema: serde_json::json!({
+                "type":"object",
+                "properties":{"answer":{"type":"string"}},
+                "required":["answer"]
+            }),
+        };
+        let prepared = structured_prepared(schema_format.clone());
+        let partial = "{\"answer\":\"trunc";
+        let error = decode(
+            serde_json::json!({
+                "choices":[{"index":0,"message":{"role":"assistant","content":partial},"finish_reason":"length"}]
+            }),
+            &prepared,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "model_output_truncated");
+        assert_ne!(
+            error.recovery_disposition,
+            ModelRecoveryDisposition::FormatRepair
+        );
+        assert_eq!(error.retry_class, ModelRetryClass::Never);
+
+        let parse_error =
+            crate::request::parse_structured_output(&schema_format, partial).unwrap_err();
+        assert_eq!(parse_error.code, "model_structured_output_invalid_json");
+        assert_eq!(
+            parse_error.recovery_disposition,
+            ModelRecoveryDisposition::FormatRepair,
+            "the only parser reports the partial text as unparseable instead of completing it"
+        );
+        assert!(
+            schema_format.validate().is_ok(),
+            "the requested schema metadata is valid; the failure is on the model output side"
+        );
+    }
 }

@@ -52,11 +52,11 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-daemon/src/harness_memory.rs",
-        "f0e9e6cba39d029b4d005408c68184b6d864765a3248063415e8c3308ddae34c",
+        "d92608513bc2562fefc5c1a00482c94511212449d885be08b9d93f2e64a3926f",
     ),
     (
         "kiana-daemon/src/memory_retrieval.rs",
-        "48bd7ae6184853b2e0def1a07cdc1f465640ab7a2e9c3eb068d8fd5cbb325a97",
+        "06dfbbab7f45cc94826279876e3d97a008fb42b00f154855e8bd2b0ff68a36f9",
     ),
     (
         "kiana-core/src/memory_proposals.rs",

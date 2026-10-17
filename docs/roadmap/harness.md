@@ -481,7 +481,9 @@ sequenceDiagram
 
 <a id="step-h21"></a>
 
-#### H21 — 真实请求预算与稳定缓存前缀　⏳
+#### H21 — 真实请求预算与稳定缓存前缀　✅
+
+当前 source slice 与 CI-only 证据见 [`h21-request-budget-baseline.md`](h21-request-budget-baseline.md)。
 
 **关联原单元**：`P1-J2-02`、`P1-K5-01`、`P4-L3-01`。**依赖**：H07、H20。
 
@@ -491,6 +493,7 @@ sequenceDiagram
 
 **先拒绝**：`huge_schema_or_system_prompt_exhausts_request_budget`、`cache_hit_cannot_bypass_data_revocation`。**再成功**：`context_fits_actual_wire_budget_and_preserves_stable_prefix`。
 **交付**：估算/实际 usage 差值、预算覆盖项和缓存失效原因；不预设节省比例。
+**行为证据（2026-10-17，CI-only）**：`kiana-runner/src/step_context.rs` 抽出两条共享入口——`decide_stable_prefix_reuse(previous, current)`（harness 与夹具共用同一决策：`StablePrefix::reuse_for` 先比较 authority/data epoch，权限收紧或数据删除优先拒绝，失败原因原样计入解释）与 `compile_wire_budget_with_accounting(prepared, accounting)`（输出预留与输出 cap 始终取自同一份有效 `TokenBudget` 的 `reserved_output`/`limit`；缺省仍是显式 `CONSERVATIVE_WIRE_ACCOUNTING`，精确计数只是可注入口径，不是默认声明）；`kiana-runner/tests/h21_request_budget_behavior.rs` 用真实 `KianaHarness` + 捕获型 fake provider 驱动三条卡片命名夹具——`h21_huge_schema_or_system_prompt_exhausts_request_budget`（约 86 KiB 产品段 + 只留 512 余量的适配器窗口 → `step_context_wire_budget:wire_budget_exceeded`，prepared 恰 1 次、被拒请求永不触达 provider）、`h21_cache_hit_cannot_bypass_data_revocation`（第二步适配器收窄工具面 → 目录摘要与 cache key 变化 → `stable_prefix_authority_revoked` 被记录为拒绝而非命中；另以两次真实编译只因 bundle 摘要变化证明 `stable_prefix_data_epoch_changed`；成功对照重编译 `reused=true`）、`h21_context_fits_actual_wire_budget_and_preserves_stable_prefix`（五段分项与 provider framing 恰好划分实际发送的 wire 体、七项覆盖契约、稳定段顺序与步骤间 cache key 稳定而 `dynamic_suffix_digest` 随历史变化、第二步 `reused=true`、工具顺序等于固定目录、usage 缺失=`Unknown`/回报后逐项等于 `actual - estimated`、`ExactTokenizer` 重建同一冻结请求并拒绝超限计数）；`kiana-domain/tests/h21_request_budget.rs` 增 CJK/代码/emoji 估计公式、长 schema 超限与放行、精确计数/坏摘要/零计数 fail-closed、覆盖项与预算摘要稳定性、`cache_hit_cannot_bypass_data_epoch_revocation`（先数据后权限）、稳定段排序/重名拒绝与固定工具顺序被目录指纹覆盖；`kiana-runner/tests/h21_budget_prefix_guard.rs` 扩 marker 并新增 `h21_behaviour_fixtures_are_wired_into_the_diagnostic_lane`（夹具名绑定行为文件/baseline/workflow，先拒绝序、按名 `--exact`、`--no-run`、禁 `#[ignore]`）；`.github/workflows/h21-request-budget-diagnostic.yml` 重建为单 job（fmt、三个 target、逐夹具 `--exact` 与三个 `--no-run` 编译）。`ExactTokenizer` 只经 runner API 用夹具摘要验证，真实 provider tokenizer/计费回执、跨进程缓存持久化与 live/physical 仍开放（见 baseline）。
 
 <a id="step-h22"></a>
 

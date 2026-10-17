@@ -28,6 +28,8 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
         "remaining.saturating_sub(started.elapsed())",
         "cancellation.cancelled()",
         "guard.reserve_prepared(&prepared)",
+        "attempt_reservation.mark_unknown(measured)?",
+        "\"retry_reservation\":retry_reservation",
     ] {
         assert!(
             runner.contains(marker),
@@ -59,7 +61,14 @@ fn p4_j7_23_keeps_retry_single_layer_deadline_and_unknown_effect_boundaries() {
         "oversized_retry_after_does_not_retry_early",
         "observed_delta_prevents_retry_even_for_retryable_rejection",
         "provider_retries_do_not_consume_the_separate_repair_budget",
+        "cancel_during_model_admission_wait_prevents_dispatch",
+        "each_retry_is_admitted_again_with_a_fresh_permit",
+        "attempt_reservations_settle_or_mark_unknown_and_never_dangle",
+        "cancel_while_the_model_turn_is_pending_emits_one_terminal_state",
+        "cancel_racing_with_model_completion_keeps_one_terminal_state_per_observer",
         "cancelling_mid_stream_never_completes_or_emits_a_late_delta",
+        "cargo fmt --all --check",
+        "cargo fetch --locked",
         "SDK implicit retries are disabled",
         "cargo test -p kiana-runner --test p4_j7_23_retry",
     ] {

@@ -7,25 +7,37 @@ permissions:
   contents: read
 
 jobs:
-  focused-tests:
-    name: H21 ${{ matrix.name }}
+  request-budget:
+    name: H21 request budget and stable prefix fixtures
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: domain-request-budget
-            package: kiana-domain
-            target: h21_request_budget
-          - name: runner-budget-prefix-guard
-            package: kiana-runner
-            target: h21_budget_prefix_guard
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
-      - name: Run focused H21 target
-        run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1
+      - name: Check formatting
+        run: cargo fmt -p kiana-domain -p kiana-runner --check
+      - name: Run domain request budget fixtures
+        run: cargo test -p kiana-domain --test h21_request_budget --locked -- --test-threads=1
+      - name: Run runner budget and prefix guard
+        run: cargo test -p kiana-runner --test h21_budget_prefix_guard --locked -- --test-threads=1
+      - name: Run runner request budget behavior fixtures
+        run: cargo test -p kiana-runner --test h21_request_budget_behavior --locked -- --test-threads=1
+      - name: Run named H21 behavior fixtures
+        run: |
+          for fixture in \
+            h21_huge_schema_or_system_prompt_exhausts_request_budget \
+            h21_cache_hit_cannot_bypass_data_revocation \
+            h21_context_fits_actual_wire_budget_and_preserves_stable_prefix; do
+            cargo test -p kiana-runner --test h21_request_budget_behavior "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Compile domain request budget target
+        run: cargo test -p kiana-domain --test h21_request_budget --no-run --locked
+      - name: Compile runner budget and prefix guard target
+        run: cargo test -p kiana-runner --test h21_budget_prefix_guard --no-run --locked
+      - name: Compile runner request budget behavior target
+        run: cargo test -p kiana-runner --test h21_request_budget_behavior --no-run --locked

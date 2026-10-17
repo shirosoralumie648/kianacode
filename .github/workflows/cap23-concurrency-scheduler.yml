@@ -28,9 +28,9 @@ jobs:
       - name: Run CAP-23 source guard
         run: cargo test -p kiana-core --test cap23_concurrency_scheduler_guard --locked -- --test-threads=1
       - name: Run CAP-23 admission scheduler fixtures
-        run: cargo test -p kiana-core --lib capability_scheduler::tests:: --locked -- --test-threads=1
+        run: 'cargo test -p kiana-core --lib capability_scheduler::tests:: --locked -- --test-threads=1'
       - name: Run CAP-23 Cell budget fixtures
-        run: cargo test -p kiana-core --lib cell_registry::tests:: --locked -- --test-threads=1
+        run: 'cargo test -p kiana-core --lib cell_registry::tests:: --locked -- --test-threads=1'
       - name: Run CAP-23 deny-first fixtures individually
         run: |
           for fixture in \

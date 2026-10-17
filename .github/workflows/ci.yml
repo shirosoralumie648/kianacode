@@ -239,6 +239,6 @@ jobs:
       - name: Fetch locked dependencies
         run: cargo fetch --locked
       - name: Run CAP-23 admission scheduler fixtures
-        run: cargo test -p kiana-core --lib capability_scheduler::tests:: --locked -- --test-threads=1
+        run: 'cargo test -p kiana-core --lib capability_scheduler::tests:: --locked -- --test-threads=1'
       - name: Run CAP-23 Cell budget fixtures
-        run: cargo test -p kiana-core --lib cell_registry::tests:: --locked -- --test-threads=1
+        run: 'cargo test -p kiana-core --lib cell_registry::tests:: --locked -- --test-threads=1'

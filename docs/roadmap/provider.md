@@ -70,8 +70,8 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | 🔄 |
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | ✅ |
 | `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | ✅ |
-| `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | 🔄 |
-| `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | 🔄 |
+| `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | ✅ |
+| `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | ✅ |
 | `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | 🔄 |
 | `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
@@ -327,7 +327,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-21 结构化输出的请求与验收　🔄
+#### P4-J7-21 结构化输出的请求与验收　✅
 
 - **依赖**：`P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`。
 - **改动位置**：domain response format、provider/request、各 codec；runner 消费结构化结果的边界。
@@ -335,31 +335,31 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **先拒绝**：`unsupported_response_schema_fails_before_send`、`refusal_is_not_an_empty_structured_success`、`truncated_json_is_never_repaired_silently`。
 - **再成功**：`structured_output_validates_against_requested_schema`、`structured_output_and_tools_have_distinct_contracts`。
 - **退出 / 证据**：Provider 无隐藏 JSON 修复循环；不修改既有业务 Artifact 验收规则；每种支持形式独立记矩阵。
-- **本次实现**：`ModelResponseFormat` 明确区分 text/JSON object/JSON schema；请求编译在发送前校验能力、协议子集、schema 名称和受支持关键字；完整终态后返回独立的 `ModelOutput.structured`，并把空、非法 JSON、schema 不匹配、拒绝和长度终止保持为不同错误。工具调用不会填充 structured 字段；Harness 暴露显式 `OutputRepair` 调用入口，不在 Provider 内部重试修复。
-- **拒绝与回归 fixture**：`structured_output_validates_and_is_exposed_separately`、`refusal_length_empty_and_invalid_json_are_distinct`、`structured_output_and_tool_calls_are_distinct`、`response_format_metadata_rejects_empty_schema_names`、`structured_parser_has_no_implicit_repair_path` 与 Core source guard；专属 workflow 在 GitHub 执行 provider fixtures 和 guard。
-- **CI / 状态**：源码和 GitHub workflow 已加入，保持 🔄，proof 上限 `source`；本地未运行测试/build/check/clippy/smoke，CI 结果未等待。
+- **本次实现**：`ModelResponseFormat` 明确区分 text/JSON object/JSON schema；请求编译在发送前校验能力、协议子集、schema 名称和受支持关键字；完整终态后返回独立的 `ModelOutput.structured`，并把空、非法 JSON、schema 不匹配、拒绝和长度终止保持为不同错误。工具调用不会填充 structured 字段；Harness 暴露显式 `OutputRepair` 调用入口，不在 Provider 内部重试修复。完成切片把响应形式抽成 `apply_response_format(body, protocol, format)`，为每种支持形式逐协议记录 wire 矩阵并保持 `text` 为逐字节 no-op。
+- **拒绝与回归 fixture**：先拒绝 `unsupported_response_schema_fails_before_send`（真实 `ProviderGateway::prepare_call`：未声明结构化能力或协议不可表达该形式时发送前拒绝，零 socket，同连接 `text` 仍可用）、`unsupported_structured_format_is_rejected_before_encoding`（Legacy 与 Anthropic json_object 稳定码、无半成品 body）、`refusal_is_not_an_empty_structured_success`（refusal 不是空的 structured 成功）、`truncated_json_is_never_repaired_silently`（length 截断不是格式修复，唯一解析器不补全）；再成功 `structured_output_and_tools_have_distinct_contracts`（schema 与 tool catalog 在四种协议各自独立落地）、`structured_response_format_wire_matrix_is_recorded_per_protocol`（逐形式独立记矩阵，`text` no-op）；保留 `structured_output_validates_and_is_exposed_separately`、`refusal_length_empty_and_invalid_json_are_distinct`、`structured_output_and_tool_calls_are_distinct`、`response_format_metadata_rejects_empty_schema_names`、`structured_parser_has_no_implicit_repair_path` 与 Core source guard；专属 workflow 在 GitHub 执行 fmt、provider lib 与 `p4_j7_21_structured_output` fixture、Core guard。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖，`docs/roadmap.md` §1.1 行 398 记 ✅（CI pending）；自动 lane 是统一 `ci.yml` 的 `kiana-provider` 整 crate 分片（自动涵盖 `p4_j7_21_structured_output`）与 `kiana-core-s5/6`（列出 `p4_j7_21_structured_output_guard`），专属 `.github/workflows/p4-j7-21-structured-output.yml`（按 2026-09-27 收敛规则只保留 `workflow_dispatch`）跑 `cargo fetch --locked`、`cargo fmt --all --check`、provider lib 夹具与 Core guard。本地未运行测试/build/check/clippy/smoke，CI 回执未等待，proof 上限 `source`；未证明 live provider/schema 兼容性与自动修复行为。
 
 <a id="step-p4-j7-22"></a>
 
 
 
-#### P4-J7-22 图片输入与敏感数据出站准入　🔄
+#### P4-J7-22 图片输入与敏感数据出站准入　✅
 
 - **依赖**：`P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25`。
-- **改动位置**：domain `ImageInputAdmission`/Artifact 引用、provider modality 编码/预算、ProviderGateway 显式准入入口；daemon/用户附件 DTO 仍只通过受控 admission 交接。
+- **改动位置**：domain `ImageInputAdmission`/Artifact 引用、provider modality 编码/预算与按引用消息落点注入、ProviderGateway 显式准入入口；daemon/用户附件 DTO 仍只通过受控 admission 交接（旧 daemon 边界对 `AttachmentRef` 直接拒绝）。
 - **步骤**：① 从用户已选定或已授权的 Artifact 取得数据，复用路径和 ProcessingGrant；② 校验 MIME、尺寸、字节数、hash、保留期与所选连接数据范围；③ 按协议编码图片，计算真实编码后体积和上下文预算；④ tool 返回图片复用同一通道；⑤ 对未实现的文档上传/URL抓取/音视频给出准确的 unsupported。
 - **先拒绝**：`untrusted_image_path_never_reaches_provider`、`revoked_artifact_grant_blocks_send`、`image_payload_limit_applies_after_encoding`、`remote_image_url_is_not_fetched_implicitly`。
 - **再成功**：`authorized_image_input_reaches_vision_capable_provider`、`image_hash_matches_admitted_payload`。
 - **退出 / 证据**：Provider 不持有任意文件读取能力；图片输入验证不扩张为生成、上传或远端文件生命周期已实现。
-- **本次实现**：新增不可序列化的 `ImageInputAdmission`，将 `ArtifactRef`、`ProcessingGrant`、策略 digest/revision、data epoch、purpose/data-class scope、route 和 image capability 绑定到已读 bytes；普通 `AttachmentRef` 没有 admission 时在发送前拒绝。`ProviderGateway::prepare_call_with_images` 仅接受该 admission，按 Anthropic/OpenAI Chat/OpenAI Responses/Ollama/Gemini 的图片块协议编码，base64 后重新校验编码体积和最终 body 预算。
-- **拒绝与回归 fixture**：`untrusted_image_path_never_reaches_provider`、`revoked_artifact_grant_blocks_send`、`image_payload_limit_applies_after_encoding`、`remote_image_url_is_not_fetched_implicitly`、`authorized_image_input_reaches_vision_capable_provider`、`image_hash_matches_admitted_payload`；Core source guard 固定 provider 无文件读取/URL 抓取边界，专属 workflow 在 GitHub 执行。
-- **CI / 状态**：源码、domain/provider fixtures、Core guard、GitHub workflow、baseline 与状态账本已加入，保持 🔄，proof 上限 `source`；本地未运行测试/build/check/clippy/smoke，CI 结果未等待。
+- **本次实现**：新增不可序列化的 `ImageInputAdmission`，将 `ArtifactRef`、`ProcessingGrant`、策略 digest/revision、data epoch、purpose/data-class scope、route 和 image capability 绑定到已读 bytes；普通 `AttachmentRef` 没有 admission 时在发送前拒绝。`ProviderGateway::prepare_call_with_images` 仅接受该 admission，按 Anthropic/OpenAI Chat/OpenAI Responses/Ollama/Gemini 的图片块协议编码，base64 后重新校验编码体积和最终 body 预算。完成切片：图片按引用它的消息落点注入（user 轮按 ordinal 对齐，tool 轮仅 Anthropic `tool_result.content` 有形状，其它协议 `image_tool_result_protocol_unsupported`；非 user/tool 角色 `image_attachment_role_unsupported`）；保留期在 dispatch 时刻用真实墙钟校验；重复的 AttachmentRef admission 检查收敛到 `validate_image_admissions` 单一入口。
+- **拒绝与回归 fixture**：`untrusted_image_path_never_reaches_provider`、`revoked_artifact_grant_blocks_send`、`image_payload_limit_applies_after_encoding`、`remote_image_url_is_not_fetched_implicitly`、`authorized_image_input_reaches_vision_capable_provider`、`image_hash_matches_admitted_payload`；新增 provider 端到端夹具 `untrusted_attachment_without_admission_never_reaches_provider`、`untrusted_image_path_and_remote_url_never_reach_provider`、`image_hash_matches_admitted_payload_after_encoding`、`retention_expiry_is_checked_at_dispatch_time`、`admission_bound_to_another_route_cannot_be_replayed`、`non_vision_route_rejects_attachment_before_send`、`unreferenced_and_oversized_admission_lists_stay_before_send`、`document_audio_and_video_inputs_are_explicitly_unsupported`、`tool_result_image_reaches_anthropic_tool_result`、`tool_result_image_is_rejected_without_a_protocol_tool_image_shape`；Core source guard 固定 provider 无文件读取/URL 抓取边界与 dispatch 墙钟（`transport::unix_ms`），专属 workflow 在 GitHub 执行。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖，`docs/roadmap.md` §1.1 行 399 记 ✅（CI pending）；自动 lane 是统一 `ci.yml` 的 `kiana-provider` 整 crate 分片（自动发现新 e2e target）与 `kiana-core-s5/6`（`p4_j7_22_image_admission_guard`）、`kiana-domain-s3/4`（`p4_j7_22_image_admission`），专属 `.github/workflows/p4-j7-22-image-admission.yml`（2026-09-27 收敛后仅 `workflow_dispatch`）跑 fmt、workspace test-target compile、domain/provider lib/provider e2e fixture 与 Core guard。本地未运行测试/build/check/clippy/smoke，CI 回执未等待，proof 上限 `source`；未证明 live provider、文档上传、远端 URL 抓取、音视频或图片生成。
 
 <a id="step-p4-j7-23"></a>
 
 
 
-#### P4-J7-23 单层重试、绝对时限和取消传递　🔄
+#### P4-J7-23 单层重试、绝对时限和取消传递　✅
 
 - **依赖**：`P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15`。
 - **改动位置**：provider/retry/gateway、ModelError、daemon admission、core/runner 取消及预算衔接。
@@ -368,7 +368,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`retryable_429_then_success_records_two_attempts`、`retry_after_http_date_uses_injected_clock`；保留已有 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`。
 - **退出 / 证据**：测试断言真实请求数、dispatch 数、终态数与资源释放；SDK 隐式重试为零；模型未知用量与工具 result_unknown 分开。
 
-- **已实现切片（CI 待跑、build 未验证）**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Transport retry 计入 attempt budget，不占用独立 repair budget。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。集成快照的 workspace 格式检查通过，但未运行测试或 build。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
+- **本次实现**：Runner 是唯一 retry driver，最多三次 attempt；HTTP 429/503 显式拒绝或 typed、pre-send 网络错误才可重试；任何 delta、unknown side effect、TLS/未知 connect failure、认证与其它 HTTP status 均不重发。Transport retry 计入 attempt budget，不占用独立 repair budget。Retry-After/date、bounded jitter、admission/transport/backoff 共用绝对 deadline；取消向 admission、attempt、backoff 传播；集成快照已含 provider SDK retry-disable 配置并由 guard 校验。
+- **拒绝与回归 fixture**：先拒绝 `cancel_during_retry_backoff_prevents_next_attempt`（退避中取消，第二次 dispatch 不发生）、`post_send_unknown_is_not_retried_automatically`（发送后未知只产生一次 dispatch、零终态成功）、`tls_failure_is_not_transient`（provider 单元夹具：TLS/未知 connect 失败不进入可重试集合）、`oversized_retry_after_does_not_retry_early`（Retry-After 超出绝对 deadline 时退出而不是提前重试）、`cancel_during_model_admission_wait_prevents_dispatch`（fake `ModelBudgetPort` 停在 admission 队列：取消后恰一个终态、零 dispatch、零 permit 消费/结算）、`observed_delta_prevents_retry_even_for_retryable_rejection` 与 `provider_503_rejection_does_not_retry_even_with_no_known_effect`（已见 delta 或非白名单 status 不重发）；再成功 `retryable_429_then_success_records_two_attempts`、`each_retry_is_admitted_again_with_a_fresh_permit`（每次 retry 重新 `reserve_prepared`/`consume_prepared`，admitted attempt id 与 dispatch attempt id 一一对应、lease digest 各不相同）、`provider_retries_do_not_consume_the_separate_repair_budget`、`attempt_reservations_settle_or_mark_unknown_and_never_dangle`（发送过的拒绝保守记 unknown、恢复尝试记 settled、`reserved_tokens` 归零、未报告用量按预留计费，模型侧 unknown 不派生工具结果）、`cancel_while_the_model_turn_is_pending_emits_one_terminal_state`、`cancel_racing_with_model_completion_keeps_one_terminal_state_per_observer`（start/cancel 竞争 8 次：每次观察恰一个终态、不同时 completed+cancelled、取消响应永不报完成）、`retry_after_http_date_uses_injected_clock`（注入时钟解析 HTTP 日期并作废过期日期）；保留 `cancelling_mid_stream_never_completes_or_emits_a_late_delta`（daemon 持久日志恰一个终态事件）。Core source guard 绑定 `MAX_PROVIDER_ATTEMPTS`、typed classifier、`attempt_reservation.mark_unknown(measured)?`、`retry_reservation` 元数据、SDK `retry(never)` 与全部夹具名。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖，`docs/roadmap.md` §1.1 行 400 记 ✅（CI pending）；专属 `.github/workflows/p4-j7-23-provider-retry.yml`（`workflow_dispatch`-only）跑 `cargo fetch --locked`、`cargo fmt --all --check`、provider lib 夹具、`kiana-runner --test p4_j7_23_retry`、retry classifier lib 夹具、daemon 流式取消回归与 Core guard；自动 lane 是统一 `ci.yml` 的 `kiana-provider`、`kiana-runner`（整 crate，自动涵盖新夹具）与 `kiana-core-s5/6`（列出 `p4_j7_23_provider_retry_guard`）。本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt --all`），CI 回执未等待，proof 上限 `source`；SDK 隐式重试只由源码配置守卫绑定，durable attempt journal、受保护 replay 计费与 live/physical provider 证据仍开放。测试与 proof 限制见 [baseline](p4-j7-23-provider-retry-baseline.md)。
 
 <a id="step-p4-j7-24"></a>
 
