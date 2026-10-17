@@ -77,6 +77,7 @@ mod harness_sandbox;
 mod harness_skills;
 mod health_aggregation;
 mod instance;
+mod integrity_gate;
 mod journal_approvals;
 mod local_artifacts;
 mod local_packages;
@@ -133,6 +134,9 @@ pub use authn::LocalAuthnAdapter;
 pub use connector_ingress::ConnectorIngressVerifier;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
+};
+pub use integrity_gate::{
+    StorageIntegrityAdmission, StorageIntegrityGate, STORAGE_INTEGRITY_GATE_SCHEMA,
 };
 use journal_approvals::JournalApprovalStore;
 use kiana_capability_broker::CapabilityBroker;
@@ -1499,6 +1503,22 @@ impl DaemonHost {
 
     pub async fn startup_health(&self) -> Result<HealthSnapshot, PortError> {
         self.health_snapshot(HealthProbeKind::Startup).await
+    }
+
+    /// Run the read-only startup storage integrity gate over one facts journal.
+    ///
+    /// The daemon must not expose ControlPlane execution from a journal that fails the gate: a
+    /// corrupt middle frame or an unknown required record is refused here instead of being treated
+    /// as an empty store. The scan reuses the loader's existing torn-tail policy; it never moves,
+    /// deletes or rebuilds facts, and the returned report is read-only evidence.
+    #[allow(clippy::unused_self)]
+    pub async fn admit_storage_integrity(
+        &self,
+        events_path: impl AsRef<Path>,
+    ) -> Result<StorageIntegrityGate, PortError> {
+        let gate = StorageIntegrityGate::inspect(events_path).await;
+        gate.admit_execution()?;
+        Ok(gate)
     }
 
     /// Aggregate typed deployment evidence through the existing Core health route.

@@ -21,9 +21,13 @@ jobs:
         run: cargo fmt --all --check
       - name: Run PD-08 eventlog integrity fixtures
         run: cargo test -p kiana-eventlog --test pd08_integrity_scan --locked -- --test-threads=1
+      - name: Run PD-08 daemon integrity gate fixtures
+        run: cargo test -p kiana-daemon --test pd08_integrity_gate --locked -- --test-threads=1
       - name: Run PD-08 Core source guard
         run: cargo test -p kiana-core --test pd08_integrity_guard --locked -- --test-threads=1
       - name: Compile PD-08 eventlog target
         run: cargo test -p kiana-eventlog --test pd08_integrity_scan --no-run --locked
+      - name: Compile PD-08 daemon gate target
+        run: cargo test -p kiana-daemon --test pd08_integrity_gate --no-run --locked
       - name: Compile PD-08 Core guard target
         run: cargo test -p kiana-core --test pd08_integrity_guard --no-run --locked
