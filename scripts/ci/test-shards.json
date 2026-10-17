@@ -612,6 +612,8 @@
    "pd11_authority_projection",
    "pd11_authority_projection_guard",
    "pd13_recovery_material_guard",
+   "pd14_unified_artifact_store",
+   "pd14_unified_artifact_store_guard",
    "pd15_workspace_artifact_guard",
    "pd16_receipt_evidence_guard",
    "pd18_memory_projection_guard",

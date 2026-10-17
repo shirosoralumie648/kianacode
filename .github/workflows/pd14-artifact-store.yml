@@ -25,7 +25,36 @@ jobs:
         run: cargo test -p kiana-eventlog --test pd14_artifact_store --locked -- --test-threads=1
       - name: Run artifact store source guard
         run: cargo test -p kiana-eventlog --test pd14_artifact_guard --locked -- --test-threads=1
+      - name: Run unified artifact store fixtures
+        run: cargo test -p kiana-core --test pd14_unified_artifact_store --locked -- --test-threads=1
+      - name: Run unified artifact store fixtures one at a time
+        run: |
+          for fixture in \
+            open_refuses_relative_roots_traversal_symlinks_scope_and_limits \
+            stage_refuses_size_digest_bound_scope_and_version_drift_before_writing \
+            staged_content_is_unreadable_until_a_matching_commit \
+            identical_bytes_are_deduplicated_but_scopes_never_merge \
+            symlinked_hardlinked_and_non_regular_files_are_refused \
+            a_replaced_root_path_cannot_redirect_an_open_store \
+            pre_existing_blob_drift_and_conflicting_writers_fail_closed \
+            file_sync_failure_denies_the_stage_and_publishes_nothing \
+            directory_sync_failure_is_reported_as_unknown_and_the_retry_is_idempotent \
+            legacy_artifact_port_and_manifest_surface_agree \
+            reopen_preserves_the_published_manifest
+          do
+            cargo test -p kiana-core --test pd14_unified_artifact_store "$fixture" --locked --exact --test-threads=1
+          done
+      - name: Run unified artifact store source guard
+        run: cargo test -p kiana-core --test pd14_unified_artifact_store_guard --locked -- --test-threads=1
+      - name: Run manifest port contract fixtures
+        run: cargo test -p kiana-ports --test pd14_artifact_manifest_port --locked -- --test-threads=1
       - name: Compile artifact store fixture target
         run: cargo test -p kiana-eventlog --test pd14_artifact_store --no-run --locked
       - name: Compile artifact store source guard target
         run: cargo test -p kiana-eventlog --test pd14_artifact_guard --no-run --locked
+      - name: Compile unified artifact store fixture target
+        run: cargo test -p kiana-core --test pd14_unified_artifact_store --no-run --locked
+      - name: Compile unified artifact store source guard target
+        run: cargo test -p kiana-core --test pd14_unified_artifact_store_guard --no-run --locked
+      - name: Compile manifest port contract target
+        run: cargo test -p kiana-ports --test pd14_artifact_manifest_port --no-run --locked

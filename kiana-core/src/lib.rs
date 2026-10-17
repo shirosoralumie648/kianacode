@@ -14,6 +14,7 @@
 
 mod approval_binding;
 mod approvals;
+mod artifact_store;
 mod artifacts;
 mod audit;
 mod audit_export;
@@ -200,6 +201,9 @@ pub use approval_binding::{
     ApprovalBinding, ApprovalConsumptionReceipt, ApproverScope, HumanInboxItem, HumanInboxStatus,
     APPROVAL_BINDING_SCHEMA, APPROVAL_BINDING_VERSION, APPROVAL_RECEIPT_SCHEMA,
     APPROVER_SCOPE_SCHEMA, HUMAN_INBOX_ITEM_SCHEMA,
+};
+pub use artifact_store::{
+    ArtifactSyncFault, UnifiedArtifactLimits, UnifiedArtifactStore, MAX_MANIFEST_BYTES,
 };
 pub use audit::{append_committed_audit_records, reduce_committed_audit_records};
 pub use audit_export::{AuditExportError, AuditExportInput};

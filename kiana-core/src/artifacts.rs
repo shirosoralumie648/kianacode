@@ -341,7 +341,7 @@ const ARTIFACT_TEMP_ATTEMPTS: usize = 16; // 临时文件创建尝试次数上�
 /// Linux 特定：renameat2 的 RENAME_NOREPLACE flag（值为 1）
 /// 表示如果目标已存在则失败，不覆盖——这保证了原子性和安全性
 #[cfg(target_os = "linux")]
-const LINUX_RENAME_NOREPLACE: u32 = 1;
+pub(crate) const LINUX_RENAME_NOREPLACE: u32 = 1;
 
 /// Linux 特定：renameat2 的 RENAME_EXCHANGE flag（值为 2）
 /// 表示原子地交换两个文件的位置，即使目标存在也不会丢失数据
@@ -1206,7 +1206,7 @@ fn linux_same_directory(left: &File, right: &File) -> bool {
 /// # 关键系统调用
 /// - `openat(..., O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)`: 创建文件
 #[cfg(target_os = "linux")]
-fn linux_create_artifact_temp(parent: RawFd) -> std::io::Result<(CString, File)> {
+pub(crate) fn linux_create_artifact_temp(parent: RawFd) -> std::io::Result<(CString, File)> {
     // 获取当前纳秒级时间戳作为唯一性标记
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1273,7 +1273,7 @@ fn linux_create_artifact_temp(parent: RawFd) -> std::io::Result<(CString, File)>
 /// 【为什么要用 renameat2】
 /// 普通的 rename 不能保证「如果目标存在则不覆盖」的原子性。renameat2 提供了这种保证。
 #[cfg(target_os = "linux")]
-fn linux_artifact_renameat2(
+pub(crate) fn linux_artifact_renameat2(
     parent: RawFd,
     source: &CString,
     target: &CString,
@@ -1313,7 +1313,7 @@ fn linux_artifact_renameat2(
 /// # 关键系统调用
 /// - `unlinkat(parent, name, 0)`: 删除文件
 #[cfg(target_os = "linux")]
-fn linux_artifact_unlinkat(parent: RawFd, name: &CString) -> std::io::Result<()> {
+pub(crate) fn linux_artifact_unlinkat(parent: RawFd, name: &CString) -> std::io::Result<()> {
     // SAFETY: parent 是有效的文件描述符，name 是 CString
     if unsafe { libc::unlinkat(parent, name.as_ptr(), 0) } == 0 {
         Ok(())
@@ -1336,7 +1336,7 @@ fn linux_artifact_unlinkat(parent: RawFd, name: &CString) -> std::io::Result<()>
 /// # 关键系统调用
 /// - `fsync(parent)`: 对目录进行同步（确保目录的元数据落盘）
 #[cfg(target_os = "linux")]
-fn linux_artifact_sync_directory(parent: RawFd) -> std::io::Result<()> {
+pub(crate) fn linux_artifact_sync_directory(parent: RawFd) -> std::io::Result<()> {
     // SAFETY: parent 是有效的文件描述符
     if unsafe { libc::fsync(parent) } == 0 {
         Ok(())

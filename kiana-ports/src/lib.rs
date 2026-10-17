@@ -1162,6 +1162,176 @@ pub trait ArtifactStorePort: Send + Sync {
     }
 }
 
+/// Schema tag of the immutable manifest a content-addressed artifact store publishes per version.
+pub const ARTIFACT_MANIFEST_SCHEMA: &str = "kiana.artifact-manifest.v1";
+
+/// Immutable manifest that binds one typed artifact version to the blob that holds its bytes.
+///
+/// The manifest, not the file layout, is what a reader re-derives after a reopen: it repeats the
+/// whole [`ArtifactVersion`] (so content hash, size, scope digest and provenance are rechecked
+/// without trusting the directory name) and adds the digest of the stored blob. Two artifacts may
+/// share one blob when their bytes are identical, but they keep separate manifests, so a scope
+/// never resolves another scope's reference. [`Self::manifest_digest`] seals the admitted fields,
+/// which makes a hand-edited or partially written manifest detectable instead of tolerable.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactManifest {
+    pub schema: String,
+    pub version: ArtifactVersion,
+    /// Digest of the stored blob bytes; bare 64-hex or `sha256:`-prefixed.
+    pub blob_digest: String,
+    /// Digest over `(schema, version, blob_digest)`; recomputed on every read and validate.
+    pub manifest_digest: String,
+}
+
+impl ArtifactManifest {
+    /// Build and self-validate a manifest for one version and its blob digest.
+    pub fn new(version: ArtifactVersion, blob_digest: impl Into<String>) -> Result<Self, String> {
+        let mut manifest = Self {
+            schema: ARTIFACT_MANIFEST_SCHEMA.to_owned(),
+            version,
+            blob_digest: blob_digest.into(),
+            manifest_digest: String::new(),
+        };
+        manifest.manifest_digest = manifest.computed_digest();
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
+    fn computed_digest(&self) -> String {
+        kiana_domain::json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "version": self.version,
+            "blob_digest": self.blob_digest,
+        }))
+    }
+
+    fn normalized_digest(value: &str) -> Option<&str> {
+        let hex = value.strip_prefix("sha256:").unwrap_or(value);
+        (hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())).then_some(hex)
+    }
+
+    /// Reject a manifest whose schema, version, blob digest or seal does not hold together.
+    ///
+    /// The blob digest must name exactly the bytes the version's own content hash names; a
+    /// manifest that points at different bytes than it claims is a contradiction, not a hint.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ARTIFACT_MANIFEST_SCHEMA {
+            return Err("artifact_manifest_schema_invalid".to_owned());
+        }
+        self.version.validate()?;
+        if !self.blob_names_version_content() {
+            return Err("artifact_manifest_blob_digest_invalid".to_owned());
+        }
+        // Compare normalized hex on both sides so a manifest cannot pass by carrying the same
+        // value twice in two different spellings.
+        let computed = self.computed_digest();
+        let sealed = Self::normalized_digest(&self.manifest_digest)
+            .ok_or_else(|| "artifact_manifest_digest_mismatch".to_owned())?;
+        let expected = Self::normalized_digest(&computed)
+            .ok_or_else(|| "artifact_manifest_digest_mismatch".to_owned())?;
+        if !sealed.eq_ignore_ascii_case(expected) {
+            return Err("artifact_manifest_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// Whether [`Self::blob_digest`] names the same bytes as the version's content hash.
+    pub fn blob_names_version_content(&self) -> bool {
+        match (
+            Self::normalized_digest(&self.blob_digest),
+            Self::normalized_digest(&self.version.content_hash),
+        ) {
+            (Some(blob), Some(content)) => blob.eq_ignore_ascii_case(content),
+            _ => false,
+        }
+    }
+}
+
+/// Unified content-addressed artifact store: one blob per unique byte content, one immutable
+/// [`ArtifactManifest`] per `(owner scope, artifact, version)`, and references that are rechecked
+/// against that manifest on every read.
+///
+/// An implementation must:
+///
+/// - bind one handle to one owner scope digest and refuse any version or reference carrying a
+///   different scope, so two scopes never merge into one readable set even when they share bytes;
+/// - refuse content over the advertised bound, and content whose length or digest disagrees with
+///   the typed version, instead of storing whatever bytes arrived;
+/// - never replace an existing blob or manifest through an implicit fallback: a second writer of
+///   the same `(scope, artifact, version)` with different content fails closed, and a retry with
+///   identical bytes returns the first manifest rather than rewriting it;
+/// - publish atomically (same-directory temporary file, no-replace rename, file and directory
+///   sync) and report an unconfirmed sync as a failure rather than a durable write;
+/// - refuse symlinked path components and hard-linked blob or manifest files, and reopen a
+///   previously published manifest unchanged instead of rebuilding it from bytes.
+///
+/// The port is a storage boundary only. It grants no authority, interprets no artifact payload and
+/// never resolves a mutable workspace path, so a later file edit cannot rewrite historical
+/// evidence.
+#[async_trait]
+pub trait ContentAddressedArtifactStorePort: Send + Sync {
+    /// Scope digest this handle is bound to; every accepted version must carry it.
+    fn owner_scope_digest(&self) -> String;
+
+    /// Largest artifact this store admits, in bytes. Callers must not assume a larger bound.
+    fn max_artifact_bytes(&self) -> usize;
+
+    async fn stage_content(
+        &self,
+        _version: ArtifactVersion,
+        _content: Vec<u8>,
+    ) -> Result<ArtifactManifest, PortError> {
+        Err(PortError::Unavailable(
+            "content_addressed_artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    /// Make a staged version readable. Commit requires the manifest and its blob to be present and
+    /// to match the reference; it never writes bytes that staging did not verify.
+    async fn commit_content(
+        &self,
+        _reference: &ArtifactRef,
+    ) -> Result<ArtifactManifest, PortError> {
+        Err(PortError::Unavailable(
+            "content_addressed_artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    /// Read the manifest of a committed version. A staged-but-uncommitted version stays
+    /// unreadable instead of being reconstructed from bytes.
+    async fn read_manifest(&self, _reference: &ArtifactRef) -> Result<ArtifactManifest, PortError> {
+        Err(PortError::Unavailable(
+            "content_addressed_artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    async fn read_content(&self, _reference: &ArtifactRef) -> Result<Vec<u8>, PortError> {
+        Err(PortError::Unavailable(
+            "content_addressed_artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    /// Verify a committed version without returning its bytes.
+    async fn verify_content(
+        &self,
+        _reference: &ArtifactRef,
+    ) -> Result<ArtifactManifest, PortError> {
+        Err(PortError::Unavailable(
+            "content_addressed_artifact_store_unsupported".to_owned(),
+        ))
+    }
+
+    /// Whether this store already holds a blob for the digest: the dedup probe a caller uses
+    /// instead of assuming a second copy was written. A malformed digest is a `Failed`, never a
+    /// silent `false`.
+    async fn blob_present(&self, _content_hash: &str) -> Result<bool, PortError> {
+        Err(PortError::Unavailable(
+            "content_addressed_artifact_store_unsupported".to_owned(),
+        ))
+    }
+}
+
 /// Snapshot/verify/restore boundary for a StorageRoot. Backup manifests are opaque values until
 /// a domain schema is validated; restore must be explicitly authorized and never silently mutate
 /// the active store.
