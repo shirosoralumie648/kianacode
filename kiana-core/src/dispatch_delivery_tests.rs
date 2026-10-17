@@ -38,6 +38,10 @@
 //!   验证在 CAS 竞态或日志响应异常时，投递为 0
 //! - `failed_callback_or_unknown_claim_ack_is_never_retried`：
 //!   验证一旦 Runner 回调失败或日志返回 Unknown，就不再重试
+//! - `crash_window_after_claim_is_recovered_from_a_reopened_durable_log`：
+//!   验证 claim 落盘后进程崩溃（未回调），重开文件日志只重建事实、不二次投递
+//! - `restarted_control_plane_reuses_the_committed_claim_exactly_once`：
+//!   验证同一日志上的新 ControlPlane/新 Runner 复用已提交 claim，不重复推进
 //!
 //! # 测试工具
 //!
@@ -55,7 +59,7 @@ use kiana_domain::{
     ApprovalChallenge, ApprovalId, CapabilityExecutionState, CapabilityKind, EventId,
     PendingApproval, TurnIdentity, TurnSemantics,
 };
-use kiana_eventlog::MemoryEventLog;
+use kiana_eventlog::{JsonlEventLog, MemoryEventLog};
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{ApprovalStorePort, RunnerPort};
@@ -96,8 +100,9 @@ impl ApprovalStorePort for NoApprovals {
 ///
 /// 通过控制 `fail` 标志，我们可以测试「Runner 回调失败」这个故障场景。
 struct CountingRunner {
-    /// 事件存储的引用，用于验证 result.deliver 命令是否已主张
-    events: Arc<MemoryEventLog>,
+    /// 事件存储的引用，用于验证 result.deliver 命令是否已主张；用 trait object 让重启/重开
+    /// 文件日志的 fixture 复用同一套 Runner。
+    events: Arc<dyn EventStorePort>,
     /// 记录的 (run_id, result) 对。每当 Runner 被调用一次，这里就增加一条
     calls: Mutex<Vec<(RunId, CapabilityResult)>>,
     /// 是否注入故障（true 时，send() 返回错误）
@@ -163,7 +168,7 @@ fn scoped_prompt(run_id: RunId, version: u64, semantics: TurnSemantics) -> Runti
 /// 4. 调用 core() 得到 ControlPlane，然后调用 deliver_capability_result()
 /// 5. 调用 no_delivery() 验证「没有投递」的场景
 struct Fixture {
-    events: Arc<MemoryEventLog>,
+    events: Arc<dyn EventStorePort>,
     runner: Arc<CountingRunner>,
     run_id: RunId,
     turn_request_id: RequestId,
@@ -192,7 +197,23 @@ impl Fixture {
     /// - 一个能力请求和正常结果
     /// - 所有 ID 一致且有效
     async fn with_turn_semantics(semantics: TurnSemantics) -> Self {
-        let events = Arc::new(MemoryEventLog::new());
+        let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
+        Self::with_store_semantics(events, semantics).await
+    }
+
+    /// 用调用方提供的 EventStore 构造默认（Start）语义的 Fixture。
+    ///
+    /// 【用途】重启/重开 durable 日志的 fixture 复用同一套身份、许可与结果绑定校验，
+    /// 而不是另起一条投递路径。
+    async fn with_store(events: Arc<dyn EventStorePort>) -> Self {
+        Self::with_store_semantics(events, TurnSemantics::Start).await
+    }
+
+    /// 在给定 EventStore 上预构造完整执行场景。
+    async fn with_store_semantics(
+        events: Arc<dyn EventStorePort>,
+        semantics: TurnSemantics,
+    ) -> Self {
         let runner = Arc::new(CountingRunner {
             events: events.clone(),
             calls: Mutex::new(Vec::new()),
@@ -977,7 +998,7 @@ enum Fault {
 /// 3. 在第一次提交 result.delivery_claimed 时，注入故障
 /// 4. 检查派发是否正确处理了这个故障
 struct FaultStore {
-    inner: Arc<MemoryEventLog>,
+    inner: Arc<dyn EventStorePort>,
     fault: Fault,
     armed: AtomicBool,
     run_id: RunId,
@@ -1383,6 +1404,133 @@ async fn cancellation_after_a_winning_delivery_does_not_reopen_its_claim() {
         .deliver_capability_result(fixture.run_id, fixture.result.clone())
         .await
         .is_err());
+    assert_eq!(fixture.runner.calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        fixture
+            .events
+            .read_stream("result_delivery", &fixture.request.request_id.to_string())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// 【测试】claim 落盘后进程崩溃（未回调 Runner），重开 durable 日志只重建事实、不重复投递
+///
+/// 【崩溃窗口】`result.delivery_claimed` 事务已经写入文件日志，但 `commit_confirmed` 只收到
+/// Unknown（进程在回调 Runner 前死亡）；进程内 Runner 从未被调用。
+///
+/// 【重启恢复】关闭并重开同一 `JsonlEventLog` 文件，重建 ControlPlane 与全新 Runner：投递必须
+/// 以稳定码 `result_unknown:result_delivery_already_claimed` 拒绝，新 Runner 收到零次回调，且
+/// 已提交结果仍是可重建的终态事实（`classify_dispatch_execution` = `ResultCommitted`）。
+///
+/// 【为什么这很重要】claim 必须在日志中恰好一次且能跨进程恢复：既不能因崩溃重复推进模型，
+/// 也不能丢掉已提交的结果事实。
+#[tokio::test]
+async fn crash_window_after_claim_is_recovered_from_a_reopened_durable_log() {
+    let path = std::env::temp_dir().join(format!(
+        "kiana-er13-delivery-{}-{}.jsonl",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let run_id;
+    let request_id;
+    let execution_id;
+    let result;
+    {
+        let events: Arc<dyn EventStorePort> =
+            Arc::new(JsonlEventLog::open(&path).expect("open durable delivery journal"));
+        let fixture = Fixture::with_store(events).await;
+        fixture.prepare(true).await;
+        fixture.commit_source(fixture.source()).await;
+        // 崩溃窗口：claim 已落盘，但日志只返回 Unknown，进程未能回调 Runner。
+        let error = fault_core(&fixture, Fault::StoredUnknownClaim)
+            .deliver_capability_result(fixture.run_id, fixture.result.clone())
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("result_unknown:"));
+        assert!(fixture.runner.calls.lock().unwrap().is_empty());
+        assert_eq!(
+            fixture
+                .events
+                .read_stream("result_delivery", &fixture.request.request_id.to_string())
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        run_id = fixture.run_id;
+        request_id = fixture.request.request_id;
+        execution_id = fixture.permit.execution_id;
+        result = fixture.result.clone();
+    }
+    // 新进程语义：重开同一 durable 日志，重建 ControlPlane 与全新 Runner。
+    let events: Arc<dyn EventStorePort> =
+        Arc::new(JsonlEventLog::open(&path).expect("reopen durable delivery journal"));
+    let fresh_runner = Arc::new(CountingRunner {
+        events: events.clone(),
+        calls: Mutex::new(Vec::new()),
+        fail: false,
+    });
+    let core = plane(events.clone(), fresh_runner.clone());
+    assert_eq!(
+        core.deliver_capability_result(run_id, result.clone())
+            .await
+            .unwrap_err(),
+        dispatch_error("result_unknown:result_delivery_already_claimed")
+    );
+    assert!(fresh_runner.calls.lock().unwrap().is_empty());
+    assert_eq!(
+        core.classify_dispatch_execution(&execution_id)
+            .await
+            .expect("classify committed execution"),
+        kiana_domain::DispatchCrashClass::ResultCommitted
+    );
+    assert_eq!(
+        events
+            .read_stream("result_delivery", &request_id.to_string())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let _ = std::fs::remove_file(path);
+}
+
+/// 【测试】进程重启后同一 committed claim 被复用，不产生第二次 Runner 推进
+///
+/// 用同一 EventLog 上的两个 ControlPlane 实例模拟 daemon 重启：第一个实例赢得 claim 并回调
+/// Runner 一次；重启后的实例带全新 Runner 再次投递同一结果，必须以
+/// `result_unknown:result_delivery_already_claimed` 拒绝，新 Runner 收到零回调，claim 流仍只有一条。
+#[tokio::test]
+async fn restarted_control_plane_reuses_the_committed_claim_exactly_once() {
+    let fixture = Fixture::new().await;
+    fixture.prepare(true).await;
+    fixture.commit_source(fixture.source()).await;
+    fixture
+        .core()
+        .deliver_capability_result(fixture.run_id, fixture.result.clone())
+        .await
+        .expect("first delivery wins the claim");
+    assert_eq!(fixture.runner.calls.lock().unwrap().len(), 1);
+    let restarted_runner = Arc::new(CountingRunner {
+        events: fixture.events.clone(),
+        calls: Mutex::new(Vec::new()),
+        fail: false,
+    });
+    let restarted = plane(fixture.events.clone(), restarted_runner.clone());
+    assert_eq!(
+        restarted
+            .deliver_capability_result(fixture.run_id, fixture.result.clone())
+            .await
+            .unwrap_err(),
+        dispatch_error("result_unknown:result_delivery_already_claimed")
+    );
+    assert!(restarted_runner.calls.lock().unwrap().is_empty());
     assert_eq!(fixture.runner.calls.lock().unwrap().len(), 1);
     assert_eq!(
         fixture
