@@ -32,7 +32,7 @@ impl ProjectTrustAuthority for TrustedProject {
 
 fn host() -> DaemonHost {
     DaemonHost::with_harness_and_project_authority(
-        KianaHarness::new(Arc::new(UnavailableModel)),
+        KianaHarness::new(Arc::new(UnavailableModel::default())),
         Arc::new(TrustedProject),
     )
     .expect("daemon host")
