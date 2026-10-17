@@ -131,7 +131,7 @@ pub use runtime::{
 pub use safety::{
     evaluate_capability_safety, CapabilitySafetyEvaluator, CapabilitySafetyInput,
     ObservedSafetyEffect, SafetyAction, SafetyEffectKind, SafetyFinalStatus, SafetyGrant,
-    SafetyVerdict, SafetyVerdictEvidence, CAPABILITY_SAFETY_EVALUATOR_ID,
+    SafetyObservation, SafetyVerdict, SafetyVerdictEvidence, CAPABILITY_SAFETY_EVALUATOR_ID,
     CAPABILITY_SAFETY_INPUT_SCHEMA,
 };
 pub use scenario::{
