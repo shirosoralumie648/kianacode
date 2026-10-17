@@ -797,7 +797,9 @@ impl DeliveryAttemptStatus {
             (Self::Pending, Self::Claimed | Self::Failed)
                 | (
                     Self::Claimed,
-                    Self::Submitted | Self::Failed | Self::Unknown
+                    // `Pending` is the release transition: a claim that was never submitted is
+                    // handed back for a later claim (bounded shutdown drain, NM-08).
+                    Self::Submitted | Self::Failed | Self::Unknown | Self::Pending
                 )
                 | (
                     Self::Submitted,

@@ -2338,6 +2338,56 @@ pub trait NotificationOutboxStore: Send + Sync {
             "notification_outbox_unknown_unsupported".to_owned(),
         ))
     }
+
+    /// Offer a record to a bounded outbox and report the typed admission outcome.
+    ///
+    /// Implementations that keep a hard bound must shed only `BestEffort` records, always with a
+    /// reason, and must never shed a `Critical`/`Actionable` record. A default implementation fails
+    /// closed so an unbounded in-memory adapter cannot be mistaken for a bounded queue.
+    async fn admit_notification(
+        &self,
+        _record: kiana_domain::NotificationOutboxRecord,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxAdmission, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_admit_unsupported".to_owned(),
+        ))
+    }
+
+    /// Terminate a leased, not-yet-submitted claim with an explicit terminal reason.
+    async fn abandon_notification(
+        &self,
+        _lease: &kiana_domain::NotificationOutboxLease,
+        _reason: kiana_domain::NotificationOutboxTerminalReason,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_abandon_unsupported".to_owned(),
+        ))
+    }
+
+    /// Terminate a record that holds no live claim (pending, or a crashed expired claim).
+    async fn abandon_unclaimed_notification(
+        &self,
+        _outbox_id: &kiana_domain::DeliveryAttemptId,
+        _reason: kiana_domain::NotificationOutboxTerminalReason,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_abandon_unclaimed_unsupported".to_owned(),
+        ))
+    }
+
+    /// Release a claimed but never submitted record, for a bounded shutdown drain.
+    async fn release_notification_claim(
+        &self,
+        _lease: &kiana_domain::NotificationOutboxLease,
+        _now_unix_ms: u64,
+    ) -> Result<kiana_domain::NotificationOutboxRecord, PortError> {
+        Err(PortError::Unavailable(
+            "notification_outbox_release_unsupported".to_owned(),
+        ))
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
