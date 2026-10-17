@@ -353,8 +353,9 @@ pub use model_attempt_projection::{
     project_model_attempts, project_provider_attempts, ModelAttemptProjectionError,
 };
 pub use notification_action::{
-    NotificationActionAdmission, NotificationActionGate, NotificationActionGateError,
-    NOTIFICATION_ACTION_GATE_SCHEMA,
+    HumanTaskActionLedger, HumanTaskActionLedgerError, NotificationActionAdmission,
+    NotificationActionConsumption, NotificationActionGate, NotificationActionGateError,
+    NotificationActionTarget, NotificationActionWake, NOTIFICATION_ACTION_GATE_SCHEMA,
 };
 pub use notification_delivery::{
     NotificationDeliveryPlan, NotificationDeliveryRecoveryStep, NotificationDeliveryWorker,

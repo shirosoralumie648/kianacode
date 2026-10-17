@@ -1,0 +1,33 @@
+name: NM-10 notification actions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-actions:
+    name: NM-10 HumanTask action admission and single-consume ledger fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-10 domain action command fixtures
+        run: cargo test -p kiana-domain --test nm10_notification_actions --locked -- --test-threads=1
+      - name: Run NM-10 ControlPlane action fixtures
+        run: cargo test -p kiana-core --test nm10_notification_action --locked -- --test-threads=1
+      - name: Run NM-10 source guard
+        run: cargo test -p kiana-core --test nm10_notification_action_guard --locked -- --test-threads=1
+      - name: Compile NM-10 domain fixtures
+        run: cargo test -p kiana-domain --test nm10_notification_actions --no-run --locked
+      - name: Compile NM-10 ControlPlane fixtures
+        run: cargo test -p kiana-core --test nm10_notification_action --no-run --locked
+      - name: Compile NM-10 source guard
+        run: cargo test -p kiana-core --test nm10_notification_action_guard --no-run --locked

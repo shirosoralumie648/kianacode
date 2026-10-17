@@ -158,6 +158,7 @@ uuid_id!(RateCardId);
 uuid_id!(CostCorrectionId);
 uuid_id!(QuotaReservationId);
 uuid_id!(ActionRefId);
+uuid_id!(NotificationActionDecisionId);
 uuid_id!(DeliveryReceiptId);
 uuid_id!(QualityArtifactId);
 uuid_id!(QualityTransitionId);
