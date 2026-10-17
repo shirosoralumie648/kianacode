@@ -805,6 +805,16 @@ impl CostCorrection {
         {
             return Err("cost_correction_target_binding_mismatch".to_owned());
         }
+        // 币种漂移必须在事实成形前拒绝：否则修正会通过审批进入账本，只在读取折叠时才与
+        // 原 entry 的 checked_add 冲突，留下一条永远无法与目标相加的“已批准”修正。
+        for delta in [self.delta_estimated.as_ref(), self.delta_measured.as_ref()]
+            .into_iter()
+            .flatten()
+        {
+            if delta.currency != target.currency {
+                return Err("cost_correction_currency_mismatch".to_owned());
+            }
+        }
         Ok(())
     }
 
