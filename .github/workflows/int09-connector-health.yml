@@ -1,0 +1,52 @@
+name: "INT-09 connector health baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int09-connector-health:
+    name: "INT-09 connector health baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Domain contract: status classification, scope-vs-credential separation, redacted probe
+      # codes, verified-evidence requirement and binding/connector-scoped health facts.
+      - name: Run domain connector health fixtures
+        run: cargo test -p kiana-domain --test int09_connector_health --locked -- --test-threads=1
+      # Query projection: every health class stays distinct, latest fact/cursor and revision
+      # drift are retained, foreign or relabelled facts fail closed.
+      - name: Run query connector health fixtures
+        run: cargo test -p kiana-query --test int09_connector_health --locked -- --test-threads=1
+      - name: Run core connector health source guard
+        run: cargo test -p kiana-core --test int09_connector_health_guard --locked -- --test-threads=1
+      - name: Run entrypoint connector health fixtures
+        run: cargo test -p kiana-entrypoints --test int09_connector_health_guard --locked -- --test-threads=1
+      # Daemon behaviour through the production DaemonHost → ControlPlane → Broker → EventStore
+      # path: read-only connectivity-only fact, deterministic replay, destructive-probe/scope/
+      # revoked/fixture failures with zero credential or binding mutation.
+      - name: Run daemon connector health behaviour fixtures
+        run: cargo test -p kiana-daemon --test int09_connector_health --locked -- --test-threads=1
+
+      - name: Compile domain connector health target
+        run: cargo test -p kiana-domain --test int09_connector_health --no-run --locked
+      - name: Compile query connector health target
+        run: cargo test -p kiana-query --test int09_connector_health --no-run --locked
+      - name: Compile core connector health guard target
+        run: cargo test -p kiana-core --test int09_connector_health_guard --no-run --locked
+      - name: Compile entrypoint connector health target
+        run: cargo test -p kiana-entrypoints --test int09_connector_health_guard --no-run --locked
+      - name: Compile daemon connector health target
+        run: cargo test -p kiana-daemon --test int09_connector_health --no-run --locked

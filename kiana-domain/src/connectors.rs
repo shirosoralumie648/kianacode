@@ -2,10 +2,11 @@
 //! adapter admitted by the INT-10 source slice and still runs inside the confined child boundary.
 
 use crate::{
-    connector_fixture_hash_valid, is_sha256_hex, json_digest, valid_extension_identifier,
-    valid_extension_path, ConnectorDispatchLifecycle, ConnectorDispatchStage,
-    ConnectorReconciliationCase, ConnectorReconciliationState, EffectObservation, InvocationId,
-    RiskLevel, SecretRef, SecretScanChannel, CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
+    connector_fixture_hash_valid, is_sha256_hex, json_digest, scan_secret_sentinels,
+    valid_extension_identifier, valid_extension_path, ConnectorDispatchLifecycle,
+    ConnectorDispatchStage, ConnectorReconciliationCase, ConnectorReconciliationState,
+    EffectObservation, InvocationId, RiskLevel, SecretRef, SecretScanChannel,
+    CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -28,6 +29,10 @@ pub const CONNECTOR_MCP_HANDSHAKE_EVENT_KIND: &str = "connector.mcp_handshake";
 pub const CONNECTOR_HEALTH_FACT_SCHEMA: &str = "kiana.connector-health-fact.v1";
 pub const CONNECTOR_HEALTH_PROJECTION_SCHEMA: &str = "kiana.connector-health-projection.v1";
 pub const CONNECTOR_HEALTH_MAX_LIMITATIONS: usize = 16;
+/// The only public error code a probe may emit after raw provider text was detected. Callers can
+/// distinguish the status class but never recover the response body, JSON error document or
+/// credential value from the persisted fact.
+pub const CONNECTOR_HEALTH_REDACTED_ERROR_CODE: &str = "connector_probe_failed";
 pub const PROVIDER_RECEIPT_SCHEMA: &str = "kiana.provider-receipt.v1";
 pub const PROVIDER_RECEIPT_MAX_RESULT_BYTES: usize = 64 * 1024;
 
@@ -61,20 +66,97 @@ impl ConnectorHealthStatus {
 
 /// Map only stable provider/transport error codes into public health classes. Raw response text
 /// must be discarded before reaching this function; unknown codes remain `provider_error`.
+///
+/// Scope outcomes are matched before credential outcomes on purpose. A provider that answers
+/// `403`/`forbidden`/`permission_denied` because the credential lacks a grant must never be
+/// reported as an invalid credential; otherwise an operator would rotate a valid secret and the
+/// real missing-scope condition would stay hidden.
 pub fn classify_connector_health_error(error_code: &str) -> ConnectorHealthStatus {
-    match error_code {
-        "credential_invalid" | "invalid_credential" | "unauthorized" | "invalid_token" => {
-            ConnectorHealthStatus::CredentialInvalid
+    let normalized = error_code
+        .split(':')
+        .next()
+        .unwrap_or(error_code)
+        .trim()
+        .to_ascii_lowercase();
+    match normalized.as_str() {
+        "scope_insufficient"
+        | "missing_scope"
+        | "insufficient_scope"
+        | "scope_missing"
+        | "scope_denied"
+        | "invalid_scope"
+        | "forbidden"
+        | "permission_denied"
+        | "access_denied"
+        | "insufficient_permissions" => ConnectorHealthStatus::ScopeInsufficient,
+        "credential_invalid"
+        | "invalid_credential"
+        | "unauthorized"
+        | "invalid_token"
+        | "authentication_failed"
+        | "invalid_api_key" => ConnectorHealthStatus::CredentialInvalid,
+        "endpoint_unreachable"
+        | "dns_failed"
+        | "connection_refused"
+        | "timeout"
+        | "connect_timeout"
+        | "tls_failed" => ConnectorHealthStatus::EndpointUnreachable,
+        "unsupported" | "transport_unsupported" | "probe_unsupported" => {
+            ConnectorHealthStatus::Unsupported
         }
-        "scope_insufficient" | "missing_scope" | "insufficient_scope" => {
-            ConnectorHealthStatus::ScopeInsufficient
-        }
-        "endpoint_unreachable" | "dns_failed" | "connection_refused" | "timeout" => {
-            ConnectorHealthStatus::EndpointUnreachable
-        }
-        "unsupported" | "transport_unsupported" => ConnectorHealthStatus::Unsupported,
         _ => ConnectorHealthStatus::ProviderError,
     }
+}
+
+/// Reduce an adapter/probe error string to the only shape allowed into a health fact.
+///
+/// A stable code keeps its first `:` segment when that segment is short, lowercase and made of
+/// ASCII identifier characters. Anything else - a non-JSON error body, an HTML page, a multiline
+/// message, a URL, an Authorization header or a credential-shaped token - collapses to
+/// [`CONNECTOR_HEALTH_REDACTED_ERROR_CODE`]. This helper never returns any part of the raw text
+/// for those inputs, so a probe failure cannot leak provider material into EventLog or UI.
+pub fn redacted_connector_probe_error_code(error: &str) -> String {
+    // Multiline bodies, NUL and other control characters are never stable codes, even when the
+    // first segment happens to look like one.
+    if error.chars().any(char::is_control) {
+        return CONNECTOR_HEALTH_REDACTED_ERROR_CODE.to_owned();
+    }
+    let projection = crate::project_redacted_error(SecretScanChannel::Event, error);
+    if projection.redacted {
+        return CONNECTOR_HEALTH_REDACTED_ERROR_CODE.to_owned();
+    }
+    let normalized = error
+        .split(':')
+        .next()
+        .unwrap_or(error)
+        .trim()
+        .to_ascii_lowercase();
+    if normalized.is_empty()
+        || normalized.len() > 128
+        || !normalized
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+    {
+        return CONNECTOR_HEALTH_REDACTED_ERROR_CODE.to_owned();
+    }
+    normalized
+}
+
+/// Classify a probe failure and return the bounded code that may be persisted.
+///
+/// Fixture-level failures are mapped here so every caller applies the same classification. A
+/// failed probe is an observation only: it never revokes a credential, a binding or a principal.
+pub fn classify_connector_probe_error(error: &str) -> (ConnectorHealthStatus, String) {
+    let code = redacted_connector_probe_error_code(error);
+    let status = match code.as_str() {
+        "connector_fixture_hash_mismatch"
+        | "connector_evidence_path_invalid"
+        | "connector_fixture_join_failed"
+        | "connector_project_invalid" => ConnectorHealthStatus::EndpointUnreachable,
+        "connector_fixture_external_effect_denied" => ConnectorHealthStatus::Unsupported,
+        _ => classify_connector_health_error(&code),
+    };
+    (status, code)
 }
 
 /// Persisted, redacted health evidence. This is a fact projection, not a credential or provider
@@ -163,6 +245,24 @@ impl ConnectorHealthFact {
                 .is_some_and(|generation| generation == 0)
         {
             return Err("connector_health_fact_invalid".to_owned());
+        }
+        // A successful or connectivity-only observation has no failure code. Keeping the
+        // dimensions separate prevents a stale error from masquerading as part of a new success.
+        if matches!(
+            self.status,
+            ConnectorHealthStatus::Verified | ConnectorHealthStatus::ConnectivityOnly
+        ) && self.error_code.is_some()
+        {
+            return Err("connector_health_status_conflict".to_owned());
+        }
+        // Limitations are free-form enough to become a covert raw-error channel; reject secret
+        // sentinels at the fact boundary even if an adapter forgot to redact before constructing.
+        if self
+            .limitations
+            .iter()
+            .any(|value| scan_secret_sentinels(SecretScanChannel::Event, value).is_err())
+        {
+            return Err("connector_health_limitation_invalid".to_owned());
         }
         if matches!(self.status, ConnectorHealthStatus::Verified) && self.evidence_digest.is_none()
         {
@@ -502,7 +602,13 @@ pub fn connector_bindings(
                 .map_err(|_| "connector_registry_event_invalid")?;
             fact.validate()
                 .map_err(|_| "connector_registry_event_invalid")?;
-            if !bindings.contains_key(&fact.binding_id) {
+            // A health fact is scoped to one binding and one connector. A fact that reuses a
+            // binding id but names another connector would otherwise let a projection relabel
+            // the account health.
+            if bindings
+                .get(&fact.binding_id)
+                .is_none_or(|binding| binding.definition.connector_id != fact.connector_id)
+            {
                 return Err("connector_registry_event_invalid");
             }
         } else if event.kind == CONNECTOR_MCP_HANDSHAKE_EVENT_KIND {

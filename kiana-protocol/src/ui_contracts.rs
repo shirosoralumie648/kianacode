@@ -531,8 +531,16 @@ impl UiConnectorHealthProjection {
         {
             return Err("ui_connector_health_projection_invalid".to_owned());
         }
+        let mut bindings = std::collections::BTreeSet::new();
         for entry in &self.entries {
             entry.validate()?;
+            // The projection cursor is the bound for every source row; a row from the future
+            // would make the display look fresher than the facts it was built from.
+            if entry.source_cursor > self.source_cursor
+                || !bindings.insert(entry.health.binding_id.as_str())
+            {
+                return Err("ui_connector_health_projection_invalid".to_owned());
+            }
         }
         if self
             .limitations

@@ -159,6 +159,26 @@ impl ConnectorRegistry {
             return Err(failed("connector_binding_revoked"));
         }
 
+        // A retry of the same request must return the original observation instead of writing a
+        // second fact with a new timestamp. The key is server-derived from project, binding and
+        // request id; a different request id is a new probe by design.
+        let request_fingerprint = sha256(
+            &serde_json::to_vec(&kiana_domain::canonical_json(args.clone()))
+                .map_err(|error| failed(error.to_string()))?,
+        );
+        let key = format!(
+            "connector-health:{}:{}:{}",
+            sha256(project.as_bytes()),
+            binding_id,
+            request.request.request_id
+        );
+        if let Some(previous) = history
+            .iter()
+            .find(|event| event.idempotency_key.as_deref() == Some(key.as_str()))
+        {
+            return health_replay_result(previous, history, binding_id);
+        }
+
         let now = now_ms()?;
         let read_only_operation = snapshot
             .definition
@@ -167,15 +187,29 @@ impl ConnectorRegistry {
             .find(|(_, operation)| operation.effect == kiana_domain::ConnectorEffect::ReadOnly)
             .map(|(name, _)| name.clone());
         let (status, error_code, limitations) = match read_only_operation.as_deref() {
+            // A connector that only declares write operations cannot be health-checked through a
+            // destructive probe. It is unsupported, not a scope failure.
             None => (
-                ConnectorHealthStatus::ScopeInsufficient,
-                Some("connector_read_only_operation_missing".to_owned()),
+                ConnectorHealthStatus::Unsupported,
+                Some("connector_read_only_probe_unsupported".to_owned()),
                 vec!["read_only_probe_contract_missing".to_owned()],
             ),
+            Some(operation)
+                if matches!(
+                    snapshot.operation(operation),
+                    Err("connector_account_scope_denied")
+                ) =>
+            {
+                (
+                    ConnectorHealthStatus::ScopeInsufficient,
+                    Some("connector_account_scope_denied".to_owned()),
+                    vec!["required_scope_not_granted".to_owned()],
+                )
+            }
             Some(operation) if snapshot.operation(operation).is_err() => (
-                ConnectorHealthStatus::ScopeInsufficient,
-                Some("connector_account_scope_denied".to_owned()),
-                vec!["required_scope_not_granted".to_owned()],
+                ConnectorHealthStatus::Unsupported,
+                Some("connector_read_only_probe_unsupported".to_owned()),
+                vec!["read_only_probe_contract_missing".to_owned()],
             ),
             _ => match load_fixture(&snapshot).await {
                 Ok(_) => (
@@ -187,8 +221,8 @@ impl ConnectorRegistry {
                     ],
                 ),
                 Err(error) => {
-                    let code = error.to_string();
-                    let status = classify_probe_error(&code);
+                    let (status, code) =
+                        kiana_domain::classify_connector_probe_error(&error.to_string());
                     (
                         status,
                         Some(code),
@@ -215,7 +249,7 @@ impl ConnectorRegistry {
             "read_only",
             now,
             evidence_digest,
-            error_code.map(|code| redacted_health_code(&code)),
+            error_code,
             snapshot.revision,
             snapshot
                 .binding
@@ -232,16 +266,6 @@ impl ConnectorRegistry {
             .unwrap_or_default()
             .checked_add(1)
             .ok_or_else(|| failed("connector_registry_version_exhausted"))?;
-        let request_fingerprint = sha256(
-            &serde_json::to_vec(&kiana_domain::canonical_json(args.clone()))
-                .map_err(|error| failed(error.to_string()))?,
-        );
-        let key = format!(
-            "connector-health:{}:{}:{}",
-            sha256(project.as_bytes()),
-            binding_id,
-            request.request.request_id
-        );
         let data = json!({
             "schema":"kiana.connector-health-event.v1",
             "request_id":request.request.request_id,
@@ -264,15 +288,33 @@ impl ConnectorRegistry {
         )
         .map_err(|error| failed(error.to_string()))?
         .with_stream_metadata(CONNECTOR_STREAM, project, next_version)
-        .with_idempotency_key(key);
-        let appended = self
+        .with_idempotency_key(key.clone());
+        let appended = match self
             .journal
             .append_idempotent_expected(event, Some(next_version - 1))
             .await
-            .map_err(|error| match error {
-                PortError::Conflict(_) => error,
-                other => failed(format!("result_unknown:connector_health_persist:{other}")),
-            })?;
+        {
+            Ok(result) => result,
+            // A concurrent retry may have committed between our history read and append. The
+            // candidate payload differs by timestamp, so the store reports a payload conflict;
+            // resolve it by replaying the winner with the same server key.
+            Err(PortError::Conflict(code)) if code == "event_idempotency_key_payload_mismatch" => {
+                let latest = self.journal.read_stream(CONNECTOR_STREAM, project).await?;
+                if let Some(previous) = latest
+                    .iter()
+                    .find(|event| event.idempotency_key.as_deref() == Some(key.as_str()))
+                {
+                    return health_replay_result(previous, &latest, binding_id);
+                }
+                return Err(PortError::Conflict(code));
+            }
+            Err(PortError::Conflict(code)) => return Err(PortError::Conflict(code)),
+            Err(other) => {
+                return Err(failed(format!(
+                    "result_unknown:connector_health_persist:{other}"
+                )))
+            }
+        };
         let health = appended.event.data["health"].clone();
         let replayed = appended.replayed;
         let mut projection_events = history.to_vec();
@@ -1219,36 +1261,33 @@ async fn read_project_file(
     .map_err(|e| failed(format!("connector_fixture_join_failed:{e}")))?
 }
 
-fn classify_probe_error(code: &str) -> ConnectorHealthStatus {
-    let stable_code = redacted_health_code(code);
-    match stable_code.as_str() {
-        "connector_fixture_hash_mismatch"
-        | "connector_evidence_path_invalid"
-        | "connector_fixture_join_failed"
-        | "connector_project_invalid" => ConnectorHealthStatus::EndpointUnreachable,
-        "connector_fixture_external_effect_denied" => ConnectorHealthStatus::Unsupported,
-        _ => kiana_domain::classify_connector_health_error(&stable_code),
-    }
-}
-
-fn redacted_health_code(code: &str) -> String {
-    let projection =
-        kiana_domain::project_redacted_error(kiana_domain::SecretScanChannel::Event, code);
-    if projection.redacted {
-        return "connector_probe_failed".to_owned();
-    }
-    let normalized = code.split(':').next().unwrap_or(code).trim().to_owned();
-    if normalized.is_empty() {
-        "connector_probe_failed".to_owned()
-    } else if normalized.len() > 128
-        || !normalized
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
-    {
-        "connector_probe_failed".to_owned()
-    } else {
-        normalized
-    }
+/// Rebuild the read-only health response for an already committed request. It never appends a
+/// fact and never re-reads the fixture, so a retry cannot turn a previous observation into a
+/// second effect or a fresh success.
+fn health_replay_result(
+    previous: &RuntimeEvent,
+    projection_events: &[RuntimeEvent],
+    binding_id: &str,
+) -> Result<Value, PortError> {
+    let health = previous.data["health"].clone();
+    let health_projection =
+        kiana_query::project_connector_health(projection_events).map_err(failed)?;
+    let stale = health_projection
+        .entries
+        .iter()
+        .find(|entry| entry.health.binding_id == binding_id)
+        .is_none_or(|entry| entry.stale);
+    Ok(json!({
+        "schema":"kiana.connector-health-result.v1",
+        "health":health,
+        "health_projection":health_projection,
+        "source_cursor":previous.stream_version.unwrap_or_default(),
+        "projection_version":"connector-health.v1",
+        "stale":stale,
+        "proof_level":"source",
+        "event_id":previous.event_id,
+        "replayed":true,
+    }))
 }
 
 fn now_ms() -> Result<u64, PortError> {
