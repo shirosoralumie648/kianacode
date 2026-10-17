@@ -367,13 +367,21 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-13 — 统一 result commit 和 result delivery　🔄
+##### ER-13 — 统一 result commit 和 result delivery　✅
 
 - **落点：** `kiana-core/dispatch.rs`、`capabilities.rs`、`runner` adapter；关联 `CP-05/14`、`H11/H13`、`CAP-24`。
 - **动作：** 将 direct、Harness、approval-resume 三路径收敛到同一个 prepare→dispatch→result commit→delivery handler；result commit 先于 runner callback，delivery 用稳定 command id 去重。
 - **先拒绝：** `result_delivery_without_committed_fact_is_denied`、`same_result_delivery_advances_harness_once`、`late_result_cannot_cross_cancel_fence`。
 - **成功/回归：** broker success/failure/unknown、runner callback 失败、重复 callback、daemon crash window 都返回可重建结果。
-- **2026-10-04 复核：** run `37157175701` 只运行 source guard，未证明上述行为。当前 delivery helper 尚未读取 committed result/receipt，且不能凭当前 turn 的终态检查排除旧 turn 结果；行为修复与 CI-only fixtures 正在独立 worktree 推进。状态保持 partial/source。
+- **验收（实际测试名与卡片名不同，在此对齐）：** 全部在 `kiana-core/src/dispatch_delivery_tests.rs`，由 `cargo test -p kiana-core --lib dispatch::delivery_tests` 运行，已接入 `.github/workflows/er13-result-delivery.yml`。
+  - `result_delivery_without_committed_fact_is_denied` → `missing_or_append_only_execution_facts_never_claim_or_call_runner`、`delivery_before_commit_is_denied_then_claims_once_after_commit`（提交前以 `result_unknown:result_delivery_source_missing` 拒绝，零 claim、零 Runner 调用）。
+  - `same_result_delivery_advances_harness_once` → `delivery_before_commit_is_denied_then_claims_once_after_commit`、`committed_source_receipt_is_claimed_before_exact_result_reaches_runner_once`、`concurrent_claims_advance_runner_at_most_once`（读回 committed fact/receipt 后恰好一次 claim，重试以 `result_unknown:result_delivery_already_claimed` 幂等）。
+  - `late_result_cannot_cross_cancel_fence` → `current_terminal_or_cancelling_run_never_claims_result`、`cancellation_after_a_winning_delivery_does_not_reopen_its_claim`、`source_and_run_cas_races_or_unconfirmed_receipts_have_zero_delivery`（`Fault::Cancel/Terminal/NextTurn`）。
+  - mismatch / 收据篡改 → `delivery_before_commit_is_denied_then_claims_once_after_commit`（`result_unknown:result_delivery_source_mismatch`）、`contradictory_committed_payloads_or_tampered_receipts_never_deliver`、`tampered_committed_stop_metadata_is_result_unknown_without_delivery`。
+  - broker success/failure/unknown、runner callback 失败、重复 callback → `committed_source_receipt_is_claimed_before_exact_result_reaches_runner_once`、`failed_callback_or_unknown_claim_ack_is_never_retried`。
+  - daemon crash window / 跨进程恢复 → `crash_window_after_claim_is_recovered_from_a_reopened_durable_log`（文件后背 `JsonlEventLog` 重开：claim 恰好一次、新 Runner 零回调、`classify_dispatch_execution` = `ResultCommitted`）、`restarted_control_plane_reuses_the_committed_claim_exactly_once`。
+  - source guard `kiana-core/tests/er13_result_delivery.rs` 固定共享 finalizer、claim-before-callback、deny 码与无第二条投递路径。
+- **2026-10-17 收口（CI-only）：** `deliver_capability_result` 先经 `committed_delivery_source` 从 EventLog 读回 `execution.result_committed`、typed receipt 与命令回执，校验 run/turn/execution/invocation/attempt、result digest、effect 与 stop 三态后才以 `result_delivery`/`run`/`execution_permit` 三路 expected version 原子写 `result.delivery_claimed`；claim 获胜才回调 Runner，重复/重放一律 `result_unknown:result_delivery_already_claimed`。本次新增两个 crash/restart fixture 关闭「进程崩溃或跨进程重启后重复投递」缺口。proof_level 维持 source；本地未编译未运行，回执未等待；external/live effect 与真实跨主机 fencing 仍未证明。
 
 <a id="step-er-14"></a>
 
