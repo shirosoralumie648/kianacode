@@ -9783,3 +9783,364 @@ async fn a_trusted_project_with_a_safe_profile_cannot_start_a_workspace_write_ru
     )));
     let _ = std::fs::remove_dir_all(root);
 }
+
+// ---------------------------------------------------------------------------
+// ER-21 explicit resume preflight and claim
+//
+// These fixtures exercise the behavioural edge of `ControlPlane::resume_run`:
+// an explicit resume must re-derive the frozen scope from committed facts, deny any
+// caller-supplied widening, claim the exact observed snapshot version once (CAS), and
+// never install a second Runner for the same snapshot. The matching source guard lives
+// in `er21_resume_claim_guard.rs`; the plain `resume_*` names are filtered by
+// `.github/workflows/er21-resume-claim.yml`.
+
+/// Runner for the seeded no-pending continuation fixture. It records the two side effects
+/// `resume_run` is allowed to trigger after a successful claim — `restore` and a `resume`
+/// command — without executing a model or touching a provider.
+struct SeededResumeRunner {
+    restores: Mutex<usize>,
+    resumes: Mutex<usize>,
+}
+
+#[async_trait]
+impl RunnerPort for SeededResumeRunner {
+    fn bind_model_assignment(
+        &self,
+        run_id: RunId,
+        assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        validate_test_model_assignment(run_id, assignment)
+    }
+
+    async fn restore(&self, _run_id: RunId, _state: Value) -> Result<(), PortError> {
+        *self.restores.lock().await += 1;
+        Ok(())
+    }
+
+    async fn send(&self, _command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        *self.resumes.lock().await += 1;
+        // No terminal event: Core must not synthesize Completed from an empty resume batch.
+        Ok(Vec::new())
+    }
+}
+
+/// 【拒绝】调用方用自己的上下文覆盖冻结范围时，resume 必须在读取执行材料或还原 Runner
+/// 之前拒绝；快照里的 owner/role/sandbox/path/trust 才是唯一的恢复范围。
+#[tokio::test]
+async fn resume_context_override_is_denied() {
+    let fixture = protected_resume_fixture("pause for ER-21 context override").await;
+    for field in ["paths", "profile", "trust"] {
+        let mut context = fixture.context.clone();
+        match field {
+            "paths" => context.path_allow = vec!["foreign/**".to_owned()],
+            "profile" => context.permission_profile = PermissionProfile::Safe,
+            "trust" => context.project_trusted = false,
+            _ => unreachable!(),
+        }
+        let (response, runner) = fixture
+            .resume(
+                fixture.events.clone(),
+                context,
+                Arc::new(ApprovalGateEngine),
+            )
+            .await;
+        assert_eq!(
+            response.unwrap_err().to_string(),
+            "port_failed:approval_context_mismatch",
+            "{field}"
+        );
+        fixture.assert_no_execution(&runner).await;
+    }
+    assert_eq!(*fixture.approvals.material_reads.lock().await, 0);
+}
+
+/// 【拒绝】快照之后发生数据撤销时，恢复必须返回稳定的 `run_resume_data_revoked`，
+/// 而不是把一个已经被撤销数据代次的快照复活成可执行续体。
+#[tokio::test]
+async fn resume_after_data_revocation_is_denied() {
+    let fixture = protected_resume_fixture("pause for ER-21 data revocation").await;
+    let mut events = fixture.events.read_all().await.unwrap();
+    events.push(
+        RuntimeEvent::new(
+            RequestId::new(),
+            1,
+            "data.revocation_requested",
+            json!({"project_root": fixture.context.project_root, "reason": "er21_fixture"}),
+        )
+        .unwrap(),
+    );
+    let (response, runner) = fixture
+        .resume(
+            Arc::new(LegacySnapshotEventStore { events }),
+            fixture.context.clone(),
+            Arc::new(ApprovalGateEngine),
+        )
+        .await;
+    let response = response.unwrap();
+    assert_eq!(response.status, ExecutionStatus::ResultUnknown);
+    assert_eq!(
+        response.error.as_deref(),
+        Some("result_unknown:run_resume_data_revoked")
+    );
+    assert_eq!(response.output["unknown"], json!(true));
+    assert_eq!(*fixture.approvals.material_reads.lock().await, 0);
+    fixture.assert_no_execution(&runner).await;
+}
+
+/// 【拒绝】同一快照最多 claim 一次：串行重复 resume 必须返回稳定的
+/// `run_resume_claim_conflict`，不重复安装 Runner，也不追加第二条 `run.resume_prepared`。
+#[tokio::test]
+async fn resume_same_snapshot_twice_is_idempotent() {
+    let fixture = protected_resume_fixture("pause for ER-21 duplicate claim").await;
+    let (first, first_runner) = fixture
+        .resume(
+            fixture.events.clone(),
+            fixture.context.clone(),
+            Arc::new(ApprovalGateEngine),
+        )
+        .await;
+    let first = first.unwrap();
+    assert_eq!(first.status, ExecutionStatus::AwaitingApproval, "{first:?}");
+    assert_eq!(first.error.as_deref(), Some("approval_required"));
+    assert_eq!(first.output["restored"], json!(true));
+    assert_eq!(*first_runner.restores.lock().await, 1);
+    for attempt in 0..2 {
+        let (again, runner) = fixture
+            .resume(
+                fixture.events.clone(),
+                fixture.context.clone(),
+                Arc::new(ApprovalGateEngine),
+            )
+            .await;
+        let again = again.unwrap();
+        assert_eq!(
+            again.status,
+            ExecutionStatus::ResultUnknown,
+            "attempt {attempt}: {again:?}"
+        );
+        assert_eq!(
+            again.error.as_deref(),
+            Some("result_unknown:run_resume_claim_conflict"),
+            "attempt {attempt}"
+        );
+        assert_eq!(again.output["unknown"], json!(true));
+        assert_eq!(
+            *runner.restores.lock().await,
+            0,
+            "attempt {attempt} must not restore a second runner"
+        );
+    }
+    let claims = fixture
+        .events
+        .read_all()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == "run.resume_prepared")
+        .count();
+    assert_eq!(claims, 1);
+}
+
+/// 【拒绝】快照之后出现非续体事实时，恢复必须返回 `run_snapshot_stale`，不采信过期游标。
+#[tokio::test]
+async fn resume_stale_snapshot_is_rejected() {
+    let fixture = protected_resume_fixture("pause for ER-21 stale snapshot").await;
+    let mut events = fixture.events.read_all().await.unwrap();
+    events.push(run_event(
+        RequestId::new(),
+        fixture.run_id,
+        900,
+        "run.tool_call",
+        json!({"run_id": fixture.run_id, "call_id": "er21-stale"}),
+    ));
+    let (response, runner) = fixture
+        .resume(
+            Arc::new(LegacySnapshotEventStore { events }),
+            fixture.context.clone(),
+            Arc::new(ApprovalGateEngine),
+        )
+        .await;
+    let response = response.unwrap();
+    assert_eq!(response.status, ExecutionStatus::Blocked);
+    assert_eq!(response.error.as_deref(), Some("run_snapshot_stale"));
+    assert_eq!(*fixture.approvals.material_reads.lock().await, 0);
+    fixture.assert_no_execution(&runner).await;
+}
+
+/// 【拒绝】两个并发 resume 争抢同一快照时，CAS 只允许一个 claim 成功；另一个必须得到
+/// 与串行重复请求相同的 `run_resume_claim_conflict`，且 Runner 只被还原一次。
+#[tokio::test]
+async fn resume_concurrent_second_claim_conflicts() {
+    let fixture = protected_resume_fixture("pause for ER-21 concurrent claim").await;
+    let runner = Arc::new(ResumeCheckpointRunner::new());
+    let core = Arc::new(ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(ApprovalGateEngine),
+        fixture.events.clone(),
+        fixture.broker.clone(),
+        fixture.approvals.clone(),
+        runner.clone(),
+    ));
+    let mut first_context = fixture.context.clone();
+    first_context.request_id = RequestId::new();
+    let mut second_context = fixture.context.clone();
+    second_context.request_id = RequestId::new();
+    let (first, second) = tokio::join!(
+        core.resume_run(first_context, Some(fixture.run_id)),
+        core.resume_run(second_context, Some(fixture.run_id)),
+    );
+    let responses = [first.unwrap(), second.unwrap()];
+    let conflicts = responses
+        .iter()
+        .filter(|response| {
+            response.error.as_deref() == Some("result_unknown:run_resume_claim_conflict")
+        })
+        .count();
+    assert_eq!(conflicts, 1, "{responses:?}");
+    let restored = responses
+        .iter()
+        .filter(|response| response.status == ExecutionStatus::AwaitingApproval)
+        .count();
+    assert_eq!(restored, 1, "{responses:?}");
+    assert_eq!(*runner.restores.lock().await, 1);
+    let claims = fixture
+        .events
+        .read_all()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == "run.resume_prepared")
+        .count();
+    assert_eq!(claims, 1);
+}
+
+/// 【拒绝】claim 已落账但 Runner 还原失败时，结果保持 `ResultUnknown` 并带稳定的
+/// `run_resume_runner_restore_failed` 原因；不能回退 claim 去重跑，也不能派发能力。
+#[tokio::test]
+async fn resume_runner_restore_failure_is_unknown() {
+    let fixture = protected_resume_fixture("pause for ER-21 restore failure").await;
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(ApprovalGateEngine),
+        fixture.events.clone(),
+        fixture.broker.clone(),
+        fixture.approvals.clone(),
+        Arc::new(UnavailableRunner),
+    );
+    let mut context = fixture.context.clone();
+    context.request_id = RequestId::new();
+    let response = core
+        .resume_run(context, Some(fixture.run_id))
+        .await
+        .unwrap();
+    assert_eq!(response.status, ExecutionStatus::ResultUnknown);
+    assert!(
+        response
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("run_resume_runner_restore_failed")),
+        "{response:?}"
+    );
+    assert_eq!(*fixture.broker.calls.lock().await, 0);
+    let claims = fixture
+        .events
+        .read_all()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == "run.resume_prepared")
+        .count();
+    assert_eq!(claims, 1);
+}
+
+/// 【成功/回归】没有待批能力的可恢复快照，resume 也必须走同一条 claim → restore →
+/// `drive_run` 路径，并把 claim 记为一次 `Resume` 的新 turn；Runner 返回空批次时 Core
+/// 不得凭空合成 Completed。
+#[tokio::test]
+async fn resume_without_pending_approval_continues_through_drive_run() {
+    let root = temp_project();
+    let mut context = trusted_context_in(&root, "er21-seeded-resume");
+    context.project_trusted = true;
+    context.permission_profile = PermissionProfile::Balanced;
+    let run_id = RunId::new();
+    let runner_state = json!({ "messages": [], "step": 0 });
+    let snapshot = kiana_domain::RunSnapshot {
+        cell_state: None,
+        data_epoch: None,
+        authority_revision: None,
+        schema: "kiana.run-snapshot.v1".to_owned(),
+        run_id,
+        context: context.clone(),
+        sandbox: "read-only".to_owned(),
+        role_prompt_hash: RoleSpec::lookup(&context.role_id)
+            .expect("builder role registered")
+            .prompt_hash,
+        runner_state_digest: kiana_domain::json_digest(&runner_state),
+        runner_state,
+        pending_invocation: None,
+        resumable: true,
+    };
+    let events = Arc::new(MemoryEventLog::new());
+    events
+        .append(run_event(
+            context.request_id,
+            run_id,
+            1,
+            "run.authorized",
+            json!({
+                "run_id": run_id,
+                "session_id": context.session_id,
+                "actor_id": context.actor_id,
+                "project_root": context.project_root,
+                "role_id": context.role_id,
+                "department_id": context.department_id,
+                "sandbox": "read-only",
+            }),
+        ))
+        .await
+        .unwrap();
+    let snapshot_event = run_event(
+        context.request_id,
+        run_id,
+        2,
+        "run.snapshot",
+        json!({"run_id": run_id, "snapshot": serde_json::to_value(&snapshot).unwrap()}),
+    );
+    let snapshot_event_id = snapshot_event.event_id;
+    events.append(snapshot_event).await.unwrap();
+
+    let runner = Arc::new(SeededResumeRunner {
+        restores: Mutex::new(0),
+        resumes: Mutex::new(0),
+    });
+    let core = ControlPlane::new(
+        Arc::new(DefaultPolicyEngine),
+        Arc::new(ApprovalGateEngine),
+        events.clone(),
+        Arc::new(SuccessfulBroker),
+        Arc::new(TestApprovalStore::default()),
+        runner.clone(),
+    );
+    let mut resume_context = context.clone();
+    resume_context.request_id = RequestId::new();
+    let response = core
+        .resume_run(resume_context, Some(run_id))
+        .await
+        .unwrap();
+    // No terminal Runner event: 续体没有结果证据时只能是 ResultUnknown，不能伪造成 Completed。
+    assert_eq!(response.status, ExecutionStatus::ResultUnknown, "{response:?}");
+    assert_eq!(response.error.as_deref(), Some("run_result_missing"));
+    assert_eq!(*runner.restores.lock().await, 1);
+    assert_eq!(*runner.resumes.lock().await, 1);
+    let claims = events
+        .read_all()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == "run.resume_prepared")
+        .collect::<Vec<_>>();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].data["snapshot_event_id"], json!(snapshot_event_id));
+    assert_eq!(claims[0].data["turn"]["semantics"], json!("resume"));
+    let _ = std::fs::remove_dir_all(root);
+}

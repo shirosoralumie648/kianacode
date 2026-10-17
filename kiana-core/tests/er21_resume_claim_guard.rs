@@ -188,3 +188,39 @@ fn resume_denials_and_replay_fixtures_remain_ci_bound() {
         "CLI fixture",
     );
 }
+
+/// ER-21 behavioural fixtures must exist in the shared `control_plane` target and stay deny-first;
+/// the source guard above only proves the shape of the resume read path.
+#[test]
+fn resume_behavioural_fixtures_are_wired() {
+    let fixtures = include_str!("control_plane.rs");
+    let workflow = include_str!("../../.github/workflows/er21-resume-claim.yml");
+    for name in [
+        "async fn resume_context_override_is_denied",
+        "async fn resume_after_data_revocation_is_denied",
+        "async fn resume_same_snapshot_twice_is_idempotent",
+        "async fn resume_stale_snapshot_is_rejected",
+        "async fn resume_concurrent_second_claim_conflicts",
+        "async fn resume_runner_restore_failure_is_unknown",
+        "async fn resume_without_pending_approval_continues_through_drive_run",
+    ] {
+        assert!(
+            fixtures.contains(name),
+            "ER-21 behavioural fixture missing: {name}"
+        );
+    }
+    assert!(
+        !fixtures.contains("#[ignore]"),
+        "ER-21 behavioural fixtures must not be ignored"
+    );
+    assert!(
+        workflow.contains("--test control_plane"),
+        "ER-21 workflow must run the behavioural control_plane fixtures"
+    );
+    for forbidden in ["issue_permit(", "consume_approval("] {
+        assert!(
+            !fixtures.contains(forbidden),
+            "ER-21 resume fixture widened authority: {forbidden}"
+        );
+    }
+}
