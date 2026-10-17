@@ -142,14 +142,14 @@ use crate::model::{
     ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall,
     ScriptedModel, UnavailableModel,
 };
-use crate::progress::ProgressTracker;
+use crate::progress::{ProgressAction, ProgressDecision, ProgressInput, ProgressTracker};
 use crate::state_driver::{DriverInput, DriverTerminal, RunDriver};
 use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
 use kiana_domain::{
     derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
-    CapabilityResult, InputId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
+    CapabilityResult, InputId, InteractionId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
     QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StablePrefix,
     StepId, StepIdentity, StreamingRedactionSink, StreamingRedactor, ToolObservation,
     ToolObservationStatus, TurnId,
@@ -420,7 +420,8 @@ struct ActiveRun {
     /// 会在这一步就被挡住，而不是留到事件流里才暴露。
     driver: RunDriver,
     /// 进度记录器（`crate::progress::ProgressTracker`）：
-    /// 记「这个 run 干过哪些外部观测」，用于向用户展示已完成的工作。
+    /// 记「这个 run 干过哪些外部观测」，用于有界停滞检测：每次已知工具结果和空 turn 都会
+    /// `observe()`，按决定注入一次反馈、请求澄清或停止 turn。它不执行工具，也不是授权。
     progress_tracker: ProgressTracker,
     /// 服务端拥有的待澄清问题会随同一个 run 跨越 checkpoint/restore 保存。
     /// 待澄清的问题。`Option` = 当前没有。
@@ -557,6 +558,22 @@ enum StepProgress {
     Continue,
     /// 停止循环。真正结束，或者是挂起等 `CapabilityResult`。
     Finished,
+}
+
+/// 有界进度 reducer 对一次观察的处置结果。
+///
+/// `Proceed` 与 `Feedback` 继续模型循环；`Clarification` 转入等待人工输入；
+/// `Stop` 以稳定原因的 Failed 事件结束当前 turn。三档都来自同一个 reducer 阶梯，
+/// harness 不在这里自行发明重试次数或额外催促消息。
+enum ProgressGate {
+    /// 观察是进展或无需干预，继续正常流程。
+    Proceed,
+    /// 注入一次有界反馈后继续（次数由 tracker 阶梯与 repair 预算共同限制）。
+    Feedback(String),
+    /// 停止自动修复，等待人工澄清（问题绑定当前 run/turn/step）。
+    Clarification(ProgressDecision),
+    /// 以稳定原因停止当前 turn（no-progress/重复失败上限或预算耗尽）。
+    Stop(String),
 }
 
 /// 一次压缩的结果：`Compacted` 事件字段加可写进展示/审计层的解释。
@@ -1502,6 +1519,10 @@ impl KianaHarness {
                 .map_err(KianaHarnessError::Failed)?,
         ));
 
+        // 每个已知结果都进入进度窗口；批次内还有已计划的调用时先把批次推进完，再对下一次
+        // 模型步做有界处置（反馈/澄清/停止），避免在半批次中留下未派发的调用。
+        let gate = self.observe_tool_progress(&mut run, &call.name, &result, &observation)?;
+
         if let Some(next_call) = run
             .pending_tools
             .front()
@@ -1523,6 +1544,35 @@ impl KianaHarness {
                 Err(error) => emitter.emit_event(RunnerEvent::Failed { run_id, error })?,
             }
         } else {
+            match gate {
+                ProgressGate::Proceed => {}
+                ProgressGate::Feedback(text) => run.messages.push(ModelMessage::user(text)),
+                ProgressGate::Clarification(decision) => {
+                    match self.begin_stall_clarification(&mut run, &decision) {
+                        Ok(request) => {
+                            emitter.emit_event(RunnerEvent::ClarificationRequested {
+                                run_id: run.run_id,
+                                request,
+                            })?;
+                        }
+                        Err(error) => {
+                            emitter.emit_event(RunnerEvent::Failed {
+                                run_id: run.run_id,
+                                error: format!("no_progress:{error}"),
+                            })?;
+                        }
+                    }
+                    self.store_unless_terminal(run, &emitter.events)?;
+                    return Ok(());
+                }
+                ProgressGate::Stop(reason) => {
+                    emitter.emit_event(RunnerEvent::Failed {
+                        run_id: run.run_id,
+                        error: format!("no_progress:{reason}"),
+                    })?;
+                    return Ok(());
+                }
+            }
             self.model_step_in_flight(&mut run, emitter).await?;
         }
         self.store_unless_terminal(run, &emitter.events)?;
@@ -1955,6 +2005,50 @@ impl KianaHarness {
                     .map_err(KianaHarnessError::Failed)?;
             }
             if run.inbox.next_step.is_empty() && !deferred_next_step {
+                // 结构化输出或内容块（例如 reasoning/text blocks）不是空 turn，只有三者皆空
+                // 才按“无工具、无文本”处理，避免把合法结构化应答误判为停滞。
+                if output.text.trim().is_empty()
+                    && output.structured.is_none()
+                    && output.content.is_empty()
+                {
+                    // 无工具调用、无文本的空 turn 不能静默当作完成：按同一进度阶梯做有界
+                    // 修复（一次反馈 → 请求澄清/停止），而不是无限追加催促消息。
+                    match self.observe_empty_turn(run)? {
+                        ProgressGate::Feedback(text) => {
+                            run.messages.push(ModelMessage::user(text));
+                            run.driver
+                                .model_output(0, false)
+                                .map_err(|error| KianaHarnessError::Failed(error.to_string()))?;
+                            return Ok(StepProgress::Continue);
+                        }
+                        ProgressGate::Clarification(decision) => {
+                            match self.begin_stall_clarification(run, &decision) {
+                                Ok(request) => {
+                                    emitter.emit_event(RunnerEvent::ClarificationRequested {
+                                        run_id,
+                                        request,
+                                    })?;
+                                }
+                                Err(error) => {
+                                    emitter.emit_event(RunnerEvent::Failed {
+                                        run_id,
+                                        error: format!("no_progress:{error}"),
+                                    })?;
+                                }
+                            }
+                            return Ok(StepProgress::Finished);
+                        }
+                        ProgressGate::Stop(reason) => {
+                            emitter.emit_event(RunnerEvent::Failed {
+                                run_id,
+                                error: format!("no_progress:{reason}"),
+                            })?;
+                            return Ok(StepProgress::Finished);
+                        }
+                        // 空 turn 总是无进展，reducer 至少返回 Feedback；保留兜底以继续完成路径。
+                        ProgressGate::Proceed => {}
+                    }
+                }
                 let ModelOutput {
                     usage,
                     stop_reason,
@@ -2853,6 +2947,124 @@ impl KianaHarness {
         };
         (count >= self.repeated_tool_call_threshold)
             .then(|| format!("repeated_tool_call:{}", call.name))
+    }
+
+    /// 把一条进度证据送入 tracker，并把决定翻译成 harness 处置。
+    ///
+    /// `FeedbackOnce` 只消耗一次显式 repair 预算；预算耗尽或到达 no-progress/重复失败
+    /// 上限时返回 `Stop`，请求澄清时返回 `Clarification`。本函数不执行工具、不发模型请求，
+    /// 也不改变能力授权，只是把 reducer 的建议落到当前 run 的有限动作上。
+    fn apply_progress_input(
+        &self,
+        run: &mut ActiveRun,
+        input: ProgressInput,
+    ) -> Result<ProgressGate, KianaHarnessError> {
+        let decision = run
+            .progress_tracker
+            .observe(input)
+            .map_err(KianaHarnessError::Failed)?;
+        match decision.action {
+            ProgressAction::Continue => Ok(ProgressGate::Proceed),
+            ProgressAction::FeedbackOnce => {
+                let budget = self
+                    .effective_budget(run)
+                    .map_err(KianaHarnessError::Failed)?;
+                let scope = Self::budget_scope(run);
+                if let Err(error) = self.budget_ledger.reserve_repair(&scope, budget) {
+                    return Ok(ProgressGate::Stop(error));
+                }
+                Ok(ProgressGate::Feedback(
+                    crate::progress::bounded_feedback_text(
+                        &decision.reason,
+                        decision.consecutive_stall,
+                    ),
+                ))
+            }
+            ProgressAction::RequestClarification => Ok(ProgressGate::Clarification(decision)),
+            ProgressAction::Blocked => Ok(ProgressGate::Stop(decision.reason)),
+        }
+    }
+
+    /// 观察一次已知工具结果的进度，并返回有界处置。
+    ///
+    /// 只有已知失败和带 job/进程等待语义（`job_handle`/`process_id`/`cursor`/`heartbeat`）
+    /// 的结果进入停滞阶梯：普通成功结果的同形 ack 不代表没有推进，把不同操作的同形输出
+    /// 当成“无进展”会误杀合法流程，精确重复调用仍由 `record_tool_call` 覆盖。证据来自
+    /// 服务端已校验的工具名与结果观察（状态、错误分类、退出码、输出 digest 与数值
+    /// cursor/heartbeat），不读取模型文本、call id 或请求 id；只有已知失败才额外产生重复
+    /// 失败指纹。
+    fn observe_tool_progress(
+        &self,
+        run: &mut ActiveRun,
+        tool: &str,
+        result: &CapabilityResult,
+        observation: &ToolObservation,
+    ) -> Result<ProgressGate, KianaHarnessError> {
+        let failed = observation.status == ToolObservationStatus::FailedKnown;
+        if !failed && !crate::progress::is_job_observation(result) {
+            return Ok(ProgressGate::Proceed);
+        }
+        let evidence = crate::progress::evidence_for_result(tool, result, observation)
+            .map_err(KianaHarnessError::Failed)?;
+        let mut input = ProgressInput::new(evidence);
+        if failed {
+            input.failure_digest = Some(
+                crate::progress::failure_digest(&crate::progress::failure_key(observation))
+                    .map_err(KianaHarnessError::Failed)?,
+            );
+        }
+        self.apply_progress_input(run, input)
+    }
+
+    /// 观察一次没有工具调用、也没有文本的空 turn。
+    fn observe_empty_turn(&self, run: &mut ActiveRun) -> Result<ProgressGate, KianaHarnessError> {
+        let evidence = crate::progress::empty_turn_evidence().map_err(KianaHarnessError::Failed)?;
+        let mut input = ProgressInput::new(evidence);
+        input.empty_turn = true;
+        self.apply_progress_input(run, input)
+    }
+
+    /// 为停滞决定构造一条服务端澄清请求，并把 run 转入等待人工输入。
+    ///
+    /// 问题绑定当前 run/turn/step，使用服务端时钟和固定过期窗口；进入 AwaitingInput 后
+    /// runner 不再自动追加修复消息。返回的请求由调用方作为 `ClarificationRequested`
+    /// 事件交给 Core 持久化和投影；本函数不授予权限，也不执行任何工具。
+    fn begin_stall_clarification(
+        &self,
+        run: &mut ActiveRun,
+        decision: &ProgressDecision,
+    ) -> Result<kiana_domain::ClarificationRequest, String> {
+        let now_unix_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| "harness_clock_untrusted".to_owned())?
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        let question = format!(
+            "No observable progress during automated repair \
+             (reason: {}; consecutive_stall: {}; repeated_failure_count: {}). \
+             The run stopped automatic retries and is waiting for human input before continuing.",
+            decision.reason, decision.consecutive_stall, decision.repeated_failure_count
+        );
+        let request = kiana_domain::ClarificationRequest::new(
+            InteractionId::new(),
+            run.run_id,
+            run.turn_id
+                .unwrap_or_else(|| TurnId::from_uuid(run.run_id.as_uuid())),
+            run.step_id,
+            question,
+            Vec::new(),
+            true,
+            now_unix_ms,
+            now_unix_ms.saturating_add(86_400_000),
+            kiana_domain::ClarificationCancelPolicy::UserOrRuntime,
+            "kiana-harness",
+            vec!["user".to_owned()],
+        )?;
+        run.driver
+            .await_clarification(request.interaction_id)
+            .map_err(|error| error.to_string())?;
+        run.pending_clarification = Some(request.clone());
+        Ok(request)
     }
 }
 

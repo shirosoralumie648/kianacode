@@ -1,0 +1,56 @@
+name: H28 progress stall diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  progress-stall:
+    name: H28 bounded progress fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt -p kiana-domain -p kiana-runner -p kiana-protocol -p kiana-core --check
+      - name: Run domain progress fixtures
+        run: cargo test -p kiana-domain --test h28_progress --locked -- --test-threads=1
+      - name: Run protocol progress projection fixtures
+        run: cargo test -p kiana-protocol --test h28_progress --locked -- --test-threads=1
+      - name: Run runner progress behavior fixtures
+        run: cargo test -p kiana-runner --test h28_progress_behavior --locked -- --test-threads=1
+      - name: Run core progress guard
+        run: cargo test -p kiana-core --test h28_progress_guard --locked -- --test-threads=1
+      - name: Run named H28 acceptance fixtures
+        run: |
+          for fixture in \
+            alternating_failed_calls_hit_no_progress_limit \
+            stop_hook_cannot_extend_turn_indefinitely \
+            progressing_job_poll_is_bounded_without_false_loop_failure; do
+            cargo test -p kiana-domain --test h28_progress "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Run named H28 runner fixtures
+        run: |
+          for fixture in \
+            alternating_failed_calls_stop_with_bounded_clarification \
+            identical_failed_calls_hit_no_progress_limit \
+            empty_turn_cannot_complete_silently_without_bounded_feedback \
+            progressing_job_poll_is_bounded_without_false_loop_failure \
+            stalled_job_poll_stops_instead_of_polling_forever \
+            new_model_config_does_not_disable_repeated_tool_call_protection; do
+            cargo test -p kiana-runner --test h28_progress_behavior "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Compile domain progress target
+        run: cargo test -p kiana-domain --test h28_progress --no-run --locked
+      - name: Compile runner progress behavior target
+        run: cargo test -p kiana-runner --test h28_progress_behavior --no-run --locked
+      - name: Compile core progress guard target
+        run: cargo test -p kiana-core --test h28_progress_guard --no-run --locked
