@@ -14,6 +14,9 @@
 > 2026-10-17（CM-14）重新钉扎：检索结果 provenance/health 落地后 `memory_retrieval.rs`（候选来源证据、
 > 结果 health、显式重试边界）与 `harness_memory.rs`（快照标签与 `retrieval_health` 输出、同一次检索
 > 共用时间基准）重新钉扎两行 SHA-256，并与验收测试期望同步；下表其余哈希未变。
+> 2026-10-17（CM-14 合入 master）重新钉扎：CM-14 分支与 master 侧的 PD-17 夹具合并后，
+> `harness_memory.rs` 同时携带 CM-14 的检索 health 接线与 PD-17 的 in-module 拒伪造夹具，
+> 与两条分支各自的钉扎都不一致，故重钉该行 SHA-256 并与验收测试期望同步；下表其余哈希未变。
 
 ## 1. 快照
 
@@ -31,7 +34,7 @@
 | repo map | `kiana-query/src/repo_map.rs` | `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
 | context 命令（core） | `kiana-core/src/context_query.rs` | `e4865d44418b195f5fabe8a24d1d9f846f356b87acd2a5bbcdd0215c911282e9` |
 | context handler（daemon） | `kiana-daemon/src/context_query.rs` | `f862a66b00ef8db99ac4c010c65bbc42cbc689944a5e546f87da67fe7025b6f7` |
-| memory handler | `kiana-daemon/src/harness_memory.rs` | `80c3f2b729ce51d760862622271790dda469149f0f53fb45544419ae4e715cb5` |
+| memory handler | `kiana-daemon/src/harness_memory.rs` | `d92608513bc2562fefc5c1a00482c94511212449d885be08b9d93f2e64a3926f` |
 | memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `06dfbbab7f45cc94826279876e3d97a008fb42b00f154855e8bd2b0ff68a36f9` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
