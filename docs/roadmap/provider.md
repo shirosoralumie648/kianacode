@@ -393,7 +393,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-25 容量、熔断与白名单 fallback　🔄
+#### P4-J7-25 容量、熔断与白名单 fallback　✅
 
 - **依赖**：`P4-J7-23`、`P4-J7-24`。
 - **改动位置**：provider/gateway/route、connection health、daemon 容量服务、core 预算准入；复用既有 Quota。
