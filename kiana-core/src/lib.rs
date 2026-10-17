@@ -339,6 +339,7 @@ pub use invocation_projection::{project_invocations, InvocationProjection};
 pub use metrics::{
     project_metrics, project_operational_metrics, project_run_metrics, MetricCardinalityError,
     MetricCardinalityGuard, MetricReducer, MetricReducerError, MetricsProjectionError,
+    METRIC_CARDINALITY_OVERFLOW_TOTAL,
 };
 pub use model_attempt_lifecycle::{
     project_model_attempt_lifecycle, validate_model_attempt_dispatch,

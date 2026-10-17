@@ -34,6 +34,8 @@ pub const ARTIFACT_READ_FAILURE_TOTAL: &str = "kiana.artifacts.read_failure_tota
 pub const RECOVERY_ORPHAN_TOTAL: &str = "kiana.recovery.orphan_total";
 pub const RECOVERY_UNKNOWN_TOTAL: &str = "kiana.recovery.unknown_total";
 pub const RECOVERY_LAST_ERROR_PRESENT: &str = "kiana.recovery.last_error_present";
+/// Registered metric the cardinality guard publishes its bounded overflow counter as.
+pub const METRIC_CARDINALITY_OVERFLOW_TOTAL: &str = "kiana.metrics.cardinality_overflow_total";
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MetricsProjectionError {
@@ -685,6 +687,8 @@ pub fn project_run_metrics(
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MetricCardinalityError {
+    #[error("metric_cardinality_catalog_missing:{0}")]
+    CatalogMissing(&'static str),
     #[error("metric_cardinality_point_invalid:{0}")]
     PointInvalid(String),
     #[error("metric_cardinality_label_forbidden:{0}")]
@@ -697,17 +701,29 @@ pub enum MetricCardinalityError {
     LabelValueLimit(String),
 }
 
+/// Whether a label value carries a digest or long hex identifier rather than a dimension member.
+///
+/// Kiana digests are `sha256:` hex and several identifiers are long hex ids, so these shapes are
+/// positive evidence that the value names an object instead of a bounded enumeration member. The
+/// check is on the shape alone; it does not look anything up.
+fn looks_like_identifier_token(value: &str) -> bool {
+    let hex = value.strip_prefix("sha256:").unwrap_or(value);
+    hex.len() >= 32 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 /// Enforces the catalog's label allowlist and bounded series/value cardinality.
 ///
 /// This guard is intentionally independent of any exporter. A rejected point cannot be treated as
-/// a successful metric update, and the overflow count is available for a higher-level health or
-/// incident projection.
+/// a successful metric update, and the overflow count is available as the registered
+/// [`METRIC_CARDINALITY_OVERFLOW_TOTAL`] point for a higher-level health or incident projection.
 #[derive(Clone, Debug)]
 pub struct MetricCardinalityGuard {
     catalog: MetricCatalog,
     series: BTreeSet<String>,
     label_values: BTreeMap<String, BTreeSet<String>>,
     overflow_total: u64,
+    observed_cursor: EventCursor,
+    observed_event_ids: Vec<EventId>,
 }
 
 impl MetricCardinalityGuard {
@@ -720,11 +736,22 @@ impl MetricCardinalityGuard {
             series: BTreeSet::new(),
             label_values: BTreeMap::new(),
             overflow_total: 0,
+            observed_cursor: 0,
+            observed_event_ids: Vec::new(),
         })
     }
 
+    /// Whether a label key is refused on the key alone.
+    ///
+    /// The key is the only evidence needed for an identifier, payload or path dimension: an
+    /// unbounded value under such a key is dimension growth wearing a label's clothes. The runtime
+    /// list below is checked together with the domain source rule, so a catalog that wrongly
+    /// allowlists `trace_id`, `file_path` or `prompt_text` still cannot admit it.
     fn forbidden_label(label: &str) -> bool {
         let lower = label.to_ascii_lowercase();
+        if kiana_domain::is_high_cardinality_label(label) {
+            return true;
+        }
         matches!(
             lower.as_str(),
             "run_id"
@@ -752,15 +779,49 @@ impl MetricCardinalityGuard {
             || lower.contains("authorization_header")
     }
 
-    fn sensitive_value(value: &str) -> bool {
+    /// Whether a label value is refused on the value alone.
+    ///
+    /// A bounded dimension holds an enumeration member, not a payload: a raw secret, path or
+    /// identifier/digest token is refused before it can be exported, because the exported label is
+    /// exactly where the raw value would otherwise survive. Free text without a marker or control
+    /// character and within the byte bound cannot be told apart from a legal card value here, so the
+    /// key rule above carries that case.
+    fn forbidden_label_value(value: &str) -> bool {
         let lower = value.to_ascii_lowercase();
-        lower.contains("bearer ")
+        if lower.contains("bearer ")
             || lower.contains("sk-")
             || lower.contains("password")
             || lower.contains("secret")
             || lower.contains("authorization")
-            || value.contains('\n')
-            || value.contains('\r')
+        {
+            return true;
+        }
+        if value.chars().any(|character| character.is_control()) {
+            return true;
+        }
+        // The shared OA-03 redactor rewrites secret markers and JWT shapes wherever they appear, so a
+        // value it would rewrite is content that can only ever be published as a placeholder.
+        if kiana_domain::redact_text(value) != value {
+            return true;
+        }
+        // A payload-shaped value is a body, not a dimension member.
+        if value.starts_with('{') || value.starts_with('[') {
+            return true;
+        }
+        // A filesystem path, URL or UNC path is an unbounded dimension in a label's position.
+        if value.starts_with('/')
+            || value.starts_with('~')
+            || value.contains('\\')
+            || value.contains(":/")
+        {
+            return true;
+        }
+        // Kiana entity ids are UUIDs, so the value naming one is an identifier rather than a
+        // dimension member; digests and long hex ids are the same shape of leak.
+        if EventId::parse_str(value).is_some() {
+            return true;
+        }
+        looks_like_identifier_token(value)
     }
 
     fn series_key(point: &MetricPoint) -> String {
@@ -768,6 +829,33 @@ impl MetricCardinalityGuard {
             "name": point.name,
             "labels": point.labels,
         }))
+    }
+
+    /// Remember the newest observation boundary so the overflow counter has a source to bind to.
+    ///
+    /// Only the bounded sample of source event ids is kept, exactly like [`bounded_ids`]: the guard
+    /// mirrors the projections and never grows with the event count.
+    fn remember_boundary(&mut self, point: &MetricPoint) {
+        if self.observed_cursor == 0 || point.source_cursor > self.observed_cursor {
+            self.observed_cursor = point.source_cursor;
+            self.observed_event_ids = point
+                .source_event_ids
+                .iter()
+                .take(MAX_SAMPLE_IDS)
+                .copied()
+                .collect();
+            return;
+        }
+        if point.source_cursor == self.observed_cursor {
+            for event_id in point.source_event_ids.iter().take(MAX_SAMPLE_IDS) {
+                if self.observed_event_ids.len() >= MAX_SAMPLE_IDS {
+                    break;
+                }
+                if !self.observed_event_ids.contains(event_id) {
+                    self.observed_event_ids.push(*event_id);
+                }
+            }
+        }
     }
 
     pub fn overflow_total(&self) -> u64 {
@@ -778,10 +866,41 @@ impl MetricCardinalityGuard {
         self.series.len()
     }
 
+    /// Publish the bounded overflow counter as the registered catalog metric.
+    ///
+    /// Overflow is counted rather than swallowed: emitting this point makes a refused label, value
+    /// or series visible as [`METRIC_CARDINALITY_OVERFLOW_TOTAL`]. `Ok(None)` means the guard has no
+    /// observation boundary yet; a zero-cursor point would be refused by the domain contract, and
+    /// manufacturing one would claim evidence the guard never saw.
+    pub fn overflow_point(&self) -> Result<Option<MetricPoint>, MetricCardinalityError> {
+        if self.observed_cursor == 0 || self.observed_event_ids.is_empty() {
+            return Ok(None);
+        }
+        let definition = self
+            .catalog
+            .metric(METRIC_CARDINALITY_OVERFLOW_TOTAL)
+            .ok_or(MetricCardinalityError::CatalogMissing(
+                METRIC_CARDINALITY_OVERFLOW_TOTAL,
+            ))?;
+        let point = MetricPoint::new(
+            METRIC_CARDINALITY_OVERFLOW_TOTAL,
+            definition.kind,
+            self.overflow_total as f64,
+            definition.unit.clone(),
+            BTreeMap::new(),
+            definition.source,
+            self.observed_cursor,
+            self.observed_event_ids.clone(),
+        )
+        .map_err(MetricCardinalityError::PointInvalid)?;
+        Ok(Some(point))
+    }
+
     pub fn observe(&mut self, point: &MetricPoint) -> Result<(), MetricCardinalityError> {
         point
             .validate_with_catalog(&self.catalog)
             .map_err(MetricCardinalityError::PointInvalid)?;
+        self.remember_boundary(point);
         for label in point.labels.keys() {
             if Self::forbidden_label(label) {
                 self.overflow_total = self.overflow_total.saturating_add(1);
@@ -791,7 +910,7 @@ impl MetricCardinalityGuard {
         for (label, value) in &point.labels {
             if value.is_empty()
                 || value.len() > MAX_LABEL_VALUE_BYTES
-                || Self::sensitive_value(value)
+                || Self::forbidden_label_value(value)
             {
                 self.overflow_total = self.overflow_total.saturating_add(1);
                 return Err(MetricCardinalityError::LabelValueInvalid(label.clone()));
@@ -937,6 +1056,11 @@ impl MetricReducer {
 
     pub fn overflow_total(&self) -> u64 {
         self.guard.overflow_total()
+    }
+
+    /// Publish the guard's bounded overflow counter, when an observation boundary exists.
+    pub fn overflow_point(&self) -> Result<Option<MetricPoint>, MetricReducerError> {
+        Ok(self.guard.overflow_point()?)
     }
 
     pub fn snapshot(

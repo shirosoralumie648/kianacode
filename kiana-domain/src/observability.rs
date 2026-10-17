@@ -410,6 +410,15 @@ impl MetricDefinition {
             "metric_description",
             MAX_METRIC_DESCRIPTION_BYTES,
         )?;
+        // A `_measured_total`/`_estimated_total` name is a quality claim, and the source is the
+        // evidence behind it. Keeping the two in agreement means a catalog entry can never declare an
+        // estimate as a measurement and then be satisfied by points carrying the opposite quality.
+        if self.name.ends_with("_estimated_total") && self.source != MetricSource::Derived {
+            return Err("metric_estimated_definition_source_conflict".to_owned());
+        }
+        if self.name.ends_with("_measured_total") && self.source == MetricSource::Derived {
+            return Err("metric_measured_definition_source_conflict".to_owned());
+        }
         if self.allowed_labels.len() > MAX_SIGNAL_ATTRIBUTES {
             return Err("metric_allowed_label_limit".to_owned());
         }
@@ -740,6 +749,12 @@ impl MetricPoint {
         }
         if self.quality == MetricQuality::Estimated && definition.source != MetricSource::Derived {
             return Err("metric_estimate_source_conflict".to_owned());
+        }
+        // The mirror image: a catalog entry that is derived can only be reported as an estimate. A
+        // measured quality on a derived source is an estimate dressed as a measurement, which is the
+        // `estimated-as-measured` case the metric governance card rejects first.
+        if definition.source == MetricSource::Derived && self.quality != MetricQuality::Estimated {
+            return Err("metric_estimate_reported_as_measured".to_owned());
         }
         if self.kind == MetricKind::Counter && self.value < 0.0 {
             return Err("metric_counter_negative".to_owned());

@@ -23,5 +23,7 @@ jobs:
         run: cargo fmt --all --check
       - name: Run OA-12 metric governance fixtures
         run: cargo test -p kiana-core --test oa12_metric_governance --locked -- --test-threads=1
+      - name: Run domain metric contract fixtures
+        run: cargo test -p kiana-domain --test oa01_contracts --locked -- --test-threads=1
       - name: Compile OA-12 metric governance target
         run: cargo test -p kiana-core --test oa12_metric_governance --no-run --locked
