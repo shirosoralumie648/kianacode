@@ -10,8 +10,9 @@
 //!     -> RetrievalResult 或 PortError::Failed
 //! ```
 //!
-//! 本文件不读取索引、不创建候选、不做身份/ACL 决策，也不生成 embedding。仓库内旧 Daemon/CLI 检索模块
-//! 是独立兼容实现；不要因为共用“检索”一词，就认为它们都调用这里的 Domain 算法。
+//! 本文件不读取索引、不创建候选、不做身份/ACL 决策，也不生成 embedding。2026-10-17（CM-12）：Daemon
+//! memory tool 经本 adapter 调用 Domain 算法，CLI memory search 直接调用 `kiana_domain::rank_retrieval`；
+//! 两个适配器共享同一排名实现，但候选授权与降级输入仍各自准备。
 
 use kiana_domain::{
     rank_retrieval, RetrievalItem, RetrievalProfile, RetrievalRequest, RetrievalResult,

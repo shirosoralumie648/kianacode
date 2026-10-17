@@ -60,7 +60,9 @@ fn memory_adapter_uses_server_scope_and_reliable_commit_boundary() {
         retrieval,
         &[
             "memory_hits_from_events",
-            "memory_match_terms",
+            // CM-12：词项计算改由 harness_memory 统一调用 Domain `memory_query_terms()`；
+            // daemon 检索模块不再保留本地打分公式。
+            "memory_query_terms",
             "role_knowledge_denied",
         ],
         "memory retrieval",

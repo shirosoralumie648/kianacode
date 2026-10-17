@@ -8,6 +8,9 @@
 > 但仍校验固定清单长度；`reference/` 存在时照常做完整比对。
 > 2026-10-17 重新钉扎：CAP-19 server-owned memory scope 落地后只重钉 `harness_memory.rs` 一行 SHA-256，
 > 并与验收测试期望同步；下表其余哈希未变。
+> 2026-10-17（CM-12）重新钉扎：unified retrieval 落地后 `memory_retrieval.rs` 把排名委托给 Domain
+> `rank_retrieval()`，重钉该行 SHA-256；同时补钉 `harness_memory.rs`（`0cc42418` 对 H17/CAP-19 daemon
+> 源码套 rustfmt 后遗留的过期钉扎，非 CM-12 行为改动）。下表其余哈希未变。
 
 ## 1. 快照
 
@@ -25,8 +28,8 @@
 | repo map | `kiana-query/src/repo_map.rs` | `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
 | context 命令（core） | `kiana-core/src/context_query.rs` | `e4865d44418b195f5fabe8a24d1d9f846f356b87acd2a5bbcdd0215c911282e9` |
 | context handler（daemon） | `kiana-daemon/src/context_query.rs` | `f862a66b00ef8db99ac4c010c65bbc42cbc689944a5e546f87da67fe7025b6f7` |
-| memory handler | `kiana-daemon/src/harness_memory.rs` | `278b50288a6cf6e1e65b94ebff7171eea2508f0d077828ae10a556905d9d7ee0` |
-| memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `adaae8cce7e226e27910edc27036ed83bb4d711cdd9a0e595984ea638e74c03f` |
+| memory handler | `kiana-daemon/src/harness_memory.rs` | `f0e9e6cba39d029b4d005408c68184b6d864765a3248063415e8c3308ddae34c` |
+| memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `48bd7ae6184853b2e0def1a07cdc1f465640ab7a2e9c3eb068d8fd5cbb325a97` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
 | 上下文压缩 | `kiana-runner/src/compact.rs` | `6e3c08972ca24ac02334fafada0f689c5302eb6bc0b8ad6291acbb18cef063f6` |
@@ -41,7 +44,7 @@ reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 �
 | Prompt | `prompts.rs:1-15` PromptAuthority{Product,Context}；`:16-29` PromptSection（fnv1a64 prompt_hash）；`:40-48` PromptBundle（`kiana.prompt-bundle.v1`）；`:85-104` system_prompt()/context_prompt() 按 authority 分离渲染；`:113-159` TokenBudget（UTF-8 字节 + framing 常量，非 provider tokenizer） |
 | Context 命令 | `kiana-core/src/context_query.rs:4-39` `context.query.v1` 命令路由；`:73-228` 9 读操作（ReadOnly）+ 4 写操作（LocalWrite：index/artifacts/artifact_store cache write + artifact_ingest write）分野；daemon `context_query.rs:36-71` 注册 RepoMap/ReadQuery/Materialization 三组 handler，重活走 `spawn_blocking` |
 | Memory 写入 | `harness_memory.rs:54-71` 注册 memory.search/write/review；`:201-302` 模型写入固定 `origin=model`、Candidate/Draft、supersedes=None；scratch 即时可见（`.kiana/memory/instance/{session}.jsonl`） |
-| Memory 检索 | `memory_retrieval.rs` BM25+CJK、cosine、RRF60、MMR0.7；dense 需要 `KIANA_MEMORY_EMBEDDING_MANIFEST` 指向 `token-vectors` 格式 manifest（求和归一化，无 ONNX）；缺 manifest 降级 sparse |
+| Memory 检索 | `memory_retrieval.rs`（CM-12 起把排名委托给 Domain `rank_retrieval()`：exact/BM25-CJK → 可选 dense → RRF60 → MMR）负责 dense 模型加载、manifest/hash 校验与降级原因；dense 需要 `KIANA_MEMORY_EMBEDDING_MANIFEST` 指向 `token-vectors` 格式 manifest（求和归一化，无 ONNX）；缺 manifest 降级 sparse |
 | 蒸馏 | `memory_distillation.rs` 终态排队、CAS claim、内部模型 run、引文校验；`memory_proposals.rs` 人工接受候选 |
 | 压缩 | `compact.rs:142-144` 保留 system + 最近 user，丢弃 assistant/tool 历史，放 `(no summary available)` 占位 |
 

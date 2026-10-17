@@ -2,6 +2,7 @@
 fn hybrid_retrieval_contract_is_pinned_and_fail_closed() {
     let retrieval = include_str!("../src/memory_retrieval.rs");
     let memory = include_str!("../../kiana-domain/src/memory.rs");
+    let unified = include_str!("../../kiana-domain/src/unified_retrieval.rs");
     let harness = include_str!("../src/harness_memory.rs");
     let receipts = include_str!("../../kiana-core/src/receipts.rs");
     for marker in [
@@ -12,8 +13,9 @@ fn hybrid_retrieval_contract_is_pinned_and_fail_closed() {
         "memory_embedding_hash_mismatch",
         "memory_embedding_format_not_supported",
         "embedding_model_missing",
-        "1.0 / (61.0 + rank as f64)",
-        "0.7 * rrf[*i] / max_rrf - 0.3 * redundancy",
+        // CM-12：RRF/MMR 公式已下沉到 Domain `rank_retrieval()`；这里钉统一实现里的公式与字段名。
+        "1.0 / (profile.rrf_k as f64 + rank as f64 + 1.0)",
+        "profile.mmr_lambda * base - (1.0 - profile.mmr_lambda) * redundancy",
         "retrieval_algorithm",
         "score_components",
         "rank_records",
@@ -23,6 +25,7 @@ fn hybrid_retrieval_contract_is_pinned_and_fail_closed() {
         assert!(
             retrieval.contains(marker)
                 || memory.contains(marker)
+                || unified.contains(marker)
                 || harness.contains(marker)
                 || receipts.contains(marker),
             "hybrid retrieval marker missing: {marker}"
