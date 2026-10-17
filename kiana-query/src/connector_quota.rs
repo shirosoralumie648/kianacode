@@ -32,7 +32,8 @@ const MAX_QUOTA_ENTRIES: usize = 512;
 /// 一个 reservation 当前可见的状态及可选结算事实。
 ///
 /// projector 在同一 ID 的 reservation 事件之间按传入切片顺序覆盖；结算对象由 settled 事件携带，
-/// 并在输出前与最终保留的 reservation 交叉校验。
+/// 并先与该事件自带的 reservation 快照做精确摘要校验，进入输出后再与最终保留的快照做身份级
+/// 校验（同一 reservation ID/command digest/上限），因此「结算后再 release」不会让投影整体失败。
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectorQuotaProjectionEntry {
@@ -61,7 +62,11 @@ impl ConnectorQuotaProjectionEntry {
     pub fn validate(&self) -> Result<(), String> {
         self.reservation.validate()?;
         if let Some(settlement) = &self.settlement {
-            settlement.validate_against(&self.reservation)?;
+            // The latest snapshot may already be Released/Unknown after a later transition; the
+            // settlement therefore binds the reservation identity and command digest rather than
+            // the latest snapshot digest. The write path still validates the exact digest against
+            // the snapshot carried by the settled event (`validate_against`).
+            settlement.validate_identity_against(&self.reservation)?;
         }
         if self.source_cursor == 0
             || self.projection_version != CONNECTOR_QUOTA_PROJECTION_VERSION
