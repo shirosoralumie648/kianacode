@@ -30,3 +30,5 @@ jobs:
         run: cargo test -p kiana-daemon --test pd01_storage --no-run --locked
       - name: Compile PD-01 Core guard target
         run: cargo test -p kiana-core --test pd01_storage_guard --no-run --locked
+      - name: Check PD-01 product entrypoint surfaces
+        run: cargo check -p kiana-entrypoints --locked

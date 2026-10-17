@@ -178,7 +178,10 @@ pub use run_stream::{
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-pub use storage::{resolve_storage_root, StorageLease};
+pub use storage::{
+    acquire_surface_storage, resolve_storage_root, resolve_surface_storage_root, StorageLease,
+    StorageSurface, StorageSurfaceBinding, LOCAL_STORAGE_AUTHORITY_EPOCH, LOCAL_STORAGE_INSTANCE_ID,
+};
 pub use supervisor_adapters::NarrowSupervisorAdapter;
 pub use workflow_ingress::WorkflowEventVerifier;
 pub use workflow_service::{
@@ -907,6 +910,33 @@ impl DaemonHost {
     ) -> Result<StorageLease, PortError> {
         let root = self.storage_root(project_root, instance_id, authority_epoch)?;
         StorageLease::acquire(root)
+    }
+
+    /// Resolve the one local storage root that every product surface shares.
+    ///
+    /// This is the surface-facing form of [`DaemonHost::storage_root`]: it pins the restart-stable
+    /// local instance id and frozen authority epoch so CLI, Web and Workbench derive an identical
+    /// root and reuse the persisted `StoreIdentity`. The returned binding is evidence only; it does
+    /// not authorize a command or open a second execution path.
+    pub fn resolve_surface_storage_root(
+        &self,
+        surface: StorageSurface,
+        project_root: impl AsRef<Path>,
+    ) -> Result<(kiana_domain::StorageRoot, StorageSurfaceBinding), PortError> {
+        resolve_surface_storage_root(
+            surface,
+            project_root.as_ref(),
+            self.principal.actor_id.clone(),
+        )
+    }
+
+    /// Open the single-writer storage lease for a product surface on the shared local root.
+    pub fn acquire_surface_storage(
+        &self,
+        surface: StorageSurface,
+        project_root: impl AsRef<Path>,
+    ) -> Result<(StorageLease, StorageSurfaceBinding), PortError> {
+        acquire_surface_storage(surface, project_root.as_ref(), self.principal.actor_id.clone())
     }
 
     /// Subscribe to additive run-stream events for one run.

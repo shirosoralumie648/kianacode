@@ -230,3 +230,45 @@ proof-level_change: selected resolver denial source → local_behavior; whole PD
 limitations: Windows volume-root coverage, shared CLI/Web/Workbench root routing, stable restart identity, legacy adapter migration, stale/crash/power-loss recovery, directory fsync, cross-process fencing and network filesystem race proof remain open
 reviewer: root integration agent with PD-01 read-only audit; focused storage resolver reviewer
 ```
+
+## 13. Shared surface resolver and restart identity (2026-10-17, CI-only)
+
+`kiana-daemon` now owns one surface resolver in addition to the raw `resolve_storage_root`
+primitive. `StorageSurface` names the three product surfaces (`Cli`, `Web`, `Workbench`),
+`resolve_surface_storage_root` / `acquire_surface_storage` call the single resolver with the frozen
+local scope, and `StorageSurfaceBinding` records the derived root as evidence: root id, canonical
+path, owner scope digest, instance id and authority epoch, with a canonical `binding_digest`.
+`StorageSurfaceBinding::validate` rejects any instance or authority epoch other than the pinned
+`LOCAL_STORAGE_INSTANCE_ID` / `LOCAL_STORAGE_AUTHORITY_EPOCH`, so a binding cannot silently describe
+a foreign store.
+
+Why the frozen scope matters: `StorageOwnerScope` binds owner, instance and authority epoch into
+the persisted `StoreIdentity`. A per-run or per-process instance id would force a new owner scope on
+every launch and make `StoreIdentity::validate` reject the stored identity as a scope mismatch. The
+local product surfaces therefore resolve with one restart-stable installation instance and one
+frozen epoch; a genuine authority-epoch advance (evidence revocation, rebinding) stays a future
+migration concern (PD-12+/SC-08) rather than a per-invocation choice.
+
+The three surfaces now call that resolver:
+
+- CLI: `architecture status` reports `storage_surface` / `storage_root` / `storage_root_id` /
+  `storage_binding_digest`; `kiana run` resolves the shared root before it starts (fail closed).
+- Web: `run_web` resolves the root before serving and prints `storage root: <path> (<root_id>)`,
+  and the desktop-ready record carries the same ids.
+- Workbench: `run_workbench` resolves the root before its first turn and prints it in the banner.
+
+Resolution is metadata-only: it never acquires the writer lease, authorizes a command or opens a
+second execution path. Acquiring the single-writer lease remains an explicit, separate call.
+
+```text
+source_snapshot: current dirty worktree; kiana-daemon/src/storage.rs; kiana-daemon/src/lib.rs; kiana-daemon/tests/pd01_storage.rs; kiana-core/tests/pd01_storage_guard.rs; kiana-entrypoints/src/{cli,web,workbench}.rs; .github/workflows/pd01-storage-root.yml
+worktree_status: PD-01 row 108 🔄 → ✅ (CI pending) / feature_status=implemented / proof_level=source; no ControlPlane/CapabilityBroker path, no manifest or lockfile change
+command_argv: CI-only; no local cargo/build/test/fmt/clippy/smoke; static review plus `python3 scripts/roadmap-goal.py --json`, `bash scripts/ci/validate-doc-references.sh` (732 docs pass); `bash scripts/ci/validate-workflows.sh` not run (environment lacks ruby), workflow YAML reviewed by eye only
+cwd·environment: worktree /workspace/kianacode-worktrees/PD-01, branch step/pd-01-20261017-1, Linux/bash; GitHub Actions ubuntu-latest is the runtime test authority (receipt not awaited)
+fixture·cassette: daemon `pd01_storage` target +3 — `daemon_storage_surface_roots_are_identical_across_surfaces` (cli/web/workbench resolve one root id/canonical path/owner scope), `daemon_storage_surface_binding_rejects_scope_and_digest_tampering` (`storage_surface_binding_scope_invalid` / `storage_surface_binding_digest_mismatch`), `daemon_storage_identity_survives_a_new_process` (child process creates the store, parent reacquires the same `store_id`); Core guard `pd01_storage_guard` adds `product_surfaces_share_one_storage_resolver_without_a_second_root`; `pd01-storage-root.yml` adds a `cargo check -p kiana-entrypoints --locked` surface compile step
+exit_code: local runs not executed; CI receipt not awaited
+status_change: PD-01 card exit conditions covered at source level; row 108 ✅ (CI pending); feature_status=implemented
+proof-level_change: source only; no local_behavior/durable/live/physical promotion
+limitations: the shared root is proven for the local product instance only; authority-epoch advance/rebinding, stale/crash/power-loss lock recovery, directory fsync, cross-machine fencing, network filesystem race proof, Windows volume-root coverage, legacy `KIANA_HOME` adapter migration and full cross-surface UAT (PD-34/35) remain open; `validate-workflows.sh` could not run (ruby absent) so workflow YAML is not machine-validated; CI receipt for this slice is not yet read
+reviewer: root integration agent with PD-01 read-only audit
+```

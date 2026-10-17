@@ -5,10 +5,11 @@
 //! storage itself never becomes a second ControlPlane execution path.
 use crate::local_packages::LocalDir;
 use kiana_domain::{
-    canonical_journal_bytes, StorageBackend, StorageLockRecord, StorageNamespace,
-    StorageOwnerScope, StorageRoot, StoreIdentity,
+    canonical_journal_bytes, json_digest, StorageBackend, StorageLockRecord, StorageNamespace,
+    StorageOwnerScope, StorageRoot, StorageRootId, StoreIdentity,
 };
 use kiana_ports::PortError;
+use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
@@ -19,6 +20,150 @@ const HOME_ENV: &str = "HOME";
 const STORE_IDENTITY_FILE: &str = "store-identity.json";
 const STORAGE_LOCK_FILE: &str = "storage.lock";
 const MAX_STORAGE_METADATA_BYTES: usize = 16 * 1024;
+
+/// Binding schema for the surface-to-root record used by CLI/Web/Workbench.
+pub const STORAGE_SURFACE_BINDING_SCHEMA: &str = "kiana.storage-surface-binding.v1";
+/// Restart-stable local installation identity. Every product surface resolves the store with this
+/// instance so the persisted `StoreIdentity` is reused across processes instead of being rebound
+/// to a per-run process id.
+pub const LOCAL_STORAGE_INSTANCE_ID: &str = "kiana-local-store";
+/// Frozen authority epoch for the local product store. Advancement is a future migration concern
+/// (PD-12+/SC-08), not something a surface may choose per invocation.
+pub const LOCAL_STORAGE_AUTHORITY_EPOCH: u64 = 1;
+
+/// The product surfaces that must observe the same daemon-owned storage root.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageSurface {
+    Cli,
+    Web,
+    Workbench,
+}
+
+impl StorageSurface {
+    pub const ALL: [StorageSurface; 3] = [Self::Cli, Self::Web, Self::Workbench];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cli => "cli",
+            Self::Web => "web",
+            Self::Workbench => "workbench",
+        }
+    }
+}
+
+/// Evidence record that one surface resolved to one storage root.
+///
+/// The record is deliberately scoped to the local product store: `validate` rejects any instance
+/// or authority epoch other than the frozen local constants. Its digest binds the root identity
+/// (root id, canonical path, owner scope, instance, epoch) together with the `surface` label, so
+/// two surfaces that agree on the store share every root-derived field and differ only in
+/// `surface` and the dependent `binding_digest`.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StorageSurfaceBinding {
+    pub schema: String,
+    pub surface: StorageSurface,
+    pub root_id: StorageRootId,
+    pub canonical_path: String,
+    pub owner_scope_digest: String,
+    pub instance_id: String,
+    pub authority_epoch: u64,
+    pub binding_digest: String,
+}
+
+impl StorageSurfaceBinding {
+    pub fn new(surface: StorageSurface, root: &StorageRoot) -> Result<Self, String> {
+        root.validate()?;
+        let mut binding = Self {
+            schema: STORAGE_SURFACE_BINDING_SCHEMA.to_owned(),
+            surface,
+            root_id: root.root_id,
+            canonical_path: root.canonical_path.clone(),
+            owner_scope_digest: root.owner_scope.scope_digest.clone(),
+            instance_id: root.owner_scope.instance_id.clone(),
+            authority_epoch: root.owner_scope.authority_epoch,
+            binding_digest: String::new(),
+        };
+        binding.binding_digest = binding.digest();
+        binding.validate()?;
+        Ok(binding)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != STORAGE_SURFACE_BINDING_SCHEMA || self.root_id.as_uuid().is_nil() {
+            return Err("storage_surface_binding_header_invalid".to_owned());
+        }
+        if self.instance_id != LOCAL_STORAGE_INSTANCE_ID
+            || self.authority_epoch != LOCAL_STORAGE_AUTHORITY_EPOCH
+        {
+            return Err("storage_surface_binding_scope_invalid".to_owned());
+        }
+        if self.canonical_path.trim().is_empty() {
+            return Err("storage_surface_binding_path_invalid".to_owned());
+        }
+        require_digest(&self.owner_scope_digest, "storage_surface_binding_owner_scope_digest")?;
+        require_digest(&self.binding_digest, "storage_surface_binding_digest")?;
+        if self.binding_digest != self.digest() {
+            return Err("storage_surface_binding_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "surface": self.surface,
+            "root_id": self.root_id,
+            "canonical_path": self.canonical_path,
+            "owner_scope_digest": self.owner_scope_digest,
+            "instance_id": self.instance_id,
+            "authority_epoch": self.authority_epoch,
+        }))
+    }
+}
+
+/// Resolve the one local storage root that CLI, Web and Workbench must share.
+///
+/// Every surface calls this same function, so the derived root id, canonical path and owner scope
+/// digest are identical for all of them, and the frozen local instance/epoch make the persisted
+/// `StoreIdentity` reusable across process restarts. Resolution is metadata-only: it never
+/// acquires the writer lease, authorizes a command or opens a second execution path.
+pub fn resolve_surface_storage_root(
+    surface: StorageSurface,
+    project_root: &Path,
+    owner_id: impl Into<String>,
+) -> Result<(StorageRoot, StorageSurfaceBinding), PortError> {
+    let root = resolve_storage_root(
+        project_root,
+        owner_id,
+        LOCAL_STORAGE_INSTANCE_ID,
+        LOCAL_STORAGE_AUTHORITY_EPOCH,
+    )?;
+    let binding = StorageSurfaceBinding::new(surface, &root).map_err(PortError::Failed)?;
+    Ok((root, binding))
+}
+
+/// Resolve the shared surface root and open the single-writer lease on it.
+pub fn acquire_surface_storage(
+    surface: StorageSurface,
+    project_root: &Path,
+    owner_id: impl Into<String>,
+) -> Result<(StorageLease, StorageSurfaceBinding), PortError> {
+    let (root, binding) = resolve_surface_storage_root(surface, project_root, owner_id)?;
+    let lease = StorageLease::acquire(root)?;
+    Ok((lease, binding))
+}
+
+fn require_digest(value: &str, field: &str) -> Result<(), String> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(format!("{field}_invalid"));
+    };
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(())
+}
 
 pub fn resolve_storage_root(
     project_root: &Path,

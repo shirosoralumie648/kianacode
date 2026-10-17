@@ -15,6 +15,21 @@ limitations: 整条 prompt/tool-arg 文本不套用 profile 字节上限（真�
 reviewer: root integration agent；OA-03 静态复核
 ```
 
+### 2026-10-17 PD-01 翻 ✅（共享 surface 存储解析器与新进程重启 identity，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md 行 108；docs/roadmap/persistence-data-layer.md#step-pd-01；docs/roadmap/persistence-storage-root-baseline.md §13；kiana-daemon/src/storage.rs；kiana-daemon/src/lib.rs；kiana-daemon/tests/pd01_storage.rs（新增 3 fixture）；kiana-core/tests/pd01_storage_guard.rs（新增 1 guard）；kiana-entrypoints/src/cli.rs；kiana-entrypoints/src/web.rs；kiana-entrypoints/src/workbench.rs；.github/workflows/pd01-storage-root.yml
+worktree_status: 行 108 🔄 → ✅（CI pending）；新增 `StorageSurface`(cli/web/workbench)、`resolve_surface_storage_root`/`acquire_surface_storage`、`StorageSurfaceBinding`（digest 绑定 root id/canonical path/owner scope/instance/epoch）与固定本地 `LOCAL_STORAGE_INSTANCE_ID`/`LOCAL_STORAGE_AUTHORITY_EPOCH`；CLI(`architecture status` 输出 + `run` 启动)、Web、Workbench 共用同一 daemon 解析器；无 ControlPlane/Broker 执行路径、无第二事件循环、无 manifest/lockfile/Cargo 变更
+command_argv: CI-only；本地未运行 cargo/build/test/check/clippy/fmt/run/smoke；静态核对（rg/读取源码与 fixture）＋ python3 scripts/roadmap-goal.py --json、bash scripts/ci/validate-doc-references.sh（732 文档通过）；bash scripts/ci/validate-workflows.sh 因环境缺 ruby 未运行，`pd01-storage-root.yml` YAML 仅人工核对
+cwd·environment: worktree /workspace/kianacode-worktrees/PD-01，分支 step/pd-01-20261017-1，Linux/bash；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon `pd01_storage`（+3）`daemon_storage_surface_roots_are_identical_across_surfaces` / `daemon_storage_surface_binding_rejects_scope_and_digest_tampering`（`storage_surface_binding_scope_invalid`、`storage_surface_binding_digest_mismatch`）/ `daemon_storage_identity_survives_a_new_process`（子进程创建 store，父进程重开得到同一 `store_id`）；Core `pd01_storage_guard` 新增 `product_surfaces_share_one_storage_resolver_without_a_second_root`（三入口均含 `resolve_surface_storage_root` 与各自 `StorageSurface`，且不含 `StorageRoot::new(`/`StorageOwnerScope::new(`）；`pd01-storage-root.yml` 增加 `cargo check -p kiana-entrypoints --locked`
+exit_code: 本地未运行；CI 回执未等待
+status_change: PD-01 卡片拒绝路径此前已覆盖，本次补齐验收侧（同一解析器跨 CLI/Web/Workbench 同一 root + 跨进程重启保留 identity）→ implemented（row 108 ✅）；proof_level 维持 source
+proof-level_change: 无；未提升 local_behavior/durable/live/physical
+limitations: 仅证明本地产品 instance 的共享 root；authority epoch 前进/rebinding、stale/crash/power-loss 锁恢复、目录 fsync、跨机 fencing、网络 FS 竞态、Windows 卷根、legacy `KIANA_HOME` adapter 迁移、以及完整跨 surface UAT（PD-34/35）仍开放；本切片 CI 回执未读取；`validate-workflows.sh` 因缺 ruby 未运行，workflow YAML 未机器校验；入口启动期解析为 fail-closed，仍可能暴露此前未覆盖的 KIANA_HOME 位于项目内的旧调用点
+reviewer: root integration agent；PD-01 只读复核
+```
+
 ### 2026-10-17 H05 翻 ✅（统一停止原因、错误与重试分类，CI-only 口径）
 
 ```text
