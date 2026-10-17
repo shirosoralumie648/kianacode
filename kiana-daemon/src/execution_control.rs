@@ -1111,7 +1111,9 @@ pub(crate) fn store_output(
     )
     .map_err(|_| error("output_reference_invalid"))?;
     let record = json!({"schema":"kiana.execution-output.v1","identity":identity,"data_epoch":epoch,
-        "expires_at_unix_ms":expires_at_unix_ms,"output_ref":output_ref.clone(),"output":captured});
+        "expires_at_unix_ms":expires_at_unix_ms,
+        "redaction_profile_digest":crate::execution_output::preview_profile_digest(kiana_domain::SecretScanChannel::Stdout),
+        "output_ref":output_ref.clone(),"output":captured});
     let bytes = serde_json::to_vec(&record).map_err(|_| error("output_encode_failed"))?;
     if bytes.len() > budget.persist_max_bytes {
         return Err(error("output_persist_quota_exceeded"));
