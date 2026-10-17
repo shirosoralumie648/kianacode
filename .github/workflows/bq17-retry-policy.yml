@@ -1,0 +1,50 @@
+name: BQ-17 retry policy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retry-policy:
+    name: BQ-17 retry classifier, reservation and cancellation fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run BQ-17 domain fixtures
+        run: cargo test -p kiana-domain --test bq17_retry_policy --locked -- --test-threads=1
+      - name: Run BQ-17 provider boundary fixtures
+        run: cargo test -p kiana-provider --test bq17_retry_policy --locked -- --test-threads=1
+      - name: Run BQ-17 provider Retry-After unit fixtures
+        run: cargo test -p kiana-provider --lib --locked retry -- --test-threads=1
+      - name: Run BQ-17 provider TLS/connect unit fixtures
+        run: cargo test -p kiana-provider --lib --locked tls_failure -- --test-threads=1
+      - name: Run BQ-17 runner guard
+        run: cargo test -p kiana-runner --test bq17_retry_policy_guard --locked -- --test-threads=1
+      - name: Run BQ-17 core source guard
+        run: cargo test -p kiana-core --test bq17_retry_policy_guard --locked -- --test-threads=1
+      - name: Run BQ-17 daemon source guard
+        run: cargo test -p kiana-daemon --test bq17_retry_policy_guard --locked -- --test-threads=1
+      - name: Compile BQ-17 domain target
+        run: cargo test -p kiana-domain --test bq17_retry_policy --no-run --locked
+      - name: Compile BQ-17 provider boundary target
+        run: cargo test -p kiana-provider --test bq17_retry_policy --no-run --locked
+      - name: Compile BQ-17 provider library targets
+        run: cargo test -p kiana-provider --lib --no-run --locked
+      - name: Compile BQ-17 runner guard target
+        run: cargo test -p kiana-runner --test bq17_retry_policy_guard --no-run --locked
+      - name: Compile BQ-17 core guard target
+        run: cargo test -p kiana-core --test bq17_retry_policy_guard --no-run --locked
+      - name: Compile BQ-17 daemon guard target
+        run: cargo test -p kiana-daemon --test bq17_retry_policy_guard --no-run --locked
