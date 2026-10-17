@@ -854,3 +854,316 @@ impl CorrelationContext {
         Ok(())
     }
 }
+
+/// Ordered lifecycle stages a server-owned correlation context is threaded through.
+///
+/// The stage list mirrors the single execution spine (`ingress → run → turn → invocation →
+/// provider → broker → eventlog`). It is a *description* of where a context currently is, never a
+/// grant: entering a stage only derives a child span, it never authorizes an effect.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CorrelationStage {
+    Ingress,
+    Run,
+    Turn,
+    Invocation,
+    Provider,
+    Broker,
+    EventLog,
+}
+
+impl CorrelationStage {
+    /// The full spine in order. Index equals [`CorrelationStage::position`].
+    pub const ORDERED: [CorrelationStage; 7] = [
+        CorrelationStage::Ingress,
+        CorrelationStage::Run,
+        CorrelationStage::Turn,
+        CorrelationStage::Invocation,
+        CorrelationStage::Provider,
+        CorrelationStage::Broker,
+        CorrelationStage::EventLog,
+    ];
+
+    pub fn position(self) -> usize {
+        match self {
+            CorrelationStage::Ingress => 0,
+            CorrelationStage::Run => 1,
+            CorrelationStage::Turn => 2,
+            CorrelationStage::Invocation => 3,
+            CorrelationStage::Provider => 4,
+            CorrelationStage::Broker => 5,
+            CorrelationStage::EventLog => 6,
+        }
+    }
+
+    /// The only stage this one may advance to; `None` for the terminal stage.
+    pub fn next(self) -> Option<CorrelationStage> {
+        Self::ORDERED.get(self.position() + 1).copied()
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CorrelationStage::Ingress => "ingress",
+            CorrelationStage::Run => "run",
+            CorrelationStage::Turn => "turn",
+            CorrelationStage::Invocation => "invocation",
+            CorrelationStage::Provider => "provider",
+            CorrelationStage::Broker => "broker",
+            CorrelationStage::EventLog => "eventlog",
+        }
+    }
+}
+
+/// One stage of an authenticated correlation trail together with its server-owned context.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CorrelationStageEntry {
+    pub stage: CorrelationStage,
+    pub context: CorrelationContext,
+}
+
+/// Typed bridge that carries one authenticated correlation root through the execution spine.
+///
+/// The trail starts from the ingress context that `CorrelationContext::from_request` produced
+/// after authentication and scope resolution. Every advance derives a child span from the previous
+/// stage, so the whole spine shares one trace and one identity/scope/command binding. A trail is a
+/// process-local description, not persisted authority: the persisted artifact is the per-stage
+/// [`CorrelationContext`], and staging never grants an effect.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CorrelationTrail {
+    entries: Vec<CorrelationStageEntry>,
+}
+
+impl CorrelationTrail {
+    /// Start the trail from the authenticated ingress root.
+    pub fn from_ingress(root: CorrelationContext) -> Result<Self, String> {
+        Self::from_entries(vec![CorrelationStageEntry {
+            stage: CorrelationStage::Ingress,
+            context: root,
+        }])
+    }
+
+    /// Rebuild a trail from explicit entries, re-validating every stage and link.
+    ///
+    /// This is the only constructor that accepts a caller-supplied stage list, so a forged,
+    /// reordered or drifted trail fails closed before any caller can trust it.
+    pub fn from_entries(entries: Vec<CorrelationStageEntry>) -> Result<Self, String> {
+        let trail = Self { entries };
+        trail.validate()?;
+        Ok(trail)
+    }
+
+    pub fn entries(&self) -> &[CorrelationStageEntry] {
+        &self.entries
+    }
+
+    pub fn current(&self) -> &CorrelationContext {
+        &self
+            .entries
+            .last()
+            .expect("validated trail is never empty")
+            .context
+    }
+
+    pub fn current_stage(&self) -> CorrelationStage {
+        self.entries
+            .last()
+            .expect("validated trail is never empty")
+            .stage
+    }
+
+    pub fn context_at(&self, stage: CorrelationStage) -> Option<&CorrelationContext> {
+        self.entries
+            .iter()
+            .find(|entry| entry.stage == stage)
+            .map(|entry| &entry.context)
+    }
+
+    /// The terminal EventLog correlation, once the trail has reached the eventlog stage.
+    pub fn event_correlation(&self) -> Result<&CorrelationContext, String> {
+        self.context_at(CorrelationStage::EventLog)
+            .ok_or_else(|| "correlation_trail_eventlog_missing".to_owned())
+    }
+
+    fn advanced_context(&self, stage: CorrelationStage) -> Result<CorrelationContext, String> {
+        self.validate()?;
+        let expected = self
+            .current_stage()
+            .next()
+            .ok_or_else(|| "correlation_trail_terminal".to_owned())?;
+        if stage != expected {
+            return Err("correlation_trail_stage_order".to_owned());
+        }
+        self.current().child_span()
+    }
+
+    fn append(
+        mut self,
+        stage: CorrelationStage,
+        context: CorrelationContext,
+    ) -> Result<Self, String> {
+        self.entries.push(CorrelationStageEntry { stage, context });
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn with_run(self, run_id: RunId) -> Result<Self, String> {
+        let context = self.advanced_context(CorrelationStage::Run)?.with_run(run_id)?;
+        self.append(CorrelationStage::Run, context)
+    }
+
+    pub fn with_turn(self, turn_id: TurnId) -> Result<Self, String> {
+        let context = self
+            .advanced_context(CorrelationStage::Turn)?
+            .with_turn(turn_id)?;
+        self.append(CorrelationStage::Turn, context)
+    }
+
+    pub fn with_invocation(
+        self,
+        invocation_id: InvocationId,
+        execution_id: ExecutionId,
+    ) -> Result<Self, String> {
+        let context = self
+            .advanced_context(CorrelationStage::Invocation)?
+            .with_invocation(invocation_id, execution_id)?;
+        self.append(CorrelationStage::Invocation, context)
+    }
+
+    /// Bind the attempt to the current invocation stage without opening a new span.
+    pub fn with_attempt(mut self, attempt: AttemptRef) -> Result<Self, String> {
+        self.validate()?;
+        if self.current_stage() != CorrelationStage::Invocation {
+            return Err("correlation_attempt_requires_invocation".to_owned());
+        }
+        let bound = self.current().with_attempt(attempt)?;
+        let last = self
+            .entries
+            .last_mut()
+            .ok_or_else(|| "correlation_trail_empty".to_owned())?;
+        last.context = bound;
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn provider(self) -> Result<Self, String> {
+        let context = self.advanced_context(CorrelationStage::Provider)?;
+        self.append(CorrelationStage::Provider, context)
+    }
+
+    pub fn broker(self) -> Result<Self, String> {
+        let context = self.advanced_context(CorrelationStage::Broker)?;
+        self.append(CorrelationStage::Broker, context)
+    }
+
+    pub fn event_log(self, source_cursor: u64) -> Result<Self, String> {
+        let context = self
+            .advanced_context(CorrelationStage::EventLog)?
+            .with_source_cursor(source_cursor)?;
+        self.append(CorrelationStage::EventLog, context)
+    }
+
+    /// Asynchronous recovery: never reuses the upstream span. It records a link to the upstream
+    /// span and opens a fresh span so recovery work cannot overwrite or inherit the original owner.
+    pub fn async_recovery(
+        &self,
+        relationship: SpanLinkKind,
+    ) -> Result<CorrelationRecovery, String> {
+        self.validate()?;
+        if relationship == SpanLinkKind::Parent {
+            return Err("correlation_async_parent_link_forbidden".to_owned());
+        }
+        let upstream = self.current().clone();
+        let mut context = upstream.clone();
+        context.parent_span_id = None;
+        context.span_id = SpanId::new();
+        context.span_links = vec![SpanLink::new(upstream.current_span(), relationship)];
+        context.causation = None;
+        context.run_id = None;
+        context.turn_id = None;
+        context.invocation_id = None;
+        context.execution_id = None;
+        context.attempt = None;
+        context.source_cursor = None;
+        context.validate()?;
+        if context.trace_id != upstream.trace_id {
+            return Err("correlation_recovery_trace_drift".to_owned());
+        }
+        if context.span_id == upstream.span_id {
+            return Err("correlation_recovery_span_reuse".to_owned());
+        }
+        Ok(CorrelationRecovery {
+            upstream: upstream.current_span(),
+            relationship,
+            context,
+        })
+    }
+
+    /// Validate stage order, parent chain and identity/scope stability for the whole spine.
+    pub fn validate(&self) -> Result<(), String> {
+        let root = self
+            .entries
+            .first()
+            .ok_or_else(|| "correlation_trail_empty".to_owned())?;
+        if root.stage != CorrelationStage::Ingress {
+            return Err("correlation_trail_ingress_required".to_owned());
+        }
+        root.context.validate()?;
+        if root.context.parent_span_id.is_some() {
+            return Err("correlation_trail_ingress_parent_forbidden".to_owned());
+        }
+        if root.context.run_id.is_some()
+            || root.context.turn_id.is_some()
+            || root.context.invocation_id.is_some()
+            || root.context.execution_id.is_some()
+            || root.context.attempt.is_some()
+        {
+            return Err("correlation_trail_ingress_scope_forbidden".to_owned());
+        }
+        let mut previous: Option<&CorrelationStageEntry> = None;
+        for (index, entry) in self.entries.iter().enumerate() {
+            entry.context.validate()?;
+            if entry.stage.position() != index {
+                return Err("correlation_trail_stage_order".to_owned());
+            }
+            if entry.context.trace_id != root.context.trace_id {
+                return Err("correlation_trail_trace_drift".to_owned());
+            }
+            if entry.context.request_id != root.context.request_id
+                || entry.context.correlation_id != root.context.correlation_id
+                || entry.context.command_id != root.context.command_id
+                || entry.context.actor_ref != root.context.actor_ref
+                || entry.context.authority_epoch != root.context.authority_epoch
+                || entry.context.data_epoch != root.context.data_epoch
+                || entry.context.scope() != root.context.scope()
+            {
+                return Err("correlation_trail_identity_drift".to_owned());
+            }
+            if let Some(previous) = previous {
+                if entry.context.parent_span_id.as_ref() != Some(&previous.context.span_id) {
+                    return Err("correlation_trail_parent_link".to_owned());
+                }
+            }
+            previous = Some(entry);
+        }
+        Ok(())
+    }
+}
+
+/// A correlated asynchronous recovery: a link to the upstream span plus a fresh span.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CorrelationRecovery {
+    pub upstream: SpanRef,
+    pub relationship: SpanLinkKind,
+    pub context: CorrelationContext,
+}
+
+impl CorrelationRecovery {
+    /// Start a new trail for the recovered asynchronous work.
+    ///
+    /// The recovered root keeps the upstream trace and scope, carries the link, and has no parent
+    /// span, so the recovered run re-binds its own run/turn/invocation instead of inheriting the
+    /// upstream owner.
+    pub fn trail(&self) -> Result<CorrelationTrail, String> {
+        CorrelationTrail::from_ingress(self.context.clone())
+    }
+}

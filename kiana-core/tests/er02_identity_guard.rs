@@ -52,6 +52,39 @@ fn event_identity_links_and_projection_use_stable_ids_not_request_sequence() {
             "OA-02 malformed correlation guard missing: {marker}"
         );
     }
+    assert!(
+        correlation.contains("pub enum CorrelationStage")
+            && correlation.contains("pub struct CorrelationTrail")
+            && correlation.contains("pub struct CorrelationRecovery"),
+        "OA-02 must expose the typed ingress→run→turn→invocation→provider→broker→eventlog bridge"
+    );
+    for marker in [
+        "correlation_trail_stage_order",
+        "correlation_trail_trace_drift",
+        "correlation_trail_identity_drift",
+        "correlation_trail_parent_link",
+        "correlation_trail_ingress_parent_forbidden",
+        "correlation_async_parent_link_forbidden",
+        "correlation_recovery_trace_drift",
+        "correlation_recovery_span_reuse",
+    ] {
+        assert!(
+            correlation.contains(marker),
+            "OA-02 correlation trail rejection guard missing: {marker}"
+        );
+    }
+    let ports = include_str!("../../kiana-ports/src/lib.rs");
+    assert!(
+        ports.contains("pub trait CorrelationTrailPort")
+            && ports.contains("pub struct DomainCorrelationTrailPort"),
+        "OA-02 must expose the correlation trail port boundary"
+    );
+    let daemon = include_str!("../../kiana-daemon/src/lib.rs");
+    assert!(
+        daemon.contains("pub fn build_ingress_correlation_trail")
+            && daemon.contains("CorrelationTrail::from_ingress"),
+        "OA-02 authenticated ingress must start the typed correlation trail"
+    );
     assert!(projection.contains("event_run_id"));
     assert!(projection.contains("event_matches_run"));
     assert!(projection.contains("invocation_identity_links_invalid"));

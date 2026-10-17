@@ -140,7 +140,7 @@ use kiana_core::{ControlPlane, ControlPlaneRuntimeConfig};
 pub use kiana_domain::StreamingRedactor;
 use kiana_domain::{
     project_ui_snapshot, AuthenticatedPrincipalRef, CapacityInput, CapacityReport, CommandIntent,
-    ComponentHealth, ComponentHealthState, CorrelationContext, CorrelationScope,
+    ComponentHealth, ComponentHealthState, CorrelationContext, CorrelationScope, CorrelationTrail,
     CredentialRecoveryProjection, DepartmentSpec, DeploymentAdmissionDecision,
     DeploymentAdmissionInput, HealthAggregationInput, HealthAggregationReport, HealthProbeKind,
     HealthSnapshot, IdentityMigration, IncidentInput, IncidentReport, LifecycleEvidenceBundle,
@@ -314,6 +314,29 @@ pub fn build_ingress_correlation_context(
     let scope = CorrelationScope::new(request.session_id.clone(), None, Some(project.project_id));
     CorrelationContext::from_request(request, scope, authority_epoch, data_epoch, traceparent)
         .map_err(|error| PortError::Failed(format!("ingress_correlation_invalid:{error}")))
+}
+
+/// Build the authenticated ingress root and start the typed correlation trail for the spine.
+///
+/// This is the ingress entry to the `ingress → run → turn → invocation → provider → broker →
+/// eventlog` bridge. The returned trail shares one trace and one actor/scope/command binding for
+/// every stage, and its `async_recovery` derives a linked, fresh-span root for recovery work.
+pub fn build_ingress_correlation_trail(
+    request: &RequestContext,
+    project: &ProjectIdentity,
+    authority_epoch: u64,
+    data_epoch: u64,
+    traceparent: Option<&str>,
+) -> Result<CorrelationTrail, PortError> {
+    let root = build_ingress_correlation_context(
+        request,
+        project,
+        authority_epoch,
+        data_epoch,
+        traceparent,
+    )?;
+    CorrelationTrail::from_ingress(root)
+        .map_err(|error| PortError::Failed(format!("ingress_correlation_trail_invalid:{error}")))
 }
 
 /// 判断一个 authority 字符串是不是**本机回环地址**。

@@ -1,4 +1,10 @@
-use kiana_daemon::{build_ingress_correlation_context, validate_protected_ingress};
+use kiana_daemon::{
+    build_ingress_correlation_context, build_ingress_correlation_trail, validate_protected_ingress,
+};
+use kiana_domain::{
+    AttemptRef, CorrelationStage, ExecutionId, InvocationId, RequestContext, RunId, SpanLinkKind,
+    TurnId,
+};
 use kiana_protocol::RequestMetadata;
 
 #[test]
@@ -82,5 +88,72 @@ fn traceparent_is_optional_link_only_metadata_and_invalid_values_are_rejected() 
     assert_eq!(
         context.span_links[0].relationship,
         kiana_domain::SpanLinkKind::ForeignParent
+    );
+}
+
+#[test]
+fn authenticated_ingress_trail_threads_the_spine_and_recovers_via_link() {
+    let request = RequestContext::local("session-1", "/repo");
+    let project = kiana_domain::ProjectIdentity::new(
+        "/repo",
+        "/repo",
+        Some(1),
+        Some(2),
+        kiana_domain::json_digest(&serde_json::json!("trusted")),
+    )
+    .unwrap();
+    let parent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    let trail = build_ingress_correlation_trail(&request, &project, 7, 11, Some(parent)).unwrap();
+    assert_eq!(trail.current_stage(), CorrelationStage::Ingress);
+    assert_eq!(trail.current().actor_ref, "local-user");
+    assert_eq!(trail.current().authority_epoch, 7);
+    assert_eq!(trail.current().data_epoch, 11);
+    assert_eq!(trail.entries()[0].context.span_links.len(), 1);
+    assert_eq!(
+        trail.entries()[0].context.span_links[0].relationship,
+        SpanLinkKind::ForeignParent
+    );
+    let command_id = trail.current().command_id.unwrap();
+
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let invocation_id = InvocationId::new();
+    let execution_id = ExecutionId::new();
+    let attempt = AttemptRef::new(
+        run_id,
+        turn_id,
+        invocation_id,
+        execution_id,
+        command_id,
+        1,
+    )
+    .unwrap();
+    let trail = trail
+        .with_run(run_id)
+        .unwrap()
+        .with_turn(turn_id)
+        .unwrap()
+        .with_invocation(invocation_id, execution_id)
+        .unwrap()
+        .with_attempt(attempt)
+        .unwrap()
+        .provider()
+        .unwrap()
+        .broker()
+        .unwrap()
+        .event_log(13)
+        .unwrap();
+
+    assert_eq!(trail.current_stage(), CorrelationStage::EventLog);
+    assert_eq!(trail.entries().len(), CorrelationStage::ORDERED.len());
+    assert_eq!(trail.event_correlation().unwrap().source_cursor, Some(13));
+
+    let recovery = trail.async_recovery(SpanLinkKind::FollowsFrom).unwrap();
+    assert!(recovery.context.parent_span_id.is_none());
+    assert_ne!(recovery.context.span_id, trail.current().span_id);
+    assert_eq!(recovery.context.trace_id, trail.current().trace_id);
+    assert_eq!(
+        recovery.context.span_links[0].span,
+        trail.current().current_span()
     );
 }
