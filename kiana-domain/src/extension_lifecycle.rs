@@ -8,6 +8,7 @@ use crate::{
     is_hex_bytes, json_digest, valid_extension_identifier, ExtensionEffect, SchemaVersion,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const EXTENSION_LIFECYCLE_SCHEMA: &str = "kiana.extension-lifecycle-record.v1";
@@ -466,6 +467,29 @@ impl ExtensionConfigSnapshot {
             "entries": self.entries,
         }))
     }
+
+    /// Bind an operator-supplied configuration snapshot to the enable mutation that carries it.
+    ///
+    /// The snapshot is merged by scope (`host → user → project → run`) in `effective_entries`;
+    /// this check only proves that the *same* snapshot, registry generation and extension are
+    /// being enabled together, so a config snapshot cannot be replayed onto another mutation.
+    pub fn bind_to_mutation(&self, mutation: &ExtensionLifecycleMutation) -> Result<(), String> {
+        self.validate()?;
+        mutation.validate()?;
+        if !matches!(mutation.action, ExtensionLifecycleAction::Enable) {
+            return Err("extension_config_snapshot_binding_invalid".to_owned());
+        }
+        if self.extension_id != mutation.extension_id {
+            return Err("extension_config_extension_mismatch".to_owned());
+        }
+        if self.registry_version != mutation.expected_registry_version {
+            return Err("extension_config_registry_version_mismatch".to_owned());
+        }
+        if mutation.config_snapshot_digest.as_deref() != Some(self.snapshot_digest.as_str()) {
+            return Err("extension_config_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -537,7 +561,9 @@ impl ExtensionLifecycleMutation {
             || self.project_root.trim().is_empty()
             || self.project_root.len() > 4_096
             || self.project_root.contains('\0')
-            || self.expected_registry_version == 0
+            // 0 是合法值：它表示「我看到的是空注册表」，也就是第一次 stage/install 的
+            // 前置状态。daemon 仍会把声明值与折叠出的真实版本比对，不一致即拒绝；
+            // 这里不做「非零」约束，否则全新项目的第一份扩展永远无法通过类型化绑定。
             || self.idempotency_key.trim().is_empty()
             || self.idempotency_key.len() > 128
             || self.idempotency_key.chars().any(char::is_control)
@@ -614,6 +640,61 @@ impl ExtensionLifecycleMutation {
             "approval_id": self.approval_id,
         }))
     }
+
+    /// Rebuild the typed mutation from the shared `extension.manage` argument object.
+    ///
+    /// Both product-path layers call this: the ControlPlane does it *after* it has injected the
+    /// server-owned actor/project fields, and the daemon re-derives it from the arguments it
+    /// received before any registry CAS. The resulting `mutation_digest` is therefore a binding
+    /// over the server-normalized request, not a value the client can mint on its own. The
+    /// function only reads and validates its own fields; it never loads a package, resolves a
+    /// path or grants an effect.
+    pub fn from_command_arguments(arguments: &Value) -> Result<Self, String> {
+        let object = arguments
+            .as_object()
+            .ok_or_else(|| "extension_lifecycle_mutation_invalid".to_owned())?;
+        let action = object
+            .get("action")
+            .cloned()
+            .ok_or_else(|| "extension_lifecycle_action_invalid".to_owned())?;
+        let action: ExtensionLifecycleAction = serde_json::from_value(action)
+            .map_err(|_| "extension_lifecycle_action_invalid".to_owned())?;
+        let extension_id = command_argument(object, "extension_id")
+            .ok_or_else(|| "extension_lifecycle_extension_id_invalid".to_owned())?;
+        let project_root = command_argument(object, "project_root")
+            .ok_or_else(|| "extension_lifecycle_project_root_required".to_owned())?;
+        let expected_registry_version = object
+            .get("expected_registry_version")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| "extension_lifecycle_expected_registry_version_required".to_owned())?;
+        let idempotency_key = command_argument(object, "idempotency_key")
+            .ok_or_else(|| "extension_lifecycle_idempotency_key_required".to_owned())?;
+        let actor_ref = command_argument(object, "actor_ref")
+            .or_else(|| command_argument(object, "actor_id"))
+            .ok_or_else(|| "extension_lifecycle_actor_required".to_owned())?;
+        let reason = command_argument(object, "reason")
+            .ok_or_else(|| "extension_lifecycle_reason_required".to_owned())?;
+        let trust_revision = command_argument(object, "trust_revision")
+            .ok_or_else(|| "extension_lifecycle_trust_revision_required".to_owned())?;
+        Self::new(
+            action,
+            extension_id,
+            project_root,
+            command_argument(object, "package_sha256"),
+            expected_registry_version,
+            idempotency_key,
+            actor_ref,
+            reason,
+            trust_revision,
+            command_argument(object, "dependency_snapshot_digest"),
+            command_argument(object, "config_snapshot_digest"),
+            command_argument(object, "approval_id"),
+        )
+    }
+}
+
+fn command_argument(object: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    object.get(key).and_then(Value::as_str).map(str::to_owned)
 }
 
 pub const EXTENSION_LIFECYCLE_CHANGESET_SCHEMA: &str = "kiana.extension-lifecycle-changeset.v1";

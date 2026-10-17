@@ -5,16 +5,17 @@ use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
 use kiana_domain::{
     json_digest, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
-    ExtensionAdapterRegistry, ExtensionComponentKind, ExtensionConfigurationSnapshot,
-    ExtensionExecutionContract, ExtensionLifecyclePhase, ExtensionManifest, ExtensionPackage,
-    ExtensionSnapshot, ExtensionSnapshotState, ExtensionStateMigrationPlan,
-    ExtensionStateMigrationReceipt, ExtensionStateScope, ExtensionType,
-    ExtensionVisibilityActionKind, ExtensionVisibilityEntry, ExtensionVisibilityKind,
-    ExtensionVisibilityRisk, ExtensionVisibilitySnapshot, ExtensionVisibilitySource,
-    ExtensionVisibilityStatus, ExtensionVisibilityTrust, PromptAuthority, PromptBudgetUsage,
-    PromptSection, RequestId, RuntimeEvent, SkillPromptProvenance, SourceKind, SourceRef,
-    VerifiedExtensionComponent, EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA,
-    EXTENSION_STREAM, SKILL_PROMPT_PROVENANCE_SCHEMA,
+    ExtensionAdapterRegistry, ExtensionComponentKind, ExtensionConfigSnapshot,
+    ExtensionConfigurationSnapshot, ExtensionExecutionContract, ExtensionLifecycleMutation,
+    ExtensionLifecyclePhase, ExtensionManifest, ExtensionPackage, ExtensionSnapshot,
+    ExtensionSnapshotState, ExtensionStateMigrationPlan, ExtensionStateMigrationReceipt,
+    ExtensionStateScope, ExtensionType, ExtensionVisibilityActionKind, ExtensionVisibilityEntry,
+    ExtensionVisibilityKind, ExtensionVisibilityRisk, ExtensionVisibilitySnapshot,
+    ExtensionVisibilitySource, ExtensionVisibilityStatus, ExtensionVisibilityTrust,
+    PromptAuthority, PromptBudgetUsage, PromptSection, RequestId, RuntimeEvent,
+    SkillPromptProvenance, SourceKind, SourceRef, VerifiedExtensionComponent,
+    EXTENSION_MANAGE_OPERATION, EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
+    SKILL_PROMPT_PROVENANCE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use ring::signature::{UnparsedPublicKey, ED25519};
@@ -202,6 +203,8 @@ impl ExtensionRegistry {
                 return Ok(json!({
                     "schema": REGISTRY_SCHEMA,
                     "registry_version": version,
+                    "dependency_snapshot_digest": dependency_snapshot_digest(&states),
+                    "trust_revision": project_trust_revision(Path::new(project_root))?,
                     "snapshot": snapshot,
                     "extension": entry,
                 }));
@@ -209,6 +212,8 @@ impl ExtensionRegistry {
             return Ok(json!({
                 "schema": REGISTRY_SCHEMA,
                 "registry_version": version,
+                "dependency_snapshot_digest": dependency_snapshot_digest(&states),
+                "trust_revision": project_trust_revision(Path::new(project_root))?,
                 "snapshot": snapshot,
             }));
         }
@@ -226,6 +231,8 @@ impl ExtensionRegistry {
             return Ok(
                 json!({"schema":REGISTRY_SCHEMA,"registry_version":version,"manifest":manifest,
                 "package_sha256":package.package_sha256,"signature_verified":true,
+                "dependency_snapshot_digest":dependency_snapshot_digest(&states),
+                "trust_revision":project_trust_revision(Path::new(project_root))?,
                 "capability_diff":manifest.capability_diff(states.get(&manifest.extension_id).map(|s| &s.manifest)),
                 "activation":activation_state(manifest),"state_scope_digest":state_scope.scope_contract_digest,
                 "configuration_digest":configuration.as_ref().map(|snapshot| snapshot.config_digest.clone()),
@@ -235,7 +242,14 @@ impl ExtensionRegistry {
         }
         if !matches!(
             action,
-            "install" | "upgrade" | "enable" | "disable" | "revoke" | "rollback" | "uninstall"
+            "stage"
+                | "install"
+                | "upgrade"
+                | "enable"
+                | "disable"
+                | "revoke"
+                | "rollback"
+                | "uninstall"
         ) {
             return Err(failed("extension_action_invalid"));
         }
@@ -244,6 +258,51 @@ impl ExtensionRegistry {
             kiana_domain::RiskLevel::ExternalSideEffect | kiana_domain::RiskLevel::Critical
         ) {
             return Err(failed("extension_approval_risk_required"));
+        }
+        // 类型化生命周期绑定（inspect → stage → install → enable）。
+        //
+        // stage / install / enable 必须携带 ControlPlane 归一化之后铸造的
+        // mutation 摘要，以及该 mutation 绑定的 trust revision、依赖快照摘要；
+        // enable 还必须携带 approval 与类型化 config snapshot。daemon 用**当前**
+        // 事件流与项目 trust 重新计算这两个快照，过期即拒绝，避免「用旧依赖集/
+        // 旧信任状态批准新变更」。这些摘要全部由服务端字段一起参与计算
+        // （actor/project 由 Core 注入后才铸造），客户端无法自行铸造；任何字段
+        // 在传输途中被改写都会体现为摘要不一致。
+        let mut lifecycle_mutation = None;
+        let mut config_snapshot = None;
+        if matches!(action, "stage" | "install" | "enable") {
+            let mutation =
+                kiana_domain::ExtensionLifecycleMutation::from_command_arguments(arguments)
+                    .map_err(failed)?;
+            let declared = arguments
+                .get("mutation_digest")
+                .and_then(Value::as_str)
+                .ok_or_else(|| failed("extension_lifecycle_mutation_digest_required"))?;
+            if declared != mutation.mutation_digest {
+                return Err(failed("extension_lifecycle_mutation_digest_mismatch"));
+            }
+            if mutation.trust_revision != project_trust_revision(Path::new(project_root))? {
+                return Err(failed("extension_trust_revision_stale"));
+            }
+            if mutation.dependency_snapshot_digest.as_deref()
+                != Some(dependency_snapshot_digest(&states).as_str())
+            {
+                return Err(failed("extension_dependency_snapshot_stale"));
+            }
+            let snapshot = arguments
+                .get("config_snapshot")
+                .cloned()
+                .map(serde_json::from_value::<kiana_domain::ExtensionConfigSnapshot>)
+                .transpose()
+                .map_err(|_| failed("extension_config_snapshot_invalid"))?;
+            if action == "enable" && snapshot.is_none() {
+                return Err(failed("extension_config_snapshot_required"));
+            }
+            if let Some(snapshot) = &snapshot {
+                snapshot.bind_to_mutation(&mutation).map_err(failed)?;
+            }
+            lifecycle_mutation = Some(mutation);
+            config_snapshot = snapshot;
         }
         let key = string(arguments, "idempotency_key")?;
         if key.len() > 128 || key.chars().any(char::is_control) {
@@ -316,6 +375,14 @@ impl ExtensionRegistry {
                 if matches!(current.state.as_str(), "revoked" | "uninstalled") {
                     return Err(failed("extension_lifecycle_state_invalid"));
                 }
+                // `stage` 只把已验证字节放进不可变缓存并登记一条 inert 记录，
+                // 它不构成安装。没有一次 install/upgrade/rollback 事件之前，
+                // enable 必须被拒绝：staging 永远不能直接开通执行面。
+                if action == "enable"
+                    && latest_lifecycle_action(&history, extension_id) == Some("stage")
+                {
+                    return Err(failed("extension_not_installed"));
+                }
                 if action == "enable" && current.state == "enabled" {
                     return Err(failed("extension_already_enabled"));
                 }
@@ -332,7 +399,7 @@ impl ExtensionRegistry {
                 next.source_request_id = request.request.request_id;
                 (next, None)
             }
-            "install" | "upgrade" | "rollback" => {
+            "stage" | "install" | "upgrade" | "rollback" => {
                 let package = if action == "rollback" {
                     if current.is_none() {
                         return Err(failed("extension_not_installed"));
@@ -357,7 +424,18 @@ impl ExtensionRegistry {
                 if manifest.extension_id != extension_id {
                     return Err(failed("extension_package_identity_mismatch"));
                 }
-                if action == "install" && current.is_some_and(|state| state.state != "uninstalled")
+                // 只有「同一份已验证包、且当前记录正是由 stage 事件建立」时的
+                // stage/install 才被允许：前者是幂等重试，后者是 stage → install
+                // 的推进。其余已存在的记录（包括真正安装过的）一律拒绝安装，
+                // 必须走 upgrade/rollback。
+                let staged_pending = current.is_some_and(|state| {
+                    state.state == "staged"
+                        && state.package_sha256 == package.package_sha256
+                        && latest_lifecycle_action(&history, extension_id) == Some("stage")
+                });
+                if matches!(action, "stage" | "install")
+                    && current.is_some_and(|state| state.state != "uninstalled")
+                    && !staged_pending
                 {
                     return Err(failed("extension_already_installed"));
                 }
@@ -368,7 +446,7 @@ impl ExtensionRegistry {
                     if current.manifest.publisher != manifest.publisher {
                         return Err(failed("extension_publisher_change_denied"));
                     }
-                    if current.package_sha256 == package.package_sha256 {
+                    if current.package_sha256 == package.package_sha256 && !staged_pending {
                         return Err(failed("extension_version_unchanged"));
                     }
                 }
@@ -457,15 +535,39 @@ impl ExtensionRegistry {
         let next_version = version
             .checked_add(1)
             .ok_or_else(|| failed("extension_registry_version_exhausted"))?;
+        // `enable` 的有效配置投影：只为 enable 携带的类型化快照才有值。它按
+        // host → user → project → run 的优先级合并，只含每个字段的来源引用与
+        // 值摘要（不含明文、不含密钥本体）；非 enable 动作恒为空数组。
+        let config_effective = config_snapshot
+            .as_ref()
+            .map(kiana_domain::ExtensionConfigSnapshot::effective_entries)
+            .transpose()
+            .map_err(failed)?
+            .unwrap_or_default();
+        let lifecycle_binding = json!({
+            "mutation_digest": lifecycle_mutation.as_ref().map(|mutation| &mutation.mutation_digest),
+            "trust_revision": lifecycle_mutation.as_ref().map(|mutation| &mutation.trust_revision),
+            "dependency_snapshot_digest": lifecycle_mutation
+                .as_ref()
+                .and_then(|mutation| mutation.dependency_snapshot_digest.as_ref()),
+            "approval_id": lifecycle_mutation
+                .as_ref()
+                .and_then(|mutation| mutation.approval_id.as_ref()),
+            "config_snapshot_digest": config_snapshot
+                .as_ref()
+                .map(|snapshot| &snapshot.snapshot_digest),
+            "config_effective": config_effective,
+        });
         let receipt = json!({"schema":REGISTRY_SCHEMA,"action":action,"extension_id":extension_id,
             "project_root":project_root,"registry_version":next_version,"state":next.state,
             "package_sha256":next.package_sha256,"content_hash":next.manifest.content_hash,
             "version":next.manifest.version,"previous_version":current.map(|s| &s.manifest.version),
             "previous_package_sha256":current.map(|s| &s.package_sha256),"license":next.manifest.license,
-            "signature":next.manifest.signature,"signature_verified":matches!(action, "install" | "upgrade" | "rollback"),
+            "signature":next.manifest.signature,"signature_verified":matches!(action, "stage" | "install" | "upgrade" | "rollback"),
             "capability_diff":next.manifest.capability_diff(current.map(|s| &s.manifest)),
             "migration":migration_receipt,"safety_validation":"not_evaluated","reason":kiana_domain::redact_text(reason),"actor_id":actor,
             "state_scope":state_scope,"configuration_digest":configuration.as_ref().map(|snapshot| snapshot.config_digest.clone()),
+            "lifecycle_binding":lifecycle_binding,
             "authorization_id":request.authorization_id,"replayed":false});
         let event = RuntimeEvent::new(
             request.request.request_id,
@@ -501,6 +603,12 @@ impl ExtensionRegistry {
             "idempotency_key": key,
             "expected_registry_version": expected,
             "registry_version": next_version,
+            "mutation_digest": lifecycle_mutation
+                .as_ref()
+                .map(|mutation| &mutation.mutation_digest),
+            "approval_id": lifecycle_mutation
+                .as_ref()
+                .and_then(|mutation| mutation.approval_id.as_ref()),
             "event_id": appended.event.event_id,
             "replayed": false,
         });
@@ -736,10 +844,7 @@ impl ExtensionRegistry {
             )
             .map_err(failed)?,
         );
-        let trust_revision = json_digest(&json!({
-            "project": project.to_string_lossy(),
-            "trust": project_trust.as_str(),
-        }));
+        let trust_revision = project_trust_revision(&project)?;
         let generation =
             kiana_skills::snapshot_generation().max(registry_generation.saturating_add(1));
         let snapshot_id = stable_snapshot_id(&material_digest)?;
@@ -1220,6 +1325,63 @@ fn fold_registry(
     Ok((version, states))
 }
 
+/// Digest of the registry dependency surface a caller inspected before mutating.
+///
+/// `inspect` returns this value; `stage` / `install` / `enable` must carry it back. The digest
+/// covers exactly what another extension's `requires.extensions` can depend on (identity,
+/// version, verified package hash and live lifecycle state) and is folded from the committed
+/// event stream, so it is stable across processes and cannot be forged from arguments.
+fn dependency_snapshot_digest(states: &BTreeMap<String, InstalledExtension>) -> String {
+    json_digest(&json!({
+        "schema": "kiana.extension-dependency-snapshot.v1",
+        "dependencies": states
+            .values()
+            .map(|state| {
+                json!({
+                    "extension_id": state.manifest.extension_id,
+                    "version": state.manifest.version,
+                    "package_sha256": state.package_sha256,
+                    "state": state.state,
+                })
+            })
+            .collect::<Vec<_>>(),
+    }))
+}
+
+/// Lifecycle action of the most recent committed event for `extension_id`.
+///
+/// The folded state alone cannot distinguish "staged by `stage`" (inert bytes) from "staged by
+/// `install`" (installation confirmed, enable allowed). Both write state `staged`; only the
+/// append-only action history can tell them apart, which is why promotion and `enable` read it.
+fn latest_lifecycle_action<'a>(history: &'a [RuntimeEvent], extension_id: &str) -> Option<&'a str> {
+    history
+        .iter()
+        .rev()
+        .find(|event| {
+            event.kind == "extension.lifecycle"
+                && event.data["state"]["manifest"]["extension_id"] == extension_id
+        })
+        .and_then(|event| event.data["action"].as_str())
+}
+
+/// Trust revision bound into lifecycle mutations and visibility snapshots.
+///
+/// It digests the canonical project path plus the project trust decision. The same value is
+/// returned by the read-only projection, so a caller can prove "I asked for this extension
+/// while the project was in this trust state" and the daemon can reject stale revisions after
+/// the trust file changes.
+fn project_trust_revision(project: &Path) -> Result<String, PortError> {
+    let project = canonical_project(&project.to_string_lossy())?;
+    let project_trust = kiana_types::read_project_trust(&project)
+        .ok()
+        .flatten()
+        .unwrap_or(kiana_types::ProjectTrust::Unknown);
+    Ok(json_digest(&json!({
+        "project": project.to_string_lossy(),
+        "trust": project_trust.as_str(),
+    })))
+}
+
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StatelessMigration {
@@ -1435,18 +1597,19 @@ fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        activation_state, canonical_project, verify_manifest_signature, ExtensionRegistry,
-        InstalledExtension, REGISTRY_SCHEMA,
+        activation_state, canonical_project, fold_registry, verify_manifest_signature,
+        ExtensionRegistry, InstalledExtension, REGISTRY_SCHEMA,
     };
     use crate::local_packages::{decode_hex, sha256, LocalDir};
     use async_trait::async_trait;
     use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
     use kiana_domain::{
         AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
-        CapabilityResult, ExecutionScope, ExtensionEffect, ExtensionExecutionScope,
-        ExtensionManifest, ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires,
-        ExtensionSignature, ExtensionType, ProjectIdentity, RequestId, RiskLevel, RuntimeEvent,
-        ScopeDimension, ScopeLimit, ScopeSet, SessionId, EXTENSION_MANIFEST_SCHEMA,
+        CapabilityResult, ExecutionScope, ExtensionConfigEntry, ExtensionConfigScope,
+        ExtensionConfigSnapshot, ExtensionEffect, ExtensionExecutionScope, ExtensionManifest,
+        ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires, ExtensionSignature,
+        ExtensionType, ProjectIdentity, RequestId, RiskLevel, RuntimeEvent, ScopeDimension,
+        ScopeLimit, ScopeSet, SessionId, EXTENSION_MANAGE_OPERATION, EXTENSION_MANIFEST_SCHEMA,
         EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
     };
     use kiana_ports::{
@@ -1978,5 +2141,627 @@ mod tests {
             .expect("control dispatch");
         assert_eq!(result.output["fixture"], json!("extension-admission"));
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    // ---- EXT-22: typed inspect → stage → install → enable lifecycle bindings ----
+
+    fn fixture_package_file(root: &Path, package: &FixturePackage) -> String {
+        let path = "extensions/review-skill.package.json";
+        let file = root.join("project").join(path);
+        std::fs::create_dir_all(file.parent().expect("fixture package parent"))
+            .expect("fixture package directory");
+        std::fs::write(&file, &package.bytes).expect("fixture package bytes");
+        path.to_owned()
+    }
+
+    /// Build an authorized `extension.manage` request the way the composition root would.
+    fn manage_request(
+        project_root: &str,
+        risk: RiskLevel,
+        arguments: serde_json::Value,
+    ) -> AuthorizedCapabilityRequest {
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            EXTENSION_MANAGE_OPERATION,
+            arguments,
+        )
+        .with_risk(risk);
+        kiana_domain::normalize_capability_action(&mut request).expect("normalize fixture request");
+        request.execution_scope = Some(execution_scope(&request));
+        AuthorizedCapabilityRequest::new("extension:ext22-fixture", request).expect("authorized")
+    }
+
+    /// Server-owned fields the ControlPlane injects before the daemon ever sees the request.
+    /// Clients cannot send these keys (the argument whitelist rejects them), so tests that want
+    /// to prove forgery resistance only get them through this helper.
+    fn server_owned_arguments(arguments: &mut serde_json::Value, project_root: &str) {
+        let object = arguments.as_object_mut().expect("fixture arguments object");
+        object.insert("operator_authorized".to_owned(), json!(true));
+        object.insert("project_root".to_owned(), json!(project_root));
+        object.insert("actor_id".to_owned(), json!("fixture-operator"));
+        object.insert("role_id".to_owned(), json!("builder"));
+        object.insert("department_id".to_owned(), json!("engineering"));
+    }
+
+    /// Mint the typed mutation digest exactly where the ControlPlane does: after the
+    /// server-owned fields are present, over the fields the daemon will re-derive.
+    fn bind_lifecycle_mutation(arguments: &mut serde_json::Value, project_root: &str) {
+        server_owned_arguments(arguments, project_root);
+        let mutation = kiana_domain::ExtensionLifecycleMutation::from_command_arguments(arguments)
+            .expect("fixture lifecycle mutation");
+        arguments
+            .as_object_mut()
+            .expect("fixture arguments object")
+            .insert(
+                "mutation_digest".to_owned(),
+                json!(mutation.mutation_digest),
+            );
+    }
+
+    fn package_mutation_arguments(
+        action: &str,
+        package: &FixturePackage,
+        package_path: &str,
+        expected_registry_version: u64,
+        idempotency_key: &str,
+        trust_revision: &str,
+        dependency_snapshot_digest: &str,
+    ) -> serde_json::Value {
+        json!({
+            "action": action,
+            "extension_id": "review-skill",
+            "package_path": package_path,
+            "package_sha256": package.package_sha256,
+            "expected_registry_version": expected_registry_version,
+            "idempotency_key": idempotency_key,
+            "reason": "EXT-22 lifecycle fixture",
+            "trust_revision": trust_revision,
+            "dependency_snapshot_digest": dependency_snapshot_digest,
+        })
+    }
+
+    fn fixture_config_snapshot(registry_version: u64) -> ExtensionConfigSnapshot {
+        ExtensionConfigSnapshot::new(
+            "review-skill",
+            registry_version,
+            vec![
+                ExtensionConfigEntry {
+                    key: "greeting".to_owned(),
+                    scope: ExtensionConfigScope::Host,
+                    source_ref: "host:defaults".to_owned(),
+                    value_digest: format!("sha256:{}", sha256(b"host-greeting")),
+                    secret_handle: None,
+                },
+                ExtensionConfigEntry {
+                    key: "greeting".to_owned(),
+                    scope: ExtensionConfigScope::Run,
+                    source_ref: "run:override".to_owned(),
+                    value_digest: format!("sha256:{}", sha256(b"run-greeting")),
+                    secret_handle: None,
+                },
+            ],
+        )
+        .expect("fixture config snapshot")
+    }
+
+    /// Ask the daemon for the read-only lifecycle binding a caller must carry into every
+    /// mutation: registry generation, dependency snapshot digest and project trust revision.
+    async fn inspect_lifecycle_binding(
+        registry: &Arc<ExtensionRegistry>,
+        project_root: &str,
+        package_path: &str,
+    ) -> (u64, String, String) {
+        let mut arguments = json!({
+            "action": "inspect",
+            "extension_id": "review-skill",
+            "package_path": package_path,
+        });
+        server_owned_arguments(&mut arguments, project_root);
+        let inspected = registry
+            .manage(&manage_request(
+                project_root,
+                RiskLevel::ReadOnly,
+                arguments,
+            ))
+            .await
+            .expect("lifecycle inspect");
+        assert_eq!(inspected["signature_verified"], json!(true));
+        (
+            inspected["registry_version"]
+                .as_u64()
+                .expect("registry version"),
+            inspected["dependency_snapshot_digest"]
+                .as_str()
+                .expect("dependency snapshot digest")
+                .to_owned(),
+            inspected["trust_revision"]
+                .as_str()
+                .expect("trust revision")
+                .to_owned(),
+        )
+    }
+
+    async fn folded_registry(
+        registry: &Arc<ExtensionRegistry>,
+        project_root: &str,
+    ) -> (u64, BTreeMap<String, InstalledExtension>) {
+        let (_, history) = registry.stream(project_root).await.expect("stream");
+        fold_registry(&history).expect("fold registry")
+    }
+
+    /// EXT-22 deny-first fixture: forged or stale lifecycle bindings never reach the registry
+    /// CAS. Each case fails with a stable reason code and appends zero events.
+    #[tokio::test]
+    async fn ext22_lifecycle_binding_rejects_forged_and_stale_mutations() {
+        let package = fixture_package();
+        let root = fixture_root("ext22-deny");
+        let (project_root, _) = project_scope(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        let package_path = fixture_package_file(&root, &package);
+        let (version, dependency_digest, trust_revision) =
+            inspect_lifecycle_binding(&registry, &project_root, &package_path).await;
+        assert_eq!(version, 0);
+
+        // (a) no operator identity: a bare mutation never reaches argument parsing.
+        let missing_operator = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-deny-operator",
+            &trust_revision,
+            &dependency_digest,
+        );
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    missing_operator,
+                ))
+                .await
+                .expect_err("operator identity required"),
+            PortError::Failed("extension_operator_required".to_owned())
+        );
+
+        // (b) missing typed binding: the daemon refuses to infer trust/dependency state.
+        let mut unbound = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-deny-unbound",
+            &trust_revision,
+            &dependency_digest,
+        );
+        server_owned_arguments(&mut unbound, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    unbound,
+                ))
+                .await
+                .expect_err("missing mutation digest"),
+            PortError::Failed("extension_lifecycle_mutation_digest_required".to_owned())
+        );
+
+        // (c) a client-minted (forged) mutation digest does not match the server derivation.
+        let mut forged = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-deny-forged",
+            &trust_revision,
+            &dependency_digest,
+        );
+        bind_lifecycle_mutation(&mut forged, &project_root);
+        forged["mutation_digest"] = json!(format!("sha256:{}", sha256(b"forged-mutation")));
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    forged,
+                ))
+                .await
+                .expect_err("forged mutation digest"),
+            PortError::Failed("extension_lifecycle_mutation_digest_mismatch".to_owned())
+        );
+
+        // (d) missing trust revision is a hard argument error, not an implicit "unknown".
+        let mut missing_trust = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-deny-trust",
+            &trust_revision,
+            &dependency_digest,
+        );
+        missing_trust
+            .as_object_mut()
+            .expect("arguments object")
+            .remove("trust_revision");
+        server_owned_arguments(&mut missing_trust, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    missing_trust,
+                ))
+                .await
+                .expect_err("missing trust revision"),
+            PortError::Failed("extension_lifecycle_trust_revision_required".to_owned())
+        );
+
+        // (e) a digest-consistent but stale trust revision fails against the live project trust.
+        let mut stale_trust = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-deny-stale-trust",
+            "trust:stale-revision",
+            &dependency_digest,
+        );
+        bind_lifecycle_mutation(&mut stale_trust, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    stale_trust,
+                ))
+                .await
+                .expect_err("stale trust revision"),
+            PortError::Failed("extension_trust_revision_stale".to_owned())
+        );
+
+        // (f) a digest-consistent dependency snapshot that no longer matches the folded registry.
+        let stale_dependency = format!("sha256:{}", "d".repeat(64));
+        let mut stale_snapshot = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-deny-stale-dependency",
+            &trust_revision,
+            &stale_dependency,
+        );
+        bind_lifecycle_mutation(&mut stale_snapshot, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    stale_snapshot,
+                ))
+                .await
+                .expect_err("stale dependency snapshot"),
+            PortError::Failed("extension_dependency_snapshot_stale".to_owned())
+        );
+
+        // (g) an enable carrying another extension's config snapshot is refused by the typed bind.
+        let foreign_snapshot = ExtensionConfigSnapshot::new("other.extension", 1, Vec::new())
+            .expect("foreign fixture snapshot");
+        let mut foreign_bind = json!({
+            "action": "enable",
+            "extension_id": "review-skill",
+            "package_sha256": package.package_sha256,
+            "expected_registry_version": 1,
+            "idempotency_key": "ext22-deny-config",
+            "reason": "EXT-22 lifecycle fixture",
+            "trust_revision": trust_revision,
+            "dependency_snapshot_digest": dependency_digest,
+            "approval_id": "approval.ext22-deny",
+            "config_snapshot_digest": foreign_snapshot.snapshot_digest,
+            "config_snapshot": foreign_snapshot,
+        });
+        bind_lifecycle_mutation(&mut foreign_bind, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    foreign_bind,
+                ))
+                .await
+                .expect_err("foreign config snapshot"),
+            PortError::Failed("extension_config_extension_mismatch".to_owned())
+        );
+
+        // (h) an enable with a bound digest but no snapshot body is refused before the CAS.
+        let mut missing_snapshot = json!({
+            "action": "enable",
+            "extension_id": "review-skill",
+            "package_sha256": package.package_sha256,
+            "expected_registry_version": 1,
+            "idempotency_key": "ext22-deny-missing-config",
+            "reason": "EXT-22 lifecycle fixture",
+            "trust_revision": trust_revision,
+            "dependency_snapshot_digest": dependency_digest,
+            "approval_id": "approval.ext22-deny",
+            "config_snapshot_digest": format!("sha256:{}", sha256(b"absent-snapshot")),
+        });
+        bind_lifecycle_mutation(&mut missing_snapshot, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    missing_snapshot,
+                ))
+                .await
+                .expect_err("missing config snapshot body"),
+            PortError::Failed("extension_config_snapshot_required".to_owned())
+        );
+
+        // Nothing above may have appended a single lifecycle event.
+        let (version, states) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 0);
+        assert!(states.is_empty());
+    }
+
+    /// EXT-22 behavioral fixture: the full inspect → stage → re-stage → install → enable
+    /// pipeline advances the append-only registry one CAS event at a time, keeps `stage`
+    /// inert (no enable without an install), replays idempotently and rejects a stale
+    /// registry generation without appending.
+    #[tokio::test]
+    async fn ext22_inspect_stage_install_enable_pipeline_binds_typed_lifecycle() {
+        let package = fixture_package();
+        let root = fixture_root("ext22-pipeline");
+        let (project_root, _) = project_scope(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        let package_path = fixture_package_file(&root, &package);
+
+        // inspect: read-only, no mutation binding required; the response hands the caller the
+        // registry generation, dependency snapshot and trust revision to carry forward.
+        let (version, dependency_digest, trust_revision) =
+            inspect_lifecycle_binding(&registry, &project_root, &package_path).await;
+        assert_eq!(version, 0);
+
+        // stage: verified bytes enter the immutable cache and one inert `staged` fact is
+        // appended. The receipt records the typed binding, not just the raw arguments.
+        let mut stage = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-stage-1",
+            &trust_revision,
+            &dependency_digest,
+        );
+        bind_lifecycle_mutation(&mut stage, &project_root);
+        let staged = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                stage,
+            ))
+            .await
+            .expect("stage");
+        assert_eq!(staged["action"], json!("stage"));
+        assert_eq!(staged["state"], json!("staged"));
+        assert_eq!(staged["signature_verified"], json!(true));
+        assert_eq!(staged["registry_version"], json!(1));
+        assert_eq!(staged["replayed"], json!(false));
+        assert!(staged["lifecycle_binding"]["mutation_digest"].is_string());
+        assert_eq!(
+            staged["lifecycle_binding"]["dependency_snapshot_digest"],
+            json!(&dependency_digest)
+        );
+        assert_eq!(
+            staged["lifecycle_binding"]["trust_revision"],
+            json!(&trust_revision)
+        );
+
+        // stage is inert: enable must fail closed until an install fact exists.
+        let (version, dependency_digest, trust_revision) =
+            inspect_lifecycle_binding(&registry, &project_root, &package_path).await;
+        assert_eq!(version, 1);
+        let premature_snapshot = fixture_config_snapshot(version);
+        let mut premature = json!({
+            "action": "enable",
+            "extension_id": "review-skill",
+            "package_sha256": package.package_sha256,
+            "expected_registry_version": version,
+            "idempotency_key": "ext22-enable-premature",
+            "reason": "EXT-22 lifecycle fixture",
+            "trust_revision": trust_revision,
+            "dependency_snapshot_digest": dependency_digest,
+            "approval_id": "approval.ext22-premature",
+            "config_snapshot_digest": premature_snapshot.snapshot_digest,
+            "config_snapshot": premature_snapshot,
+        });
+        bind_lifecycle_mutation(&mut premature, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    premature,
+                ))
+                .await
+                .expect_err("staging must not enable"),
+            PortError::Failed("extension_not_installed".to_owned())
+        );
+
+        // re-stage: same verified package, new idempotency key. Still inert, still stage-owned.
+        let mut restage = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-stage-2",
+            &trust_revision,
+            &dependency_digest,
+        );
+        bind_lifecycle_mutation(&mut restage, &project_root);
+        let restaged = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                restage,
+            ))
+            .await
+            .expect("re-stage");
+        assert_eq!(restaged["action"], json!("stage"));
+        assert_eq!(restaged["state"], json!("staged"));
+        assert_eq!(restaged["registry_version"], json!(2));
+
+        // install: promotes the stage-owned record without re-verifying different bytes.
+        let (version, dependency_digest, trust_revision) =
+            inspect_lifecycle_binding(&registry, &project_root, &package_path).await;
+        assert_eq!(version, 2);
+        let mut install = package_mutation_arguments(
+            "install",
+            &package,
+            &package_path,
+            version,
+            "ext22-install-1",
+            &trust_revision,
+            &dependency_digest,
+        );
+        bind_lifecycle_mutation(&mut install, &project_root);
+        let installed = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                install,
+            ))
+            .await
+            .expect("install");
+        assert_eq!(installed["action"], json!("install"));
+        assert_eq!(installed["state"], json!("staged"));
+        assert_eq!(installed["registry_version"], json!(3));
+        assert_eq!(installed["signature_verified"], json!(true));
+
+        // after install the record is no longer stage-owned: another stage is refused.
+        let (version, dependency_digest, trust_revision) =
+            inspect_lifecycle_binding(&registry, &project_root, &package_path).await;
+        assert_eq!(version, 3);
+        let mut late_stage = package_mutation_arguments(
+            "stage",
+            &package,
+            &package_path,
+            version,
+            "ext22-stage-late",
+            &trust_revision,
+            &dependency_digest,
+        );
+        bind_lifecycle_mutation(&mut late_stage, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    late_stage,
+                ))
+                .await
+                .expect_err("installed packages use upgrade/rollback"),
+            PortError::Failed("extension_already_installed".to_owned())
+        );
+
+        // enable: requires the operator approval and the typed host→run config snapshot.
+        let committed_snapshot = fixture_config_snapshot(version);
+        let committed_digest = committed_snapshot.snapshot_digest.clone();
+        let mut enable = json!({
+            "action": "enable",
+            "extension_id": "review-skill",
+            "package_sha256": package.package_sha256,
+            "expected_registry_version": version,
+            "idempotency_key": "ext22-enable-1",
+            "reason": "EXT-22 lifecycle fixture",
+            "trust_revision": trust_revision,
+            "dependency_snapshot_digest": dependency_digest,
+            "approval_id": "approval.ext22-enable",
+            "config_snapshot_digest": committed_digest,
+            "config_snapshot": committed_snapshot,
+        });
+        bind_lifecycle_mutation(&mut enable, &project_root);
+        let replay_request = enable.clone();
+        let enabled = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                enable,
+            ))
+            .await
+            .expect("enable");
+        assert_eq!(enabled["action"], json!("enable"));
+        assert_eq!(enabled["state"], json!("enabled"));
+        assert_eq!(enabled["registry_version"], json!(4));
+        assert_eq!(
+            enabled["lifecycle_binding"]["approval_id"],
+            json!("approval.ext22-enable")
+        );
+        assert_eq!(
+            enabled["lifecycle_binding"]["config_snapshot_digest"],
+            json!(&committed_digest)
+        );
+        let effective = enabled["lifecycle_binding"]["config_effective"]
+            .as_array()
+            .expect("effective config projection")
+            .clone();
+        assert_eq!(effective.len(), 1);
+        assert_eq!(effective[0]["scope"], json!("run"));
+        assert_eq!(effective[0]["source_ref"], json!("run:override"));
+        assert_eq!(
+            enabled["command_receipt"]["approval_id"],
+            json!("approval.ext22-enable")
+        );
+        assert_eq!(
+            enabled["command_receipt"]["mutation_digest"],
+            enabled["lifecycle_binding"]["mutation_digest"]
+        );
+
+        let (version, states) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 4);
+        assert_eq!(states["review-skill"].state, "enabled");
+
+        // idempotent replay returns the previous receipt without appending a second event.
+        let replayed = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                replay_request,
+            ))
+            .await
+            .expect("replay");
+        assert_eq!(replayed["replayed"], json!(true));
+        assert_eq!(replayed["registry_version"], json!(4));
+        assert_eq!(replayed["event_id"], enabled["event_id"]);
+        let (version, _) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 4);
+
+        // a stale registry generation is a conflict, not an overwrite.
+        let mut stale = json!({
+            "action": "disable",
+            "extension_id": "review-skill",
+            "expected_registry_version": 2,
+            "idempotency_key": "ext22-disable-stale",
+            "reason": "EXT-22 lifecycle fixture",
+        });
+        server_owned_arguments(&mut stale, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    stale,
+                ))
+                .await
+                .expect_err("stale registry generation"),
+            PortError::Conflict("extension_registry_version_mismatch".to_owned())
+        );
+        let (version, _) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 4);
     }
 }
