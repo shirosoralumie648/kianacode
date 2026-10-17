@@ -1,0 +1,29 @@
+name: BQ-12 settlement fold
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settlement-fold:
+    name: BQ-12 settlement fold fixtures and guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run settlement fold fixtures
+        run: cargo test -p kiana-domain --test bq12_settlement_fold --locked -- --test-threads=1
+      - name: Run BQ-12 Core projection guard
+        run: cargo test -p kiana-core --test bq12_settlement_fold_guard --locked -- --test-threads=1
+      - name: Compile BQ-12 domain target
+        run: cargo test -p kiana-domain --test bq12_settlement_fold --no-run --locked
+      - name: Compile BQ-12 Core guard target
+        run: cargo test -p kiana-core --test bq12_settlement_fold_guard --no-run --locked
