@@ -163,6 +163,7 @@ pub enum WebRouteClass {
     Steer,
     Inject,
     Command,
+    Token,
     Diagnostics,
 }
 
@@ -338,6 +339,381 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         method: "GET",
         class: WebRouteClass::Diagnostics,
         token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/token/rotate",
+        method: "POST",
+        class: WebRouteClass::Token,
+        token_required: true,
+    },
+];
+
+/// The single credential header for the loopback Web surface.  The SSE query fallback exists only
+/// because `EventSource` cannot set request headers; both forms are compared when both are sent.
+pub const WEB_TOKEN_HEADER: &str = "x-kiana-web-token";
+
+/// Stable transport/auth/limit error catalogue for the Web surface.
+///
+/// Every code here is produced before (or without) a `DaemonHost`/`ControlPlane` call, so the
+/// catalogue describes the UI-16 exposure boundary rather than product authorization.  Handler
+/// failures that forward an internal error string are deliberately not listed: they are
+/// server-owned text, not a stable contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WebErrorContract {
+    pub code: &'static str,
+    /// HTTP status this code is returned with.
+    pub status: u16,
+    /// Coarse class used to keep the status mapping mechanical.
+    pub class: &'static str,
+}
+
+/// Security response headers attached to every Web response, including middleware rejections.
+/// This is the reviewed draft of the UI-16 "security header/CSP" artifact.
+pub const WEB_SECURITY_HEADERS: &[(&str, &str)] = &[
+    ("x-content-type-options", "nosniff"),
+    ("cache-control", "no-store"),
+    ("referrer-policy", "no-referrer"),
+    ("x-frame-options", "DENY"),
+];
+
+/// Content-Security-Policy draft template sharing one per-process nonce with the embedded page.
+/// The page carries the matching nonce on its static style/script blocks; there is no
+/// `unsafe-inline`, `eval` or inline event handler.
+pub const WEB_CSP_TEMPLATE: &str = "default-src 'self'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report";
+
+/// Payload schema of the token-rotation route.  Rotation never echoes the credential: the page
+/// must re-hydrate from the host-only root document to obtain the new in-memory token.
+pub const WEB_TOKEN_ROTATION_SCHEMA: &str = "kiana.web-token-rotation.v1";
+
+/// `class` -> HTTP status mapping for [`WEB_ERROR_MATRIX`].
+pub fn web_error_status_for_class(class: &str) -> Option<u16> {
+    match class {
+        "request" => Some(400),
+        "deny" => Some(401),
+        "conflict" => Some(409),
+        "limit" => Some(429),
+        "internal" => Some(500),
+        "unavailable" => Some(503),
+        _ => None,
+    }
+}
+
+/// Deny-first/protocol error catalogue bound to the source literals by the UI-16 guard.
+pub const WEB_ERROR_MATRIX: &[WebErrorContract] = &[
+    WebErrorContract {
+        code: "artifact_not_found",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "command_arguments_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "command_arguments_limit",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "command_read_only_required",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "command_request_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "company_governance_project_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "extension_visibility_action_unsupported",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "extension_visibility_max_results_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "extension_visibility_surface_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "parity_entrypoint_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "parity_run_id_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "prompt_required",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "prompt_too_large",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "receipt_not_found",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "role_unknown",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "session_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "session_unknown",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "stream_cursor_conflict",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "stream_cursor_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "ui_action_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "ui_action_required",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "ui_cursor_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_input_text_required",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_notification_cursor_conflict",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_notification_cursor_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_notification_page_limit_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_page_cursor_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_page_cursor_limit_mismatch",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_page_cursor_offset_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_page_limit_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_path_traversal_denied",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_receipt_cursor_not_supported",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_request_target_too_large",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_run_id_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_stream_run_id_unavailable",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_tab_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_tab_required",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_turn_id_invalid",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_auth_required",
+        status: 401,
+        class: "deny",
+    },
+    WebErrorContract {
+        code: "session_busy",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "session_owner_required",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "session_principal_mismatch",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "session_read_only",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "ui_action_in_flight",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "ui_action_owner_mismatch",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "ui_action_submission_expired",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "ui_action_target_mismatch",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "web_page_cursor_scope_mismatch",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "web_page_source_changed",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "web_session_limit_exceeded",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
+        code: "web_action_state_unavailable",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_human_action_response_encode",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_human_response_encode",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_hydrate_missing",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_notification_page_encode_failed",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_page_cursor_state_unavailable",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_page_epoch_unavailable",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_rate_state_unavailable",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_session_history_unsupported",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_state_poisoned",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_token_state_unavailable",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_rate_limit_exceeded",
+        status: 429,
+        class: "limit",
+    },
+    WebErrorContract {
+        code: "web_shutting_down",
+        status: 503,
+        class: "unavailable",
     },
 ];
 
@@ -1017,6 +1393,7 @@ fn router(app: WebApp) -> Router {
         .route("/api/inject", post(inject_turn))
         .route("/api/extensions", get(extension_visibility))
         .route("/api/command", get(command_query).post(command_action))
+        .route("/api/token/rotate", post(rotate_web_token_route))
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
         .layer(middleware::from_fn_with_state(
             Arc::clone(&shared_state),
@@ -1062,14 +1439,13 @@ async fn security_headers(
 ) -> Response {
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
-    headers.insert("x-content-type-options", "nosniff".parse().unwrap());
-    headers.insert("cache-control", "no-store".parse().unwrap());
-    headers.insert("referrer-policy", "no-referrer".parse().unwrap());
-    headers.insert("x-frame-options", "DENY".parse().unwrap());
-    let csp = format!(
-        "default-src 'self'; script-src 'nonce-{}'; style-src 'nonce-{}'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report",
-        app.csp_nonce, app.csp_nonce
-    );
+    for (name, value) in WEB_SECURITY_HEADERS {
+        headers.insert(
+            name.parse::<axum::http::HeaderName>().unwrap(),
+            value.parse::<axum::http::HeaderValue>().unwrap(),
+        );
+    }
+    let csp = WEB_CSP_TEMPLATE.replace("{nonce}", &app.csp_nonce);
     headers.insert("content-security-policy", csp.parse().unwrap());
     response
 }
@@ -4150,8 +4526,35 @@ fn authorize_sse(
 }
 
 fn web_token_from_header(headers: &HeaderMap) -> Result<Option<&str>, ApiError> {
-    let value = single_header(headers, "x-kiana-web-token")?;
+    let value = single_header(headers, WEB_TOKEN_HEADER)?;
     Ok(value.map(str::trim).filter(|value| !value.is_empty()))
+}
+
+/// Rotate the in-memory Web token.
+///
+/// Rotation is a local exposure-control action: it replaces the process credential, bumps the
+/// monotonic `token_generation` the snapshot/lease projections report, and invalidates every
+/// previously issued credential.  It never changes the authenticated principal, a session lease,
+/// or any ControlPlane authority — a rotated page still has to pass the normal owner/CAS checks.
+/// The response deliberately does not echo a credential: the page re-hydrates from the host-only
+/// root document, which serves the current token.
+async fn rotate_web_token_route(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    rotate_web_token(&app)?;
+    let token_generation = app
+        .token_generation
+        .load(std::sync::atomic::Ordering::Acquire);
+    Ok(Json(json!({
+        "schema": WEB_TOKEN_ROTATION_SCHEMA,
+        "rotated": true,
+        "token_generation": token_generation,
+        "rehydrate_route": "/",
+        "principal_changed": false,
+        "lease_changed": false,
+    })))
 }
 
 /// 每个 API 请求都要过这一关：**先 token，再 Host。**
@@ -5343,5 +5746,492 @@ mod tests {
 
         let denied = parse_bind("192.168.1.8:3080").unwrap_err().to_string();
         assert_eq!(denied, "bind_loopback_only");
+    }
+
+    /// A live loopback Web server plus the env scope that keeps its temp `KIANA_HOME` valid for
+    /// the whole test.  These fixtures exercise the real router/middleware boundary instead of
+    /// asserting source markers, because UI-16 is about what the HTTP surface actually rejects.
+    struct Ui16Server {
+        addr: SocketAddr,
+        host: Arc<DaemonHost>,
+        root: PathBuf,
+        home: PathBuf,
+        _env: crate::test_support::ScopedEnv<'static>,
+    }
+
+    async fn ui16_server() -> Ui16Server {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("ui16-home");
+        let root = unique_dir("ui16-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script = unique_dir("ui16-script").join("script.json");
+        fs::write(&script, r#"[{"text":"ui16 noop"}]"#).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        std::env::remove_var("KIANA_PROVIDER");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::with_env_harness().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "workspace-write".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        Ui16Server {
+            addr,
+            host,
+            root,
+            home,
+            _env: env,
+        }
+    }
+
+    async fn ui16_page_token(client: &reqwest::Client, addr: SocketAddr) -> String {
+        let page = client
+            .get(format!("http://{addr}/"))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert!(
+            !page.contains("__KIANA_CSP_NONCE__"),
+            "the page must carry its per-process nonce"
+        );
+        page.split("window.__KIANA_WEB_TOKEN__ = '")
+            .nth(1)
+            .and_then(|rest| rest.split('\'').next())
+            .expect("the host-only page issues the live web token")
+            .to_owned()
+    }
+
+    async fn ui16_raw_http(addr: SocketAddr, request: &str) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut buffer = Vec::new();
+        let mut chunk = [0u8; 1024];
+        loop {
+            match tokio::time::timeout(Duration::from_secs(5), stream.read(&mut chunk)).await {
+                Ok(Ok(0)) | Ok(Err(_)) | Err(_) => break,
+                Ok(Ok(read)) => buffer.extend_from_slice(&chunk[..read]),
+            }
+        }
+        String::from_utf8_lossy(&buffer).to_string()
+    }
+
+    fn ui16_head_line(response: &str) -> &str {
+        response.lines().next().unwrap_or_default()
+    }
+
+    #[tokio::test]
+    async fn ui16_http_boundary_is_deny_first_for_state_events_and_actions() {
+        let server = ui16_server().await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+
+        // The host-only page itself needs no token; a foreign Origin cannot read it.
+        let page = client.get(&base).send().await.unwrap();
+        assert_eq!(page.status(), StatusCode::OK);
+        let foreign_page = client
+            .get(&base)
+            .header("origin", "http://evil.example")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(foreign_page.status(), StatusCode::UNAUTHORIZED);
+
+        for route in ["/api/state", "/api/events", "/api/sessions"] {
+            let denied = client.get(format!("{base}{route}")).send().await.unwrap();
+            assert_eq!(
+                denied.status(),
+                StatusCode::UNAUTHORIZED,
+                "{route} must reject a missing token"
+            );
+            let body: Value = denied.json().await.unwrap();
+            assert_eq!(body["error"], "web_auth_required");
+        }
+        let denied_action = client
+            .post(format!("{base}/api/run"))
+            .json(&json!({"prompt": "x"}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(denied_action.status(), StatusCode::UNAUTHORIZED);
+
+        // A token without the bound Host/Origin stays unauthorized, and the rejection is
+        // identical to a missing token so a probe cannot separate the two checks.
+        let foreign_origin = client
+            .get(format!("{base}/api/state"))
+            .header("x-kiana-web-token", &token)
+            .header("origin", "http://evil.example")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(foreign_origin.status(), StatusCode::UNAUTHORIZED);
+        let foreign_origin_body: Value = foreign_origin.json().await.unwrap();
+        assert_eq!(foreign_origin_body["error"], "web_auth_required");
+
+        let forged_host = ui16_raw_http(
+            server.addr,
+            &format!(
+                "GET /api/state HTTP/1.1\r\nhost: evil.example:1234\r\nx-kiana-web-token: {token}\r\nconnection: close\r\n\r\n"
+            ),
+        )
+        .await;
+        assert!(
+            ui16_head_line(&forged_host).contains("401"),
+            "foreign Host must be denied: {forged_host}"
+        );
+        let duplicate_credential = ui16_raw_http(
+            server.addr,
+            &format!(
+                "GET /api/state HTTP/1.1\r\nhost: {}\r\nx-kiana-web-token: {token}\r\nx-kiana-web-token: {token}\r\nconnection: close\r\n\r\n",
+                server.addr
+            ),
+        )
+        .await;
+        assert!(
+            ui16_head_line(&duplicate_credential).contains("401"),
+            "duplicate credential headers must be denied: {duplicate_credential}"
+        );
+
+        // Encoded traversal is rejected by the request-bounds middleware before extraction.
+        let traversal = ui16_raw_http(
+            server.addr,
+            "GET /api/%2e%2e/state HTTP/1.1\r\nhost: 127.0.0.1\r\nconnection: close\r\n\r\n",
+        )
+        .await;
+        assert!(
+            ui16_head_line(&traversal).contains("400")
+                && traversal.contains("web_path_traversal_denied"),
+            "encoded traversal must be denied: {traversal}"
+        );
+
+        // Cross-workspace session probes are refused: unknown ids and path-like ids alike.
+        let unknown = client
+            .get(format!("{base}/api/state"))
+            .query(&[("session_id", "11111111-2222-3333-4444-555555555555")])
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unknown.status(), StatusCode::BAD_REQUEST);
+        let unknown_body: Value = unknown.json().await.unwrap();
+        assert_eq!(unknown_body["error"], "session_unknown");
+        let path_like = client
+            .get(format!("{base}/api/state"))
+            .query(&[("session_id", "../../etc/passwd")])
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(path_like.status(), StatusCode::BAD_REQUEST);
+        let path_like_body: Value = path_like.json().await.unwrap();
+        assert_eq!(path_like_body["error"], "session_invalid");
+
+        // Wrong methods stay Axum method rejections: no handler, no authorization bypass.
+        let post_on_get = client
+            .post(format!("{base}/api/state"))
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(post_on_get.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let get_on_post = client
+            .get(format!("{base}/api/run"))
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(get_on_post.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let options_on_action = client
+            .request(reqwest::Method::OPTIONS, format!("{base}/api/run"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(options_on_action.status(), StatusCode::METHOD_NOT_ALLOWED);
+        let post_on_health = client
+            .post(format!("{base}/api/health"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(post_on_health.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+        // A valid token + bound Host gives the read model, hardened with the header draft.
+        let allowed = client
+            .get(format!("{base}/api/state"))
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(allowed.status(), StatusCode::OK);
+        assert_eq!(allowed.headers()["x-content-type-options"], "nosniff");
+        assert_eq!(allowed.headers()["cache-control"], "no-store");
+        assert_eq!(allowed.headers()["x-frame-options"], "DENY");
+        assert_eq!(allowed.headers()["referrer-policy"], "no-referrer");
+        let csp = allowed.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        assert!(csp.contains("nonce-"), "CSP must carry a nonce: {csp}");
+        assert!(!csp.contains("unsafe-inline"));
+        let snapshot: Value = allowed.json().await.unwrap();
+        assert_eq!(snapshot["harness"], harness_run::HARNESS_ID);
+        assert!(snapshot["session_id"].as_str().is_some());
+        assert!(snapshot["cursor"]["epoch"].as_str().is_some());
+
+        // Health is host-only and low detail: no folder, storage path or home is echoed.
+        let health = client
+            .get(format!("{base}/api/health"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+        let health_body = health.text().await.unwrap();
+        for secret in [
+            server.home.display().to_string(),
+            server.root.display().to_string(),
+        ] {
+            assert!(
+                !health_body.contains(&secret),
+                "health must not leak {secret}: {health_body}"
+            );
+        }
+        assert!(!health_body.contains("events.jsonl"));
+        assert!(!health_body.contains("web_state_poisoned"));
+    }
+
+    #[tokio::test]
+    async fn ui16_request_limits_reject_oversized_body_and_rate_floods() {
+        let server = ui16_server().await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+
+        // Body limit: one byte over the transport bound is rejected before the handler runs,
+        // and the rejected payload is never echoed back.
+        let oversized = "a".repeat(MAX_WEB_BODY_BYTES + 1);
+        let response = client
+            .post(format!("{base}/api/run"))
+            .header("x-kiana-web-token", &token)
+            .json(&json!({"prompt": oversized}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let body = response.text().await.unwrap();
+        assert!(
+            !body.contains("aaaaaaaa"),
+            "oversized body was echoed: {body}"
+        );
+
+        // URI bound: an oversized request target is refused before query extraction.
+        let long_uri = format!(
+            "{base}/api/state?session_id={}",
+            "x".repeat(MAX_WEB_URI_BYTES)
+        );
+        let long_response = client
+            .get(long_uri)
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(long_response.status(), StatusCode::BAD_REQUEST);
+        let long_body: Value = long_response.json().await.unwrap();
+        assert_eq!(long_body["error"], "web_request_target_too_large");
+
+        // Deterministic per-instance budget: 120 requests pass, the next one is a 429.
+        let probe = WebApp::new(
+            Arc::clone(&server.host),
+            server.root.clone(),
+            "workspace-write".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            server.addr,
+        );
+        for _ in 0..MAX_WEB_REQUESTS_PER_WINDOW {
+            assert!(probe.enforce_rate_limit().is_ok());
+        }
+        let limited = probe.enforce_rate_limit().unwrap_err();
+        assert_eq!(limited.status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(limited.error, "web_rate_limit_exceeded");
+        {
+            let mut window = probe.rate_window.lock().unwrap();
+            window.started = Instant::now() - WEB_RATE_WINDOW - Duration::from_millis(1);
+        }
+        assert!(probe.enforce_rate_limit().is_ok(), "window must recover");
+
+        // The same fence is wired into the live server and keeps the security headers.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = WebApp::new(
+            Arc::clone(&server.host),
+            server.root.clone(),
+            "workspace-write".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        let rate_window = Arc::clone(&app.rate_window);
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        let mut observed = false;
+        for _ in 0..5 {
+            {
+                let mut window = rate_window.lock().unwrap();
+                window.started = Instant::now();
+                window.requests = MAX_WEB_REQUESTS_PER_WINDOW;
+            }
+            let response = client
+                .get(format!("http://{addr}/api/health"))
+                .send()
+                .await
+                .unwrap();
+            if response.status() == StatusCode::TOO_MANY_REQUESTS {
+                assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+                let body: Value = response.json().await.unwrap();
+                assert_eq!(body["error"], "web_rate_limit_exceeded");
+                observed = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(observed, "rate-limit fence never triggered over HTTP");
+    }
+
+    #[tokio::test]
+    async fn ui16_token_rotation_invalidates_the_previous_credential() {
+        let server = ui16_server().await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+
+        let rotated = client
+            .post(format!("{base}/api/token/rotate"))
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(rotated.status(), StatusCode::OK);
+        let rotation_body: Value = rotated.json().await.unwrap();
+        assert_eq!(rotation_body["schema"], WEB_TOKEN_ROTATION_SCHEMA);
+        assert_eq!(rotation_body["rotated"], true);
+        assert_eq!(rotation_body["token_generation"], 2);
+        assert_eq!(rotation_body["principal_changed"], false);
+        assert_eq!(rotation_body["lease_changed"], false);
+        let printed = rotation_body.to_string();
+        assert!(
+            !printed.contains(&token),
+            "rotation response must not echo the credential"
+        );
+
+        // Rotation without a credential is denied like any other mutation route.
+        let denied = client
+            .post(format!("{base}/api/token/rotate"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::UNAUTHORIZED);
+
+        let stale = client
+            .get(format!("{base}/api/state"))
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            stale.status(),
+            StatusCode::UNAUTHORIZED,
+            "the previous credential must be invalidated"
+        );
+
+        // The host-only page is the rehydration path for the new credential.
+        let fresh = ui16_page_token(&client, server.addr).await;
+        assert_ne!(fresh, token);
+        assert!(!printed.contains(&fresh));
+        let allowed = client
+            .get(format!("{base}/api/state"))
+            .header("x-kiana-web-token", &fresh)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(allowed.status(), StatusCode::OK);
+        let snapshot: Value = allowed.json().await.unwrap();
+        assert_eq!(snapshot["lease"]["token_generation"], 2);
+
+        // Generations are monotonic and each rotation invalidates the credential before it.
+        let second = client
+            .post(format!("{base}/api/token/rotate"))
+            .header("x-kiana-web-token", &fresh)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(second.status(), StatusCode::OK);
+        let second_body: Value = second.json().await.unwrap();
+        assert_eq!(second_body["token_generation"], 3);
+        let stale_again = client
+            .get(format!("{base}/api/state"))
+            .header("x-kiana-web-token", &fresh)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(stale_again.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn ui16_concurrent_tabs_observe_one_server_snapshot() {
+        let server = ui16_server().await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+
+        let request = |tab: &'static str| {
+            client
+                .get(format!("{base}/api/state"))
+                .header("x-kiana-web-token", &token)
+                .header("x-kiana-ui-tab", tab)
+                .send()
+        };
+        let (first, second) = tokio::join!(request("tab-1"), request("tab-2"));
+        let first = first.unwrap();
+        let second = second.unwrap();
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(second.status(), StatusCode::OK);
+        assert_eq!(first.headers()["cache-control"], "no-store");
+        assert_eq!(second.headers()["cache-control"], "no-store");
+        let first: Value = first.json().await.unwrap();
+        let second: Value = second.json().await.unwrap();
+        assert_eq!(first["session_id"], second["session_id"]);
+        assert_eq!(first["cursor"]["epoch"], second["cursor"]["epoch"]);
+        assert_eq!(first["lease"]["feed_only"], true);
+        assert_eq!(second["lease"]["feed_only"], true);
+        assert!(
+            !second.to_string().contains("tab-1"),
+            "a tab must not observe another tab's local draft identity"
+        );
+        assert!(!first.to_string().contains("tab-2"));
     }
 }
