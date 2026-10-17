@@ -15,6 +15,35 @@ execution reference:
   request carries a server-provided scope list, the domain schema and Broker admission still
 validate and recheck it.
 
+## 2026-10-17 runtime admission fixture closeout (CI-only)
+
+Row 360 is flipped to ✅ under the CI-only convention. The runtime fixture
+`extension_admission_rechecks_live_registry_before_dispatch` in `kiana-daemon/src/extensions.rs`
+folds a signed, enabled fixture package through the real `ExtensionRegistry` and then drives the
+real `ExtensionRegistry::check` plus `CapabilityBroker::execute` (`admit_extensions` →
+`ExtensionAdmission::check`) path. Deny-first: role drift, expired issue/expiry windows, forged
+`_extension_scopes` digests, stale registry generation, disabled, revoked and post-upgrade
+package-hash drift are refused with stable reason codes and zero handler calls. The enabled control
+dispatches exactly once and still stays at one dispatch after the upgrade-drift cases.
+
+`.github/workflows/ext25-signed-skill.yml` runs the domain `ext25_signed_skill_scope` fixture, the
+Core `ext25_signed_skill_scope_guard` and the `p4_l5_01_skill_allowed_tools` compatibility fixture
+before the daemon runtime fixture; the unified `ci.yml` `kiana-daemon` shard (`targets: null`) also
+compiles and runs the lib fixture.
+
+```text
+source_snapshot: docs/roadmap.md row 360 (🔄 → ✅, CI pending) + §3 changelog; kiana-daemon/src/extensions.rs (runtime fixture extended with expired / forged-digest / upgrade package-hash drift denies); .github/workflows/ext25-signed-skill.yml (+kiana-core guard and allowed-tools compatibility steps); docs/roadmap/skills-plugins-hooks.md (EXT-25 acceptance note)
+worktree_status: EXT-25 row 360 ✅ (CI pending) / feature_status=implemented at the source layer; no manifest/lockfile/package.json or second execution path; daemon in-module fixture only
+command_argv: CI-only; local cargo build/test/check/clippy/run, make, npm, smoke or acceptance scripts not run; `cargo fmt --all -- --check` reports only inherited baseline drift in kiana-entrypoints/src/workbench_chat.rs (not touched by this step), standalone `rustfmt --edition 2021 --check kiana-daemon/src/extensions.rs` exit 0; static checks via rg/cat/sed/git status/git diff; python3 scripts/roadmap-goal.py and bash scripts/ci/validate-doc-references.sh; bash scripts/ci/validate-workflows.sh not runnable (ruby missing in this environment)
+cwd·environment: worktree /workspace/kianacode-worktrees/EXT-25, branch step/ext-25-20261017-1 (base master 99009d3e65aa); GitHub Actions ubuntu-latest is the runtime (receipt not awaited)
+fixture·cassette: frozen denies — role drift (`extension_scope_role_mismatch`, both layers), expired window (`extension_scope_expired`, both layers), forged scope digest (Broker wire shape `extension_scope_invalid`, daemon recomputation `extension_scope_digest_mismatch`), stale generation (`extension_scope_generation_stale`), disabled/revoked (`extension_execution_snapshot_inactive`), upgrade package-hash drift (pre-upgrade scope `extension_scope_generation_stale`; self-consistent re-issued scope with the old hash `extension_execution_snapshot_inactive`), all with zero handler calls; control — enabled registry admits and dispatches exactly once (calls==1) and remains 1 after the drift cases
+exit_code: local runs not executed; CI receipt not awaited
+status_change: row 360 🔄 → ✅ (CI pending); detail-card ✅ drift resolved
+proof-level_change: none beyond source; no local compile/run, no local_behavior/durable/live/physical promotion
+limitations: durable scope store, cross-process issuance/recovery and live/physical proof remain open; the scope digest is a keyless integrity fingerprint, not a signature or standalone bearer; the fixture drives the in-module ExtensionRegistry with a MemoryEventLog, not production DaemonHost assembly or an on-disk package cache; CI receipt not awaited
+reviewer: root integration agent; static per-card recheck of the runtime fixture, workflow wiring and roadmap/CURRENT_STATUS backfill
+```
+
 ## 2026-10-08 forged contract digest denial
 
 `ExtensionExecutionContract` now recomputes the canonical digest of the server-owned scope

@@ -10,7 +10,7 @@ jobs:
   ext25-signed-skill:
     name: "EXT-25 · Signed skill server binding baseline"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -23,5 +23,9 @@ jobs:
         run: cargo test -p kiana-daemon --lib --locked --no-run
       - name: Run kiana-domain ext25_signed_skill_scope
         run: cargo test -p kiana-domain --test ext25_signed_skill_scope --locked -- --test-threads=1
+      - name: Run kiana-core ext25 signed skill scope guard
+        run: cargo test -p kiana-core --test ext25_signed_skill_scope_guard --locked -- --test-threads=1
+      - name: Run kiana-domain skill allowed-tools compatibility
+        run: cargo test -p kiana-domain --test p4_l5_01_skill_allowed_tools --locked -- --test-threads=1
       - name: Run kiana-daemon extension admission fixture
         run: cargo test -p kiana-daemon --lib extension_admission_rechecks_live_registry_before_dispatch --locked -- --test-threads=1
