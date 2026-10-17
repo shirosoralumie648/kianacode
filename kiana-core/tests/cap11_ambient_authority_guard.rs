@@ -101,3 +101,75 @@ fn ambient_environment_names_are_explicitly_denied() {
         );
     }
 }
+
+/// The card's deny-first and success fixtures must be real behaviour fixtures (they spawn the
+/// planned boundary), named in the module, wired into the CAP-11 workflow and recorded in the
+/// baseline. Fixture bodies live in the test-only module, so this guard reads the raw source.
+#[test]
+fn cap11_behavioural_fixtures_are_wired_and_deny_first() {
+    let fixtures = include_str!("../../kiana-daemon/src/harness_sandbox.rs");
+    let workflow = include_str!("../../.github/workflows/cap11-ambient-authority.yml");
+    let baseline = include_str!("../../docs/roadmap/cap11-ambient-authority-baseline.md");
+
+    for fixture in [
+        "secret_env_and_inherited_fds_are_unavailable",
+        "direct_ipv4_ipv6_dns_and_host_unix_sockets_are_denied",
+        "sandbox_cannot_rejoin_host_namespace",
+        "offline_local_shell_and_private_ipc_run_without_egress",
+        "offline_stdio_mcp_boundary_keeps_pinned_mount_and_no_egress",
+    ] {
+        assert!(
+            fixtures.contains(fixture),
+            "CAP-11 behavioural fixture missing from the sandbox boundary: {fixture}"
+        );
+        assert!(
+            workflow.contains(fixture),
+            "CAP-11 behavioural fixture is not wired into the workflow: {fixture}"
+        );
+        assert!(
+            baseline.contains(fixture),
+            "CAP-11 baseline does not record the fixture: {fixture}"
+        );
+    }
+
+    require(
+        fixtures,
+        &[
+            "CAP11_PROBE",
+            "CAP11_ENV_SCRIPT",
+            "CAP11_NAMESPACE_SCRIPT",
+            "CAP11_LOCAL_SCRIPT",
+            "env -i",
+            "inherited-fd",
+            "host-socket=absent",
+            "ipv4=denied",
+            "dns=denied",
+            "unix=denied",
+            "cap11-ipc",
+            "interfaces=lo",
+            "http://cap11-override.invalid",
+            "retain_mount_fd",
+            "bwrap_plan_scoped",
+            "sandbox_env",
+        ],
+        "behavioural ambient-authority boundary",
+    );
+    for bypass in [
+        "execute_without_bwrap",
+        "fallback_to_unsandboxed_host",
+        "--share-net",
+    ] {
+        assert!(
+            !fixtures.contains(bypass),
+            "CAP-11 behavioural fixtures introduced a bypass marker: {bypass}"
+        );
+    }
+    assert!(
+        workflow.contains("bwrap --version") && workflow.contains("python3 --version"),
+        "the CAP-11 workflow must install and verify the default-deny runtime and probe toolchain"
+    );
+    assert!(
+        workflow.contains("--exact"),
+        "CAP-11 behavioural fixtures must run individually and exactly"
+    );
+}

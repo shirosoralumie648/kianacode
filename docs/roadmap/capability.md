@@ -520,6 +520,7 @@ CP-13/CAP-07/CAP-10+ 继续。
 - **先拒绝：** `secret_env_and_inherited_fds_are_unavailable`、`direct_ipv4_ipv6_dns_and_host_unix_sockets_are_denied`、`sandbox_cannot_rejoin_host_namespace`；包含 `env -i`、自建 socket、代理变量覆盖等绕路。
 - **成功/回归：** 无网本地 shell/MCP fixture 可运行；工具自身需要的受限 IPC 在沙箱内正常工作，不能误封所有本地行为。
 - **完成产物：** default-deny 由 OS/强制路径实现，环境变量只是说明；工具网络与模型 provider 网络互不借权。
+- **验收（2026-10-17，CI-only）：** 行为夹具留在 `kiana-daemon/src/harness_sandbox.rs` 的测试模块（直接 plan + spawn 真实边界）：卡命名 `secret_env_and_inherited_fds_are_unavailable`、`direct_ipv4_ipv6_dns_and_host_unix_sockets_are_denied`、`sandbox_cannot_rejoin_host_namespace`，成功/回归 `offline_local_shell_and_private_ipc_run_without_egress`、`offline_stdio_mcp_boundary_keeps_pinned_mount_and_no_egress`；既有 env/plan/FD 单测（`sandbox_env_keeps_core_path_and_strips_secrets`、`plan_uses_codex_session_cap_drop_and_clearenv`、`fd_fence_*`、`find_bwrap_denies_*`）与 source guard `kiana-core/tests/cap11_ambient_authority_guard.rs`（含 `cap11_behavioural_fixtures_are_wired_and_deny_first` 接线守卫）；`.github/workflows/cap11-ambient-authority.yml` 安装并校验 `bwrap`/`python3` 后按名字 `--exact` 运行，统一 `ci.yml` 的 `kiana-daemon` 整 crate shard 自动涵盖。夹具需要 `bwrap` 与 `python3`，缺失即失败、不回退宿主机。本地未编译未运行，回执依赖 GitHub Actions；内核级 seccomp/namespace 实际强制、真实 egress 探针与 live/physical 仍开放。
 
 <a id="step-cap-12"></a>
 

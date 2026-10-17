@@ -19,12 +19,32 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
+      - name: Install the default-deny runtime and probe toolchain
+        run: |
+          # The CAP-11 behavioural fixtures spawn the real bwrap boundary and probe it with
+          # the Python standard library. Both must be present: a missing runtime is a
+          # fail-closed fixture failure, never a fallback to unsandboxed execution.
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          python3 --version
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run sandbox environment fixture
         run: cargo test -p kiana-daemon --lib sandbox_env_keeps_core_path_and_strips_secrets --locked -- --test-threads=1
       - name: Run namespace and launch fixture
         run: cargo test -p kiana-daemon --lib plan_uses_codex_session_cap_drop_and_clearenv --locked -- --test-threads=1
+      - name: Run CAP-11 deny-first behavioural fixtures
+        run: |
+          for fixture in \
+            secret_env_and_inherited_fds_are_unavailable \
+            direct_ipv4_ipv6_dns_and_host_unix_sockets_are_denied \
+            sandbox_cannot_rejoin_host_namespace \
+            offline_local_shell_and_private_ipc_run_without_egress \
+            offline_stdio_mcp_boundary_keeps_pinned_mount_and_no_egress; do
+            cargo test -p kiana-daemon --lib "harness_sandbox::tests::$fixture" --locked -- --exact --test-threads=1
+          done
       - name: Run CAP-11 source guard
         run: cargo test -p kiana-core --test cap11_ambient_authority_guard --locked -- --test-threads=1
       - name: Compile daemon library target
