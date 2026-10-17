@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 PD-06 翻 ✅（JSONL v2 checksum/fsync/lock/尾部恢复拒绝与恢复夹具收口，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 200（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/pd06-jsonl-recovery-baseline.md（新增 2026-10-17 收口段）；kiana-eventlog/tests/pd06_jsonl_recovery.rs（+5 fixture、source guard 扩 marker）；kiana-core/tests/pd06_jsonl_guard.rs（+fail-closed marker）；.github/workflows/pd06-jsonl-recovery.yml、kiana-eventlog/src/jsonl.rs 为已合并的实现/布线，未改
+worktree_status: 行 200 🔄 → ✅（CI pending）；只改本 Step 相关测试/夹具与共享文档（roadmap 该行/变更日志、PD-06 baseline、CURRENT_STATUS）单点回填；无 kiana-eventlog/src 源码改动、无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与阅读源码/夹具；.github/workflows/pd06-jsonl-recovery.yml 运行 `cargo test -p kiana-eventlog --test pd06_jsonl_recovery --locked -- --test-threads=1`、`cargo test -p kiana-core --test pd06_jsonl_guard ...`、`cargo fmt --all --check` 与 target-scoped `--no-run`（test target 自动涵盖新用例，未新增步骤/目标）
+cwd·environment: worktree /workspace/kianacode-worktrees/PD-06，分支 step/pd-06-20261017-1（基线 master ce32b8741ae9）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: eventlog `pd06_jsonl_recovery` 新增 5 个夹具——拒绝路径 `jsonl_v2_rejects_a_corrupt_middle_record_without_truncating_or_exposing`（header+frame+中间坏行+frame：`eventlog_corrupt` 且文件逐字节不被裁剪）、`jsonl_v2_refuses_directory_replacement_after_open`（rename+重建同名父目录后 append 返回 `eventlog_parent_changed`，原目录保留已提交前缀、新目录零事实）、`jsonl_v2_refuses_a_replaced_or_hardlinked_writer_lock`（`.jsonl.lock` 换成 symlink → `eventlog_symlink_rejected`；换成 hardlink → `eventlog_hardlink_rejected`）、`jsonl_v2_refuses_an_over_capacity_log_before_exposing_any_fact`（稀疏文件 set_len(MAX_JOURNAL_LOG_BYTES+1) → 打开即 `eventlog_disk_limit`）；成功路径 `jsonl_v2_flush_and_shutdown_acks_are_observable_and_close_rejects_writes`（flush 回执 durable + `last_durable_cursor`；close 回执 `closed`；关闭后写入 `eventlog_closed`）与 `jsonl_v2_reopen_keeps_the_complete_prefix_and_repairs_only_the_torn_tail`（v2 commit 后追加不完整帧前缀，重开只裁尾部、逐字节保留完整 prefix，重复重开一致）；既有 checksum/duplicate-key（顶层+嵌套）/legacy torn-tail fixture 不变；source guard 增补 `eventlog_parent_changed`/`eventlog_symlink_rejected`/`eventlog_hardlink_rejected`/`eventlog_disk_limit`/`eventlog_worker_failed`/`eventlog_worker_queue_full`/`eventlog_closed`/`eventlog_file_removed`/`eventlog_committed_prefix_truncated`，并由 `pd06_jsonl_guard` 在 Core 侧复核事实源未扩宽（无 CapabilityBroker/KianaHarness/reqwest/tokio::spawn）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: PD-06 卡「先拒绝」（torn middle、checksum 错、目录替换、磁盘满等价上界、锁失效、writer worker 崩溃均停止暴露新事实）与「再成功」（kill-9/重开保留完整 prefix、Flush/Shutdown ack 可观察、有界 worker 限制吞吐但不静默丢数据）在源码层与夹具层齐备；本切片补齐此前缺显式夹具的项；行 200 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；夹具在 ubuntu-latest/temp 目录上执行，稀疏文件只证明容量上界拒绝语义，未证明真实 ENOSPC、未证明 fsync 后的物理掉电、真实 kill -9 或跨进程 flock contention；目录替换/锁替换夹具证明路径身份与锁身份 fail-closed，不证明恶意特权写者或多主机网络文件系统语义；多进程 writer 背压/flush/shutdown 协议属 PD-27，故障注入矩阵属 PD-30，平台/文件系统矩阵属 PD-32；checksum 检测损坏而非防御特权替换
+reviewer: root integration agent；PD-06 JSONL v2 frame/checksum/fsync/lock/尾部恢复静态复核
+```
+
 ### 2026-10-17 BQ-07 翻 ✅（quota group 聚合/别名绕过夹具收口，CI-only 口径）
 
 ```text
