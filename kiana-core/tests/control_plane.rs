@@ -10144,3 +10144,414 @@ async fn resume_without_pending_approval_continues_through_drive_run() {
     assert_eq!(claims[0].data["turn"]["semantics"], json!("resume"));
     let _ = std::fs::remove_dir_all(root);
 }
+
+// ---------------------------------------------------------------------------
+// ER-22 cancel recovery and stop confirmation
+//
+// These fixtures exercise the cancellation edge of `ControlPlane::cancel_run`: a cancel
+// that lands before any dispatch must not create an effect, a cancel that lands after a
+// dispatch whose stop is not confirmed must stay `result_unknown`, and a late runner
+// result must never reopen a committed terminal. The matching source guard lives in
+// `er22_cancel_recovery_guard.rs`; the `cancel`/`late_result_cannot_resurrect_run`
+// filters are run by `.github/workflows/er22-cancel-recovery.yml`.
+
+/// ER-22 fixture runner: dispatches one in-flight capability, then confirms cancellation
+/// without proving that the dispatched effect actually stopped.
+struct DispatchedCancelRunner {
+    cancel_entered: Arc<Notify>,
+}
+
+#[async_trait]
+impl RunnerPort for DispatchedCancelRunner {
+    fn bind_model_assignment(
+        &self,
+        run_id: RunId,
+        assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        validate_test_model_assignment(run_id, assignment)
+    }
+
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => Ok(vec![
+                RunnerEvent::Started { run_id },
+                RunnerEvent::CapabilityRequested {
+                    run_id,
+                    request: CapabilityRequest::new(
+                        RequestId::new(),
+                        CapabilityKind::Query,
+                        "memory.search",
+                        json!({
+                            "collection": "project",
+                            "query": "er22 in-flight",
+                            "call_id": "er22-call"
+                        }),
+                    ),
+                },
+            ]),
+            RunnerCommand::Cancel { run_id, .. } => {
+                self.cancel_entered.notify_one();
+                Ok(vec![RunnerEvent::Failed {
+                    run_id,
+                    error: "cancelled:user".to_owned(),
+                }])
+            }
+            RunnerCommand::CapabilityResult { run_id, .. } => Ok(vec![RunnerEvent::Completed {
+                run_id,
+                output: json!({ "text": "must not complete" }),
+            }]),
+            other => Err(PortError::Failed(format!(
+                "unexpected_er22_runner_command:{}",
+                other.run_id()
+            ))),
+        }
+    }
+}
+
+/// ER-22 fixture broker: a dispatched capability whose result stays unknown, so it can
+/// never confirm the stop that a terminal `run.cancelled` requires.
+struct InFlightUnknownBroker {
+    calls: Mutex<usize>,
+    entered: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
+#[async_trait]
+impl CapabilityBrokerPort for InFlightUnknownBroker {
+    async fn execute(
+        &self,
+        request: AuthorizedCapabilityRequest,
+    ) -> Result<CapabilityResult, PortError> {
+        *self.calls.lock().await += 1;
+        self.entered.notify_one();
+        self.release.notified().await;
+        Ok(CapabilityResult::failure(
+            request.request.request_id,
+            "result_unknown:er22_broker_fault",
+        ))
+    }
+}
+
+/// 【拒绝】派发前的取消（待审批 invocation）必须零副作用：Broker 从未被调用，没有 dispatch
+/// 事实，未执行的工具以 `not_executed` 收口，且待审批的 invocation 被登记为取消目标。
+#[tokio::test]
+async fn cancel_before_dispatch_has_zero_effect() {
+    let broker = Arc::new(CountingBroker {
+        calls: Mutex::new(0),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        scripted_runner(json!([
+            {
+                "text": "writing",
+                "tool_calls": [{
+                    "id": "c1",
+                    "name": "apply_patch",
+                    "arguments": {
+                        "patch": "*** Begin Patch\n*** Add File: ER22_PENDING.txt\n+hello\n*** End Patch\n"
+                    }
+                }]
+            },
+            {"text": "created ER22_PENDING.txt"}
+        ])),
+        broker.clone(),
+    );
+    let root = temp_project();
+    let context = trusted_context_in(&root, "er22-before-dispatch");
+    bind_test_runtime_authority(&harness.core, &context).await;
+
+    let awaiting = harness
+        .core
+        .start_run(
+            context.clone(),
+            "create ER22_PENDING.txt containing hello".to_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        awaiting.status,
+        ExecutionStatus::AwaitingApproval,
+        "{awaiting:?}"
+    );
+    assert_eq!(*broker.calls.lock().await, 0, "approval must not dispatch");
+    let challenge: ApprovalChallenge =
+        serde_json::from_value(awaiting.output["approval"].clone()).unwrap();
+
+    let mut cancel_context = context.clone();
+    cancel_context.request_id = RequestId::new();
+    let cancelled = harness
+        .core
+        .cancel_run(cancel_context, None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert!(
+        cancelled
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("cancelled:"),
+        "{cancelled:?}"
+    );
+    // A cancel that landed before dispatch never reaches the broker and never appends a
+    // dispatch/effect fact.
+    assert_eq!(
+        *broker.calls.lock().await,
+        0,
+        "cancel before dispatch must keep zero effects"
+    );
+    let events = harness.events.read_all().await.unwrap();
+    assert!(
+        !events.iter().any(|event| matches!(
+            event.kind.as_str(),
+            "execution.prepared" | "execution.started" | "capability.completed"
+        )),
+        "cancel before dispatch must not dispatch: {events:?}"
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.kind == "run.cancelled")
+            .count(),
+        1,
+        "exactly one confirmed terminal"
+    );
+    assert!(events.iter().any(|event| {
+        event.kind == "run.tool_result"
+            && event.data["not_executed"] == json!(true)
+            && event.data["result"]["error"] == json!("cancelled:approval_pending")
+    }));
+    // The durable cancellation intent covers the pending invocation and requests a stop;
+    // only the absence of a dispatched effect lets the run close as confirmed `Cancelled`.
+    let fact = events
+        .iter()
+        .find(|event| event.kind == "run.cancelling")
+        .and_then(|event| {
+            kiana_domain::RunCancellationFact::from_json(&event.data["cancellation_fact"]).ok()
+        })
+        .expect("run.cancelling carries a cancellation fact");
+    assert_eq!(fact.state, kiana_domain::RunCancellationState::Stopping);
+    assert!(fact.stop_requested);
+    assert_eq!(fact.stop_confirmed, None);
+    assert_eq!(
+        fact.target_invocation_ids.len(),
+        1,
+        "pending invocation must be a cancellation target"
+    );
+
+    // The invalidated approval can no longer be approved into an execution.
+    let mut decision_context = context.clone();
+    decision_context.request_id = RequestId::new();
+    let resumed = harness
+        .core
+        .decide_approval(
+            &decision_context,
+            challenge.approval_id,
+            ApprovalDecision::Approve,
+        )
+        .await
+        .unwrap();
+    assert_eq!(resumed.status, ExecutionStatus::Blocked, "{resumed:?}");
+    assert!(resumed
+        .error
+        .as_deref()
+        .unwrap_or_default()
+        .contains("approval_already_consumed"));
+    assert_eq!(*broker.calls.lock().await, 0);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+/// 【拒绝】派发之后的取消，只要在飞的 effect 没有证明已停止，就必须落 `result_unknown`
+/// (`result_unknown:cancel_stop_unconfirmed`)，不能写成 `run.cancelled`。
+#[tokio::test]
+async fn cancel_after_dispatch_without_stop_is_unknown() {
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let cancel_entered = Arc::new(Notify::new());
+    let broker = Arc::new(InFlightUnknownBroker {
+        calls: Mutex::new(0),
+        entered: entered.clone(),
+        release: release.clone(),
+    });
+    let harness = CoreHarness::with_runner_and_broker(
+        Arc::new(DispatchedCancelRunner {
+            cancel_entered: cancel_entered.clone(),
+        }),
+        broker.clone(),
+    );
+    let events = harness.events.clone();
+    let root = temp_project();
+    let context = trusted_context_in(&root, "er22-after-dispatch");
+    bind_test_runtime_authority(&harness.core, &context).await;
+    let core = Arc::new(harness.core);
+
+    let entered_wait = entered.notified();
+    let mut start_task = {
+        let core = core.clone();
+        let mut start_context = context.clone();
+        start_context.request_id = RequestId::new();
+        tokio::spawn(async move {
+            core.start_run(start_context, "dispatch then cancel".to_owned(), None)
+                .await
+        })
+    };
+    // The capability is dispatched to the broker, which now holds the effect open.
+    wait_for_runner_entry(entered_wait, &mut start_task).await;
+
+    let mut cancel_context = context.clone();
+    cancel_context.request_id = RequestId::new();
+    let cancel_wait = cancel_entered.notified();
+    let mut cancel_task = {
+        let core = core.clone();
+        tokio::spawn(async move {
+            core.cancel_run(cancel_context, None, "user".to_owned())
+                .await
+        })
+    };
+    // Wait until the runner answered the cancel; Core is now awaiting the stop proof.
+    wait_for_runner_entry(cancel_wait, &mut cancel_task).await;
+    // The dispatched effect resolves unknown, so its stop can never be confirmed.
+    release.notify_one();
+
+    let cancelled = finish_runner_task(cancel_task).await.unwrap();
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::ResultUnknown,
+        "{cancelled:?}"
+    );
+    assert_eq!(
+        cancelled.error.as_deref(),
+        Some("result_unknown:cancel_stop_unconfirmed"),
+        "{cancelled:?}"
+    );
+    let run_id = RunId::parse_str(cancelled.output["run_id"].as_str().unwrap()).unwrap();
+
+    let started = finish_runner_task(start_task).await.unwrap();
+    assert_eq!(started.status, ExecutionStatus::ResultUnknown, "{started:?}");
+    assert_eq!(*broker.calls.lock().await, 1, "the effect was dispatched");
+
+    let stream = events.read_stream("run", &run_id.to_string()).await.unwrap();
+    assert!(
+        !stream.iter().any(|event| event.kind == "run.cancelled"),
+        "an unconfirmed stop must never project run.cancelled: {stream:?}"
+    );
+    assert_eq!(
+        stream
+            .iter()
+            .filter(|event| event.kind == "run.result_unknown")
+            .count(),
+        1,
+        "exactly one unknown terminal"
+    );
+    assert_eq!(
+        core.run_state(run_id).await.unwrap().outcome,
+        Some(RunOutcome::ResultUnknown)
+    );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+/// ER-22 fixture runner: a held start that can emit a late completion after a confirmed cancel.
+struct LateCompletionRunner {
+    entered: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
+#[async_trait]
+impl RunnerPort for LateCompletionRunner {
+    fn bind_model_assignment(
+        &self,
+        run_id: RunId,
+        assignment: kiana_domain::ModelAssignment,
+    ) -> Result<(), PortError> {
+        validate_test_model_assignment(run_id, assignment)
+    }
+
+    async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
+        match command {
+            RunnerCommand::Start { run_id, .. } => {
+                self.entered.notify_one();
+                self.release.notified().await;
+                Ok(vec![
+                    RunnerEvent::Started { run_id },
+                    RunnerEvent::Completed {
+                        run_id,
+                        output: json!({ "text": "late completion" }),
+                    },
+                ])
+            }
+            RunnerCommand::Cancel { run_id, .. } => Ok(vec![RunnerEvent::Failed {
+                run_id,
+                error: "cancelled:user".to_owned(),
+            }]),
+            other => Err(PortError::Failed(format!(
+                "unexpected_er22_runner_command:{}",
+                other.run_id()
+            ))),
+        }
+    }
+}
+
+/// 【拒绝】已确认取消（单一 `run.cancelled` 终态）之后到达的 Runner 完成不得被接受；
+/// 迟到的结果既不能追加第二个终态，也不能把 run 从 Cancelled 复活成 Completed。
+#[tokio::test]
+async fn late_result_cannot_resurrect_run() {
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let harness = CoreHarness::with_runner(Arc::new(LateCompletionRunner {
+        entered: entered.clone(),
+        release: release.clone(),
+    }));
+    let events = harness.events.clone();
+    let core = Arc::new(harness.core);
+    let context = trusted_context();
+
+    let entered_wait = entered.notified();
+    let mut start_task = {
+        let core = core.clone();
+        let mut start_context = context.clone();
+        start_context.request_id = RequestId::new();
+        tokio::spawn(async move {
+            core.start_run(start_context, "cancel before late completion".to_owned(), None)
+                .await
+        })
+    };
+    wait_for_runner_entry(entered_wait, &mut start_task).await;
+
+    let mut cancel_context = context.clone();
+    cancel_context.request_id = RequestId::new();
+    let cancelled = core
+        .cancel_run(cancel_context, None, "user".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    let run_id = RunId::parse_str(cancelled.output["run_id"].as_str().unwrap()).unwrap();
+
+    // The held runner now emits a completion; the committed terminal must not be reopened.
+    release.notify_one();
+    let late = finish_runner_task(start_task).await;
+    assert!(
+        late.is_err(),
+        "a late completion must be rejected, not accepted: {late:?}"
+    );
+    assert_eq!(
+        late.unwrap_err().to_string(),
+        "port_conflict:run_terminal_conflict"
+    );
+
+    assert_eq!(
+        core.run_state(run_id).await.unwrap().outcome,
+        Some(RunOutcome::Cancelled)
+    );
+    let stream = events.read_stream("run", &run_id.to_string()).await.unwrap();
+    let terminals = stream
+        .iter()
+        .filter(|event| {
+            matches!(
+                event.kind.as_str(),
+                "run.completed" | "run.failed" | "run.cancelled" | "run.result_unknown"
+            )
+        })
+        .map(|event| event.kind.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(terminals, ["run.cancelled"], "{stream:?}");
+}
