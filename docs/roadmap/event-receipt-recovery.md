@@ -473,12 +473,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-21 — Explicit resume preflight and claim　⏳
+##### ER-21 — Explicit resume preflight and claim　✅
 
 - **落点：** `kiana-core/recovery.rs`、protocol command、CLI/Web routing；关联 `P0-G-03`、`CP-19`、`H14/H19`。
 - **动作：** resume 读取 exact snapshot cursor、owner/role/sandbox/path/epoch/approval，CAS 写 `run.resume_prepared`，安装 runner 前再核验 authority；重复 resume 返回原 command receipt 或 conflict。
 - **先拒绝：** `resume_context_override_is_denied`、`resume_after_data_revocation_is_denied`、`resume_same_snapshot_twice_is_idempotent`。
 - **成功/回归：** approval pending、no-pending continuation、new turn、stale snapshot、concurrent resume 和 runner restore failure 都有稳定响应。
+- **验收（测试名与卡片名对齐）：** 拒绝与成功/回归路径由树内行为夹具覆盖，均接入 `.github/workflows/er21-resume-claim.yml`：`kiana-core/tests/control_plane.rs` 有 `resume_context_override_is_denied`、`resume_after_data_revocation_is_denied`、`resume_same_snapshot_twice_is_idempotent`、`resume_stale_snapshot_is_rejected`、`resume_concurrent_second_claim_conflicts`、`resume_runner_restore_failure_is_unknown`、`resume_without_pending_approval_continues_through_drive_run`；`kiana-core/tests/er21_resume_claim_guard.rs` 保留既有 source guard 并新增夹具命名/接线守卫 `resume_behavioural_fixtures_are_wired`。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 source guard 与静态 compiler 证据，没有可运行的拒绝/成功夹具。本次在既有 `control_plane` target 上补齐：调用方覆盖冻结范围、快照后数据撤销、串行/并发重复 claim、过期快照、claim 后 Runner 还原失败均 fail-closed 且零越权副作用；无待批快照走同一条 claim→restore→`drive_run` 并记为一次 `Resume` 新 turn，Runner 无终态证据时不合成 Completed。proof_level 维持 source；本地未编译未运行，CI 回执未等待；跨进程并发 claim、真实 Runner 还原失败注入、clarification 等非审批暂停续体与 ER-22 cancel 恢复仍开放。
 
 <a id="step-er-22"></a>
 
