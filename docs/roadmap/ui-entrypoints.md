@@ -339,13 +339,40 @@ tab/cross-session 隔离、真实 gap 只围栏不伪装）；
 
 
 
-#### UI-09 · schema 资产、生成和兼容门　🔄
+#### UI-09 · schema 资产、生成和兼容门　✅
 
 - 依赖：UI-01/07/08。代码：schema/fixture 目录、生成脚本、版本检查 CI。
 - 步骤：决定 JSON Schema/TypeScript/Rust 生成边界；为每个 DTO 固定 examples、unknown-field、max-size 和 deprecated 字段；生成静态客户端类型。
 - 先拒绝：schema 与 Rust 类型漂移、同版本破坏性改动、生成文件未更新、示例包含 secret/真实路径。
 - 成功/回归：schema diff、跨语言 round-trip、旧客户端读取新服务端、服务端拒绝新客户端不可理解命令。
 - 完成产物：schema lock、生成校验命令、兼容矩阵和脱敏 fixtures。JSON Schema/Rust catalog 源码与 GitHub-only 验证已接入；当前证明等级为 `source`，CI 结果未等待。
+
+`docs/schemas/ui/schema-lock.v1.json` 锁定七个 UI DTO 边界（handshake request/response、snapshot、
+feed frame、action、action result、entity-store snapshot）及其 Rust owner、strict unknown-field
+策略、byte 上限、脱敏 examples/unknown-field fixtures 与 canonical SHA-256；
+`compatibility-matrix.v1.json` 固定同版本 frozen-shape、unknown major `reject_before_decode`、
+unknown command `reject_with_schema_unsupported` 与四条负例绑定。2026-10-17 收口切片补齐三处
+缺口：①资产覆盖门——目录里未登记的 `*.schema.json`、`examples/*.json`、`negative/*.json` 一律
+`unlocked_schema_file`/`unreferenced_example_fixture`/`unreferenced_negative_fixture` 拒绝；
+②`deprecated_fields` 与 schema 自身 `"deprecated": true` 标记逐字绑定，且每项必须是
+`field`/`since`/`remove_in` 评审记录（`contract_deprecated_fields_unbound`/
+`contract_deprecated_field_unreviewed`）；③跨语言 round-trip 的另一半——
+`kiana-client/examples/ui09_schema_emit.rs` 把七个 fixture 经 Rust wire type 解码再编码成
+`kiana.ui09-emitted.v1` 报告，`validate-ui09-schemas.py --emitted` 再对 canonical JSON Schema
+校验（漂移 `emitted_schema_mismatch`、集合缺失 `emitted_contract_set_mismatch`）。
+
+验收：`kiana-client/tests/ui09_schema_catalog.rs`（3 条生成 catalog 夹具）、
+`kiana-client/tests/ui09_schema_round_trip.rs` 4 条
+（`ui09_locked_examples_round_trip_through_the_rust_wire_types`、
+`ui09_unknown_field_examples_are_rejected_by_strict_rust_decode`、
+`ui09_version_and_command_gates_fail_closed_before_decode`、
+`ui09_lock_contracts_are_registered_and_negative_fixtures_stay_refused`）、发射门
+`kiana-client/examples/ui09_schema_emit.rs` + `python3 scripts/validate-ui09-schemas.py --emitted`、
+source guard `kiana-core/tests/ui09_schema_guard.rs`（2 条：数据面纯净负断言 + 新 gate/example/lane
+绑定），手动 lane 为 [`.github/workflows/ui09-schema-contract.yml`](../../.github/workflows/ui09-schema-contract.yml)
+（`workflow_dispatch`-only），自动覆盖仍是统一 `ci.yml` 的 `kiana-client`/`kiana-protocol` 整 crate
+分片与 `kiana-core-s6/6` 的 `ui09_schema_guard`。证明等级为 `source`，CI 结果未等待；浏览器侧
+TypeScript 生成、live 跨版本互操作、durable schema 迁移与 physical 证据仍开放。
 
 ### 27.2 CLI 与 Workbench
 
