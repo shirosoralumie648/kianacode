@@ -435,12 +435,13 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-18 — Workspace checkpoint transaction 与 restore evidence　⏳
+##### ER-18 — Workspace checkpoint transaction 与 restore evidence　✅
 
 - **落点：** `kiana-daemon/workspace_checkpoints.rs`、`apply_patch.rs`、ArtifactStore；关联 `P2-K4-01`、`CAP-10/16`。
 - **动作：** 捕获文件 identity/hash/mode/size，restore 前建立可回滚 transaction；提交和回滚都生成 changeset/evidence，外部 writer 变化使 restore 停止。
 - **先拒绝：** `restore_symlink_or_out_of_scope_path_is_denied`、`workspace_revision_changed_during_restore_is_denied`、`rollback_failure_is_unknown`。
 - **成功/回归：** empty/new file、rename、untracked file、disk full、crash at rename/fsync、concurrent writer 都不覆盖未授权内容。
+- **2026-10-17 收口（CI-only）：** `WorkspaceFileEdit` 现固定每次捕获的 identity——`path`、内容摘要 `sha256`、`size_bytes` 与可执行 `mode` 位（缺失路径为 `0`/空串、`#[serde(default)]` 兼容旧 checkpoint），`capture_checkpoint_files` 在指纹复核后对**实际读到的字节**计算 `journal_sha256` 与 `before.len()`；daemon lib 新增九个行为夹具覆盖卡片拒绝与成功/回归列——捕获 hash/size/mode、跨 scope/受保护路径拒绝、符号链接 `O_NOFOLLOW` fail-closed、preview 零写入、restore 应用目标并复核 revision、外部 writer 改动触发 `checkpoint_revision_conflict` 且不写入、删除/新增（rename 等价）文件、受限目录写入失败后回滚保留原内容；`er18_workspace_checkpoint_guard` 增 `size_bytes`/`sha256` contract marker 与新夹具命名守卫，ER-18 workflow 增加 `cargo test -p kiana-daemon --lib checkpoint` 与 lib `--no-run`。proof_level 维持 source；本地未编译未运行，CI 回执未等待；物理掉电/crash-at-fsync、真实 disk-full、跨主机文件锁与 ArtifactStore 持久化仍开放。
 
 <a id="step-er-19"></a>
 
