@@ -511,6 +511,7 @@
    "oa17_query_cursor",
    "oa18_audit_export",
    "oa19_incident_projection",
+   "oa20_data_governance_guard",
    "oa20_data_governance_projection",
    "oa21_replay_diagnostics",
    "oa22_fault_injection",
