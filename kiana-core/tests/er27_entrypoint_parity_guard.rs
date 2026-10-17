@@ -185,3 +185,44 @@ fn read_and_recovery_surfaces_cannot_parse_or_execute_eventlog() {
         }
     }
 }
+
+/// The source guard above is not enough on its own: ER-27 must ship runnable behaviour fixtures for
+/// the same four-entry read-only path, and those fixtures must be executed by the ER-27 CI lane.
+#[test]
+fn behavioural_fixtures_are_wired_into_the_er27_lane() {
+    let fixture = include_str!("../../kiana-daemon/tests/er27_entrypoint_receipt_recovery.rs");
+    require(
+        fixture,
+        &[
+            "DaemonHost",
+            "RequestEnvelope::receipt",
+            "RequestEnvelope::resume_run",
+            "RequestEnvelope::cancel_run",
+            "RequestEnvelope::pending_approvals",
+            "EntryPointKind::Cli",
+            "EntryPointKind::Web",
+            "EntryPointKind::Workbench",
+            "EntryPointKind::Desktop",
+            "ZeroCallRunner",
+            "receipt_digest",
+            "AUTH_CALLER_UNTRUSTED",
+            "role_department_mismatch",
+            "role_unknown",
+            "receipt_not_found",
+            "protocol_schema_unsupported",
+            "already_terminal",
+            "run_resume_terminal_completed",
+        ],
+        "ER-27 behavioural fixture",
+    );
+
+    let workflow = include_str!("../../.github/workflows/er27-entrypoint-parity.yml");
+    require(
+        workflow,
+        &[
+            "cargo test -p kiana-daemon --test er27_entrypoint_receipt_recovery",
+            "er27_entrypoint_parity_guard",
+        ],
+        "ER-27 workflow lane",
+    );
+}

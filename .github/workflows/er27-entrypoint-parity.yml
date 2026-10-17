@@ -29,6 +29,8 @@ jobs:
       - run: cargo test -p kiana-core --test p2_m3_01_action_cards --locked -- --test-threads=1
       - name: Run ER-27 source guard
         run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --locked -- --test-threads=1
+      - name: Run ER-27 daemon receipt/recovery fixtures
+        run: cargo test -p kiana-daemon --test er27_entrypoint_receipt_recovery --locked -- --test-threads=1
       - name: Compile selected entrypoint targets
         run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --no-run --locked
       - run: cargo test -p kiana-entrypoints --test p2_m7_01_accessibility --no-run --locked
@@ -36,3 +38,5 @@ jobs:
         run: cargo test -p kiana-core --test p2_k3_01_human_inbox --no-run --locked
       - run: cargo test -p kiana-core --test p2_m3_01_action_cards --no-run --locked
       - run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --no-run --locked
+      - name: Compile ER-27 daemon fixture
+        run: cargo test -p kiana-daemon --test er27_entrypoint_receipt_recovery --no-run --locked
