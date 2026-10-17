@@ -1,4 +1,4 @@
-use kiana_capability_broker::consume_credential_lease;
+use kiana_capability_broker::{consume_credential_lease, consume_credential_lease_with_revocation};
 use kiana_domain::{json_digest, CredentialLease, SecretRef};
 
 #[test]
@@ -125,4 +125,54 @@ fn broker_rejects_invalid_lease_metadata_without_consumption() {
         ));
         assert_eq!(lease, before, "invalid metadata must not consume the lease");
     }
+}
+
+#[test]
+fn broker_refuses_revoked_generation_before_consuming_the_lease() {
+    let endpoint_digest = json_digest(&serde_json::json!("https://provider.invalid/v1"));
+    let reference = SecretRef::new(
+        "env",
+        "CI07_BROKER_REVOKED",
+        "provider.request",
+        "fake-provider",
+        1,
+    )
+    .expect("reference");
+    let mut lease = CredentialLease::issue(
+        reference,
+        "fake-provider",
+        "provider.request",
+        "fake-provider",
+        endpoint_digest.clone(),
+        1_000,
+        100,
+    )
+    .expect("lease");
+    let before = lease.clone();
+    assert!(matches!(
+        consume_credential_lease_with_revocation(
+            &mut lease,
+            1_001,
+            "fake-provider",
+            "provider.request",
+            "fake-provider",
+            &endpoint_digest,
+            Some(1),
+        ),
+        Err(kiana_ports::PortError::Conflict(code)) if code == "credential_secret_ref_revoked"
+    ));
+    assert_eq!(lease, before, "revocation denial must not consume the lease");
+
+    // Without a watermark, or with a watermark below the lease generation, the fence admits.
+    consume_credential_lease_with_revocation(
+        &mut lease,
+        1_001,
+        "fake-provider",
+        "provider.request",
+        "fake-provider",
+        &endpoint_digest,
+        None,
+    )
+    .expect("no watermark admits the effect");
+    assert!(lease.consumed);
 }

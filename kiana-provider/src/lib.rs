@@ -28,6 +28,7 @@ pub use config::ProviderConfig;
 pub use connector_quota::{
     validate_connector_quota_lease, CONNECTOR_QUOTA_PROVIDER_BOUNDARY_SCHEMA,
 };
+use credentials::{CredentialRevocations, RevocationFencedStore};
 pub use fallback::{validate_fallback_attempt, FALLBACK_PROVIDER_BOUNDARY_SCHEMA};
 use kiana_domain::*;
 use kiana_ports::{ModelBudgetPort, ModelClient};
@@ -51,6 +52,9 @@ pub use usage_adapters::{
 /// permit，避免配置热更新把一个旧请求悄悄送到新连接。
 pub struct ProviderGateway {
     state: tokio::sync::RwLock<GatewayState>,
+    /// Narrow, in-process revocation fence shared with every resolved connection.  It holds
+    /// reference metadata only; recording or checking a revocation never reads a secret value.
+    revocations: CredentialRevocations,
 }
 
 struct GatewayState {
@@ -73,10 +77,16 @@ impl GatewayState {
     fn candidate(
         mut resolved: resolver::Resolution,
         previous: BTreeMap<String, CapacityState>,
+        revocations: &CredentialRevocations,
     ) -> Result<Self, ModelError> {
         let mut capacities = previous.clone();
         let mut current = BTreeMap::<String, CapacityState>::new();
         for connection in resolved.connections.values_mut() {
+            // Enforce the narrow backend registry and the revocation fence at every read from the
+            // protected source, including admission-time revision checks and effect-time issuance.
+            let store = connection.credential_store.clone();
+            let fenced = RevocationFencedStore::new(store, revocations.clone());
+            connection.credential_store = Arc::new(fenced);
             let scope = config::capacity_scope(connection);
             let shared = if let Some(shared) = current.get(&scope) {
                 shared.clone()
@@ -222,8 +232,11 @@ impl ProviderGateway {
     }
 
     fn from_resolution(resolved: resolver::Resolution) -> Result<Self, ModelError> {
+        let revocations = CredentialRevocations::default();
+        let state = GatewayState::candidate(resolved, BTreeMap::new(), &revocations)?;
         Ok(Self {
-            state: tokio::sync::RwLock::new(GatewayState::candidate(resolved, BTreeMap::new())?),
+            state: tokio::sync::RwLock::new(state),
+            revocations,
         })
     }
 
@@ -264,7 +277,8 @@ impl ProviderGateway {
         if state.resolved.snapshot.snapshot_digest != expected_revision {
             return Err(ModelError::invalid("config_snapshot_revision_changed"));
         }
-        let candidate = GatewayState::candidate(resolved, state.capacities.clone())?;
+        let previous = state.capacities.clone();
+        let candidate = GatewayState::candidate(resolved, previous, &self.revocations)?;
         let snapshot = candidate.resolved.snapshot.clone();
         *state = candidate;
         Ok(snapshot)
@@ -286,6 +300,17 @@ impl ProviderGateway {
 
     pub fn configuration_snapshot(&self) -> Result<ProviderConfigSnapshot, ModelError> {
         Ok(self.snapshot()?.resolved.snapshot.clone())
+    }
+
+    /// Record a server-owned revocation for exactly this opaque reference generation.
+    ///
+    /// After this call, any admission-time revision check or effect-time issuance for a
+    /// generation at or below the recorded watermark fails closed with
+    /// `credential_secret_ref_revoked` before the protected source is read and before any
+    /// provider request is built.  The reference value is never resolved here.  This is the
+    /// narrow, in-process fence; durable/event-sourced revocation belongs to the recovery steps.
+    pub fn revoke_credential_ref(&self, secret_ref: &SecretRef) -> Result<(), ModelError> {
+        self.revocations.revoke(secret_ref)
     }
 
     /// Canonical, secret-free workspace input and its server trust binding. Actual resolved

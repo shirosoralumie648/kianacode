@@ -119,6 +119,35 @@ pub fn consume_credential_lease(
     lease.consume(now_unix_ms).map_err(PortError::Failed)
 }
 
+/// Consume a credential lease only when the server-owned revocation watermark has not already
+/// passed the lease's `SecretRef` generation.  A watermark of `w` means every generation at or
+/// below `w` is revoked, so `generation <= w` is refused with `credential_secret_ref_revoked`
+/// **before** the lease is validated or consumed.  The denied lease is returned untouched, which
+/// keeps a refusal side-effect free and lets the caller re-admit with a rotated reference.
+pub fn consume_credential_lease_with_revocation(
+    lease: &mut CredentialLease,
+    now_unix_ms: u64,
+    provider_account: &str,
+    purpose: &str,
+    audience: &str,
+    endpoint_digest: &str,
+    revoked_generation: Option<u64>,
+) -> Result<(), PortError> {
+    if revoked_generation.is_some_and(|watermark| lease.secret_ref.generation <= watermark) {
+        return Err(PortError::Conflict(
+            "credential_secret_ref_revoked".to_owned(),
+        ));
+    }
+    consume_credential_lease(
+        lease,
+        now_unix_ms,
+        provider_account,
+        purpose,
+        audience,
+        endpoint_digest,
+    )
+}
+
 /// Consume connector credential metadata only after the current server-owned binding has been
 /// revalidated at the adapter effect boundary. Raw secret resolution remains adapter-private.
 #[allow(clippy::too_many_arguments)]
