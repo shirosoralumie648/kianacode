@@ -758,15 +758,20 @@ impl ConnectorInvocationLedger {
             .reservations
             .get_mut(&permit.reservation_id)
             .ok_or_else(|| "connector_reservation_missing".to_owned())?;
+        // One attempt consumes exactly one permit.  The Committed-only binding check below would
+        // otherwise mask the CAS fact as `connector_permit_reservation_mismatch`, so an already
+        // consumed one-shot permit is reported explicitly.  The permit itself still has to be
+        // self-consistent and current, and no state transition happens on this path.
+        if reservation.state == ConnectorReservationState::PermitConsumed {
+            permit.validate(Some(now_unix_ms))?;
+            return Err("connector_permit_already_consumed".to_owned());
+        }
         permit.validate_for_reservation(reservation, Some(now_unix_ms))?;
         match reservation.state {
             ConnectorReservationState::Committed => {
                 reservation.state = ConnectorReservationState::PermitConsumed;
                 reservation.state_revision = reservation.state_revision.saturating_add(1);
                 Ok(ConnectorPermitConsumeOutcome::Consumed)
-            }
-            ConnectorReservationState::PermitConsumed => {
-                Err("connector_permit_already_consumed".to_owned())
             }
             _ => Err("connector_permit_not_consumable".to_owned()),
         }

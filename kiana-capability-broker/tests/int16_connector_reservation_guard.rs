@@ -8,6 +8,7 @@ fn broker_consumes_only_server_owned_connector_reservations() {
         "ConnectorInvocationReservation",
         "ConnectorInvocationPermit",
         "connector_reservation_invalid",
+        "connector_reservation_required",
         "connector_permit_required",
         "connector_reservation_not_committed",
         "connector_permit_expired",

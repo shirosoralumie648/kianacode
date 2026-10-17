@@ -60,6 +60,7 @@ fn stale_or_uncommitted_connector_material_is_denied_before_effect() {
         "reservation.state != ConnectorReservationState::Committed",
         "permit.validate_for_reservation",
         "connector_permit_required",
+        "connector_reservation_required",
         "connector_reservation_invalid",
         "connector_permit_invalid",
         "connector_reservation_effect_not_admitted",
@@ -74,4 +75,60 @@ fn stale_or_uncommitted_connector_material_is_denied_before_effect() {
     }
     assert!(broker.contains("validate_connector_effect_boundary(&request"));
     assert!(daemon.contains("connector_effect_admission"));
+}
+
+const DOMAIN_FIXTURES: &str =
+    include_str!("../../kiana-domain/tests/int16_connector_reservation.rs");
+const BROKER_FIXTURES: &str =
+    include_str!("../../kiana-capability-broker/tests/int16_connector_reservation.rs");
+const DAEMON_FIXTURES: &str =
+    include_str!("../../kiana-daemon/tests/int16_connector_reservation.rs");
+const MANUAL_LANE: &str = include_str!("../../.github/workflows/int16-connector-reservation.yml");
+
+#[test]
+fn connector_reservation_fixtures_stay_wired_to_the_manual_lane_and_the_auto_shards() {
+    for fixture in [
+        // Domain CAS/command-digest fixtures.
+        "same_idempotency_key_with_different_command_digest_is_denied",
+        "all_server_owned_revisions_are_rechecked_at_effect_boundary",
+        "uncommitted_reservation_old_permit_and_replayed_receipt_have_zero_new_effect",
+        "command_digest_covers_every_server_owned_field_and_refuses_tampering",
+        "same_command_replays_the_first_reservation_and_cas_races_are_denied",
+        "one_attempt_consumes_exactly_one_permit_and_uncommitted_work_cannot_consume",
+        "stale_leases_permits_and_epochs_never_reach_the_adapter",
+        "receipt_conflicts_and_effects_before_consumption_are_refused",
+        // Broker effect-boundary fixtures: deny-first with a recording handler at zero calls.
+        "committed_reservation_reaches_the_handler_exactly_once_with_its_command_digest",
+        "uncommitted_stale_and_tampered_reservations_never_reach_the_handler",
+        // Daemon spine fixtures: command digest conflict, replay and wire smuggling.
+        "same_key_with_a_different_command_digest_is_denied_before_any_effect",
+        "replayed_command_returns_the_original_receipt_and_keeps_one_attempt",
+        "wire_supplied_reservation_envelope_is_refused_before_any_effect",
+    ] {
+        assert!(
+            DOMAIN_FIXTURES.contains(fixture)
+                || BROKER_FIXTURES.contains(fixture)
+                || DAEMON_FIXTURES.contains(fixture),
+            "INT-16 fixture missing: {fixture}"
+        );
+    }
+    for step in [
+        "cargo test -p kiana-domain --test int16_connector_reservation",
+        "cargo test -p kiana-capability-broker --test int16_connector_reservation",
+        "cargo test -p kiana-daemon --test int16_connector_reservation",
+        "cargo test -p kiana-core --test int16_connector_reservation_guard",
+    ] {
+        assert!(
+            MANUAL_LANE.contains(step),
+            "missing INT-16 lane step: {step}"
+        );
+    }
+    assert!(MANUAL_LANE.contains("workflow_dispatch:"));
+    assert!(MANUAL_LANE.contains("contents: read"));
+    for forbidden in ["push:", "pull_request:", "cargo test --workspace"] {
+        assert!(
+            !MANUAL_LANE.contains(forbidden),
+            "INT-16 lane must not contain {forbidden}"
+        );
+    }
 }
