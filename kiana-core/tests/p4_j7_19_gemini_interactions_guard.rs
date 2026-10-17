@@ -2,6 +2,7 @@
 fn p4_j7_19_gemini_interactions_stays_stateless_and_fail_closed() {
     let request = include_str!("../../kiana-provider/src/request.rs");
     let response = include_str!("../../kiana-provider/src/response.rs");
+    let config = include_str!("../../kiana-provider/src/config.rs");
     let baseline = include_str!("../../docs/roadmap/p4-j7-19-gemini-interactions-baseline.md");
     let workflow = include_str!("../../.github/workflows/p4-j7-19-gemini-interactions.yml");
 
@@ -18,6 +19,7 @@ fn p4_j7_19_gemini_interactions_stays_stateless_and_fail_closed() {
         "call_id",
         "is_error",
         "kiana.tool-observation.v1",
+        "previous_interaction_id",
         "gemini_stateless_function_result_round_trip",
         "gemini_interaction_parameters_are_resubmitted_each_turn",
     ] {
@@ -37,8 +39,12 @@ fn p4_j7_19_gemini_interactions_stays_stateless_and_fail_closed() {
         "provider_step_index_out_of_order",
         "provider_step_after_terminal_status",
         "provider_usage_total_inconsistent",
+        "provider_private_replay_not_configured",
+        "provider_private_or_hosted_item_unsupported",
         "gemini_requires_action_is_not_run_completion",
         "gemini_incomplete_function_arguments_never_dispatch",
+        "gemini_thought_steps_require_protected_replay",
+        "gemini_hosted_or_unknown_steps_never_execute_locally",
         "gemini_steps_cannot_follow_terminal_status_update",
         "gemini_requires_action_status_must_match_function_steps",
         "gemini_generate_content_events_are_not_accepted_as_interactions",
@@ -50,8 +56,21 @@ fn p4_j7_19_gemini_interactions_stays_stateless_and_fail_closed() {
             "Gemini response marker missing: {marker}"
         );
     }
+    // Step ①: the implemented API version is pinned to the Interactions endpoint, and the config
+    // resolver maps the gemini aliases to it. No GenerateContent dialect is reachable.
+    for marker in [
+        "\"gemini\" | \"gemini-interactions\"",
+        "https://generativelanguage.googleapis.com/v1beta",
+        "\"interactions\",",
+    ] {
+        assert!(
+            config.contains(marker),
+            "Gemini endpoint marker missing: {marker}"
+        );
+    }
     assert!(!request.contains("generateContent"));
     assert!(!response.contains("generateContent"));
+    assert!(!config.contains("generateContent"));
     for marker in [
         "gemini_requires_action_is_not_run_completion",
         "gemini_incomplete_function_arguments_never_dispatch",
