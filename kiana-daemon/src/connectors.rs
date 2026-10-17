@@ -3,8 +3,8 @@
 use crate::local_packages::{failed, sha256, LocalDir};
 use async_trait::async_trait;
 use kiana_capability_broker::{
-    consume_connector_credential_invocation, validate_connector_quota_boundary, CapabilityBroker,
-    CapabilityHandler,
+    validate_connector_quota_boundary, CapabilityBroker, CapabilityHandler,
+    ConnectorCredentialLeaseFence,
 };
 use kiana_domain::{
     connector_bindings, connector_fixture_hash_matches, connector_fixture_hash_valid,
@@ -33,7 +33,11 @@ pub(crate) fn register(
     mcp: Arc<crate::harness_mcp::McpRegistry>,
 ) -> Result<(), PortError> {
     let journal = Arc::new(ConnectorEventJournal { events });
-    let registry = Arc::new(ConnectorRegistry { journal, mcp });
+    let registry = Arc::new(ConnectorRegistry {
+        journal,
+        mcp,
+        credential_fence: std::sync::Mutex::new(ConnectorCredentialLeaseFence::new()),
+    });
     broker.register_static(
         CapabilityKind::Tool,
         CONNECTOR_MANAGE_OPERATION,
@@ -55,6 +59,9 @@ pub(crate) fn register(
 struct ConnectorRegistry {
     journal: Arc<ConnectorEventJournal>,
     mcp: Arc<crate::harness_mcp::McpRegistry>,
+    /// Server-owned one-shot credential admission ledger.  It holds lease digests only and is
+    /// in-process; restart/cross-process fencing stays with INT-18/INT-29.
+    credential_fence: std::sync::Mutex<ConnectorCredentialLeaseFence>,
 }
 
 /// The capability handler never receives an EventStore directly.  This narrow journal owns
@@ -890,7 +897,15 @@ impl ConnectorRegistry {
                         CONNECTOR_CREDENTIAL_MAX_TTL_MS,
                     )
                     .map_err(failed)?;
-                    Some(consume_connector_credential_invocation(
+                    // INT-06: the server-owned fence revalidates the current binding and admits
+                    // each issued lease exactly once, so a cloned or retried envelope cannot
+                    // consume the same lease twice. The lock is released before the adapter call
+                    // below; the fence keeps digests only.
+                    let mut fence = self
+                        .credential_fence
+                        .lock()
+                        .map_err(|_| failed("connector_credential_fence_poisoned"))?;
+                    Some(fence.consume(
                         &mut credential,
                         &snapshot,
                         operation,

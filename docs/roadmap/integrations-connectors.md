@@ -52,6 +52,12 @@ ConnectorDefinition + AccountBinding + OperationContract
 - INT-23 source slice now binds connector cancellation to `StopReport` and dispatch lifecycle
   evidence. Confirmed pre-dispatch stop becomes `not_executed`, started work keeps its lease held,
   unconfirmed stop becomes `unknown`, and every terminal settlement rejects a late result.
+- INT-06 source slice now adds a server-owned `ConnectorCredentialLeaseFence` in the Broker
+  (lease identity → digest metadata only). The daemon consumes through the fence at the adapter
+  effect boundary, so one issued lease is admitted exactly once even for cloned or deserialized
+  envelopes, while the full binding/operation/idempotency/effect-target/purpose/audience/expiry
+  revalidation still runs. Projections stay digest/ref-only, the Runner drops model-supplied
+  credential fields, and the fence is in-process metadata, not durable or cross-process proof.
 - 当前工作树有并行 WIP，不能把本文件或新增类型当成已验收能力；状态仍以 `CURRENT_STATUS.md` 为准。
 
 ### 1.1 与相邻模块的边界
@@ -337,7 +343,7 @@ Connector 输入、输出和缓存都要带 `DataClass`、`Purpose`、owner proj
 | <a id="step-int-03"></a>`INT-03` | Operation input/output schema、风险、scope、data class、retry/timeout 合同 | INT-02 | caller 降级 risk、未声明 field/operation/scope、超限 payload | 同一 canonical payload 产生稳定 action/payload digest |
 | <a id="step-int-04"></a>`INT-04` | Connector registry immutable version、hash/signature、CAS、catalog projection | INT-02/03 | 原地覆盖版本、hash/signature 不符、registry race、未知 adapter 自动启用 | list/inspect 可从事实重建；同版本内容唯一 |
 | <a id="step-int-05"></a>`INT-05` | AccountBinding、ProviderAccount、project/owner/data boundary、scope intersection | INT-02/04 | 跨项目无 grant、binding owner 伪造、scope 超集、revoked/expired binding | binding snapshot 固化并可审计；撤销递增 revision |
-| <a id="step-int-06"></a>`INT-06` | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | INT-05 | raw token 到 Core/Runner/Event/UI、调用绑定错配、wrong purpose/audience/endpoint、lease replay/expiry | server-owned invocation envelope 锁定 connector/version/binding revision/account/operation/idempotency/SecretRef generation/effect target；Broker 在 adapter effect boundary 重验并一次消费，结果只投影 digest/ref metadata |
+| <a id="step-int-06"></a>`INT-06` | SecretRef/CredentialLease 与 connector invocation 绑定；复用 CI-07 | INT-05 | raw token 到 Core/Runner/Event/UI、调用绑定错配、wrong purpose/audience/endpoint、lease replay/expiry（夹具：`broker_consumes_connector_lease_at_exact_binding_boundary`、`broker_rejects_stale_binding_before_consumption`、`invocation_rejects_wrong_binding_operation_key_and_expiry`、`invocation_rejects_stale_target_wrong_secret_scope_and_unknown_fields`、`lease_rejects_wrong_purpose_audience_and_effect_target`、`consume_rejects_mutable_non_one_shot_and_overlong_leases`、`consumed_invocation_cannot_be_replayed_after_serialization`、`fence_admits_one_lease_identity_and_refuses_every_clone`、`fence_refuses_a_deserialized_replay_of_one_lease`、`fence_refuses_a_recomputed_digest_forgery_of_one_lease`、`event_projection_keeps_digests_and_ref_metadata_only`、`runner_mapping_drops_model_supplied_credential_fields`、`runner_tool_surface_declares_no_credential_parameter`、`runner_sources_never_resolve_connector_credentials`、`invocation_rejects_credential_overrides_and_bind_is_operator_validated`） | server-owned invocation envelope 锁定 connector/version/binding revision/account/operation/idempotency/SecretRef generation/effect target；Broker 的 `ConnectorCredentialLeaseFence` 在 adapter effect boundary 重验并一次消费（daemon 经围栏、不调裸 helper），结果只投影 digest/ref metadata（`ConnectorCredentialEvidence` 恰 13 项，事件/回执无 raw value 与 SecretRef key） |
 | <a id="step-int-07"></a>`INT-07` | `ConnectorAdapter`、`EffectObserver`、`CredentialProbe`、`WebhookVerifier` ports | INT-02/06 | adapter 直接访问 EventStore/approval、port 返回 raw secret、缺能力却宣称支持 | fake adapter 可注入 known/unknown/stop/health 结果 |
 | <a id="step-int-08"></a>`INT-08` | local_fixture schema、hash、payload matching、deterministic receipts | INT-04/07 | fixture 越界/替换/重复 payload、未知 operation、external_effect=true | fixture bind/invoke/replay/reconcile 与现有实现一致 |
 | <a id="step-int-09"></a>`INT-09` | read-only health/probe 和状态分类；daemon/query/UI | INT-05/07/08 | destructive probe、scope error 被标为 credential invalid、非 JSON error 删除凭据 | verified/connectivity-only/invalid/scope/unreachable 可区分且脱敏 |
