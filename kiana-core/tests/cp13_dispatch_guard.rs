@@ -89,3 +89,55 @@ fn cp13_dispatch_requires_committed_opaque_permit_before_broker() {
         );
     }
 }
+
+#[test]
+fn cp13_linearization_points_and_crash_classes_are_pinned() {
+    let domain = include_str!("../../kiana-domain/src/dispatch.rs");
+    let dispatch = include_str!("../src/dispatch.rs");
+    let contracts = include_str!("../../kiana-domain/src/event_contracts.rs");
+    // 崩溃分类合同：仅由已提交事实推导 handler 是否可能已开始，且未知/损坏前缀 fail-closed。
+    for marker in [
+        "pub enum DispatchCrashClass",
+        "NotPrepared",
+        "PreparedUndispatched",
+        "DispatchUnconfirmed",
+        "EffectPossiblyStarted",
+        "ResultCommitted",
+        "Corrupt",
+        "pub fn classify_dispatch_stream(",
+        "pub fn dispatch_reservation_digest(",
+        "handler_may_have_started",
+        "requires_unknown_terminal",
+    ] {
+        assert!(
+            domain.contains(marker),
+            "CP-13 crash-classification marker missing: {marker}"
+        );
+    }
+    // prepared 事实必须与本条事务内的预算/资源预留快照绑定；消费方重算摘要，未绑定则拒绝。
+    assert!(dispatch.contains("reservation_digest"));
+    assert!(dispatch.contains("dispatch_reservation_digest"));
+    assert!(dispatch.contains("execution_permit_reservation_unbound"));
+    assert!(dispatch.contains("pub async fn classify_dispatch_execution("));
+    assert!(contracts.contains("\"reservation_digest\""));
+    // 消费 CAS 必须同时写 dispatching 与 executing；prepared 之后不得单独写 executing。
+    assert!(dispatch.contains("events: vec![dispatching, executing]"));
+    assert!(!dispatch.contains("commit_invocation_executing"));
+    // 未绑定预留的拒绝必须发生在消费 CAS 之前（源码顺序），不能带病进入 handler。
+    let consume = dispatch
+        .find("execution_permit_reservation_unbound")
+        .expect("reservation binding check must exist");
+    let mint = dispatch
+        .find("let command_id = derived_request_id(\"permit.consume\", id);")
+        .expect("permit.consume command must exist");
+    assert!(
+        consume < mint,
+        "reservation binding must be verified before the permit-consume CAS"
+    );
+    for forbidden in ["optimistic_no_handler", "assume_not_dispatched"] {
+        assert!(
+            !domain.contains(forbidden) && !dispatch.contains(forbidden),
+            "crash classification must not enable {forbidden}"
+        );
+    }
+}

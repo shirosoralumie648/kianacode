@@ -251,6 +251,7 @@
    "cp10_approval_guard",
    "cp11_budget_guard",
    "cp12_resource_guard",
+   "cp13_dispatch",
    "cp13_dispatch_guard",
    "cp14_result_guard",
    "cp15_cancellation_guard",
