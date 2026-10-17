@@ -6,6 +6,8 @@
 > 2026-10-16 重新钉扎：WIP merge 后按当前工作树更新第 2 节 SHA-256 与 source snapshot 说明；
 > `.github/workflows/pd00-baseline.yml` 已并入统一 CI（`scripts/ci/test-shards.json` 调度），
 > 该行保留为历史记录。重新钉扎只更新快照记录，不放宽任何断言。
+> 2026-10-17 重新钉扎（CI 修复）：第 2 节的 EventStore port、EventLog facade 与
+> Recovery/checkpoint 三行随本轮格式化/ER-21 恢复语义修正同步刷新；其余行不变。
 
 ## 1. 范围、事实源和证明上限
 
@@ -24,14 +26,14 @@
 |---|---|---|
 | Journal contracts/limits | `kiana-domain/src/journal.rs` | `6966da5534b7bb9155b3282e5338aa5195f362aa6a08ab6564a7a8ddfe24324e` |
 | Governance/retention contracts | `kiana-domain/src/governance.rs` | `e7a0c59ec507bf435c0da4cd8efb0e3cf000fdd857712a629b2c4560796f5333` |
-| EventStore port | `kiana-ports/src/lib.rs` | `313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec` |
-| EventLog facade | `kiana-eventlog/src/lib.rs` | `fe98b8bffdf86cc49ce6630bdf3240b8d92b9590024ce3b2aea7edb132b090f4` |
+| EventStore port | `kiana-ports/src/lib.rs` | `a58b9c59f2c548820f5ac75da734d302859220f822441794c51887b888728b2f`（2026-10-17 重新钉扎） |
+| EventLog facade | `kiana-eventlog/src/lib.rs` | `a39842dead47f80e0bb9539a79ccffb0ea13ba65402512aaa86d779a3d337934`（2026-10-17 重新钉扎） |
 | JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `614ef68ba99f8df06dd56c90ca3864956ec1619bef2623bdfba111f7b4315efc` |
 | Memory adapter | `kiana-eventlog/src/memory.rs` | `2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774` |
 | ApprovalStore | `kiana-daemon/src/approval_store.rs` | `c6267bb007b5ede4663f5ae36c16797f9429ca3a167121024cf01ef5bc84230a` |
 | Memory adapter | `kiana-daemon/src/harness_memory.rs` | `e8b99bb7c6ad7bf447e861f5e368b4cbf2abc0226067d498601c2f2590d27e15` |
 | Artifact boundary | `kiana-core/src/artifacts.rs` | `01938b6dd8e0d396482a3b15cfd22c61d2921916a292d51b2295b94d5658ef66` |
-| Receipt/recovery projection | `kiana-core/src/receipts.rs`, `kiana-core/src/recovery.rs` | `b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67`, `5169aecfa239d023af97ea5ddccf0019204dbfdf01d5a14e8e3c3972c9ec1721` |
+| Receipt/recovery projection | `kiana-core/src/receipts.rs`, `kiana-core/src/recovery.rs` | `b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67`, `ee6add98f6fab1d024495b58b03462c0a42afe8ae75c82c4506fe6f948011a05`（2026-10-17 重新钉扎） |
 | Query index/cache | `kiana-query/src/index.rs`, `kiana-query/src/repo_map.rs` | `0515f9a2cce54f3d99edac018f3dc079bfe6d907e0523a365cd42cd44647d56c`, `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
 | PD-00 source guard/workflow | `kiana-core/tests/persistence_baseline.rs`（2026-10-16 重新钉扎），`.github/workflows/pd00-baseline.yml`（历史记录，已并入统一 CI 调度） | `d1ad17b57bd900e0d508a68795fb21647f05764cb194560201e593e1bdd303ae`, `d696e54207d89ad10e72f88047e5428f5d3d9a3922a06d1d0692b8231ecc3b46`（历史） |
 

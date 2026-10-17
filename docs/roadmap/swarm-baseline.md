@@ -6,6 +6,8 @@
 > 2026-10-16 重新钉扎：WIP merge 后按下表当前工作树的 SHA-256 重新钉扎，并与
 > `kiana-core/tests/swarm_baseline.rs` 的期望值同步；原 source snapshot 提交仅作历史参照。
 > 这不是放宽检查，只是把被有意改动的源文件快照重新记录。
+> 2026-10-17 重新钉扎（CI 修复）：`Work packet` 为修复前已存在的遗留漂移；`Port contract`
+> 与 `Daemon composition` 来自本轮 rustfmt 边界修复。三行再次与测试表同步。
 
 ## 1. 快照与范围
 
@@ -23,14 +25,14 @@
 |---|---|---|
 | Swarm domain/state | `kiana-domain/src/swarm.rs` | `3fbcc14095e0889c407727a92816880ff3b08c4c7e1544a9f24cee4aed7b8bf1` |
 | Packet graph | `kiana-domain/src/packet_graph.rs` | `a0f862215d2df285f26191e51a89029640f0925ab1a8072f369e70b03562afeb` |
-| Work packet | `kiana-domain/src/work_packets.rs` | `59b9a788b58477720b510af0d5d5fb9f6ba2b65c4573b474894e65d812bf2003` |
+| Work packet | `kiana-domain/src/work_packets.rs` | `e44097f23647d76a57b908d807ed065eb317db0b9e577407094c511fbd6aaa07`（2026-10-17 重新钉扎） |
 | Swarm ControlPlane | `kiana-core/src/swarm.rs` | `5d54a4e7f41c2edf1233fe0d095e86348213e759d951aa2e5f23b87ce95b0773` |
 | Cell registry | `kiana-core/src/cell_registry.rs` | `575b2dab25740f4e218fb011b84dd554b1ba5a7000d56d82c69e37d5c22b6727` |
 | Packet collaboration | `kiana-core/src/collaboration.rs` | `22bfc2df7cbc267e5db4fe6e13bea72f5aa13f3145d913bd1b42896aecaa5a4e` |
-| Port contract | `kiana-ports/src/lib.rs` | `313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec` |
+| Port contract | `kiana-ports/src/lib.rs` | `a58b9c59f2c548820f5ac75da734d302859220f822441794c51887b888728b2f`（2026-10-17 重新钉扎） |
 | Protocol route | `kiana-protocol/src/lib.rs` | `2cc01c142489b593ea641012d787c0c3c20eb6402096a511ab50f3bbb938d7e8` |
 | Command route | `kiana-core/src/commands.rs` | `630039c87be6dc85064c43aeea6f0129607435ae20cf91311297d2c8f79f75df` |
-| Daemon composition | `kiana-daemon/src/lib.rs` | `adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149` |
+| Daemon composition | `kiana-daemon/src/lib.rs` | `384db8716260eaa3a450dfa6263eb3b4c3b28eb95d2b3aa0b204d21f55919826`（2026-10-17 重新钉扎） |
 
 ## 2. 当前事实矩阵
 

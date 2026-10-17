@@ -1500,11 +1500,12 @@ impl ControlPlane {
 
     /// Apply orphan reclamation under an explicit retention policy.
     ///
-    /// Bytes are removed only when the policy sets `allow_blob_removal`, the Company write context
-    /// is satisfied, and the store independently re-confirms from its own journal that the
-    /// reference is abandoned. Every other case is denied or retained, and the plan is returned
-    /// either way so a caller never has to assume what happened. Reclamation never appends a
-    /// Company fact, never widens authority and never rewrites a committed reference.
+    /// Bytes are removed only when the retention policy explicitly permits blob removal, the
+    /// Company write context is satisfied, and the store independently re-confirms from its own
+    /// journal that the reference is abandoned. Every other case is denied or retained, and the
+    /// plan is returned either way so a caller never has to assume what happened. Reclamation
+    /// never appends a Company fact, never widens authority and never rewrites a committed
+    /// reference.
     pub async fn apply_artifact_publication_retention(
         &self,
         context: &RequestContext,
