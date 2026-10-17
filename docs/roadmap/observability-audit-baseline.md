@@ -228,7 +228,7 @@
 | OA-14 | trace exporter and W3C context adapter | `source`；TraceExportSpan contract、foreign parent link、sampling/invalid-parent/capacity guards、local JSONL/no-op exporter、flush/shutdown/reopen 已实现；尚无 OTLP/durable backend、async consumer 或 persisted sampling policy |
 | OA-15 | AuditProjection checkpoint/rebuild | `source`；AuditProjectionSnapshot/Checkpoint、rebuild/append/restore、source cursor/event/schema/decision/checksum binding 已实现；尚无 durable checkpoint store、cross-process automatic reload、Artifact ref/query/export/correction/incident wiring |
 | OA-16 | Audit query command/wire DTO | `source`；server-scoped AuditQuery request/page、ControlPlane filter、DaemonHost/client route、bounded limit/cursor and raw-event rejection 已实现；尚无 durable query index/filter snapshot, cross-entry parity, export/delivery or external auth provider |
-| OA-17 | Query cursor/snapshot/paging and slow-query boundary | `source`；AuditQueryCursor epoch/projection/source/after/filter digest binding、stale/ahead rejection and bounded next cursor 已实现；尚无 durable query index/retention snapshot, slow-query instrumentation, reconnect parity or multi-entry cursor store |
+| OA-17 | Query cursor/snapshot/paging and slow-query boundary | `source`；`EventLogCursorSnapshot`（committed/durable/retained cursor + digest）经 `EventStorePort::cursor_snapshot` 在 memory/jsonl/装饰器落地，core 拒绝越界、撤销前缀、projection lag、snapshot ahead 与超限扫描，响应携带只读 snapshot 与有界 `AuditQueryScan`，reconnect/多客户端/伪造快照夹具已接线；尚无 durable query index/retention 前缀真实裁剪、跨入口 reconnect parity（OA-24）、wall-clock 慢查询 telemetry 或 multi-entry cursor store |
 | OA-18 | Audit export/manifest/delivery evidence | `source`；server-scoped redacted JSONL/JSON/CSV materializer、query/source/projection/artifact manifest hashes、purpose/recipient/retention guards 和 Unknown delivery receipt 已实现；尚无 durable ArtifactStore/export file、external delivery connector/confirmation 或 export audit fact |
 | OA-19 | Alert/Incident rules, dedupe and Recovery association | `source`；committed metrics/facts 规则 fingerprint 去重、bounded Alert/Incident snapshot、source cursor/event refs、固定 reconciliation-safe recovery plan 已实现；尚无 durable incident checkpoint/event, operator workflow, queue/exporter live state or automatic reconciliation |
 | OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map 和 daemon policy integrity/readout 已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
@@ -632,6 +632,35 @@ OA-17 远端 workflow 覆盖 cursor serde/digest、字段绑定、stale/ahead/fi
 next cursor；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该 cursor 仍是 source
 projection token，不等价于 durable query index、retention/epoch store、慢查询 telemetry 或跨入口 reconnect
 一致性。
+
+### 23.1 OA-17 snapshot/scan 收口（2026-10-17，CI-only）
+
+`kiana.eventlog-cursor-snapshot.v1`/`EventLogCursorSnapshot` 把事件日志在已提交边界上的只读状态固定为
+`first_retained_cursor`、`last_committed_cursor`、`last_durable_cursor` 与 `snapshot_digest`；`validate`
+拒绝空保留前缀、durable 越过 committed、保留前缀越过 committed 与摘要不符，`retained_event_count()`
+给出边界内仍保留的事件条数（空日志为 0）。`EventStorePort::cursor_snapshot` 默认返回
+`event_store_cursor_snapshot_unsupported`；`kiana-eventlog` 由 `JournalState::committed_cursor`/
+`cursor_snapshot` 提供实现（`first_retained_cursor` 恒为 1，直到保留层真的裁剪），`MemoryEventLog`
+如实报告 `last_durable_cursor = 0`，`JsonlEventLog` 沿用 `health()` 的写入屏障声明且不额外强制 fsync，
+`kiana-eventlog::StreamEventStore` 与 daemon `run_stream::StreamEventStore` 只做透传。
+
+`ControlPlane::query_audit` 现在先取快照再读取：cursor/source/after 超过 `last_committed_cursor` 返回
+`audit_query_cursor_invalid`，游标已越过 `first_retained_cursor`（保留策略撤销）返回
+`audit_query_cursor_revoked`；读取后把观察事件数与 `retained_event_count()` 对齐，多于边界（查询期间的
+新提交或 replay）返回 `audit_query_snapshot_stale`，少于边界（投影滞后、看不到已提交事实）返回
+`audit_query_projection_lag`；扫描超过 `MAX_AUDIT_QUERY_SCAN_EVENTS`（256，与投影 source bound 对齐）
+返回 `audit_query_scan_limit`，坏快照返回 `eventlog_cursor_snapshot_invalid:<reason>`。响应新增只读
+`snapshot` 与 `kiana.audit-query-scan.v1`/`AuditQueryScan`（scanned/projected/scoped/matched/page 计数与
+`bounded`/`heavy` 扫描分类）；它是确定性扫描元数据，不是墙钟延迟或性能结论，也不改变页内容。不支持
+快照的 adapter 显式补 `eventlog_cursor_snapshot_unsupported` limitation，而不是猜游标或把日志当空的。
+
+夹具：`kiana-core/tests/oa17_query_cursor.rs` 覆盖 domain 快照边界与真实 `ControlPlane` 拒绝/回归路径
+（lag、ahead、越界、revoked、伪造 digest、257 事件超限、显式降级与 scan 计数、空页 vs
+`audit_query_read_all_unsupported`、同 cursor 重连与跨 tab 一致、他 actor 复用游标只见自身空范围、
+日志增长后旧游标 `audit_query_cursor_stale`）；`kiana-protocol/tests/oa17_query_cursor_wire.rs` 覆盖
+snapshot/scan 往返、旧响应 additive 兼容与伪造 class/digest/未知字段拒绝。该切片仍是 source 证明：
+cursor 依旧是 projection token，durable query index、真实 retention 前缀裁剪与保留层接线、跨入口
+reconnect parity（OA-24）和 wall-clock 慢查询 telemetry 未实现。
 
 ## 24. OA-18 叠加说明
 

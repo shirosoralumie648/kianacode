@@ -23,8 +23,9 @@
 
 use kiana_domain::{
     AuditActionKind, AuditDecision, AuditProjectionCheckpoint, AuditProjectionSnapshot,
-    AuditQueryCursor, AuditRecord, CoreResponse, EventCursor, EventId, RequestContext,
-    RuntimeEvent, MAX_AUDIT_PROJECTION_RECORDS, MAX_SOURCE_EVENT_IDS,
+    AuditQueryCursor, AuditQueryScan, AuditRecord, CoreResponse, EventCursor, EventId,
+    RequestContext, RuntimeEvent, MAX_AUDIT_PROJECTION_RECORDS, MAX_AUDIT_QUERY_SCAN_EVENTS,
+    MAX_SOURCE_EVENT_IDS,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -640,16 +641,19 @@ impl ControlPlane {
     ///
     /// 这个方法是**权限过滤的查询引擎**：
     /// 1. 验证查询参数的合法性
-    /// 2. 重建完整的审计投影（全球范围）
-    /// 3. 检查投影的版本一致性（防止跨版本混用游标）
-    /// 4. **四层权限过滤**：
+    /// 2. 读取 adapter 的已提交游标快照（不支持时显式降级为限制）
+    /// 3. 在读取前拒绝越界游标和已越过保留前缀（撤销）的游标
+    /// 4. 有界读取事件并重建完整的审计投影（全球范围）
+    /// 5. 用已提交边界检测投影滞后/超前（查询期间的新提交、重放或不可见的已提交事件）
+    /// 6. 检查投影的版本一致性（防止跨版本混用游标）
+    /// 7. **四层权限过滤**：
     ///    - 第 1 层：找出查询者拥有的所有 run
     ///    - 第 2 层：找出这些 run 对应的所有 request
     ///    - 第 3 层：找出这些 run 对应的所有 approval
     ///    - 第 4 层：找出与上述任何实体关联的事件
-    /// 5. 从投影记录中，只返回与这些事件关联的审计记录
-    /// 6. 应用查询过滤（action_kind、decision、target_kind）
-    /// 7. 应用分页（limit、after_cursor）
+    /// 8. 从投影记录中，只返回与这些事件关联的审计记录
+    /// 9. 应用查询过滤（action_kind、decision、target_kind）
+    /// 10. 应用有界分页（limit、after_cursor）并输出扫描统计
     ///
     /// # 设计原则
     ///
@@ -657,6 +661,8 @@ impl ControlPlane {
     /// - **不信任调用者的 owner/scope 字符串**：通过事件关系推导，而不是相信字符串参数
     /// - **拒绝过时游标**：如果投影版本已变化，即使部分数据仍有效，也拒绝旧游标
     ///   （fail-closed 原则：宁可让分页重新开始，也不要返回可能错误的数据）
+    /// - **拒绝滞后/撤销的边界**：投影跟不上已提交事实，或游标已越过被撤销的前缀时，
+    ///   返回结构化拒绝而不是一页看起来完整的旧数据
     pub async fn query_audit(
         &self,
         context: &RequestContext,
@@ -667,10 +673,63 @@ impl ControlPlane {
             .validate()
             .map_err(|error| kiana_ports::PortError::Failed(error.to_string()))?;
 
-        // 第二步：读取全部事件，重建投影
+        // 第二步：读取 adapter 的已提交游标快照。
+        // 支持快照的 adapter 让我们在读取前就能拒绝越界/被撤销的游标并检测投影滞后；
+        // 不支持时必须显式降级为限制，而不是猜一个游标或把日志当成空的。
+        let snapshot = match self.events.cursor_snapshot().await {
+            Ok(snapshot) => {
+                snapshot.validate().map_err(|error| {
+                    kiana_ports::PortError::Failed(format!(
+                        "eventlog_cursor_snapshot_invalid:{error}"
+                    ))
+                })?;
+                Some(snapshot)
+            }
+            Err(kiana_ports::PortError::Unavailable(reason))
+                if reason == "event_store_cursor_snapshot_unsupported" =>
+            {
+                None
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if let Some(snapshot) = &snapshot {
+            let requested_source = query
+                .cursor
+                .as_ref()
+                .map(|cursor| cursor.source_cursor)
+                .or(query.source_cursor);
+            let requested_after = query
+                .cursor
+                .as_ref()
+                .map(|cursor| cursor.after_cursor)
+                .unwrap_or(query.after_cursor);
+            if requested_source.is_some_and(|value| value > snapshot.last_committed_cursor)
+                || requested_after > snapshot.last_committed_cursor
+            {
+                return Err(kiana_ports::PortError::Conflict(
+                    "audit_query_cursor_invalid".to_owned(),
+                )
+                .into());
+            }
+            // 游标已经越过保留前缀：客户端见过的记录可能已被撤销，继续翻页会跨过缺口。
+            if requested_after.saturating_add(1) < snapshot.first_retained_cursor {
+                return Err(kiana_ports::PortError::Conflict(
+                    "audit_query_cursor_revoked".to_owned(),
+                )
+                .into());
+            }
+        }
+
+        // 第三步：读取全部事件，重建投影。
+        // 读取量必须落在有界扫描窗口内；超限时拒绝，而不是无界读取或静默截断。
         let events = self.read_all_events().await?.ok_or_else(|| {
             kiana_ports::PortError::Unavailable("audit_query_read_all_unsupported".to_owned())
         })?;
+        if events.len() > MAX_AUDIT_QUERY_SCAN_EVENTS {
+            return Err(
+                kiana_ports::PortError::Unavailable("audit_query_scan_limit".to_owned()).into(),
+            );
+        }
         let first_cursor = events
             .first()
             .and_then(|event| event.data.get("source_cursor"))
@@ -679,7 +738,27 @@ impl ControlPlane {
         let projection = rebuild_audit_projection(&events, first_cursor)
             .map_err(|error| kiana_ports::PortError::Failed(error.to_string()))?;
 
-        // 第三步：检查投影版本一致性
+        // 第四步：把本次读取与 adapter 的已提交边界对齐。
+        // 投影读到的事件数多于边界说明查询期间有新提交（重放/并发查询）；少于边界说明投影
+        // 滞后于已提交事实。两者都不能返回一页“看起来完整”的旧数据，必须 fail closed。
+        if let Some(snapshot) = &snapshot {
+            let observed = events.len() as u64;
+            let expected = snapshot.retained_event_count();
+            if observed > expected {
+                return Err(kiana_ports::PortError::Conflict(
+                    "audit_query_snapshot_stale".to_owned(),
+                )
+                .into());
+            }
+            if observed < expected {
+                return Err(kiana_ports::PortError::Unavailable(
+                    "audit_query_projection_lag".to_owned(),
+                )
+                .into());
+            }
+        }
+
+        // 第五步：检查投影版本一致性
         // 如果客户端声称的 source_cursor 与实际投影不符，说明投影已更新
         // 此时应该拒绝旧的分页游标，要求客户端重新查询
         if query
@@ -724,7 +803,7 @@ impl ControlPlane {
             .map(|cursor| cursor.after_cursor)
             .unwrap_or(query.after_cursor);
 
-        // 第四步：权限过滤（四层构建）
+        // 第六步：权限过滤（四层构建）
         // ========================================
         // 首先验证查询者的身份
         let actor = context
@@ -822,11 +901,11 @@ impl ControlPlane {
             .map(|event| event.event_id.to_string())
             .collect::<std::collections::HashSet<_>>();
 
-        // 第五步：从投影记录中过滤出与上述事件关联的审计记录
+        // 第七步：从投影记录中过滤出与上述事件关联的审计记录
         // 然后再应用额外的过滤条件和分页
-        let mut records = projection
+        let scoped_records = projection
             .records
-            .into_iter()
+            .iter()
             // 只返回与 owned_event_ids 关联的记录
             .filter(|record| {
                 record
@@ -834,6 +913,10 @@ impl ControlPlane {
                     .iter()
                     .any(|event_id| owned_event_ids.contains(&event_id.to_string()))
             })
+            .cloned()
+            .collect::<Vec<_>>();
+        let matched_records = scoped_records
+            .iter()
             // 应用分页过滤：只返回游标之后的记录
             .filter(|record| record.source_cursor > after_cursor)
             // 应用 action_kind 过滤
@@ -855,9 +938,13 @@ impl ControlPlane {
                     .as_deref()
                     .is_none_or(|target| record.target_kind == target)
             })
+            .cloned()
             .collect::<Vec<_>>();
+        let projected_records = projection.records.len();
+        let mut records = matched_records.clone();
+        let matched_count = matched_records.len();
 
-        // 第六步：分页处理
+        // 第八步：分页处理
         // 如果结果多于请求的 limit，则：
         // 1. 取前 limit 条记录
         // 2. 生成 next_cursor，告诉客户端还有更多数据
@@ -878,6 +965,27 @@ impl ControlPlane {
         } else {
             None
         };
+        let page_records = records.len();
+
+        // 有界扫描统计：计数值来自本次实际扫描，分类不改变页内容。
+        let scan = AuditQueryScan::new(
+            u32::try_from(events.len()).unwrap_or(u32::MAX),
+            u32::try_from(projected_records).unwrap_or(u32::MAX),
+            u32::try_from(scoped_records.len()).unwrap_or(u32::MAX),
+            u32::try_from(matched_count).unwrap_or(u32::MAX),
+            u32::try_from(page_records).unwrap_or(u32::MAX),
+        )
+        .map_err(|error| kiana_ports::PortError::Failed(error.to_owned()))?;
+
+        // 不支持游标快照的 adapter 显式降级为限制；裁剪过的前缀也如实记录。
+        let mut limitations = projection.limitations;
+        match &snapshot {
+            Some(snapshot) if snapshot.first_retained_cursor > 1 => {
+                limitations.push("eventlog_retention_prefix_trimmed".to_owned());
+            }
+            Some(_) => {}
+            None => limitations.push("eventlog_cursor_snapshot_unsupported".to_owned()),
+        }
 
         // 构造响应
         Ok(CoreResponse::completed(
@@ -890,7 +998,9 @@ impl ControlPlane {
                 "projection_version": projection.projection_version,
                 "epoch": epoch,
                 "filter_digest": filter_digest,
-                "limitations": projection.limitations,
+                "snapshot": snapshot,
+                "scan": scan,
+                "limitations": limitations,
             }),
         ))
     }

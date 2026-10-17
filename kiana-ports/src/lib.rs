@@ -2455,6 +2455,17 @@ pub trait EventStorePort: Send + Sync {
         ))
     }
 
+    /// 返回事件日志在已提交边界上的只读游标快照。
+    ///
+    /// 审计查询用它检测投影滞后/超前，并在分页游标指向已被保留策略撤销的前缀时 fail closed。
+    /// 快照必须来自 adapter 自己的提交边界；不支持时返回
+    /// `event_store_cursor_snapshot_unsupported`，调用方不得把它当成空日志或自行猜测游标。
+    async fn cursor_snapshot(&self) -> Result<kiana_domain::EventLogCursorSnapshot, PortError> {
+        Err(PortError::Unavailable(
+            "event_store_cursor_snapshot_unsupported".to_owned(),
+        ))
+    }
+
     /// 无条件追加一条事件。
     ///
     /// 此方法不表达 CAS 或幂等语义，重试可能产生重复记录；仅在调用方能接受该边界或

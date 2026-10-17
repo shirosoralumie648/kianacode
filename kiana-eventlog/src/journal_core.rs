@@ -315,6 +315,27 @@ impl JournalState {
             has_more: end < self.events.len() as u64,
         })
     }
+
+    /// 返回当前索引已经提交的最大逻辑事件游标；空日志为 0。
+    ///
+    /// 该值取自最近一次完整事务/兼容追加记录的提交边界，不是文件字节偏移，也不表示已经过
+    /// 本进程之外的持久化屏障。
+    pub fn committed_cursor(&self) -> EventCursor {
+        self.boundaries.last().copied().unwrap_or(0)
+    }
+
+    /// 构造已提交边界上的只读游标快照。
+    ///
+    /// `last_durable_cursor` 必须由 adapter 按自己的持久化屏障填入；共享索引本身不声称任何
+    /// 跨进程持久性，内存 adapter 应传 0。`first_retained_cursor` 目前恒为 1：本索引不做
+    /// 前缀裁剪，保留策略撤销需要 adapter 或保留层单独证明，不能在这里猜测。
+    pub fn cursor_snapshot(
+        &self,
+        last_durable_cursor: EventCursor,
+    ) -> Result<EventLogCursorSnapshot, PortError> {
+        EventLogCursorSnapshot::new(1, self.committed_cursor(), last_durable_cursor)
+            .map_err(|error| invalid(format!("eventlog_cursor_snapshot_invalid:{error}")))
+    }
 }
 pub(crate) fn append_result(event: RuntimeEvent, replayed: bool) -> EventAppendResult {
     EventAppendResult { event, replayed }

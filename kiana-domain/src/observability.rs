@@ -21,6 +21,8 @@ pub const AUDIT_EVENT_KIND: &str = "audit.record";
 pub const AUDIT_PROJECTION_SCHEMA: &str = "kiana.audit-projection.v1";
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA: &str = "kiana.audit-projection-checkpoint.v1";
 pub const AUDIT_QUERY_CURSOR_SCHEMA: &str = "kiana.audit-query-cursor.v1";
+pub const AUDIT_QUERY_SCAN_SCHEMA: &str = "kiana.audit-query-scan.v1";
+pub const EVENTLOG_CURSOR_SNAPSHOT_SCHEMA: &str = "kiana.eventlog-cursor-snapshot.v1";
 pub const AUDIT_EXPORT_SCHEMA: &str = "kiana.audit-export.v1";
 pub const AUDIT_DELIVERY_RECEIPT_SCHEMA: &str = "kiana.audit-delivery-receipt.v1";
 pub const OBSERVABILITY_ALERT_SCHEMA: &str = "kiana.observability-alert.v1";
@@ -41,6 +43,8 @@ pub const AUDIT_EVENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_PROJECTION_CHECKPOINT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_QUERY_CURSOR_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const AUDIT_QUERY_SCAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const EVENTLOG_CURSOR_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_EXPORT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const AUDIT_DELIVERY_RECEIPT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const OBSERVABILITY_ALERT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -72,6 +76,11 @@ pub const MAX_METRIC_SERIES: usize = 1_024;
 pub const MAX_METRIC_LABEL_VALUES: usize = 64;
 pub const MAX_AUDIT_PROJECTION_RECORDS: usize = 4_096;
 pub const MAX_AUDIT_EXPORT_RECORDS: usize = 4_096;
+/// 单次审计查询允许扫描的最大事件数。它与投影可绑定的 source event 上限一致，超过时查询
+/// 必须以有界错误拒绝，而不是继续无界读取或静默截断。
+pub const MAX_AUDIT_QUERY_SCAN_EVENTS: usize = MAX_SOURCE_EVENT_IDS;
+/// 扫描量超过该值后把查询标记为 `heavy`。这是有界扫描分类，不是墙钟延迟或性能结论。
+pub const AUDIT_QUERY_HEAVY_SCAN_EVENTS: usize = 64;
 pub const MAX_OBSERVABILITY_ALERTS: usize = 128;
 pub const MAX_OBSERVABILITY_INCIDENTS: usize = 128;
 pub const MAX_REPLAY_DIAGNOSTICS: usize = 256;
@@ -1457,6 +1466,166 @@ impl AuditQueryCursor {
         value_without_digest(self, "cursor_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// 事件日志在已提交边界上的只读游标快照。
+///
+/// 审计查询用它区分三种状态：投影覆盖当前提交边界、投影滞后于 adapter 已提交的事实、
+/// 或者请求的分页游标指向已被保留策略撤销的前缀。快照只描述 adapter 自报的边界，不代表
+/// 事件已获得外部证明，也不能替代 Receipt 或 durable 结论。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EventLogCursorSnapshot {
+    pub schema: String,
+    pub version: SchemaVersion,
+    /// 日志中仍然保留的最小逻辑事件游标；没有裁剪/撤销时为 1。
+    pub first_retained_cursor: EventCursor,
+    /// adapter 已提交的最大逻辑事件游标；空日志为 0。
+    pub last_committed_cursor: EventCursor,
+    /// adapter 自报已经过持久化屏障的游标；内存 adapter 为 0。
+    pub last_durable_cursor: EventCursor,
+    /// 上述字段的确定性摘要，用于把查询响应绑定到同一个边界。
+    pub snapshot_digest: String,
+}
+
+impl EventLogCursorSnapshot {
+    pub fn new(
+        first_retained_cursor: EventCursor,
+        last_committed_cursor: EventCursor,
+        last_durable_cursor: EventCursor,
+    ) -> Result<Self, String> {
+        let mut snapshot = Self {
+            schema: EVENTLOG_CURSOR_SNAPSHOT_SCHEMA.to_owned(),
+            version: EVENTLOG_CURSOR_SNAPSHOT_SCHEMA_VERSION,
+            first_retained_cursor,
+            last_committed_cursor,
+            last_durable_cursor,
+            snapshot_digest: String::new(),
+        };
+        snapshot.snapshot_digest = snapshot.digest();
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            EVENTLOG_CURSOR_SNAPSHOT_SCHEMA,
+            EVENTLOG_CURSOR_SNAPSHOT_SCHEMA_VERSION,
+        )?;
+        if self.first_retained_cursor == 0 {
+            return Err("eventlog_cursor_snapshot_metadata_required".to_owned());
+        }
+        if self.last_durable_cursor > self.last_committed_cursor {
+            return Err("eventlog_cursor_snapshot_durable_ahead".to_owned());
+        }
+        if self.first_retained_cursor > self.last_committed_cursor.max(1) {
+            return Err("eventlog_cursor_snapshot_retention_invalid".to_owned());
+        }
+        validate_digest(&self.snapshot_digest, "eventlog_cursor_snapshot_digest")?;
+        if self.snapshot_digest != self.digest() {
+            return Err("eventlog_cursor_snapshot_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 已提交边界内仍然保留的事件条数；空日志为 0。
+    ///
+    /// 读取方用它把“读到的事件数少于已提交边界”判为投影滞后，而不是当成空日志。
+    pub fn retained_event_count(&self) -> u64 {
+        if self.last_committed_cursor == 0 {
+            0
+        } else {
+            self.last_committed_cursor - self.first_retained_cursor + 1
+        }
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "snapshot_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// 按扫描量划分的查询分类：`bounded` 表示在重扫描阈值内，`heavy` 表示扫描量偏高。
+pub enum AuditQueryScanClass {
+    Bounded,
+    Heavy,
+}
+
+/// 一次审计查询的有界扫描统计。
+///
+/// 计数字段来自本次查询实际扫描的事件与记录，不是墙钟延迟、成本或性能结论；`scan_class`
+/// 只按扫描量分类，不改变页内容，也不能把一次查询当成成功/失败之外的证据。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditQueryScan {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub scanned_events: u32,
+    pub projected_records: u32,
+    pub scoped_records: u32,
+    pub matched_records: u32,
+    pub page_records: u32,
+    pub scan_class: AuditQueryScanClass,
+}
+
+impl AuditQueryScan {
+    pub fn new(
+        scanned_events: u32,
+        projected_records: u32,
+        scoped_records: u32,
+        matched_records: u32,
+        page_records: u32,
+    ) -> Result<Self, String> {
+        let scan = Self {
+            schema: AUDIT_QUERY_SCAN_SCHEMA.to_owned(),
+            version: AUDIT_QUERY_SCAN_SCHEMA_VERSION,
+            scanned_events,
+            projected_records,
+            scoped_records,
+            matched_records,
+            page_records,
+            scan_class: scan_class_for(scanned_events),
+        };
+        scan.validate()?;
+        Ok(scan)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            AUDIT_QUERY_SCAN_SCHEMA,
+            AUDIT_QUERY_SCAN_SCHEMA_VERSION,
+        )?;
+        if self.page_records > self.matched_records
+            || self.matched_records > self.scoped_records
+            || self.scoped_records > self.projected_records
+            || self.projected_records > self.scanned_events
+        {
+            return Err("audit_query_scan_counts_inconsistent".to_owned());
+        }
+        if self.scan_class != scan_class_for(self.scanned_events) {
+            return Err("audit_query_scan_class_inconsistent".to_owned());
+        }
+        Ok(())
+    }
+}
+
+fn scan_class_for(scanned_events: u32) -> AuditQueryScanClass {
+    if scanned_events as usize > AUDIT_QUERY_HEAVY_SCAN_EVENTS {
+        AuditQueryScanClass::Heavy
+    } else {
+        AuditQueryScanClass::Bounded
     }
 }
 

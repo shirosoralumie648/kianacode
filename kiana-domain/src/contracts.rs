@@ -2733,6 +2733,22 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.audit-query-scan.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Wire,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        name: "kiana.eventlog-cursor-snapshot.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Wire,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.audit-export.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Wire,
