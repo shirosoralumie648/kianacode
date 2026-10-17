@@ -21,8 +21,15 @@ jobs:
         run: cargo fetch --locked
       - name: Check formatting
         run: cargo fmt --all --check
-      - name: Run preview and commit fixture
-        run: cargo test -p kiana-daemon --lib preview_and_commit_share_the_same_plan_digest_and_affected_paths --locked -- --test-threads=1
+      - name: Run preview and commit fixtures
+        run: |
+          cargo test -p kiana-daemon --lib --locked -- --test-threads=1 \
+            preview_and_commit_share_the_same_plan_digest_and_affected_paths \
+            patch_preview_and_commit_use_identical_target_set \
+            malformed_late_hunk_makes_no_earlier_change \
+            patch_affected_paths_cover_move_source_and_destination \
+            oversized_patch_and_hunk_overflow_are_rejected_before_any_write \
+            move_source_and_target_both_require_authority
       - name: Run CAP-15 source guards
         run: cargo test -p kiana-core --test cap15_patch_plan_guard --locked -- --test-threads=1
       - name: Compile daemon library target
