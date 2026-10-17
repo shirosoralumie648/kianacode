@@ -36,7 +36,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/contracts.rs",
-        "e491c7177bb2d1606115ff8e248be4583056309028d7fd957fae9ea075d0d3e6",
+        "171ceaf338c1af81512f43a98ceb5b4b6ab67893646d8e0e4d9132fc3dd9e865",
     ),
     (
         "kiana-domain/src/lib.rs",
@@ -48,7 +48,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-core/src/receipts.rs",
-        "b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67",
+        "3116e1a8f6dfb47c04d2e2716f89c62f7b4a1b74dd56db8c932a417d635cb1fa",
     ),
     (
         "kiana-core/src/projection.rs",
@@ -76,31 +76,31 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-eventlog/src/event_store_core.rs",
-        "1e1b0ee932b7603c6a31d0e0a0061da694e66c36fb6180a23f338ed267cc09fe",
+        "bd46b5080bb29f1a19af441f4f6e5756991d0afd7a0b60535134231fea4dc9a8",
     ),
     (
         "kiana-eventlog/src/journal_core.rs",
-        "2c4a7cd0b73e781e4261672be549d252470fece2620223f89a703044406ad529",
+        "2ea223f60e1edd73e090b4d7c117a8d69579cb277657edf03c7063d000194ead",
     ),
     (
         "kiana-eventlog/src/jsonl.rs",
-        "44998347e98285fcb42a2bc0369cd2f651997fe36fd6228cc866bc1e2adfa6e3",
+        "2b3370eadf392086a8d57ddb66be2be92c4e0aaaa89412657b7e6f6e3e577322",
     ),
     (
         "kiana-eventlog/src/memory.rs",
-        "2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774",
+        "d77345e3327ba7a58294f973289ecdb667926edcd6fed7509238f10ac458835d",
     ),
     (
         "kiana-daemon/src/run_stream.rs",
-        "34c22ff79d94f9b13bf2e531d37eb02ce1a971162ff69a7115d4c8c872b03628",
+        "42a28b1870b9a03b192fc2cf162a389516a37184c1290267d4e323dad6770c70",
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "cdb0a19083ad8bd5799b6dfb52d0bb344c6b4971e0978cd8882ce820eacd048d",
+        "f6d8ac42958c18744af1fe823329a8e49efbb8488942d50a25dfe62e5ab36246",
     ),
     (
         "kiana-ports/src/lib.rs",
-        "437abaa2c3011cd9e1f9b464d92258eae7eb8ec40f8f91be449700f24b3f887f",
+        "b1a5f7502a83eccc5192629c502b517864095b8bb95a3c9cdbe98eb71e8a2e46",
     ),
 ];
 

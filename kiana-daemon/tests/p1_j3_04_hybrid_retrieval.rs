@@ -37,5 +37,15 @@ fn hybrid_retrieval_contract_is_pinned_and_fail_closed() {
     assert!(retrieval.contains("degraded_reason"));
     assert!(retrieval.contains("sha256"));
     assert!(!retrieval.contains("reqwest::"));
-    assert!(!retrieval.contains("ort::"));
+    // `UnifiedRetrievalPort::` legitimately contains the `ort::` character run, so the ONNX check
+    // has to be identifier-boundary aware; the intent (no `ort` crate path) is unchanged.
+    assert!(
+        !retrieval
+            .match_indices("ort::")
+            .any(|(index, _)| retrieval[..index]
+                .chars()
+                .next_back()
+                .is_none_or(|previous| !(previous.is_ascii_alphanumeric() || previous == '_'))),
+        "the local retrieval path must not link the ONNX runtime"
+    );
 }

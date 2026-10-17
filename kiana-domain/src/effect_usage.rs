@@ -380,6 +380,17 @@ impl EffectUsageObservation {
             .envelope
             .as_ref()
             .ok_or_else(|| "effect_usage_envelope_missing".to_owned())?;
+        // Identity drift (run/invocation/attempt/lease/resource) is reported as the binding
+        // refusal it is; only a same-identity envelope with different bounds is a digest mismatch.
+        if bound.run_id != envelope.run_id
+            || bound.invocation_id != envelope.invocation_id
+            || bound.attempt_id != envelope.attempt_id
+            || bound.attempt != envelope.attempt
+            || bound.lease_digest != envelope.lease_digest
+            || bound.resource_digest != envelope.resource_digest
+        {
+            return Err("effect_usage_envelope_binding_mismatch".to_owned());
+        }
         if bound.envelope_digest != envelope.envelope_digest {
             return Err("effect_usage_envelope_digest_mismatch".to_owned());
         }
