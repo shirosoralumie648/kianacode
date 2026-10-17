@@ -745,8 +745,8 @@ sequenceDiagram
 - **Step 1**：按版本处理旧 request/run 事件、单独审批文件、无 epoch 的 snapshot、旧 Continue；缺乏授权来源的旧记录保留查询，要求重新授权后才能执行。
 - **Step 2**：迁移先 dry-run 与导出核对，原数据保留，切换只有一个权威 writer；new/old daemon 不得同时写不同事实源，失败可回到受限只读查询。
 - **Step 3**：产品构造器强制要求事务/恢复能力，兼容默认方法不能冒充 durable；清查 direct Runner/Broker/legacy CLI 调用，仅让经控制面的产品路由到达执行器。
-- **验收**：`cp_legacy_authority_records_require_reauthorization`、`cp_old_writer_cannot_mutate_new_journal`、`cp_every_product_constructor_enforces_the_same_boundary`；保留旧 wire fixture，新增版本单独断言。
-- **交付**：迁移矩阵、升级/降级处理说明与架构边界测试；移除旧分支依据实际调用可达性。
+- **验收**：`cp_legacy_authority_records_require_reauthorization`、`cp_old_writer_cannot_mutate_new_journal`、`cp_every_product_constructor_enforces_the_same_boundary`、`cp_migration_matrix_and_single_writer_are_explicit`；保留旧 wire fixture `h34_legacy_compat`，新增版本单独断言。
+- **交付**：迁移矩阵、升级/降级处理说明与架构边界测试（见 [`cp28-migration-boundary-baseline.md`](cp28-migration-boundary-baseline.md)）；移除旧分支依据实际调用可达性。
 
 <a id="step-cp-29"></a>
 
