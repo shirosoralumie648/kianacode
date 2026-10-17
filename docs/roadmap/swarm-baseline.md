@@ -27,12 +27,12 @@
 | Packet graph | `kiana-domain/src/packet_graph.rs` | `a0f862215d2df285f26191e51a89029640f0925ab1a8072f369e70b03562afeb` |
 | Work packet | `kiana-domain/src/work_packets.rs` | `e44097f23647d76a57b908d807ed065eb317db0b9e577407094c511fbd6aaa07`（2026-10-17 重新钉扎） |
 | Swarm ControlPlane | `kiana-core/src/swarm.rs` | `5d54a4e7f41c2edf1233fe0d095e86348213e759d951aa2e5f23b87ce95b0773` |
-| Cell registry | `kiana-core/src/cell_registry.rs` | `575b2dab25740f4e218fb011b84dd554b1ba5a7000d56d82c69e37d5c22b6727` |
+| Cell registry | `kiana-core/src/cell_registry.rs` | `2de1f229e57f63b290abb312191d3fbbaaa4787c048adbbf80f68e63703ae40d`（2026-10-17 重新钉扎：CAP-23 变更后同步） |
 | Packet collaboration | `kiana-core/src/collaboration.rs` | `22bfc2df7cbc267e5db4fe6e13bea72f5aa13f3145d913bd1b42896aecaa5a4e` |
-| Port contract | `kiana-ports/src/lib.rs` | `a58b9c59f2c548820f5ac75da734d302859220f822441794c51887b888728b2f`（2026-10-17 重新钉扎） |
+| Port contract | `kiana-ports/src/lib.rs` | `437abaa2c3011cd9e1f9b464d92258eae7eb8ec40f8f91be449700f24b3f887f`（2026-10-17 重新钉扎：PD-14 变更后同步；2026-10-17 重新钉扎） |
 | Protocol route | `kiana-protocol/src/lib.rs` | `2cc01c142489b593ea641012d787c0c3c20eb6402096a511ab50f3bbb938d7e8` |
-| Command route | `kiana-core/src/commands.rs` | `630039c87be6dc85064c43aeea6f0129607435ae20cf91311297d2c8f79f75df` |
-| Daemon composition | `kiana-daemon/src/lib.rs` | `384db8716260eaa3a450dfa6263eb3b4c3b28eb95d2b3aa0b204d21f55919826`（2026-10-17 重新钉扎） |
+| Command route | `kiana-core/src/commands.rs` | `6dcd0bfc89fcd4eed4eb20c075bd47391cc1e58023141a7d70b11b30ae4c2b4a`（2026-10-17 重新钉扎：EXT-22/EXT-27 变更后同步） |
+| Daemon composition | `kiana-daemon/src/lib.rs` | `cdb0a19083ad8bd5799b6dfb52d0bb344c6b4971e0978cd8882ce820eacd048d`（2026-10-17 重新钉扎：UI-04/SC-25 变更后同步；2026-10-17 重新钉扎） |
 
 ## 2. 当前事实矩阵
 
