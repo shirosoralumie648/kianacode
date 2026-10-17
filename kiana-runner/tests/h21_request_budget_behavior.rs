@@ -496,9 +496,10 @@ async fn h21_context_fits_actual_wire_budget_and_preserves_stable_prefix() {
             parts_sum, explanation.wire_body_bytes,
             "budget parts plus provider framing partition the wire body"
         );
-        let sent_bytes = serde_json::to_vec(&serde_json::to_value(&sent[(step - 1) as usize]))
-            .unwrap()
-            .len() as u64;
+        let sent_bytes =
+            serde_json::to_vec(&serde_json::to_value(&sent[(step - 1) as usize]).unwrap())
+                .unwrap()
+                .len() as u64;
         assert_eq!(
             explanation.wire_body_bytes, sent_bytes,
             "the recorded wire bytes match the request that was sent"

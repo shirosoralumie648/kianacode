@@ -4,7 +4,7 @@
 //! 的失败路径；不连接真实 connector adapter、凭证或 EventStore，也不证明 live health。
 
 use kiana_domain::*;
-use kiana_query::project_connector_health;
+use kiana_query::{project_connector_health, CONNECTOR_HEALTH_PROJECTION_VERSION};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
 

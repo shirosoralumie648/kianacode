@@ -1608,7 +1608,14 @@ mod p4_j7_22_image_input_tests {
         let normalized =
             normalize_structured_request(request.clone(), &route, false).expect("normalized");
         let names = ToolNameMap::from_tools(&request.tools, true).expect("tool names");
-        let mut body = chat_body(&normalized, "", &[], &names).expect("chat body");
+        let mut body = chat_body(
+            &normalized,
+            "",
+            &[],
+            &names,
+            &crate::replay::ReplayInjection::default(),
+        )
+        .expect("chat body");
         let placements =
             image_placements(&request, std::slice::from_ref(&image), 4096).expect("placements");
         inject_image_placements(&mut body, ModelProtocol::OpenAiChat, &placements)
@@ -1663,7 +1670,14 @@ mod p4_j7_22_image_input_tests {
             normalize_structured_request(request.clone(), &route, false).expect("normalized");
         let names = ToolNameMap::from_tools(&request.tools, true).expect("tool names");
         let mapped = tool_map(&request.tools, &names).expect("tool schemas");
-        let mut body = anthropic_body(&normalized, "", &mapped, &names).expect("anthropic body");
+        let mut body = anthropic_body(
+            &normalized,
+            "",
+            &mapped,
+            &names,
+            &crate::replay::ReplayInjection::default(),
+        )
+        .expect("anthropic body");
         let placements =
             image_placements(&request, std::slice::from_ref(&image), 4096).expect("placements");
         inject_image_placements(&mut body, ModelProtocol::AnthropicMessages, &placements)

@@ -499,7 +499,7 @@ pub async fn steer_envelope(
     session_id: impl Into<String>,
     run_id: RunId,
     expected_turn_id: TurnId,
-    text: impl Into<String>,
+    text: impl Into<String> + Send,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
     steer_envelope_on_host(
@@ -528,7 +528,7 @@ pub async fn steer_envelope_on_host(
     session_id: impl Into<String>,
     run_id: RunId,
     expected_turn_id: TurnId,
-    text: impl Into<String>,
+    text: impl Into<String> + Send,
     options: &HashMap<String, Value>,
 ) -> Result<ResponseEnvelope> {
     let session_id = session_id.into();

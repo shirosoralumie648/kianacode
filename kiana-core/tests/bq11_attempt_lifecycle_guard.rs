@@ -8,9 +8,10 @@ use kiana_core::{
 use kiana_domain::{
     AttemptId, ClockObservation, EventId, ModelAttemptError, ModelAttemptEventKind,
     ModelAttemptIdentity, ModelAttemptLifecycleEvent, ModelAttemptLifecycleLedger,
-    ModelAttemptState, NormalizedUsage, QuotaGroupKey, QuotaReservation, QuotaReservationId,
-    QuotaWindow, RequestId, RunId, RuntimeEvent, StepId, TurnId, UsageConfidence, UsageId,
-    UsageObservation, UsageSource, UsageVector, MODEL_ATTEMPT_EVENT_SCHEMA,
+    ModelAttemptLifecycleRecord, ModelAttemptState, NormalizedUsage, QuotaGroupKey,
+    QuotaReservation, QuotaReservationId, QuotaWindow, RequestId, RunId, RuntimeEvent, StepId,
+    TurnId, UsageConfidence, UsageId, UsageObservation, UsageSource, UsageVector,
+    MODEL_ATTEMPT_EVENT_SCHEMA,
 };
 
 struct Fixture {

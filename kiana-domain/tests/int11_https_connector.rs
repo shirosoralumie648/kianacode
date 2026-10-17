@@ -540,7 +540,8 @@ fn endpoint_host_allowlist_is_exact_and_has_no_wildcards() {
 
 #[test]
 fn proxy_selection_is_explicit_and_allowlisted() {
-    let policy = ConnectorHttpsPolicy::from_parts(
+    // The local binding must not shadow the `policy()` helper that the last assertion calls.
+    let proxy_policy = ConnectorHttpsPolicy::from_parts(
         "https://api.example.com",
         vec!["api.example.com".to_owned()],
         Vec::new(),
@@ -549,29 +550,29 @@ fn proxy_selection_is_explicit_and_allowlisted() {
     )
     .expect("proxy policy");
     // No proxy at all is the default and never means "use the ambient proxy".
-    assert!(policy.validate_proxy(None).is_ok());
-    assert!(policy
+    assert!(proxy_policy.validate_proxy(None).is_ok());
+    assert!(proxy_policy
         .validate_proxy(Some("https://proxy.example.com"))
         .is_ok());
-    assert!(policy
+    assert!(proxy_policy
         .validate_proxy(Some("https://proxy.example.com:443/"))
         .is_ok());
     assert_eq!(
-        policy
+        proxy_policy
             .validate_proxy(Some("https://other-proxy.example.com"))
             .unwrap_err()
             .code,
         ConnectorHttpsErrorCode::ProxyDenied
     );
     assert_eq!(
-        policy
+        proxy_policy
             .validate_proxy(Some("http://proxy.example.com"))
             .unwrap_err()
             .code,
         ConnectorHttpsErrorCode::ProxyOriginInvalid
     );
     assert_eq!(
-        policy
+        proxy_policy
             .validate_proxy(Some("https://proxy.example.com/forward"))
             .unwrap_err()
             .code,

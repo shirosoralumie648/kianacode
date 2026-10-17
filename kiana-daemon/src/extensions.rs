@@ -1616,7 +1616,7 @@ mod tests {
         CapabilityBrokerPort, EventStorePort, ExecutionPermitVerifierPort, PortError,
     };
     use ring::signature::{Ed25519KeyPair, KeyPair};
-    use serde_json::json;
+    use serde_json::{json, Value};
     use std::collections::{BTreeMap, BTreeSet};
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
