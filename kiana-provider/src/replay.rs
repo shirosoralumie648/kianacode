@@ -490,8 +490,7 @@ impl RingReplaySealer {
             .map_err(|_| ModelError::invalid("protected_replay_sealer_key_invalid"))?;
         Ok(Self {
             key: LessSafeKey::new(unbound),
-            rng: SystemRandom::new()
-                .map_err(|_| ModelError::invalid("protected_replay_sealer_rng_unavailable"))?,
+            rng: SystemRandom::new(),
         })
     }
 
