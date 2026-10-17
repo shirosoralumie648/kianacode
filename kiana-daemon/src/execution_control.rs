@@ -2580,7 +2580,8 @@ mod h17_job_handle {
         // 拒绝：删除进程组证据后即使摘要自洽，句柄校验仍然 fail-closed。
         let no_process_evidence =
             identity_for(&root, &original, handle_without_process_evidence(&original));
-        let no_evidence_fixture = restarted(&root, original.clone(), no_process_evidence, None).await;
+        let no_evidence_fixture =
+            restarted(&root, original.clone(), no_process_evidence, None).await;
         deny(
             no_evidence_fixture
                 .control
@@ -2748,6 +2749,15 @@ mod h17_job_handle {
         assert_eq!(first["outcome"]["state"], json!("running"));
         assert_eq!(first["stdout"], json!(""));
         let first_cursor = first["cursor"].as_str().expect("cursor").to_owned();
+
+        // 没有新增输出时重复 poll：cursor 必须稳定，任务既不重启也不延长任何许可；
+        // 模型不必再发一次 start 来伪装轮询。
+        let (poll_request, invocation) = request("process.poll", &live_arguments);
+        invocations.push(invocation);
+        let repeated = output(control.handle_read_or_continue(poll_request).await);
+        assert_eq!(repeated["outcome"]["state"], json!("running"));
+        assert_eq!(repeated["stdout"], json!(""));
+        assert_eq!(repeated["cursor"], first["cursor"]);
 
         // 追加输出后再 poll：cursor 随输出长度变化，新增内容可见，任务没有被重启。
         entry
