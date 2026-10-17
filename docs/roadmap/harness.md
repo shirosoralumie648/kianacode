@@ -415,6 +415,7 @@ sequenceDiagram
 
 **先拒绝**：`write_barrier_never_overlaps_prior_reads`、`revocation_blocks_not_started_parallel_call`、`crash_with_later_outcome_ready_does_not_rerun_it`。**再成功**：`independent_reads_overlap_but_history_is_source_ordered`。
 **交付**：用 barrier/计数器证明并发与排序，不能仅靠总耗时推断并行；并发=1 与 H12 行为一致。
+**行为证据（2026-10-17，CI-only）**：`kiana-runner/src/tool_batch_scheduler.rs` 新增有界执行器（只读组按 `dispatch_width` 并发、独占组前后各 drain、结果按源 ordinal 回填、任一调用被拒即停止派发剩余调用、`AlreadyCommitted` 只复用不重跑）；`kiana-runner/tests/h16_bounded_parallel.rs` 用带超时会合点与原子计数器驱动上述四条夹具，并补 `concurrency_one_matches_the_serial_batch_contract`；`kiana-domain/tests/h16_tool_scheduling.rs` 补 cap 交集/组宽度/派发单元三条纯计划夹具；focused workflow 增加 `h16_bounded_parallel` 矩阵项与 `cargo fmt --check`；产品模型循环仍按 H12 串行消费，真并发接线、跨进程 CAS 与队头缓存上限仍开放。
 
 <a id="step-h17"></a>
 
