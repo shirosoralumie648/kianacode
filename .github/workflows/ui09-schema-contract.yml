@@ -1,0 +1,36 @@
+name: "UI-09 schema assets and compatibility gate"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui09-schema-contract:
+    name: "UI-09 schema assets and compatibility gate"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Validate the schema lock, frozen shapes, Rust bindings and compatibility matrix
+        run: python3 scripts/validate-ui09-schemas.py
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run the generated UI schema catalog fixtures
+        run: cargo test -p kiana-client --test ui09_schema_catalog --locked -- --test-threads=1
+      - name: Run the cross-language schema round-trip
+        run: cargo test -p kiana-client --test ui09_schema_round_trip --locked -- --test-threads=1
+      - name: Run the UI-09 source guard
+        run: cargo test -p kiana-core --test ui09_schema_guard --locked -- --test-threads=1
+      - name: Compile the affected targets without running
+        run: cargo test -p kiana-client -p kiana-core --no-run --locked

@@ -2451,6 +2451,26 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        // Locked by UI-09 (`docs/schemas/ui/kiana.ui-feed-frame.v1.schema.json`); the registry
+        // entry is what makes the UI-09 version gate able to refuse an unknown major.
+        name: "kiana.ui-feed-frame.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Wire,
+        owner_crate: "kiana-protocol",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
+        // The entity-store snapshot is a client-side projection DTO locked by UI-09, not a
+        // server-issued wire payload.
+        name: "kiana.ui-entity-store-snapshot.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Projection,
+        owner_crate: "kiana-client",
+        compatibility: CompatibilityPolicy::Breaking,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.company-scope.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,

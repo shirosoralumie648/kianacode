@@ -8,7 +8,17 @@
   },
   "generated_at_unix_ms": 1735689600000,
   "principal": {
-    "principal_id": "redacted-principal"
+    "schema": "kiana.authenticated-principal.v1",
+    "version": {
+      "major": 1,
+      "minor": 0
+    },
+    "principal_id": "redacted-principal",
+    "authentication_method": "local_os",
+    "issuer": "kiana-local",
+    "credential_generation": 1,
+    "expires_at_unix_ms": 4102444800000,
+    "principal_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   },
   "workspace_id": "00000000-0000-4000-8000-000000000010",
   "capabilities": [],
