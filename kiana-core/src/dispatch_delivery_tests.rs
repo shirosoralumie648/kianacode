@@ -12,6 +12,8 @@
 //! - 各类参数篡改场景（run/turn/request/execution/invocation/attempt 等）
 //!
 //! **投递阶段**（结果的主张与验证）
+//! - `delivery_before_commit_is_denied_then_claims_once_after_commit`：
+//!   验证 committed fact 缺失/不匹配时以稳定码拒绝、读回一致后恰好一次 claim 且重试幂等
 //! - `committed_source_receipt_is_claimed_before_exact_result_reaches_runner_once`：
 //!   验证结果只向 Runner 报告一次，且会主张（claim）投递权
 //! - `concurrent_claims_advance_runner_at_most_once`：
@@ -427,6 +429,83 @@ async fn missing_or_append_only_execution_facts_never_claim_or_call_runner() {
             .is_err());
         fixture.no_delivery().await;
     }
+}
+
+/// 【测试】delivery-before/after-commit 竞态：提交前拒绝，提交后恰好一次，重试幂等
+///
+/// 【时间线】
+/// 1. `execution.prepared` 已提交，但 `execution.result_committed` 尚未提交：投递必须以
+///    稳定码 `result_unknown:result_delivery_source_missing` 拒绝，且零 claim、零 Runner 调用。
+/// 2. 提交后传入被改写的 result：以 `result_unknown:result_delivery_source_mismatch` 拒绝，
+///    同样不写 claim、不调用 Runner。
+/// 3. 提交 `execution.result_committed` 且传入结果一致：claim 恰好一次，绑定从 EventLog
+///    读回的 committed fact 的 receipt digest 与事件身份，Runner 只收到一次同一结果。
+/// 4. 重复投递同一结果：返回 `result_unknown:result_delivery_already_claimed`，不新增 claim，
+///    也不再次推进 Runner。
+///
+/// 【为什么这很重要】
+/// claim 只能发生在从 EventLog 读回 committed fact/receipt 之后；提交前抢先 claim 会在恢复
+/// 路径留下没有结果事实的投递记录。两个方向的竞态都必须 fail-closed，且重放必须幂等。
+#[tokio::test]
+async fn delivery_before_commit_is_denied_then_claims_once_after_commit() {
+    let fixture = Fixture::new().await;
+    fixture.prepare(true).await;
+    let core = fixture.core();
+
+    // committed fact 缺失：在稳定码上拒绝，且不写 claim、不调用 Runner。
+    assert_eq!(
+        core.deliver_capability_result(fixture.run_id, fixture.result.clone()).await.unwrap_err(),
+        dispatch_error("result_unknown:result_delivery_source_missing")
+    );
+    fixture.no_delivery().await;
+
+    // 提交 committed fact；随后只有与它完全一致的 result 才允许 claim，claim 绑定其
+    // receipt digest 与事件身份。
+    let source = fixture.source();
+    let committed_receipt_digest = source.data["result_receipt"]["receipt_digest"].clone();
+    fixture.commit_source(source.clone()).await;
+
+    // committed fact 与传入结果不匹配：同样在稳定码上拒绝，且不写 claim。
+    let mut altered = fixture.result.clone();
+    altered.output["answer"] = json!("uncommitted caller value");
+    assert_eq!(
+        core.deliver_capability_result(fixture.run_id, altered).await.unwrap_err(),
+        dispatch_error("result_unknown:result_delivery_source_mismatch")
+    );
+    fixture.no_delivery().await;
+
+    core.deliver_capability_result(fixture.run_id, fixture.result.clone())
+        .await
+        .expect("deliver after commit");
+    assert_eq!(
+        *fixture.runner.calls.lock().unwrap(),
+        vec![(fixture.run_id, fixture.result.clone())]
+    );
+    let claims = fixture
+        .events
+        .read_stream("result_delivery", &fixture.request.request_id.to_string())
+        .await
+        .unwrap();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].causation_event_id, Some(source.event_id));
+    assert_eq!(claims[0].data["receipt_digest"], committed_receipt_digest);
+    assert_eq!(claims[0].data["result_digest"], json!(json_digest(&json!(fixture.result))));
+
+    // 重试幂等：已有 claim 不新增，Runner 不再被推进。
+    assert_eq!(
+        core.deliver_capability_result(fixture.run_id, fixture.result.clone()).await.unwrap_err(),
+        dispatch_error("result_unknown:result_delivery_already_claimed")
+    );
+    assert_eq!(fixture.runner.calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        fixture
+            .events
+            .read_stream("result_delivery", &fixture.request.request_id.to_string())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 /// 【测试】prepared 之后的 Broker 前失败必须写入唯一 Unknown 终态
