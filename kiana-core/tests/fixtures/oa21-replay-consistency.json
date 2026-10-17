@@ -1,0 +1,34 @@
+{
+  "schema": "kiana.oa21-replay-consistency-fixture.v1",
+  "step": "OA-21",
+  "projections": [
+    "audit",
+    "health",
+    "invocations",
+    "metrics",
+    "receipt",
+    "run",
+    "spans"
+  ],
+  "required": [
+    "read-only replay of committed facts only",
+    "canonical (invocation_id, attempt, input_digest, status, error_code) divergence locator",
+    "audit/receipt/health projector digests compared against an explicit consistency baseline",
+    "unknown effects and unmatched expectations stay visible as divergences",
+    "diagnostics kept in canonical locator order and a reordered snapshot refused"
+  ],
+  "denied": [
+    "model, Provider, Broker or recovery call from replay",
+    "unknown audit schema guessed into an audit record",
+    "divergence collapsed into a limitation or upgraded to a pass by a baseline",
+    "metric or trace projector writing back into EventLog facts",
+    "expectations silently ignored because no run was supplied"
+  ],
+  "tamper": {
+    "projection": "receipt",
+    "expected_error_code": "replay_receipt_digest_mismatch"
+  },
+  "source_mismatch_error_code": "replay_baseline_source_mismatch",
+  "missing_projection_error_code": "replay_receipt_digest_unavailable",
+  "unknown_schema_event_kind": "audit.forged"
+}
