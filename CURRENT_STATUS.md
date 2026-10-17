@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 SC-12 翻 ✅（PendingInvocation/DispatchPermit CAS 与幂等行为夹具，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 206（🔄 → ✅，CI pending）与 §3 变更日志/当前 260；docs/roadmap/sc12-permit-baseline.md（新增行为夹具段）；kiana-core/tests/sc12_invocation_permit.rs（新增）；scripts/ci/test-shards.json（kiana-core-s6/6 增 `sc12_invocation_permit`）；.github/workflows/sc12-permit.yml（增运行与编译步骤）
+worktree_status: 行 206 🔄 → ✅（CI pending）；只改本 Step 相关夹具/布线（新增一个 core 行为夹具 + shard 与 workflow 步骤）与共享文档（roadmap §1.1 该行/§3 变更日志与当前 260、baseline、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/git diff）与手工 rustfmt 风格对齐；.github/workflows/sc12-permit.yml 运行 `cargo fmt --all --check`、`cargo test -p kiana-core --test sc12_permit_guard --locked -- --test-threads=1`、`cargo test -p kiana-core --test sc12_invocation_permit --locked -- --test-threads=1`、`cargo test -p kiana-domain --lib --no-run --locked` 与两个 core target-scoped `--no-run`
+cwd·environment: worktree /workspace/kianacode-worktrees/SC-12，分支 step/sc-12-20261017-1；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: `kiana-core/tests/sc12_invocation_permit.rs` 在真实 `JournalPermitVerifier`+`CapabilityBroker` 上驱动拒绝优先路径——无 admission 的伪造授权串(`policy:`/`approval:`/`opaque`/`permit:` 空 execution)与未知 execution 以 `execution_permit_required`/`execution_permit_unavailable` 拒绝、许可自带摘要被改写与准备事实 attempt 漂移以 `execution_permit_invalid` 拒绝、authority read-set 被推进后旧许可以 `old_epoch_permit_rejected` 拒绝，四类都断言 handler 调用为 0 且只留下 `execution.prepared`、无消费 command receipt；成功路径断言 committed permit 把 `invocation.dispatching`+`invocation.executing` 作为同一条 command 提交(`event_ids.len()==2`)、重放以 `execution_permit_already_consumed` 拒绝并去重到原 receipt（流与 receipt 不变）、`tokio::join!` 并发消费只有一个赢家且 handler 只运行一次；`PendingInvocation` 序列化往返相等并保留 event sequence 与 resume binding，sandbox/session/argument 漂移以 `invocation_resume_binding_changed`、绑定摘要被改写以 `invocation_resume_binding_digest_mismatch` 拒绝，旧 checkpoint 缺省 `resume_binding` 反序列化为 None；既有 `sc12_permit_guard` 源守卫与 catalog 单执行路径不变
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: SC-12 卡「拒绝重复 command、digest/sequence/fence 不匹配、无 admission 直接 dispatch；证明 committed permit、去重原 receipt、并发只有一个 effect」的验收由源码守卫提升为**在真实 Core/Broker 脊柱上的运行期行为夹具**（进程内提交边界）；行 206 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical（行为断言的编译与运行正确性依赖 GitHub Actions）
+limitations: 本地未编译未运行，正确的编译/运行与 rustfmt 依赖 GitHub Actions；夹具只证明**进程内提交边界**上的 handler 调用次数、事件流形状与 command receipt 去重，不证明跨进程 durable permit projector、TOCTOU/path/egress/secret 拦截、外部副作用或跨 provider exactly-once（仍属 SC-13+ 与 PD/ER）；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；SC-12 pending invocation / dispatch permit CAS 与幂等行为夹具静态复核
+```
+
 ### 2026-10-17 EQ-16 翻 ✅（scrubbed boundary evidence 与 fail-closed 不变量，CI-only 口径）
 
 ```text

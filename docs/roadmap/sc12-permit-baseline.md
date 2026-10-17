@@ -16,9 +16,16 @@ still required. This step does not add a second permit verifier or execution loo
 
 - `kiana-core/tests/sc12_permit_guard.rs` pins PendingInvocation/DispatchPermit identity, digest,
   authority-version, idempotency and no-bypass markers in CI.
-- GitHub Actions runs the source guard and workspace compile; local tests are intentionally not
-  executed.
+- `kiana-core/tests/sc12_invocation_permit.rs` drives the real `JournalPermitVerifier` and
+  `CapabilityBroker`: unadmitted/forged/unknown dispatch, permit-digest, prepared-event attempt and
+  authority-fence tamper all fail closed before the handler with zero effect; the committed permit
+  commits `invocation.dispatching`+`invocation.executing` as one command, later replay dedups to the
+  original receipt, and concurrent consume yields exactly one effect; `PendingInvocation` round-trips
+  with its resume binding and rejects sandbox/session/argument/digest drift.
+- Both targets run through `.github/workflows/sc12-permit.yml`; local tests are intentionally not
+  executed in this CI-only session.
 
-This slice is `feature_status=implemented`, `proof_level=source`: full cross-process durable permit
-projector, TOCTOU path fence, secret/egress enforcement and external/live/physical effect proof
-remain SC-13+ and PD/ER work.
+This slice is `feature_status=implemented`, `proof_level=source`: the behavior fixture proves only
+in-process commit-boundary call counts and command-receipt dedup, not a cross-process durable permit
+projector or external side effects. Full durable cross-process permit projector, TOCTOU path fence,
+secret/egress enforcement and external/live/physical effect proof remain SC-13+ and PD/ER work.
