@@ -42,6 +42,7 @@ jobs:
           bash scripts/validate-dep41-release-gate.sh
           bash scripts/validate-sc28-supply-chain.sh
           bash scripts/validate-sc29-release-provenance.sh
+          bash scripts/validate-sc30-route-attestation.sh
           bash scripts/validate-sc41-security-gate.sh
           bash scripts/validate-sc42-recovery-rehearsal.sh
           bash scripts/validate-sc43-security-closeout.sh
