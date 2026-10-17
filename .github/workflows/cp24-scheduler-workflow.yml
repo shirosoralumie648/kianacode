@@ -10,13 +10,15 @@ jobs:
   cp24-scheduler-workflow:
     name: "CP-24 scheduler, WorkPacket, delegation and Workflow baseline"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
       - name: Run kiana-core cp24_scheduler_transaction
@@ -25,3 +27,14 @@ jobs:
         run: cargo test -p kiana-core --test cp24_scheduler_transaction_guard --locked -- --test-threads=1
       - name: Run kiana-domain cp24_scheduler_transaction
         run: cargo test -p kiana-domain --test cp24_scheduler_transaction --locked -- --test-threads=1
+      - name: Run CP-24 acceptance fixtures by name
+        run: |
+          cargo test -p kiana-core --test cp24_scheduler_workflow cp_two_schedulers_claim_one_packet_once --locked -- --exact --test-threads=1
+          cargo test -p kiana-core --test cp24_scheduler_workflow cp_workflow_replay_never_reexecutes_completed_effect --locked -- --exact --test-threads=1
+          cargo test -p kiana-core --test cp24_scheduler_workflow cp_child_cannot_gain_parent_missing_scope_or_budget --locked -- --exact --test-threads=1
+      - name: Compile the CP-24 targets without running them
+        run: |
+          cargo test -p kiana-core --test cp24_scheduler_transaction --locked --no-run
+          cargo test -p kiana-core --test cp24_scheduler_transaction_guard --locked --no-run
+          cargo test -p kiana-domain --test cp24_scheduler_transaction --locked --no-run
+          cargo test -p kiana-core --test cp24_scheduler_workflow --locked --no-run

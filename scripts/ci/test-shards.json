@@ -265,6 +265,7 @@
    "cp23_company_transaction_guard",
    "cp24_scheduler_transaction",
    "cp24_scheduler_transaction_guard",
+   "cp24_scheduler_workflow",
    "cp25_unified_boundary_guard"
   ]
  },
