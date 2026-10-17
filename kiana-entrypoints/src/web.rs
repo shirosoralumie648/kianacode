@@ -160,6 +160,8 @@ pub enum WebRouteClass {
     ReceiptDetail,
     Approval,
     Resume,
+    Steer,
+    Inject,
     Command,
     Diagnostics,
 }
@@ -299,6 +301,18 @@ pub const WEB_ROUTE_MATRIX: &[WebRouteContract] = &[
         path: "/api/resume",
         method: "POST",
         class: WebRouteClass::Resume,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/steer",
+        method: "POST",
+        class: WebRouteClass::Steer,
+        token_required: true,
+    },
+    WebRouteContract {
+        path: "/api/inject",
+        method: "POST",
+        class: WebRouteClass::Inject,
         token_required: true,
     },
     WebRouteContract {
@@ -999,6 +1013,8 @@ fn router(app: WebApp) -> Router {
         .route("/api/receipt/detail", get(receipt_detail))
         .route("/api/approvals", get(list_approvals).post(decide_approval))
         .route("/api/resume", post(resume_turn))
+        .route("/api/steer", post(steer_turn))
+        .route("/api/inject", post(inject_turn))
         .route("/api/extensions", get(extension_visibility))
         .route("/api/command", get(command_query).post(command_action))
         .layer(DefaultBodyLimit::max(MAX_WEB_BODY_BYTES))
@@ -3305,6 +3321,122 @@ async fn decide_approval(
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_optional_hydrate_tab(&mut snapshot, &headers)?;
     snapshot["response"] = serde_json::to_value(response).unwrap_or(Value::Null);
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
+    Ok(Json(snapshot))
+}
+
+/// 浏览器提交的运行中 steer 请求体。
+///
+/// `turn_id` 是调用方**在流上观察到的**当前 turn：服务端用它做乐观并发检查，过期时返回
+/// `stale_turn_steer`，不会把文本插进更晚的 turn。`deny_unknown_fields` 让
+/// `sandbox` / 模型档位之类的字段在协议边界就被拒绝，而不是被静默丢弃。
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SteerBody {
+    session_id: String,
+    run_id: String,
+    turn_id: String,
+    text: String,
+}
+
+/// 浏览器提交的 inject 请求体。
+///
+/// inject 不做 turn 断言，也不唤醒空闲 run；来源由服务端固定为 `web`，浏览器不能把输入
+/// 伪装成其它入口的上下文。
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InjectBody {
+    session_id: String,
+    run_id: String,
+    #[serde(default)]
+    turn_id: Option<String>,
+    #[serde(default)]
+    target: Option<String>,
+    text: String,
+}
+
+/// 把一条绑定当前 turn 的引导排进指定 run；授权与生命周期仍由 ControlPlane 判定。
+async fn steer_turn(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Json(body): Json<SteerBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    if body.text.trim().is_empty() {
+        return Err(ApiError::bad("web_input_text_required"));
+    }
+    let run_id = kiana_protocol::RunId::parse_str(&body.run_id)
+        .ok_or_else(|| ApiError::bad("web_run_id_invalid"))?;
+    let turn_id = kiana_protocol::TurnId::parse_str(&body.turn_id)
+        .ok_or_else(|| ApiError::bad("web_turn_id_invalid"))?;
+    let session_id = resolve_human_session(&app, Some(body.session_id.as_str())).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    // 先校验形状再占用幂等槽：畸形请求不能消费重放键。
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
+    let response = harness_run::steer_envelope_on_host(
+        app.host.clone(),
+        session_id.clone(),
+        run_id,
+        turn_id,
+        body.text,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    snapshot["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
+    complete_action_submission(&app, &action_id, snapshot.clone())?;
+    Ok(Json(snapshot))
+}
+
+/// 把一条带来源标签的上下文输入排给指定 run；空闲 run 不会被这条输入唤醒。
+async fn inject_turn(
+    State(app): State<Arc<WebApp>>,
+    headers: HeaderMap,
+    Json(body): Json<InjectBody>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_mutation(&app, &headers)?;
+    let tab_id = require_web_tab(&headers)?;
+    if body.text.trim().is_empty() {
+        return Err(ApiError::bad("web_input_text_required"));
+    }
+    let run_id = kiana_protocol::RunId::parse_str(&body.run_id)
+        .ok_or_else(|| ApiError::bad("web_run_id_invalid"))?;
+    let target_turn_id = match body.turn_id.as_deref() {
+        Some(turn) => Some(
+            kiana_protocol::TurnId::parse_str(turn)
+                .ok_or_else(|| ApiError::bad("web_turn_id_invalid"))?,
+        ),
+        None => None,
+    };
+    let target = body.target.unwrap_or_else(|| "next-step".to_owned());
+    let session_id = resolve_human_session(&app, Some(body.session_id.as_str())).await?;
+    require_session_owner(&app, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    if let WebActionClaim::Replay(response) = &action_id {
+        return Ok(Json(response.clone()));
+    }
+    // 来源是服务端固定的入口标签，不接受浏览器自称其它来源。
+    let response = harness_run::inject_envelope_on_host(
+        app.host.clone(),
+        session_id.clone(),
+        run_id,
+        target,
+        "web",
+        body.text,
+        target_turn_id,
+        &app.options()?,
+    )
+    .await
+    .map_err(|error| ApiError::fail(error.to_string()))?;
+    let mut snapshot = app.snapshot(&session_id).await?;
+    attach_optional_hydrate_tab(&mut snapshot, &headers)?;
+    snapshot["response"] = serde_json::to_value(&response).unwrap_or(Value::Null);
     complete_action_submission(&app, &action_id, snapshot.clone())?;
     Ok(Json(snapshot))
 }

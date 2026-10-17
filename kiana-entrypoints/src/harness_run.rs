@@ -38,7 +38,7 @@ use kiana_daemon::{DaemonHost, LocalModelConfig};
 use kiana_protocol::{
     normalize_role_path, ApprovalChallenge, ApprovalDecision, CapabilityRequest, EntryPointKind,
     ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
-    RoleSpec, RunId, Symposium, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
+    RoleSpec, RunId, Symposium, TurnId, WorkPacket, ROLE_BUILDER, ROLE_PM, ROLE_REVIEWER,
 };
 use kiana_tools::tool_execution::{
     PermissionPromptDecision, PermissionPromptHandler, PermissionPromptRequest,
@@ -489,6 +489,104 @@ pub async fn continue_envelope(
         options,
     )
     .await
+}
+
+/// 为独立 CLI 入口装配本地 Host，再排入一条绑定当前 turn 的 steer 输入。
+///
+/// 与 `continue_envelope` 一样只做「装配 Host + 转发请求」，生命周期与授权仍由
+/// daemon/Core 判定；本入口不接受 sandbox 或模型 profile 参数。
+pub async fn steer_envelope(
+    session_id: impl Into<String>,
+    run_id: RunId,
+    expected_turn_id: TurnId,
+    text: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    steer_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        run_id,
+        expected_turn_id,
+        text,
+        options,
+    )
+    .await
+}
+
+/// 在既有 Host 上把一条引导文本排给指定 run 的当前 turn。
+///
+/// 【为什么必须带 `expected_turn_id`】
+/// 这是乐观并发：调用方声明「我认为现在轮到这一轮」。Core 用接收序号比对当前 turn，
+/// 不符时返回 `stale_turn_steer`，而不是把文本插进更晚的 turn。
+///
+/// 【为什么这里没有 sandbox/模型参数】
+/// 引导输入只在下一个安全边界并入模型消息，**不改写**已经派发的工具参数或权限，
+/// 也不扩大沙箱；需要强制停止当前动作时必须显式走取消路径。因此本助手只恢复
+/// session 已授权的项目/角色上下文，不把 sandbox 或 model 档位传给 steer 请求。
+pub async fn steer_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: RunId,
+    expected_turn_id: TurnId,
+    text: impl Into<String>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    // 沿用该 run 已记录的项目/角色身份，steer 不能借新请求改变原运行边界。
+    let options = session_options_on_host(&host, &session_id, Some(run_id), options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    // 文本只进入 Core 的输入队列；是否接受、落到哪个 turn 由 ControlPlane 依据接收序号裁决。
+    client
+        .steer_run(metadata, run_id, expected_turn_id, text)
+        .await
+        .map_err(anyhow::Error::msg)
+}
+
+/// 为独立 CLI 入口装配本地 Host，再排入一条带来源标签的 inject 输入。
+pub async fn inject_envelope(
+    session_id: impl Into<String>,
+    run_id: RunId,
+    target: impl Into<String> + Send,
+    source: impl Into<String> + Send,
+    text: impl Into<String> + Send,
+    target_turn_id: Option<TurnId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    inject_envelope_on_host(
+        new_local_host_with_options(options)?,
+        session_id,
+        run_id,
+        target,
+        source,
+        text,
+        target_turn_id,
+        options,
+    )
+    .await
+}
+
+/// 在既有 Host 上排入一条带来源标签的上下文输入；空闲 turn 不会被这条输入唤醒。
+///
+/// `source` 是必填的来源标签（例如 `tty` / `web` / `cli`）：模型需要区分「检索资料」
+/// 与「用户刚说的话」。`target` 只接受 `next-step` / `next-turn`，由 Core 归一化并校验；
+/// 本助手不解释目标，也不自行创建新的 turn。
+pub async fn inject_envelope_on_host(
+    host: Arc<DaemonHost>,
+    session_id: impl Into<String>,
+    run_id: RunId,
+    target: impl Into<String> + Send,
+    source: impl Into<String> + Send,
+    text: impl Into<String> + Send,
+    target_turn_id: Option<TurnId>,
+    options: &HashMap<String, Value>,
+) -> Result<ResponseEnvelope> {
+    let session_id = session_id.into();
+    let options = session_options_on_host(&host, &session_id, Some(run_id), options).await?;
+    let (client, metadata) = client_on_host(host, session_id, &options)?;
+    client
+        .inject_run(metadata, run_id, target, source, text, target_turn_id)
+        .await
+        .map_err(anyhow::Error::msg)
 }
 
 /// 查询 Host 当前可见的待审批项，不在此处继续 run 或执行能力。

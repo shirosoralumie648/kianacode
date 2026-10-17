@@ -624,7 +624,7 @@ async fn run_main(args: &[String]) -> Result<()> {
         .iter()
         .any(|argument| matches!(argument.as_str(), "help" | "--help" | "-h"))
     {
-        println!("Usage: kiana run [--json] [--stream|--no-stream] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--] <prompt>");
+        println!("Usage: kiana run [--json] [--stream|--no-stream] [--sandbox read-only|workspace-write] [--role builder|pm|architect|reviewer|closer] [--symposium [--anti-meeting]] [--packet <path>] [--review <author_session_id>] [--close <author_session_id>] [--continue <id>] [--cancel <id>] [--receipt <id>] [--steer <run_id> --turn <turn_id>] [--inject <run_id> [--turn <turn_id>] [--target next-step|next-turn] [--source <label>]] [--] <prompt>");
         return Ok(());
     }
 
@@ -641,6 +641,11 @@ async fn run_main(args: &[String]) -> Result<()> {
     let mut continue_id: Option<String> = None;
     let mut cancel_id: Option<String> = None;
     let mut receipt_id: Option<String> = None;
+    let mut steer_id: Option<String> = None;
+    let mut inject_id: Option<String> = None;
+    let mut turn_id: Option<String> = None;
+    let mut input_target: Option<String> = None;
+    let mut input_source: Option<String> = None;
     let mut prompt_parts = Vec::new();
     let mut index = 1;
     while index < args.len() {
@@ -739,6 +744,61 @@ async fn run_main(args: &[String]) -> Result<()> {
             value if value.starts_with("--receipt=") => {
                 receipt_id = Some(value.trim_start_matches("--receipt=").to_owned());
             }
+            "--steer" => {
+                index += 1;
+                steer_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("session_id_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--steer=") => {
+                steer_id = Some(value.trim_start_matches("--steer=").to_owned());
+            }
+            "--inject" => {
+                index += 1;
+                inject_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("session_id_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--inject=") => {
+                inject_id = Some(value.trim_start_matches("--inject=").to_owned());
+            }
+            "--turn" => {
+                index += 1;
+                turn_id = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("turn_id_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--turn=") => {
+                turn_id = Some(value.trim_start_matches("--turn=").to_owned());
+            }
+            "--target" => {
+                index += 1;
+                input_target = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("inject_target_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--target=") => {
+                input_target = Some(value.trim_start_matches("--target=").to_owned());
+            }
+            "--source" => {
+                index += 1;
+                input_source = Some(
+                    args.get(index)
+                        .ok_or_else(|| anyhow!("inject_source_required"))?
+                        .clone(),
+                );
+            }
+            value if value.starts_with("--source=") => {
+                input_source = Some(value.trim_start_matches("--source=").to_owned());
+            }
             "--" => {
                 prompt_parts.extend(args[index + 1..].iter().cloned());
                 break;
@@ -757,11 +817,20 @@ async fn run_main(args: &[String]) -> Result<()> {
         + u8::from(close_id.is_some())
         + u8::from(continue_id.is_some())
         + u8::from(cancel_id.is_some())
-        + u8::from(receipt_id.is_some());
+        + u8::from(receipt_id.is_some())
+        + u8::from(steer_id.is_some())
+        + u8::from(inject_id.is_some());
     if exclusive > 1 {
         return Err(anyhow!(
-            "use only one of --symposium, --packet, --review, --continue, --cancel, or --receipt"
+            "use only one of --symposium, --packet, --review, --continue, --cancel, --receipt, --steer, or --inject"
         ));
+    }
+    // turn/target/source 只属于 steer/inject；单独出现时不能静默忽略，否则脚本会以为已生效。
+    if turn_id.is_some() && steer_id.is_none() && inject_id.is_none() {
+        return Err(anyhow!("turn_id_requires_steer_or_inject"));
+    }
+    if (input_target.is_some() || input_source.is_some()) && inject_id.is_none() {
+        return Err(anyhow!("inject_options_require_inject"));
     }
     if stream_requested == Some(true) && exclusive > 0 {
         return Err(anyhow!("stream_requires_run"));
@@ -877,6 +946,48 @@ async fn run_main(args: &[String]) -> Result<()> {
         }
         let run_id = kiana_protocol::RunId::parse_str(&id);
         crate::harness_run::continue_envelope(id, prompt, run_id, &options).await?
+    } else if let Some(id) = steer_id {
+        let id = id.trim().to_owned();
+        if id.is_empty() {
+            return Err(anyhow!("session_id_required"));
+        }
+        let turn = turn_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("steer_turn_required"))?;
+        let expected_turn_id =
+            kiana_protocol::TurnId::parse_str(turn).ok_or_else(|| anyhow!("turn_id_invalid"))?;
+        let run_id =
+            kiana_protocol::RunId::parse_str(&id).ok_or_else(|| anyhow!("run_id_invalid"))?;
+        crate::harness_run::steer_envelope(id, run_id, expected_turn_id, prompt, &options).await?
+    } else if let Some(id) = inject_id {
+        let id = id.trim().to_owned();
+        if id.is_empty() {
+            return Err(anyhow!("session_id_required"));
+        }
+        let run_id =
+            kiana_protocol::RunId::parse_str(&id).ok_or_else(|| anyhow!("run_id_invalid"))?;
+        let target_turn_id = match turn_id.as_deref() {
+            Some(turn) => {
+                let parsed = kiana_protocol::TurnId::parse_str(turn)
+                    .ok_or_else(|| anyhow!("turn_id_invalid"))?;
+                Some(parsed)
+            }
+            None => None,
+        };
+        let target = input_target
+            .clone()
+            .unwrap_or_else(|| "next-step".to_owned());
+        let source = input_source.clone().unwrap_or_else(|| "cli".to_owned());
+        crate::harness_run::inject_envelope(
+            id,
+            run_id,
+            target,
+            source,
+            prompt,
+            target_turn_id,
+            &options,
+        )
+        .await?
     } else if symposium {
         let session_id = uuid::Uuid::new_v4().to_string();
         crate::harness_run::symposium_envelope(session_id, prompt, anti_meeting, &options).await?
