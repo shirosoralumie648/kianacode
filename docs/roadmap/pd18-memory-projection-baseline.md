@@ -45,7 +45,7 @@ This contract does not mutate EventLog facts, JSONL rows, indexes or caches.
   empty green result. `memory.search` reports the `deletion_index` block (schema, epoch, digest,
   tombstones, pending surfaces, receipt `clean`/`partial`/`fenced`/`unjournaled`).
 - `data.governance` delete/revoke/expire records per-object tombstones before touching derived data,
-  writes `memory-deletion-index.json` at the new epoch, and only marks lexical/vector/cache/receipt
+  writes memory-deletion-index.json at the new epoch, and only marks lexical/vector/cache/receipt
   `Invalidated` after the purge and derived-store removal actually ran; its result envelope carries
   the index summary.
 - The core governance projector rebuilds the same index from the event history
