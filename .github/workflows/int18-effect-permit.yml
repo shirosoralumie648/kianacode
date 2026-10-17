@@ -1,0 +1,49 @@
+name: "INT-18 connector effect permit baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int18-effect-permit:
+    name: "INT-18 connector effect permit baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Domain fence model: scope digest, command/payload/idempotency digests, every revocable
+      # epoch, lease identity and the permit window; deny-first with the success case last.
+      - name: Run domain effect permit fixtures
+        run: cargo test -p kiana-domain --test int18_effect_permit --locked -- --test-threads=1
+      # Broker effect boundary: missing, tampered, expired, stale-epoch or scope-drifted permits —
+      # and revoked/reconfigured/foreign binding snapshots — leave the recording handler and the
+      # one-shot execution permit verifier at zero calls.
+      - name: Run Broker effect permit fixtures
+        run: cargo test -p kiana-capability-broker --test int18_effect_permit --locked -- --test-threads=1
+      # Daemon spine: DaemonHost → ControlPlane → Broker → EventStore with a hash-pinned
+      # local_fixture binding; every wire-supplied permit/fence envelope is refused with zero
+      # connector facts and no permit material is persisted or echoed.
+      - name: Run daemon effect permit behaviour fixtures
+        run: cargo test -p kiana-daemon --test int18_effect_permit --locked -- --test-threads=1
+      - name: Run core effect permit source guard
+        run: cargo test -p kiana-core --test int18_effect_permit_guard --locked -- --test-threads=1
+
+      - name: Compile domain effect permit target
+        run: cargo test -p kiana-domain --test int18_effect_permit --no-run --locked
+      - name: Compile Broker effect permit target
+        run: cargo test -p kiana-capability-broker --test int18_effect_permit --no-run --locked
+      - name: Compile daemon effect permit target
+        run: cargo test -p kiana-daemon --test int18_effect_permit --no-run --locked
+      - name: Compile core effect permit guard target
+        run: cargo test -p kiana-core --test int18_effect_permit_guard --no-run --locked
