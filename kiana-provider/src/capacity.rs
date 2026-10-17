@@ -227,3 +227,103 @@ impl CapacityWindow {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{CapacityWindow, WINDOW_MS};
+    use kiana_domain::{ProviderCapacityPolicy, QuotaGroupKey};
+
+    fn capacity_policy(rpm: u64, tpm: u64) -> ProviderCapacityPolicy {
+        ProviderCapacityPolicy::new(
+            QuotaGroupKey::new(
+                "provider-a",
+                "credential-a",
+                Some("model-a".to_owned()),
+                Some("primary".to_owned()),
+            )
+            .expect("group"),
+            2,
+            2,
+            rpm,
+            tpm,
+            30_000,
+            "cfg.v1",
+        )
+        .expect("policy")
+    }
+
+    #[test]
+    fn reserve_keeps_rpm_and_tpm_in_the_fixed_utc_minute_and_rolls_the_window() {
+        let policy = capacity_policy(2, 100);
+        let window = CapacityWindow::default();
+        assert_eq!(window.snapshot(), (0, 0, 0, 0));
+        window.reserve(&policy, 60_001, 40).expect("first request");
+        window.reserve(&policy, 60_059, 60).expect("second request");
+        let first_window = (60_000, 60_000 + WINDOW_MS, 2, 100);
+        assert_eq!(window.snapshot(), first_window);
+        // RPM 2/2 is exhausted; the third request is refused before it can consume anything.
+        assert_eq!(
+            window.reserve(&policy, 60_060, 1).unwrap_err(),
+            "provider_capacity_quota_exhausted"
+        );
+        assert_eq!(window.snapshot(), first_window);
+        // The next fixed UTC minute opens a fresh window and resets both counters.
+        window.reserve(&policy, 120_000, 40).expect("next window");
+        assert_eq!(window.snapshot(), (120_000, 120_000 + WINDOW_MS, 1, 40));
+        window
+            .reserve(&policy, 120_001, 60)
+            .expect("tpm exactly at the limit");
+        assert_eq!(window.snapshot(), (120_000, 120_000 + WINDOW_MS, 2, 100));
+        // The window is half-open [start, end): a request in the last millisecond still belongs to
+        // the same window, and the first millisecond of the next minute starts a new one.
+        assert_eq!(
+            window.reserve(&policy, 179_999, 1).unwrap_err(),
+            "provider_capacity_quota_exhausted"
+        );
+        window.reserve(&policy, 180_000, 1).expect("fresh minute");
+        assert_eq!(window.snapshot(), (180_000, 180_000 + WINDOW_MS, 1, 1));
+    }
+
+    #[test]
+    fn reserve_fails_closed_on_invalid_input_clock_rollback_and_overflow() {
+        let policy = capacity_policy(10, 1_000);
+        let window = CapacityWindow::default();
+        assert_eq!(
+            window.reserve(&policy, 0, 10).unwrap_err(),
+            "provider_capacity_window_request_invalid"
+        );
+        assert_eq!(
+            window.reserve(&policy, 60_001, 0).unwrap_err(),
+            "provider_capacity_window_request_invalid"
+        );
+        assert_eq!(
+            window.snapshot(),
+            (0, 0, 0, 0),
+            "invalid input must not open or consume a window"
+        );
+        window.reserve(&policy, 60_001, 10).expect("first");
+        let expected = (60_000, 60_000 + WINDOW_MS, 1, 10);
+        assert_eq!(window.snapshot(), expected);
+        assert_eq!(
+            window.reserve(&policy, 59_999, 10).unwrap_err(),
+            "provider_capacity_clock_rollback"
+        );
+        assert_eq!(
+            window.snapshot(),
+            expected,
+            "rollback must not reset or consume counters"
+        );
+        let mut zero_rpm = policy.clone();
+        zero_rpm.requests_per_minute = 0;
+        assert_eq!(
+            window.reserve(&zero_rpm, 60_002, 10).unwrap_err(),
+            "provider_capacity_policy_invalid"
+        );
+        assert_eq!(window.snapshot(), expected);
+        assert_eq!(
+            window.reserve(&policy, u64::MAX, 1).unwrap_err(),
+            "provider_capacity_window_overflow"
+        );
+        assert_eq!(window.snapshot(), expected);
+    }
+}
