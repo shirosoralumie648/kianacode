@@ -419,8 +419,10 @@ impl FallbackAdmissionCandidate {
             .as_ref()
             .ok_or_else(|| "fallback_rate_card_missing".to_owned())?;
         card.validate()?;
-        if !card.is_effective_at(now_unix_ms)
-            || card.provider_id != self.route.provider_id
+        if !card.is_effective_at(now_unix_ms) {
+            return Err("fallback_rate_card_expired".to_owned());
+        }
+        if card.provider_id != self.route.provider_id
             || (card.model_selector != "*" && card.model_selector != self.route.model_id)
         {
             return Err("fallback_rate_card_scope_mismatch".to_owned());
@@ -431,6 +433,8 @@ impl FallbackAdmissionCandidate {
 
 /// The result of one ControlPlane fallback admission.  The next attempt owns a fresh route,
 /// budget reservation, permit and price-card binding; the original attempt is only a history link.
+/// The originating route digest and the allowlist digest are copied in so later audit can prove
+/// which primary route and which white-list revision admitted this attempt.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FallbackAttemptAdmission {
@@ -438,6 +442,8 @@ pub struct FallbackAttemptAdmission {
     pub version: SchemaVersion,
     pub run_id: RunId,
     pub original_attempt_id: AttemptId,
+    pub original_route_digest: String,
+    pub allowlist_digest: String,
     pub attempt_id: AttemptId,
     pub route: ModelRoute,
     pub route_digest: String,
@@ -465,6 +471,7 @@ impl FallbackAttemptAdmission {
             || self.attempt_id.as_uuid().is_nil()
             || self.original_attempt_id == self.attempt_id
             || self.route.digest() != self.route_digest
+            || self.original_route_digest == self.route_digest
             || self.authority_epoch == 0
             || self.rate_card_id.as_uuid().is_nil()
             || self.rate_card_version == 0
@@ -488,6 +495,14 @@ impl FallbackAttemptAdmission {
         )?;
         for (value, field) in [
             (&self.route_digest, "fallback_admission_route_digest"),
+            (
+                &self.original_route_digest,
+                "fallback_admission_original_route_digest",
+            ),
+            (
+                &self.allowlist_digest,
+                "fallback_admission_allowlist_digest",
+            ),
             (
                 &self.authority_digest,
                 "fallback_admission_authority_digest",
@@ -527,6 +542,8 @@ impl FallbackAttemptAdmission {
             "version": self.version,
             "run_id": self.run_id,
             "original_attempt_id": self.original_attempt_id,
+            "original_route_digest": self.original_route_digest,
+            "allowlist_digest": self.allowlist_digest,
             "attempt_id": self.attempt_id,
             "route": self.route,
             "route_digest": self.route_digest,
@@ -609,6 +626,8 @@ pub fn admit_fallback_attempt(
         version: FALLBACK_ADMISSION_VERSION,
         run_id: request.run_id,
         original_attempt_id: request.original_attempt_id,
+        original_route_digest: request.original_route_digest.clone(),
+        allowlist_digest: allowlist.allowlist_digest.clone(),
         attempt_id: new_attempt_id,
         route: candidate.route.clone(),
         route_digest: candidate.route.digest(),
@@ -652,6 +671,9 @@ impl FallbackAttemptOutcome {
 
 /// One fallback attempt's independent usage, pinned price card and receipt observation.  A receipt
 /// from another attempt cannot satisfy these identity checks, and `Unknown` has no success path.
+/// The provider/connection/model identity of the admitted route is copied in so the usage
+/// observation can be proven to come from that exact route, and the cost breakdown must have been
+/// computed from this very usage digest/confidence.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FallbackAttemptReceipt {
@@ -659,6 +681,9 @@ pub struct FallbackAttemptReceipt {
     pub version: SchemaVersion,
     pub run_id: RunId,
     pub attempt_id: AttemptId,
+    pub provider_id: String,
+    pub connection_id: String,
+    pub model_id: String,
     pub route_digest: String,
     pub authority_digest: String,
     pub data_boundary_digest: String,
@@ -693,6 +718,9 @@ impl FallbackAttemptReceipt {
             version: FALLBACK_ADMISSION_VERSION,
             run_id: admission.run_id,
             attempt_id: admission.attempt_id,
+            provider_id: admission.route.provider_id.clone(),
+            connection_id: admission.route.connection_id.clone(),
+            model_id: admission.route.model_id.clone(),
             route_digest: admission.route_digest.clone(),
             authority_digest: admission.authority_digest.clone(),
             data_boundary_digest: admission.data_boundary_digest.clone(),
@@ -733,6 +761,9 @@ impl FallbackAttemptReceipt {
         ] {
             digest(value, field)?;
         }
+        required(&self.provider_id, "fallback_receipt_provider", 256)?;
+        required(&self.connection_id, "fallback_receipt_connection", 256)?;
+        required(&self.model_id, "fallback_receipt_model", 256)?;
         self.usage.validate()?;
         self.cost.validate()?;
         if self.usage.run_id != self.run_id || self.usage.attempt_id != self.attempt_id {
@@ -746,6 +777,17 @@ impl FallbackAttemptReceipt {
             || self.usage.route_id.trim().is_empty()
         {
             return Err("fallback_receipt_usage_route_missing".to_owned());
+        }
+        if self.usage.provider_id.as_deref() != Some(self.provider_id.as_str())
+            || self.usage.requested_model_id != self.model_id
+            || self.usage.route_id != self.connection_id
+        {
+            return Err("fallback_receipt_usage_route_mismatch".to_owned());
+        }
+        if self.cost.usage_digest != self.usage.usage_digest
+            || self.cost.usage_confidence != self.usage.confidence
+        {
+            return Err("fallback_receipt_cost_usage_mismatch".to_owned());
         }
         match (&self.outcome, &self.cost.kind, &self.provider_receipt) {
             (
@@ -774,6 +816,9 @@ impl FallbackAttemptReceipt {
             "version": self.version,
             "run_id": self.run_id,
             "attempt_id": self.attempt_id,
+            "provider_id": self.provider_id,
+            "connection_id": self.connection_id,
+            "model_id": self.model_id,
             "route_digest": self.route_digest,
             "authority_digest": self.authority_digest,
             "data_boundary_digest": self.data_boundary_digest,
@@ -827,6 +872,10 @@ impl FallbackReceiptLedger {
 
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 }
 
