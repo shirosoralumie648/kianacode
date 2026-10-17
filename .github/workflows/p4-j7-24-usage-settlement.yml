@@ -1,0 +1,28 @@
+name: P4-J7-24 provider usage settlement
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  usage-settlement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run provider usage settlement and attempt ledger fixtures
+        run: cargo test -p kiana-domain --test p4_j7_24_usage_settlement --locked -- --test-threads=1
+      - name: Run per-protocol containment fixtures
+        run: cargo test -p kiana-provider --test p4_j7_24_usage_containment --locked -- --test-threads=1
+      - name: Run provider usage settlement source guard
+        run: cargo test -p kiana-core --test p4_j7_24_usage_settlement_guard --locked -- --test-threads=1

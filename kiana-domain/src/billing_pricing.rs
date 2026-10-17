@@ -212,21 +212,74 @@ impl RateCard {
         usage: &UsageVector,
         request_count: u64,
     ) -> Result<CostEstimate, String> {
+        self.estimate_inner(usage, request_count, None)
+    }
+
+    /// Price one observation with a declared per-protocol containment table.
+    ///
+    /// The conservative overlap guard is replaced by the declared relationship: a contained
+    /// dimension is charged once (on its own line when the card prices it, otherwise inside its
+    /// container), so cached or reasoning tokens are never added on top of the dimension that
+    /// already includes them.
+    pub fn estimate_with_containment(
+        &self,
+        usage: &UsageVector,
+        request_count: u64,
+        containment: &crate::ProviderUsageContainment,
+    ) -> Result<CostEstimate, String> {
+        self.estimate_inner(usage, request_count, Some(containment))
+    }
+
+    fn estimate_inner(
+        &self,
+        usage: &UsageVector,
+        request_count: u64,
+        containment: Option<&crate::ProviderUsageContainment>,
+    ) -> Result<CostEstimate, String> {
         self.validate()?;
         usage.validate()?;
-        if has_unproven_token_overlap(usage) {
-            return CostEstimate::new(
-                self.rate_card_id,
-                self.card_version,
-                Money::new(self.currency.clone(), 0)?,
-                Some(BillingUnknownReason::Unsupported),
-            );
-        }
+        let units = match containment {
+            None => {
+                if has_unproven_token_overlap(usage) {
+                    return CostEstimate::new(
+                        self.rate_card_id,
+                        self.card_version,
+                        Money::new(self.currency.clone(), 0)?,
+                        Some(BillingUnknownReason::Unsupported),
+                    );
+                }
+                crate::PricedUnits {
+                    input: usage.input_tokens,
+                    output: usage.output_tokens,
+                    cache_read: usage.cache_read_tokens,
+                    cache_write: usage.cache_write_tokens,
+                    reasoning: usage.reasoning_output_tokens,
+                }
+            }
+            Some(containment) => {
+                // A declared table narrows the guard to the pairs this protocol leaves
+                // undeclared; it never turns an undeclared overlap into a priced estimate.
+                if containment.has_undeclared_overlap(usage) {
+                    return CostEstimate::new(
+                        self.rate_card_id,
+                        self.card_version,
+                        Money::new(self.currency.clone(), 0)?,
+                        Some(BillingUnknownReason::Unsupported),
+                    );
+                }
+                containment.priced_units(
+                    usage,
+                    self.cache_read_price_per_unit.is_some(),
+                    self.cache_write_price_per_unit.is_some(),
+                    self.reasoning_price_per_unit.is_some(),
+                )?
+            }
+        };
         let mut total = Money::new(self.currency.clone(), 0)?;
         let mut unknown = None;
         total = add_dimension(
             total,
-            usage.input_tokens,
+            units.input,
             self.input_price_per_unit,
             &self.currency,
             "input_tokens",
@@ -250,7 +303,7 @@ impl RateCard {
         )?;
         total = add_dimension(
             total,
-            usage.output_tokens,
+            units.output,
             self.output_price_per_unit,
             &self.currency,
             "output_tokens",
@@ -258,7 +311,7 @@ impl RateCard {
         )?;
         total = add_dimension(
             total,
-            usage.cache_read_tokens,
+            units.cache_read,
             self.cache_read_price_per_unit,
             &self.currency,
             "cache_read_tokens",
@@ -266,7 +319,7 @@ impl RateCard {
         )?;
         total = add_dimension(
             total,
-            usage.cache_write_tokens,
+            units.cache_write,
             self.cache_write_price_per_unit,
             &self.currency,
             "cache_write_tokens",
@@ -274,7 +327,7 @@ impl RateCard {
         )?;
         total = add_dimension(
             total,
-            usage.reasoning_output_tokens,
+            units.reasoning,
             self.reasoning_price_per_unit,
             &self.currency,
             "reasoning_output_tokens",
