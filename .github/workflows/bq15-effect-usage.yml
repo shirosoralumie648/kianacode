@@ -1,0 +1,44 @@
+name: BQ-15 effect usage envelope
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  effect-usage:
+    name: BQ-15 tool/effect/resource usage fixtures and guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run BQ-15 domain fixtures
+        run: cargo test -p kiana-domain --test bq15_effect_usage --locked -- --test-threads=1
+      - name: Run BQ-15 core projection fixtures
+        run: cargo test -p kiana-core --test bq15_effect_usage --locked -- --test-threads=1
+      - name: Run BQ-15 core source guard
+        run: cargo test -p kiana-core --test bq15_effect_usage_guard --locked -- --test-threads=1
+      - name: Run BQ-15 Broker fixtures
+        run: cargo test -p kiana-capability-broker --test bq15_effect_usage --locked -- --test-threads=1
+      - name: Run BQ-15 Broker source guard
+        run: cargo test -p kiana-capability-broker --test bq15_effect_usage_guard --locked -- --test-threads=1
+      - name: Compile BQ-15 domain target
+        run: cargo test -p kiana-domain --test bq15_effect_usage --no-run --locked
+      - name: Compile BQ-15 core projection target
+        run: cargo test -p kiana-core --test bq15_effect_usage --no-run --locked
+      - name: Compile BQ-15 core guard target
+        run: cargo test -p kiana-core --test bq15_effect_usage_guard --no-run --locked
+      - name: Compile BQ-15 Broker target
+        run: cargo test -p kiana-capability-broker --test bq15_effect_usage --no-run --locked
+      - name: Compile BQ-15 Broker guard target
+        run: cargo test -p kiana-capability-broker --test bq15_effect_usage_guard --no-run --locked

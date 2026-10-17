@@ -1078,7 +1078,25 @@ fn validate_effect_usage_result(
     request: &AuthorizedCapabilityRequest,
     result: &CapabilityResult,
 ) -> Result<(), PortError> {
+    // The admitted envelope is server-owned: ControlPlane derives it from the BQ-09 admission
+    // estimate and binds it into the authorized request.  The adapter may only repeat it.
+    let admitted_envelope = request
+        .request
+        .arguments
+        .get("effect_usage_envelope")
+        .map(kiana_domain::EffectUsageEnvelope::from_json)
+        .transpose()
+        .map_err(PortError::Failed)?;
     let Some(value) = result.output.get("effect_usage") else {
+        // Once an effect budget was admitted, a started/failed effect must come back metered;
+        // only an explicitly not-executed result may omit usage evidence.
+        if admitted_envelope.is_some()
+            && result.dimensions().effect != kiana_domain::CapabilityEffectState::NotStarted
+        {
+            return Err(PortError::Failed(
+                "effect_usage_observation_required".to_owned(),
+            ));
+        }
         return Ok(());
     };
     if result.request_id != request.request.request_id {
@@ -1088,6 +1106,8 @@ fn validate_effect_usage_result(
     }
     let usage =
         kiana_domain::EffectUsageObservation::from_json(value).map_err(PortError::Failed)?;
+    let envelope = admitted_envelope
+        .ok_or_else(|| PortError::Failed("effect_usage_envelope_required".to_owned()))?;
     let scope = request
         .request
         .execution_scope
@@ -1132,6 +1152,11 @@ fn validate_effect_usage_result(
             lease_digest,
             resource_digest,
         )
+        .map_err(PortError::Failed)?;
+    // Bounds are rechecked against the server-owned envelope: an output/artifact/log/storage
+    // flood or an over-time measurement above the admitted quota fails closed here.
+    usage
+        .validate_against_envelope(&envelope)
         .map_err(PortError::Failed)?;
     let dimensions = result.dimensions();
     if result.success != usage.state.is_success()
