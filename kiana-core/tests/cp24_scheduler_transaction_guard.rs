@@ -84,3 +84,30 @@ fn cp24_scheduler_handoff_keeps_claim_lease_and_control_plane_boundaries() {
         );
     }
 }
+
+/// Bind the CP-24 named acceptance fixtures and their CI lane/shard wiring so a rename cannot
+/// silently drop one of the card's exit conditions from the automated queue.
+#[test]
+fn cp24_acceptance_fixtures_are_wired_into_the_ci_lanes() {
+    let fixtures = include_str!("cp24_scheduler_workflow.rs");
+    for name in [
+        "cp_two_schedulers_claim_one_packet_once",
+        "cp_workflow_replay_never_reexecutes_completed_effect",
+        "cp_child_cannot_gain_parent_missing_scope_or_budget",
+    ] {
+        assert!(
+            fixtures.contains(&format!("fn {name}(")),
+            "CP-24 acceptance fixture missing: {name}"
+        );
+    }
+    let lane = include_str!("../../.github/workflows/cp24-scheduler-workflow.yml");
+    for target in [
+        "cp24_scheduler_transaction",
+        "cp24_scheduler_transaction_guard",
+        "cp24_scheduler_workflow",
+    ] {
+        assert!(lane.contains(target), "CP-24 lane target missing: {target}");
+    }
+    let shards = include_str!("../../scripts/ci/test-shards.json");
+    assert!(shards.contains("cp24_scheduler_workflow"));
+}
