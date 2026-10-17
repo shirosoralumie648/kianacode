@@ -133,7 +133,9 @@
 
 use crate::budget::{BudgetLedger, HarnessBudgetConfig};
 use crate::compact::{
-    compact_if_needed, COMPACT_USER_MESSAGE_MAX_TOKENS, DEFAULT_COMPACT_TRIGGER_TOKENS,
+    build_compacted_view, explain_compaction, history_tokens, parse_compaction_summary,
+    plan_compaction, summary_request_messages, validate_summary_for_plan, CompactionExplanation,
+    COMPACT_SUMMARY_BUDGET_TOKENS, COMPACT_USER_MESSAGE_MAX_TOKENS, DEFAULT_COMPACT_TRIGGER_TOKENS,
 };
 use crate::inbox::{Inbox, InboxMessage, InboxTarget};
 use crate::model::{
@@ -557,6 +559,18 @@ enum StepProgress {
     Finished,
 }
 
+/// 一次压缩的结果：`Compacted` 事件字段加可写进展示/审计层的解释。
+///
+/// 解释只是 runner 上下文视图的编排结果，不是 EventLog 事实；`tokens_*` 是本地近似估算，
+/// 不能当作供应商 tokenizer 或计费证明。
+#[derive(Clone, Debug)]
+struct CompactionOutcome {
+    tokens_before: usize,
+    tokens_after: usize,
+    summary_present: bool,
+    explanation: CompactionExplanation,
+}
+
 /// 「连续重复调用同一工具」的指纹和计数。
 ///
 /// 需要 `Serialize + Deserialize` 是因为它必须能进 checkpoint：
@@ -742,6 +756,16 @@ pub struct KianaHarness {
     /// 这是进程内决策账本：不是 provider 前缀缓存、不跨进程持久化、不授予任何权限；
     /// Core 的撤销/数据版本仍是独立权威（这里只记录本地内容派生绑定）。
     prefix_cache: Mutex<HashMap<RunId, StablePrefix>>,
+    /// 最近一次压缩的可见解释（按 run 保存）。
+    ///
+    /// 解释只含摘要与计数，不含消息正文；它是展示/审计材料，不是 EventLog 事实，也不
+    /// 改变 Invocation/approval/任务状态。
+    compaction_explanations: Mutex<HashMap<RunId, CompactionExplanation>>,
+    /// 服务端绑定的权威压缩证据投影：摘要只能引用这里的已确认事实。
+    ///
+    /// 该表由上层（daemon/恢复路径）在驱动 run 前绑定；runner 不自行把模型文本或本地
+    /// 观测升级成权威证据。持久化的证据投影接线属于 H23/H24 的范围。
+    compaction_evidence: Mutex<HashMap<RunId, Vec<kiana_domain::CompactSummaryEvidence>>>,
     in_flight: Mutex<HashMap<RunId, Arc<RunCancellation>>>,
     deferred_inputs: Mutex<HashMap<RunId, Vec<(InboxTarget, InboxMessage)>>>,
     compact_trigger_tokens: usize,
@@ -796,6 +820,8 @@ impl KianaHarness {
             assignments: Mutex::new(HashMap::new()),
             histories: Mutex::new(HashMap::new()),
             prefix_cache: Mutex::new(HashMap::new()),
+            compaction_explanations: Mutex::new(HashMap::new()),
+            compaction_evidence: Mutex::new(HashMap::new()),
             in_flight: Mutex::new(HashMap::new()),
             deferred_inputs: Mutex::new(HashMap::new()),
             compact_trigger_tokens: config.compact_trigger_tokens,
@@ -884,6 +910,37 @@ impl KianaHarness {
         self.compact_trigger_tokens = trigger_tokens;
         self.compact_user_message_max_tokens = retain_tokens;
         self
+    }
+
+    /// 绑定一次 run 的权威压缩证据投影。
+    ///
+    /// 摘要里的 decision/completed/verification 引用必须能在该投影里找到同 kind 且状态为
+    /// `confirmed` 的条目；否则整份摘要被拒绝。runner 不会用模型文本、本地提示词或工具
+    /// 观测自行构造权威证据。重复绑定同一 run 会替换旧投影。
+    pub fn bind_compaction_evidence(
+        &self,
+        run_id: RunId,
+        evidence: Vec<kiana_domain::CompactSummaryEvidence>,
+    ) -> Result<(), KianaHarnessError> {
+        for item in &evidence {
+            item.validate().map_err(KianaHarnessError::Failed)?;
+        }
+        self.compaction_evidence
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .insert(run_id, evidence);
+        Ok(())
+    }
+
+    /// 读取最近一次压缩的可见解释；没有压缩过则返回 `None`。
+    ///
+    /// 返回的是按值复制的解释对象（只含摘要与计数，不含消息正文），不代表摘要已成为
+    /// EventLog 事实。
+    pub fn compaction_explanation(&self, run_id: RunId) -> Option<CompactionExplanation> {
+        self.compaction_explanations
+            .lock()
+            .ok()
+            .and_then(|explanations| explanations.get(&run_id).cloned())
     }
 
     pub fn with_max_steps(mut self, max_steps_per_turn: u32) -> Self {
@@ -1779,27 +1836,22 @@ impl KianaHarness {
             run.messages.push(ModelMessage::user(message.text));
         }
 
-        let compact = compact_if_needed(
-            std::mem::take(&mut run.messages),
-            self.compact_trigger_tokens,
-            self.compact_user_message_max_tokens,
-        );
-        run.messages = compact.messages;
-        if let Some(error) = compact.error {
-            emitter.emit_event(RunnerEvent::Failed {
-                run_id: run.run_id,
-                error,
-            })?;
-            return Ok(StepProgress::Finished);
-        }
-
-        if compact.applied {
-            if let Err(error) = self.budget_ledger.reserve_compaction(&budget_scope, budget) {
+        let compact = match self
+            .compact_history(run, &budget_scope, budget, emitter)
+            .await
+        {
+            Ok(compact) => compact,
+            Err(error) => {
                 emitter.emit_event(RunnerEvent::Failed {
                     run_id: run.run_id,
                     error,
                 })?;
                 return Ok(StepProgress::Finished);
+            }
+        };
+        if let Some(compact) = compact {
+            if let Ok(mut explanations) = self.compaction_explanations.lock() {
+                explanations.insert(run.run_id, compact.explanation.clone());
             }
             emitter.emit_event(RunnerEvent::Compacted {
                 run_id: run.run_id,
@@ -2052,6 +2104,119 @@ impl KianaHarness {
         .await
     }
 
+    /// 按 plan / generate / validate 三段执行一次压缩，并在成功时替换 `run.messages`。
+    ///
+    /// 【为什么先规划】规划是纯本地函数：先外置大结果、按 digest 去重，再选择较旧的完整
+    /// 消息组折叠，同时保留 system/角色消息、最新目标、未决 assistant/tool 对和近期完整
+    /// 消息组。容量根本不能满足时（最新一组截断后仍超预算）在**任何模型调用之前**返回
+    /// `compact_latest_group_exceeds_budget`。
+    ///
+    /// 【摘要从哪来】折叠区非空时，用已准入的 `ModelClient` 发一次
+    /// `ModelPurpose::Compaction` 请求（tools 为空、独立有界预算、提示词整体有界），再把
+    /// 模型输出绑定到服务端权威证据。模型文本不能自行声明完成、审批或验证事实。
+    ///
+    /// 【失败与视图】任何失败（模型不可用、输出非法、证据不足、容量超界）都保持原视图
+    /// 不变并返回结构化错误，由调用方暂停；不会用无摘要占位继续执行。
+    async fn compact_history(
+        &self,
+        run: &mut ActiveRun,
+        budget_scope: &str,
+        budget: HarnessBudgetConfig,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<Option<CompactionOutcome>, String> {
+        let original = std::mem::take(&mut run.messages);
+        let plan = match plan_compaction(
+            &original,
+            self.compact_trigger_tokens,
+            self.compact_user_message_max_tokens,
+        ) {
+            Ok(plan) => plan,
+            Err(error) => {
+                run.messages = original;
+                return Err(error);
+            }
+        };
+        let Some(plan) = plan else {
+            run.messages = original;
+            return Ok(None);
+        };
+        let needs_summary = plan.needs_summary();
+        if needs_summary {
+            if let Err(error) = self.budget_ledger.reserve_compaction(budget_scope, budget) {
+                run.messages = original;
+                return Err(error);
+            }
+        }
+        let mut summary_source = "truncate-only";
+        let mut summary = None;
+        if needs_summary {
+            let request = ModelRequest {
+                messages: summary_request_messages(&plan),
+                tools: Vec::new(),
+                sandbox: run.sandbox.clone(),
+            };
+            let output = match self
+                .invoke_model(
+                    run,
+                    request,
+                    kiana_domain::ModelPurpose::Compaction,
+                    kiana_domain::ModelResponseFormat::Text,
+                    emitter,
+                )
+                .await
+            {
+                Ok(output) => output,
+                Err(error) => {
+                    run.messages = original;
+                    return Err(format!("compact_summary_unavailable:{error}"));
+                }
+            };
+            if !output.tool_calls.is_empty() {
+                run.messages = original;
+                return Err(
+                    "compact_summary_unavailable:compact_summary_tool_calls_denied".to_owned(),
+                );
+            }
+            let authoritative = match self.compaction_evidence.lock() {
+                Ok(evidence) => evidence.get(&run.run_id).cloned().unwrap_or_default(),
+                Err(_) => {
+                    run.messages = original;
+                    return Err("compact_summary_unavailable:harness_lock_poisoned".to_owned());
+                }
+            };
+            let parsed = match parse_compaction_summary(&output.text, &plan, &authoritative)
+                .and_then(|summary| {
+                    validate_summary_for_plan(&plan, &summary)?;
+                    Ok(summary)
+                }) {
+                Ok(summary) => summary,
+                Err(error) => {
+                    run.messages = original;
+                    return Err(format!("compact_summary_unavailable:{error}"));
+                }
+            };
+            summary_source = "model";
+            summary = Some(parsed);
+        } else if plan.previous_summary.is_some() {
+            summary_source = "retained-previous";
+        }
+        let view = match build_compacted_view(&plan, summary.as_ref()) {
+            Ok(view) => view,
+            Err(error) => {
+                run.messages = original;
+                return Err(format!("compact_summary_unavailable:{error}"));
+            }
+        };
+        let tokens_after = history_tokens(&view);
+        run.messages = view;
+        Ok(Some(CompactionOutcome {
+            tokens_before: plan.tokens_before,
+            tokens_after,
+            summary_present: summary.is_some() || plan.previous_summary.is_some(),
+            explanation: explain_compaction(&plan, summary.as_ref(), summary_source, tokens_after),
+        }))
+    }
+
     /// 以预算、稳定身份和审计记录为边界调用模型；一次逻辑调用中可能包含受控重试。
     ///
     /// 【调用者与下游】任务请求由 `model_step_once` 发起；显式结构化输出修复则经
@@ -2160,6 +2325,13 @@ impl KianaHarness {
                 .model
                 .prepare_call(request.clone(), spec)
                 .map_err(|error| error.to_string())?;
+            // 压缩摘要使用独立且有界的预算：purpose=compaction 的 attempt 必须在发送前
+            // 通过总量上限，否则退回“保留原视图并暂停”，不能悄悄用任务请求的预算额度。
+            if purpose == kiana_domain::ModelPurpose::Compaction
+                && prepared.budget.total > COMPACT_SUMMARY_BUDGET_TOKENS
+            {
+                return Err("compact_summary_budget_exceeded".to_owned());
+            }
             let prepared_route_digest = prepared.route.digest();
             // bundle 路径：用同一步身份、消息快照和有效预算编译不可变上下文与稳定前缀，
             // 然后对照本 attempt 实际 route/catalog/workspace/data 复核。路由摘要取已钉住的
@@ -4032,6 +4204,8 @@ mod tests {
 
     #[tokio::test]
     async fn over_budget_history_is_compacted_before_the_model_step() {
+        // 只有一个完整组、没有较旧组时，压缩只做有界截断：视图里不得再出现本地占位
+        // 摘要（摘要只能来自准入模型），最新目标仍有界保留。
         let model = Arc::new(CapturingModel::default());
         let harness = KianaHarness::new(model.clone()).with_compact_budget(8, 4);
         let run_id = RunId::new();
@@ -4042,14 +4216,18 @@ mod tests {
         assert!(events
             .iter()
             .any(|event| matches!(event, RunnerEvent::Completed { .. })));
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                RunnerEvent::Compacted {
+                    summary_present: false,
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
         let seen = model.seen.lock().unwrap();
         let first = seen.first().expect("model saw a request");
-        assert!(
-            first
-                .iter()
-                .any(|message| crate::compact::is_summary_message(&message.text)),
-            "{first:?}"
-        );
         assert!(
             first
                 .iter()
@@ -4057,14 +4235,14 @@ mod tests {
             "{first:?}"
         );
         assert!(
-            events.iter().any(|event| matches!(
-                event,
-                RunnerEvent::Compacted {
-                    summary_present: true,
-                    ..
-                }
-            )),
-            "{events:?}"
+            !first
+                .iter()
+                .any(|message| crate::compact::is_summary_message(&message.text)),
+            "{first:?}"
+        );
+        assert!(
+            first.iter().any(|message| message.text.len() < 80),
+            "最新目标必须被有界截断而不是整段丢弃：{first:?}"
         );
     }
 

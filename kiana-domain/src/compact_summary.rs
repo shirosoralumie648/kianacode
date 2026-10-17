@@ -11,6 +11,8 @@ pub const COMPACT_SUMMARY_SCHEMA: &str = "kiana.compact-summary.v1";
 pub const COMPACT_SUMMARY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_COMPACT_SUMMARY_ITEMS: usize = 64;
 pub const MAX_COMPACT_SUMMARY_EVIDENCE: usize = 128;
+/// 模型产出摘要文本的最大字节数；超过该上限在解析前就拒绝，避免无界解析。
+pub const MAX_COMPACT_SUMMARY_BYTES: usize = 16_384;
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -103,9 +105,13 @@ pub struct CompactSummary {
     pub next_action: String,
     pub source_event_start: Option<u64>,
     pub source_event_end: Option<u64>,
+    /// 覆盖的源消息条数；模型产出可以省略或写 0，解析时由服务端按计划重算。
+    #[serde(default)]
     pub source_message_count: u64,
     #[serde(default)]
     pub evidence: Vec<CompactSummaryEvidence>,
+    /// 服务端计算的摘要摘要；模型产出可以省略，解析时一律重算，不信任模型自报值。
+    #[serde(default)]
     pub summary_digest: String,
 }
 
@@ -149,6 +155,37 @@ impl CompactSummary {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        self.validate_shape()?;
+        validate_confirmed_refs(
+            &self.decision_refs,
+            &self.evidence,
+            &[CompactEvidenceKind::Decision, CompactEvidenceKind::Approval],
+            "compact_summary_decision_evidence_missing",
+            "compact_summary_decision_fact_not_confirmed",
+        )?;
+        validate_confirmed_refs(
+            &self.completed_action_refs,
+            &self.evidence,
+            &[CompactEvidenceKind::CompletedAction],
+            "compact_summary_completed_evidence_missing",
+            "compact_summary_completed_fact_not_confirmed",
+        )?;
+        validate_confirmed_refs(
+            &self.verification_refs,
+            &self.evidence,
+            &[CompactEvidenceKind::Verification],
+            "compact_summary_verification_evidence_missing",
+            "compact_summary_verification_fact_not_confirmed",
+        )?;
+        Ok(())
+    }
+
+    /// 结构与容量校验：schema 头、上限、必填文本、引用前缀、来源区间和 digest。
+    ///
+    /// 证据绑定（每个引用都必须能对应到已确认的权威证据）不在本方法里：模型产出的摘要
+    /// 在服务端绑定证据之前只能通过 `validate_shape`，不能通过 `validate`，因此模型文本
+    /// 无法自己声明完成、审批或验证事实。
+    pub fn validate_shape(&self) -> Result<(), String> {
         if self.schema != COMPACT_SUMMARY_SCHEMA
             || !self.version.is_compatible_with(&COMPACT_SUMMARY_VERSION)
             || self.source_message_count == 0
@@ -194,32 +231,41 @@ impl CompactSummary {
             (None, None) => {}
             _ => return Err("compact_summary_source_range_invalid".to_owned()),
         }
-        validate_confirmed_refs(
-            &self.decision_refs,
-            &self.evidence,
-            &[CompactEvidenceKind::Decision, CompactEvidenceKind::Approval],
-            "compact_summary_decision_evidence_missing",
-            "compact_summary_decision_fact_not_confirmed",
-        )?;
-        validate_confirmed_refs(
-            &self.completed_action_refs,
-            &self.evidence,
-            &[CompactEvidenceKind::CompletedAction],
-            "compact_summary_completed_evidence_missing",
-            "compact_summary_completed_fact_not_confirmed",
-        )?;
-        validate_confirmed_refs(
-            &self.verification_refs,
-            &self.evidence,
-            &[CompactEvidenceKind::Verification],
-            "compact_summary_verification_evidence_missing",
-            "compact_summary_verification_fact_not_confirmed",
-        )?;
         digest(&self.summary_digest, "compact_summary_digest")?;
         if self.summary_digest != self.digest() {
             return Err("compact_summary_digest_mismatch".to_owned());
         }
         Ok(())
+    }
+
+    /// 解析模型产出的摘要 JSON 并盖上服务端计算的 digest。
+    ///
+    /// 只接受大小有界、整体为一个 JSON 对象的输出；模型自报的 `summary_digest` 一律被
+    /// 重算覆盖。解析后只做结构校验，证据绑定留给调用方用权威证据完成。
+    pub fn parse_model_output(text: &str) -> Result<Self, String> {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return Err("compact_summary_empty".to_owned());
+        }
+        if trimmed.len() > MAX_COMPACT_SUMMARY_BYTES {
+            return Err("compact_summary_size_exceeded".to_owned());
+        }
+        if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+            return Err("compact_summary_parse_failed".to_owned());
+        }
+        let mut summary: Self =
+            serde_json::from_str(trimmed).map_err(|_| "compact_summary_parse_failed".to_owned())?;
+        // 模型可以省略来源条数；真实值一律由调用方按计划覆盖。
+        summary.source_message_count = summary.source_message_count.max(1);
+        summary.summary_digest = summary.digest();
+        summary.validate_shape()?;
+        Ok(summary)
+    }
+
+    /// 用当前内容重算 digest 并做完整校验（含证据绑定）。
+    pub fn stamp_digest(&mut self) -> Result<(), String> {
+        self.summary_digest = self.digest();
+        self.validate()
     }
 
     /// Attach server-derived event/receipt evidence to an otherwise bounded summary.

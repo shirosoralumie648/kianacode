@@ -7,25 +7,37 @@ permissions:
   contents: read
 
 jobs:
-  focused-tests:
-    name: H22 ${{ matrix.name }}
+  compaction:
+    name: H22 working-state compaction fixtures
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: domain-summary
-            package: kiana-domain
-            target: h22_compact_summary
-          - name: runner-compaction-guard
-            package: kiana-runner
-            target: h22_compact_guard
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
-      - name: Run focused H22 target
-        run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1
+      - name: Check formatting
+        run: cargo fmt -p kiana-domain -p kiana-runner --check
+      - name: Run domain compact summary fixtures
+        run: cargo test -p kiana-domain --test h22_compact_summary --locked -- --test-threads=1
+      - name: Run runner compaction guard
+        run: cargo test -p kiana-runner --test h22_compact_guard --locked -- --test-threads=1
+      - name: Run runner compaction behavior fixtures
+        run: cargo test -p kiana-runner --test h22_compaction_behavior --locked -- --test-threads=1
+      - name: Run named H22 behavior fixtures
+        run: |
+          for fixture in \
+            h22_summary_cannot_forge_completed_tool_or_approval \
+            h22_compaction_keeps_pending_pairs_and_latest_goal \
+            h22_agent_continues_task_after_two_compactions_without_repeating_completed_edit; do
+            cargo test -p kiana-runner --test h22_compaction_behavior "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Compile domain compact summary target
+        run: cargo test -p kiana-domain --test h22_compact_summary --no-run --locked
+      - name: Compile runner compaction guard target
+        run: cargo test -p kiana-runner --test h22_compact_guard --no-run --locked
+      - name: Compile runner compaction behavior target
+        run: cargo test -p kiana-runner --test h22_compaction_behavior --no-run --locked
