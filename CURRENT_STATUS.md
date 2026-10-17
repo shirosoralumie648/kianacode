@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 CP-26 翻 ✅（决策解释/审计关联/证据链行为夹具，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 223（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/control-plane.md（CP-26 卡验收/交付对齐）；docs/roadmap/cp26-decision-trace-baseline.md（+Evidence chains 段）；kiana-core/tests/cp26_evidence_chains.rs（新增）；scripts/ci/test-shards.json（+cp26_evidence_chains）；.github/workflows/cp26-decision-trace.yml（+运行/编译步）；既有 kiana-domain/src/{audit,observability,correlation,security_reasons}.rs、kiana-core/src/{audit_projection,audit_export,redaction,events,receipts,security_context,security_fence,approval_binding,dispatch}.rs、kiana-core/tests/cp26_decision_trace_guard.rs 本次未改
+worktree_status: 行 223 🔄 → ✅（CI pending）；只新增本 Step 的 core 测试目标并单点回填 baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、详细卡、CURRENT_STATUS）；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型可见工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/git diff）与手工 rustfmt 风格对齐；.github/workflows/cp26-decision-trace.yml 新增 `cargo test -p kiana-core --test cp26_evidence_chains --locked -- --test-threads=1` 与配套 `--no-run`，`scripts/ci/test-shards.json` 的 `kiana-core-s3/6` 纳入该 target（既有 crate `tests/` 自动发现，无新执行路径/manifest 变更）
+cwd·environment: worktree /workspace/kianacode-worktrees/CP-26，分支 step/cp-26-20261017-1（基线 master abc97daee19b）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: core `cp26_evidence_chains` 六个夹具，全部调用服务端 `kiana_domain::reduce_audit_records`/`rebuild_audit_projection`（唯一事实源，只读折叠，不新起执行路径）。`cp26_success_chain_links_each_effect_to_its_authority`：`run.authorized`→`run.capability_requested`→`capability.decision=allowed`→`capability.completed`，断言行序 = [Authorization/Accepted, Capability/Staged, Capability/Accepted, Capability/Consumed]、整链共享 `corr-success`、authorization commit 保留 `input_digest`、capability 行保留 `command_id`。`cp26_hard_denial_chain_never_records_a_confirmed_effect`：`authorization.denied`→`capability.blocked` 全 `Denied`、无 accepted/consumed。`cp26_unknown_chain_stays_unknown_until_reconciled`：`capability.result_unknown`（保持 `Unknown`）→`recovery.requested`（`Staged`）→`recovery.reconciled`（`Consumed`），未确认能力事实不被改写为 Consumed。三链共同经 `assert_authority_links`：每行 `validate()` 通过、`source_event_ids == [该 source event]`、`request_id == 该 event.request_id`、`authority_epoch=7`/`data_epoch=3`、`action_digest` 以 `sha256:` 开头、`actor_ref="server:control-plane"`。`cp26_self_submitted_audit_row_is_rejected_before_persist`：payload 自报 `audit.*` 与预置 `audit_record` 均在投影前 fail-closed。`cp26_secret_never_appears_in_projected_explain_row`：`reason_code`/`api_key` 含 sentinel 的拒绝事件，explain 行序列化不含 sentinel、含 `[REDACTED]`、`reason_code="denied api_key=[REDACTED]"`
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CP-26 卡「交付：一次成功、一次硬拒绝、一次 Unknown 的完整证据链示例」此前只有 source guard 与跨层 fixture，无可运行证据链；本次补三条完整证据链 behavioral fixture（含两条拒绝路径与一条显式脱敏路径），把产出物落在树内并接入 CI；行 223 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；夹具在受控 `RuntimeEvent` 输入上折叠，不代表真实 daemon 全链路或跨进程恢复；remote SIEM/远程导出、live provider 效果正确性、跨主机 explain 时延与物理 secret-store 证明仍未交付；audit 行的 `attempt`/effect 确认由既有 dispatch/Receipt 语义承载，本夹具只断言 reducer 投影中的 request/command/correlation/causation/epoch/digest 关联；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；CP-26 三条证据链、拒绝路径与 explain 行脱敏的静态复核
+```
+
 ### 2026-10-17 ER-19 翻 ✅（worker/process handle 与 fencing token 行为夹具，CI-only 口径）
 
 ```text
