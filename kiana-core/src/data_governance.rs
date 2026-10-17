@@ -429,6 +429,9 @@ pub fn project_data_governance_snapshot(
     let mut snapshot =
         kiana_domain::project_data_governance(policy, project_ref, last_cursor, ids, now_ms)?;
     kiana_domain::MemoryProjectionFence::validate_epoch(policy.data_epoch, snapshot.data_epoch)?;
+    // PD-18：同一份历史必须能重建内存读取面的删除索引，并且只能绑定到当前策略 epoch。
+    // 重建失败意味着读取面无法被证明已与治理事实对齐，投影必须失败，而不是当作“没有删除”。
+    let deletion_index = project_memory_deletion_index(policy, project_ref, events, now_ms)?;
     if pending_invalidation {
         // 请求已经提交、完成结果尚未出现时，无法证明派生数据仍安全可用，因此统一降为
         // Unknown。消费者应拒绝据此读取 payload，直到有新的治理事实完成确认。
@@ -456,9 +459,96 @@ pub fn project_data_governance_snapshot(
             }
         }
     }
+    // 删除索引里还没有回执的检索面（lexical/vector/cache/receipt）不能继续被报告为可用：
+    // 未证明的传播按 Unknown 上报，读取面据此拒绝任何复活副本。
+    apply_memory_deletion_surface_states(&mut snapshot, &deletion_index);
     snapshot.snapshot_digest = snapshot.digest();
     snapshot.validate()?;
     Ok(snapshot)
+}
+
+/// PD-18：从同一份已提交历史重建内存删除索引，并绑定到当前策略 epoch。
+///
+/// 【作用与调用者】
+/// `project_data_governance_snapshot()` 在领域投影之后立即调用它，作为
+/// `MemoryProjectionFence::validate_epoch` 之外的第二道一致性检查：内存读取面使用的删除
+/// 索引必须能由这份历史重建，且其 epoch/policy 绑定必须与当前策略一致。失败时返回字符串
+/// 错误，调用方（ControlPlane）会把它转成 `PortError::Failed`，不会把损坏的历史伪装成
+/// “没有删除”。
+///
+/// 【它不做什么】
+/// 不删除、不回填、不重建任何派生存储，也不改写历史事实；只产出一个可核对的值对象。
+pub fn project_memory_deletion_index(
+    policy: &DataPolicy,
+    project_ref: &str,
+    events: &[RuntimeEvent],
+    now_ms: u64,
+) -> Result<kiana_domain::MemoryDeletionIndex, String> {
+    policy.validate()?;
+    if project_ref.trim().is_empty() {
+        return Err("data_governance_project_required".to_owned());
+    }
+    let mut entries = Vec::new();
+    for event in events {
+        if event.kind != kiana_domain::MEMORY_FACT_EVENT_KIND {
+            continue;
+        }
+        let fact: kiana_domain::MemoryJournalFact = serde_json::from_value(event.data.clone())
+            .map_err(|_| "data_governance_memory_fact_invalid".to_owned())?;
+        fact.validate()?;
+        if fact.operation != "delete"
+            && !matches!(
+                fact.record.visibility(),
+                kiana_domain::MemoryVisibility::Denied
+            )
+        {
+            continue;
+        }
+        let deleted_at_ms = fact
+            .record
+            .reviewed_at_ms
+            .filter(|stamp| *stamp > 0)
+            .unwrap_or(fact.record.created_at_ms)
+            .max(1);
+        entries.push(kiana_domain::MemoryDeletionEntry::new(
+            fact.record.id.clone(),
+            fact.record.collection.clone(),
+            fact.record.revision,
+            kiana_domain::json_digest(&event.data),
+            deleted_at_ms,
+        )?);
+    }
+    let index = kiana_domain::MemoryDeletionIndex::new(
+        project_ref,
+        policy.revision,
+        policy.data_epoch,
+        now_ms.max(1),
+        kiana_domain::merge_memory_deletion_entries(&[], &entries),
+    )?;
+    index.bind_policy(policy)?;
+    Ok(index)
+}
+
+/// 把删除索引中未完成的检索面映射到快照的派生存储状态上。
+///
+/// lexical/vector/cache/receipt 四个面分别对应 bm25-index / dense-index / cache / receipt；
+/// 只有确实存在该键时才会降级，`Available` 绝不会被写成“已传播”。
+fn apply_memory_deletion_surface_states(
+    snapshot: &mut DataGovernanceSnapshot,
+    deletion_index: &kiana_domain::MemoryDeletionIndex,
+) {
+    for surface in deletion_index.pending_surfaces() {
+        let store = match surface {
+            "lexical" => "bm25-index",
+            "vector" => "dense-index",
+            "cache" => "cache",
+            "receipt" => "receipt",
+            _ => continue,
+        };
+        if let Some(state) = snapshot.derived_store_states.get_mut(store) {
+            *state = DataPayloadState::Unknown;
+        }
+    }
 }
 
 /// 使用较短的公开名称，执行完整的数据治理快照投影。

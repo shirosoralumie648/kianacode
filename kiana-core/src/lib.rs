@@ -296,7 +296,7 @@ pub use data_class::{
 };
 pub use data_governance::{
     plan_data_propagation, project_data_governance, project_data_governance_snapshot,
-    receipt_data_binding_from_events, seal_governance_events,
+    project_memory_deletion_index, receipt_data_binding_from_events, seal_governance_events,
 };
 pub use deletion::{
     plan_deletion, plan_deletion_propagation, receipt_redaction_is_not_authorization,
