@@ -5,17 +5,18 @@
 
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_domain::{
-    json_digest, memory_query_terms, AdapterCommitState, AdapterResultKind,
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, EvidenceStatus, MemoryAdmission,
-    MemoryBodyRef, MemoryClassification, MemoryCollection, MemoryJournalFact, MemoryMutation,
+    json_digest, memory_query_terms, merge_memory_deletion_entries, AdapterCommitState,
+    AdapterResultKind, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
+    EvidenceStatus, MemoryAdmission, MemoryBodyRef, MemoryClassification, MemoryCollection,
+    MemoryDeletionEntry, MemoryDeletionIndex, MemoryJournalFact, MemoryMutation,
     MemoryMutationAuthority, MemoryMutationJournalStage, MemoryMutationLedger,
     MemoryMutationOperation, MemoryMutationOutcome, MemoryMutationReceipt, MemoryMutationTarget,
     MemoryOrigin, MemoryProjectionFence, MemoryRecord, MemoryScope as DomainMemoryScope,
-    MemorySensitivity, MemoryState, Purpose, RoleSpec, RuntimeEvent, SourceKind, SourceRef,
-    MEMORY_FACT_EVENT_KIND, MEMORY_LAYER_COMPANY, MEMORY_LAYER_DEPARTMENT,
-    MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT, MEMORY_LAYER_ROLE, MEMORY_LAYER_USER,
-    MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2, MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA,
-    MEMORY_STREAM, MEMORY_WRITE_SCHEMA,
+    MemorySensitivity, MemoryState, MemoryVisibility, Purpose, RoleSpec, RuntimeEvent, SourceKind,
+    SourceRef, MEMORY_DELETION_INDEX_SCHEMA, MEMORY_FACT_EVENT_KIND, MEMORY_LAYER_COMPANY,
+    MEMORY_LAYER_DEPARTMENT, MEMORY_LAYER_INSTANCE_SCRATCH, MEMORY_LAYER_PROJECT,
+    MEMORY_LAYER_ROLE, MEMORY_LAYER_USER, MEMORY_RECORD_SCHEMA, MEMORY_RECORD_SCHEMA_V2,
+    MEMORY_REVIEW_SCHEMA, MEMORY_SEARCH_SCHEMA, MEMORY_STREAM, MEMORY_WRITE_SCHEMA,
 };
 use kiana_ports::{EventStorePort, PortError};
 use serde_json::{json, Value};
@@ -179,11 +180,19 @@ fn memory_stream_id(
     }))
 }
 
-/// Confirm that the file projection has caught up with the committed memory stream.  An empty
-/// EventStore stream plus a non-empty file is treated as unjournaled visibility, not a cache hit.
-async fn ensure_memory_projection(scope: &MemoryScope, arguments: &Value) -> Result<(), PortError> {
+/// Confirm that the file projection has caught up with the committed memory stream, and rebuild
+/// the read-time deletion index for the searched collections. An empty EventStore stream plus a
+/// non-empty file is treated as unjournaled visibility, not a cache hit.
+///
+/// The returned index is `None` only for the legacy file-only scope that has no committed facts at
+/// all; every journaled scope gets an index bound to its project and governance epoch, so a
+/// tombstone cannot be revived by a restored row, a stale cache or a re-imported JSONL copy.
+async fn ensure_memory_projection(
+    scope: &MemoryScope,
+    arguments: &Value,
+) -> Result<Option<MemoryDeletionIndex>, PortError> {
     let Some(events) = scope.events.clone() else {
-        return Ok(());
+        return Ok(None);
     };
     let role = RoleSpec::lookup(&optional_string(arguments, "role_id").unwrap_or_default())
         .ok_or_else(|| failed("role_unknown"))?;
@@ -194,6 +203,7 @@ async fn ensure_memory_projection(scope: &MemoryScope, arguments: &Value) -> Res
     };
     let project_root = optional_string(arguments, "project_root").unwrap_or_default();
     let session_id = optional_string(arguments, "session_id").unwrap_or_default();
+    let mut projected_entries = Vec::new();
     for collection in collections {
         let stream_id = memory_stream_id(scope, &project_root, &collection.collection, &session_id);
         let committed = events.read_stream(MEMORY_STREAM, &stream_id).await?;
@@ -216,8 +226,113 @@ async fn ensure_memory_projection(scope: &MemoryScope, arguments: &Value) -> Res
         if !projection.matches_records(&projected) {
             return Err(failed("memory_projection_lag"));
         }
+        projected_entries.extend(projected_deletion_entries(&projection, &committed)?);
     }
-    Ok(())
+    if project_root.trim().is_empty() {
+        // A deletion index is project-scoped; without a project there is no scope to bind it to.
+        return Ok(None);
+    }
+    let policy = crate::data_governance::read_policy(Path::new(&project_root))?;
+    let persisted_entries =
+        match crate::data_governance::read_deletion_index(Path::new(&project_root))? {
+            Some(persisted) => {
+                persisted.validate().map_err(failed)?;
+                persisted
+                    .bind_policy(&policy)
+                    .map_err(|stale| failed(format!("memory_deletion_index_stale:{stale}")))?;
+                if persisted.project_root_conflicts(&project_root) {
+                    return Err(failed("memory_deletion_index_project_mismatch"));
+                }
+                persisted.entries
+            }
+            None => Vec::new(),
+        };
+    let index = MemoryDeletionIndex::new(
+        project_root,
+        policy.revision,
+        policy.data_epoch,
+        now_ms().max(1),
+        merge_memory_deletion_entries(&persisted_entries, &projected_entries),
+    )
+    .map_err(failed)?;
+    Ok(Some(index))
+}
+
+/// Tombstoned/rejected rows of one committed memory stream become deletion-index entries, and so do
+/// rows whose newest committed fact is a `delete`: a delete fact is the semantic tombstone even
+/// while the surviving row still looks active. Each surface starts `Unknown`: only an adapter
+/// receipt may claim it was invalidated, so a surviving index or cache copy keeps the row
+/// unservable with `tombstone_revival_denied:<surface>`.
+fn projected_deletion_entries(
+    projection: &kiana_domain::MemoryProjection,
+    committed: &[RuntimeEvent],
+) -> Result<Vec<MemoryDeletionEntry>, PortError> {
+    let mut latest_operation: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for event in committed {
+        let fact: MemoryJournalFact = serde_json::from_value(event.data.clone())
+            .map_err(|_| failed("memory_projection_fact_invalid"))?;
+        latest_operation.insert(fact.record.id.clone(), fact.operation.clone());
+    }
+    let mut entries = Vec::new();
+    for value in projection.records.values() {
+        let record: MemoryRecord = serde_json::from_value(value.clone())
+            .map_err(|_| failed("memory_projection_record_invalid"))?;
+        let deleted = latest_operation
+            .get(&record.id)
+            .is_some_and(|operation| operation == "delete")
+            || matches!(record.visibility(), MemoryVisibility::Denied);
+        if !deleted {
+            continue;
+        }
+        let deleted_at_ms = record
+            .reviewed_at_ms
+            .filter(|stamp| *stamp > 0)
+            .unwrap_or(record.created_at_ms)
+            .max(1);
+        entries.push(
+            MemoryDeletionEntry::new(
+                record.id.clone(),
+                record.collection.clone(),
+                record.revision,
+                json_digest(value),
+                deleted_at_ms,
+            )
+            .map_err(failed)?,
+        );
+    }
+    Ok(entries)
+}
+
+/// The read surface reports the deletion index it was fenced by, so an empty result can never be
+/// mistaken for "nothing was ever deleted".
+fn deletion_index_report(index: Option<&MemoryDeletionIndex>) -> Value {
+    match index {
+        Some(index) => {
+            let pending = index.pending_surfaces();
+            let receipt = if index.tombstones() == 0 {
+                "clean"
+            } else if pending.is_empty() {
+                "fenced"
+            } else {
+                "partial"
+            };
+            json!({
+                "schema": index.schema,
+                "project_root": index.project_root,
+                "policy_revision": index.policy_revision,
+                "data_epoch": index.data_epoch,
+                "index_digest": index.index_digest,
+                "tombstones": index.tombstones(),
+                "pending_surfaces": pending,
+                "receipt": receipt,
+            })
+        }
+        None => json!({
+            "schema": MEMORY_DELETION_INDEX_SCHEMA,
+            "receipt": "unjournaled",
+        }),
+    }
 }
 
 /// Commit a memory fact before its JSONL projection is appended.  This synchronous helper is
@@ -343,11 +458,13 @@ impl CapabilityHandler for MemorySearchHandler {
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
         server_memory_scope(&request, &arguments, false)?;
-        ensure_memory_projection(&self.0, &arguments).await?;
+        let deletion_index = ensure_memory_projection(&self.0, &arguments).await?;
         let scope = self.0.clone();
-        let output = tokio::task::spawn_blocking(move || search_records_scoped(&arguments, &scope))
-            .await
-            .map_err(|error| PortError::Failed(format!("memory_search_join_failed:{error}")))??;
+        let output = tokio::task::spawn_blocking(move || {
+            search_records_scoped(&arguments, &scope, deletion_index.as_ref())
+        })
+        .await
+        .map_err(|error| PortError::Failed(format!("memory_search_join_failed:{error}")))??;
         let result = CapabilityResult::success(request_id, output);
         kiana_domain::attach_adapter_result(
             result,
@@ -403,7 +520,7 @@ impl CapabilityHandler for MemoryReviewHandler {
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
         let request_scope = server_memory_scope(&request, &arguments, true)?;
-        ensure_memory_projection(&self.0, &arguments).await?;
+        let _ = ensure_memory_projection(&self.0, &arguments).await?;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || {
             review_records_with_mutation(&arguments, &scope, Some(request_id), Some(&request_scope))
@@ -422,9 +539,13 @@ impl CapabilityHandler for MemoryReviewHandler {
 
 #[cfg(test)]
 fn search_records(arguments: &Value) -> Result<Value, PortError> {
-    search_records_scoped(arguments, &MemoryScope::capture(None))
+    search_records_scoped(arguments, &MemoryScope::capture(None), None)
 }
-fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value, PortError> {
+fn search_records_scoped(
+    arguments: &Value,
+    scope: &MemoryScope,
+    deletion_index: Option<&MemoryDeletionIndex>,
+) -> Result<Value, PortError> {
     let query = required_string(arguments, "query", "memory_query_required")?;
     let terms = memory_query_terms(&query);
     let role = RoleSpec::lookup(&optional_string(arguments, "role_id").unwrap_or_default())
@@ -459,6 +580,7 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
             let fence = MemoryProjectionFence::evaluate(
                 &record,
                 &data_policy,
+                deletion_index,
                 data_policy.data_epoch,
                 &project_root,
                 snapshot_now_ms,
@@ -495,7 +617,8 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
     Ok(
         json!({"schema":MEMORY_SEARCH_SCHEMA,"query":query,"terms":terms,
         "role_id":role.role_id,"department_id":role.department_id,"session_id":session_id,
-        "data_epoch":data_policy.data_epoch,"hits":hits,"retrieval_health":ranked.health}),
+        "data_epoch":data_policy.data_epoch,"deletion_index":deletion_index_report(deletion_index),
+        "hits":hits,"retrieval_health":ranked.health}),
     )
 }
 
@@ -2321,6 +2444,218 @@ mod tests {
         assert_eq!(hits[0]["retrieval_session_id"], json!(session));
         assert_eq!(search["data_epoch"], json!(1));
         assert_eq!(events.read_all().await.unwrap().len(), 2);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// PD-18 deny-first: a committed delete fact makes the row a read-time tombstone even while
+    /// its JSONL copy still looks searchable, and the search reports the index it was fenced by.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn committed_delete_fact_denies_the_surviving_searchable_row() {
+        let root = temp_memory_path("pd18-committed-delete");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let session = "session-pd18-committed-delete";
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let scratch = MemoryCollection::parse("scratch").unwrap();
+        let path = collection_path_scoped(&scratch, &project_root, session, None).unwrap();
+
+        cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd18 committed delete fixture",
+            "pd18-committed-delete",
+        )
+        .await
+        .unwrap();
+        let rows = read_records(&path).unwrap();
+        assert_eq!(rows.len(), 1);
+
+        let before = cap19_search(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd18 committed delete",
+        )
+        .await
+        .unwrap();
+        assert_eq!(before["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(before["deletion_index"]["tombstones"], json!(0));
+        assert_eq!(before["deletion_index"]["receipt"], json!("clean"));
+
+        // A governed delete commits a fact; the row on disk is deliberately left in place, exactly
+        // like the cache or backup copy that survived the deletion.
+        let history = events.read_all().await.unwrap();
+        assert_eq!(history.len(), 1);
+        let stream_id = history[0].aggregate_id.clone().unwrap();
+        let fact = MemoryJournalFact::new(
+            "delete",
+            "pd18-committed-delete-fact",
+            rows[0].clone(),
+            MemoryBodyRef::new(&stream_id, &rows[0].content_hash),
+        );
+        fact.validate().unwrap();
+        let event = RuntimeEvent::new(
+            kiana_domain::RequestId::new(),
+            1,
+            MEMORY_FACT_EVENT_KIND,
+            serde_json::to_value(&fact).unwrap(),
+        )
+        .unwrap()
+        .with_stream_metadata(MEMORY_STREAM, stream_id.clone(), 2)
+        .with_idempotency_key(format!(
+            "memory.fact:{stream_id}:pd18-committed-delete-fact"
+        ));
+        events
+            .append_idempotent_expected(event, Some(1))
+            .await
+            .unwrap();
+
+        let after = cap19_search(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd18 committed delete",
+        )
+        .await
+        .unwrap();
+        assert!(after["hits"].as_array().unwrap().is_empty());
+        assert_eq!(after["deletion_index"]["tombstones"], json!(1));
+        assert_eq!(after["deletion_index"]["receipt"], json!("partial"));
+        assert_eq!(
+            after["deletion_index"]["pending_surfaces"],
+            json!(["lexical", "vector", "cache", "receipt"])
+        );
+        assert_eq!(
+            read_records(&path).unwrap().len(),
+            1,
+            "tombstone 不删除字节，只阻止复活"
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// PD-18 deny-first: a restored copy of a deleted row stays denied by the persisted deletion
+    /// index, and an index bound to another epoch fails the read closed instead of looking empty.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn persisted_deletion_index_denies_restored_rows_and_stale_epoch_fails_closed() {
+        let root = temp_memory_path("pd18-persisted-index");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let session = "session-pd18-persisted";
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let scratch = MemoryCollection::parse("scratch").unwrap();
+        let path = collection_path_scoped(&scratch, &project_root, session, None).unwrap();
+
+        cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd18 persisted index fixture",
+            "pd18-persisted-index",
+        )
+        .await
+        .unwrap();
+        let rows = read_records(&path).unwrap();
+        assert_eq!(rows.len(), 1);
+
+        // The governance path persists this index next to the policy; the fixture writes the same
+        // artifact so the read side can be proven in isolation.
+        let index_file = crate::data_governance::deletion_index_path(Path::new(&project_root));
+        let policy = crate::data_governance::read_policy(Path::new(&project_root)).unwrap();
+        let entry = MemoryDeletionEntry::new(
+            rows[0].id.clone(),
+            rows[0].collection.clone(),
+            rows[0].revision,
+            json_digest(&serde_json::to_value(&rows[0]).unwrap()),
+            7,
+        )
+        .unwrap();
+        let index = MemoryDeletionIndex::new(
+            &project_root,
+            policy.revision,
+            policy.data_epoch,
+            8,
+            vec![entry],
+        )
+        .unwrap();
+        fs::write(&index_file, serde_json::to_vec(&index).unwrap()).unwrap();
+
+        // The row is still on disk (a restored backup), but the tombstone now covers it.
+        let denied = cap19_search(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd18 persisted index",
+        )
+        .await
+        .unwrap();
+        assert!(denied["hits"].as_array().unwrap().is_empty());
+        assert_eq!(denied["deletion_index"]["tombstones"], json!(1));
+        assert_eq!(denied["deletion_index"]["receipt"], json!("partial"));
+        assert_eq!(
+            denied["deletion_index"]["pending_surfaces"],
+            json!(["lexical", "vector", "cache", "receipt"])
+        );
+        assert_eq!(
+            denied["deletion_index"]["data_epoch"],
+            json!(policy.data_epoch)
+        );
+
+        // An index claiming a newer governance epoch than the policy is not "no deletions": the
+        // read fails closed with the reason instead of returning an empty, green result.
+        let stale = MemoryDeletionIndex::new(
+            &project_root,
+            policy.revision,
+            policy.data_epoch + 1,
+            9,
+            index.entries.clone(),
+        )
+        .unwrap();
+        fs::write(&index_file, serde_json::to_vec(&stale).unwrap()).unwrap();
+        let result = cap19_search(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd18 persisted index",
+        )
+        .await;
+        assert!(matches!(
+            result,
+            Err(PortError::Failed(ref code))
+                if code == "memory_deletion_index_stale:memory_deletion_index_epoch_stale"
+        ));
 
         fs::remove_dir_all(root).unwrap();
     }

@@ -1,10 +1,14 @@
 //! Epoch- and governance-fenced visibility for projected Memory rows.
 //!
 //! A projection row is only searchable when the server-owned policy epoch still matches, the
-//! record is in a searchable lifecycle state, and revocation/retention has not fenced its source.
-//! This is a pure decision contract; it never erases facts or mutates an index/cache.
+//! record is in a searchable lifecycle state, the deletion index does not cover it, and
+//! revocation/retention has not fenced its source. This is a pure decision contract; it never
+//! erases facts or mutates an index/cache.
 
-use crate::{json_digest, DataPolicy, MemoryRecord, MemoryVisibility};
+use crate::{
+    json_digest, valid_memory_deletion_digest, DataPolicy, MemoryDeletionIndex, MemoryRecord,
+    MemoryVisibility,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -28,13 +32,21 @@ pub struct MemoryProjectionFence {
     pub policy_revision: u64,
     pub disposition: MemoryProjectionDisposition,
     pub reason: String,
+    /// Digest of the deletion index this decision was taken against. Absent only for callers that
+    /// have no committed deletion facts (legacy file-only scopes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletion_index_digest: Option<String>,
     pub fence_digest: String,
 }
 
 impl MemoryProjectionFence {
+    /// `deletion_index` carries the projected tombstones for the same project and governance
+    /// epoch. A stale index, a foreign project or an index that covers the row all deny the read
+    /// before any ranking or prompt assembly happens.
     pub fn evaluate(
         record: &MemoryRecord,
         policy: &DataPolicy,
+        deletion_index: Option<&MemoryDeletionIndex>,
         expected_data_epoch: u64,
         requested_project_root: &str,
         now_ms: u64,
@@ -44,24 +56,78 @@ impl MemoryProjectionFence {
         if expected_data_epoch == 0 || now_ms == 0 {
             return Err("memory_projection_fence_boundary_invalid".to_owned());
         }
+        let mut deletion_index_digest = None;
         let reason = if expected_data_epoch != policy.data_epoch {
-            "data_epoch_stale"
-        } else if !record.project_root.is_empty()
+            "data_epoch_stale".to_owned()
+        } else if let Some(index) = deletion_index {
+            index.validate()?;
+            deletion_index_digest = Some(index.index_digest.clone());
+            match index.bind_policy(policy) {
+                Err(stale) => stale,
+                Ok(()) if index.project_root_conflicts(requested_project_root) => {
+                    "deletion_index_project_mismatch".to_owned()
+                }
+                Ok(()) => Self::row_reason(record, policy, index, requested_project_root, now_ms),
+            }
+        } else {
+            Self::row_reason_without_index(record, policy, requested_project_root, now_ms)
+        };
+        Self::finish(
+            record,
+            policy,
+            requested_project_root,
+            deletion_index_digest,
+            reason,
+        )
+    }
+
+    /// Row-level decision when a deletion index was supplied. A covered row is denied whether or
+    /// not every surface has acknowledged the tombstone, so a surviving cache copy cannot revive it.
+    fn row_reason(
+        record: &MemoryRecord,
+        policy: &DataPolicy,
+        deletion_index: &MemoryDeletionIndex,
+        requested_project_root: &str,
+        now_ms: u64,
+    ) -> String {
+        match Self::row_reason_without_index(record, policy, requested_project_root, now_ms) {
+            reason if reason == "allowed" => deletion_index
+                .check_read(&record.id, record.revision)
+                .err()
+                .unwrap_or_else(|| "allowed".to_owned()),
+            reason => reason,
+        }
+    }
+
+    fn row_reason_without_index(
+        record: &MemoryRecord,
+        policy: &DataPolicy,
+        requested_project_root: &str,
+        now_ms: u64,
+    ) -> String {
+        if !record.project_root.is_empty()
             && !requested_project_root.is_empty()
             && record.project_root != requested_project_root
             && !crate::MemoryCollection::parse(&record.collection)
                 .is_some_and(|collection| collection.home_scoped())
         {
-            "project_scope_denied"
+            "project_scope_denied".to_owned()
         } else if !matches!(
             record.visibility(),
             MemoryVisibility::Searchable | MemoryVisibility::SessionOnly
         ) {
             if record.admission_state == crate::MemoryAdmission::Candidate {
-                "candidate_not_qualified"
+                "candidate_not_qualified".to_owned()
             } else {
-                "tombstone_or_rejected"
+                "tombstone_or_rejected".to_owned()
             }
+        } else if record
+            .retention
+            .as_ref()
+            .and_then(|retention| retention.expires_at_ms)
+            .is_some_and(|expiry| expiry <= now_ms)
+        {
+            "retention_expired".to_owned()
         } else if policy
             .revoked_sources
             .iter()
@@ -75,10 +141,19 @@ impl MemoryProjectionFence {
                             .is_some_and(|expiry| expiry <= now_ms))
             })
         {
-            "source_revoked_or_retention_expired"
+            "source_revoked_or_retention_expired".to_owned()
         } else {
-            "allowed"
-        };
+            "allowed".to_owned()
+        }
+    }
+
+    fn finish(
+        record: &MemoryRecord,
+        policy: &DataPolicy,
+        requested_project_root: &str,
+        deletion_index_digest: Option<String>,
+        reason: String,
+    ) -> Result<Self, String> {
         let disposition = if reason == "allowed" {
             MemoryProjectionDisposition::Searchable
         } else {
@@ -92,7 +167,8 @@ impl MemoryProjectionFence {
             data_epoch: policy.data_epoch,
             policy_revision: policy.revision,
             disposition,
-            reason: reason.to_owned(),
+            reason,
+            deletion_index_digest,
             fence_digest: String::new(),
         };
         fence.fence_digest = fence.digest();
@@ -117,6 +193,10 @@ impl MemoryProjectionFence {
             || self.record_revision == 0
             || self.data_epoch == 0
             || self.reason.trim().is_empty()
+            || self
+                .deletion_index_digest
+                .as_deref()
+                .is_some_and(|digest| !valid_memory_deletion_digest(digest))
         {
             return Err("memory_projection_fence_invalid".to_owned());
         }
@@ -142,6 +222,7 @@ impl MemoryProjectionFence {
             "policy_revision": self.policy_revision,
             "disposition": self.disposition,
             "reason": self.reason,
+            "deletion_index_digest": self.deletion_index_digest,
         }))
     }
 }
