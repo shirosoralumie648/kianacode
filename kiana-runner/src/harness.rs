@@ -148,9 +148,9 @@ use async_trait::async_trait;
 use kiana_domain::{
     derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
     CapabilityResult, InputId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
-    QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StepId,
-    StepIdentity, StreamingRedactionSink, StreamingRedactor, TokenAccounting, ToolObservation,
-    ToolObservationStatus, TurnId, WireBudget,
+    QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StablePrefix,
+    StepId, StepIdentity, StreamingRedactionSink, StreamingRedactor, ToolObservation,
+    ToolObservationStatus, TurnId,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -737,6 +737,11 @@ pub struct KianaHarness {
     runs: Mutex<HashMap<RunId, ActiveRun>>,
     assignments: Mutex<HashMap<RunId, kiana_domain::ModelAssignment>>,
     histories: Mutex<HashMap<RunId, Vec<ModelMessage>>>,
+    /// 本 run 上一次编译的稳定前缀身份，用于记录缓存复用/失效原因。
+    ///
+    /// 这是进程内决策账本：不是 provider 前缀缓存、不跨进程持久化、不授予任何权限；
+    /// Core 的撤销/数据版本仍是独立权威（这里只记录本地内容派生绑定）。
+    prefix_cache: Mutex<HashMap<RunId, StablePrefix>>,
     in_flight: Mutex<HashMap<RunId, Arc<RunCancellation>>>,
     deferred_inputs: Mutex<HashMap<RunId, Vec<(InboxTarget, InboxMessage)>>>,
     compact_trigger_tokens: usize,
@@ -790,6 +795,7 @@ impl KianaHarness {
             runs: Mutex::new(HashMap::new()),
             assignments: Mutex::new(HashMap::new()),
             histories: Mutex::new(HashMap::new()),
+            prefix_cache: Mutex::new(HashMap::new()),
             in_flight: Mutex::new(HashMap::new()),
             deferred_inputs: Mutex::new(HashMap::new()),
             compact_trigger_tokens: config.compact_trigger_tokens,
@@ -2155,42 +2161,33 @@ impl KianaHarness {
                 .prepare_call(request.clone(), spec)
                 .map_err(|error| error.to_string())?;
             let prepared_route_digest = prepared.route.digest();
-            // bundle 路径：用同一步身份、消息快照和 wire 预算编译不可变上下文，然后对照
-            // 本 attempt 实际 route/catalog/workspace/data 复核。路由摘要取已钉住的 route
-            // （首次即本 attempt 的 route）；不一致时在预留预算和发送之前拒绝，避免 route
-            // 变化后仍把旧计划当作同一快照发出去。legacy/纯文本路径保持既有行为。
-            let step_context_explanation = if let Some(bundle) = run.prompt_bundle.as_ref() {
-                let wire_bytes = serde_json::to_vec(&prepared.wire_body)
-                    .map_err(|_| "step_context_wire_invalid".to_owned())?
-                    .len() as u64;
-                let wire_budget = WireBudget::from_final_wire(
-                    wire_bytes,
-                    prepared.budget.reserved_output,
-                    prepared.budget.limit,
-                    prepared.budget.limit,
-                    TokenAccounting::ConservativeUtf8 {
-                        bytes_per_token: 1,
-                        safety_margin_tokens: 1,
-                    },
-                )
-                .map_err(|error| format!("step_context_wire_budget:{error}"))?;
-                let resolved = crate::step_context::compile_step_context(
-                    crate::step_context::StepContextInputs {
-                        bundle,
-                        messages: &prepared.request.messages,
-                        sandbox: &prepared.request.sandbox,
-                        step_identity: step_identity.clone(),
-                        model_profile: bundle.model_profile.clone(),
-                        route_digest: run
-                            .model_route
-                            .as_ref()
-                            .map(|route| route.digest())
-                            .unwrap_or_else(|| prepared_route_digest.clone()),
-                        catalog_digest: prepared.tool_catalog_hash.clone(),
-                        wire_budget,
-                    },
-                )
-                .map_err(|error| format!("step_context_compile:{error}"))?;
+            // bundle 路径：用同一步身份、消息快照和有效预算编译不可变上下文与稳定前缀，
+            // 然后对照本 attempt 实际 route/catalog/workspace/data 复核。路由摘要取已钉住的
+            // route（首次即本 attempt 的 route）；不一致时在预留预算和发送之前拒绝，避免
+            // route 变化后仍把旧计划当作同一快照发出去。wire 预算独立于 provider 自报预算，
+            // 从最终 wire 体与分项重新计算；超限同样在发送前拒绝。
+            // legacy/纯文本路径保持既有行为。
+            let mut step_context_explanation = if let Some(bundle) = run.prompt_bundle.as_ref() {
+                let (wire_budget, wire_parts) = crate::step_context::compile_wire_budget(&prepared)
+                    .map_err(|error| format!("step_context_wire_budget:{error}"))?;
+                let (resolved, stable_prefix) =
+                    crate::step_context::compile_step_context_with_prefix(
+                        crate::step_context::StepContextInputs {
+                            bundle,
+                            messages: &prepared.request.messages,
+                            sandbox: &prepared.request.sandbox,
+                            step_identity: step_identity.clone(),
+                            model_profile: bundle.model_profile.clone(),
+                            route_digest: run
+                                .model_route
+                                .as_ref()
+                                .map(|route| route.digest())
+                                .unwrap_or_else(|| prepared_route_digest.clone()),
+                            catalog_digest: prepared.tool_catalog_hash.clone(),
+                            wire_budget,
+                        },
+                    )
+                    .map_err(|error| format!("step_context_compile:{error}"))?;
                 crate::step_context::recheck_step_context_bindings(
                     &resolved,
                     &prepared_route_digest,
@@ -2198,11 +2195,26 @@ impl KianaHarness {
                     &prepared.request.messages,
                     &prepared.request.sandbox,
                 )?;
+                // 缓存复用决策：与同一 run 上一次编译的前缀比较。撤销/数据版本变化优先
+                // 返回稳定原因；决策只被记录，不会让旧条目绕过复核。
+                let reuse = {
+                    let mut cache = self
+                        .prefix_cache
+                        .lock()
+                        .map_err(|_| "harness_lock_poisoned".to_owned())?;
+                    let decision = cache
+                        .get(&run.run_id)
+                        .map(|previous| previous.reuse_for(&stable_prefix));
+                    cache.insert(run.run_id, stable_prefix.clone());
+                    decision.map(crate::step_context::StablePrefixReuse::from_decision)
+                };
                 Some(
-                    serde_json::to_value(
-                        crate::step_context::StepContextExplanation::from_resolved(&resolved),
-                    )
-                    .map_err(|_| "step_context_explanation_invalid".to_owned())?,
+                    crate::step_context::StepContextExplanation::from_resolved(&resolved)
+                        .with_wire_parts(
+                            wire_parts.wire_body_bytes,
+                            crate::step_context::wire_budget_part_items(&wire_parts),
+                        )
+                        .with_stable_prefix(&stable_prefix, reuse),
                 )
             } else {
                 None
@@ -2392,6 +2404,15 @@ impl KianaHarness {
                     )
                 })
                 .transpose()?;
+            // 发送结果已到手：把估算/实际用量差值补进同一步解释，再统一序列化到 metadata。
+            if let Some(explanation) = step_context_explanation.as_mut() {
+                explanation.record_usage(usage);
+            }
+            let step_context_metadata = step_context_explanation
+                .as_ref()
+                .map(serde_json::to_value)
+                .transpose()
+                .map_err(|_| "step_context_explanation_invalid".to_owned())?;
             let budget_usage = self.budget_ledger.snapshot(&budget_scope)?;
             // 单独构造预算对象，避免再把 16 个键值内联进外层 `json!`。
             // `json!` 是 serde_json 的编译期宏，宏展开规模超过默认递归限制时编译会失败；
@@ -2409,7 +2430,7 @@ impl KianaHarness {
                 "provider_response_id_status":if result.as_ref().ok().and_then(|reply|reply.provider_response_id.as_ref()).is_some() {"known"} else {"unknown"},
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
                 "retry_reservation":retry_reservation,
-                "step_context":step_context_explanation,
+                "step_context":step_context_metadata,
                 "harness_budget":harness_budget,
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,

@@ -124,9 +124,12 @@ pub use state_driver::{
 // 解释对象记录摘要与剔除原因，不包含消息全文；module 不发请求、不执行工具，也不授予权限，
 // 其中 scope 是 runner 侧占位值（真实授权仍在 ControlPlane）。
 pub use step_context::{
-    compile_step_context, derive_data_binding, derive_workspace_binding,
-    recheck_step_context_bindings, StepContextExplanation, StepContextInputs, StepContextOmission,
-    STEP_CONTEXT_EXPLANATION_SCHEMA, STEP_CONTEXT_MAX_MESSAGE_CANDIDATES,
+    compile_step_context, compile_step_context_with_prefix, compile_wire_budget,
+    derive_data_binding, derive_workspace_binding, recheck_step_context_bindings,
+    wire_budget_part_items, wire_budget_parts, StablePrefixReuse, StepBudgetPart,
+    StepContextExplanation, StepContextInputs, StepContextOmission, WireBudgetParts,
+    CONSERVATIVE_WIRE_ACCOUNTING, STEP_CONTEXT_EXPLANATION_SCHEMA,
+    STEP_CONTEXT_MAX_MESSAGE_CANDIDATES,
 };
 
 // ■ 流式归一化
