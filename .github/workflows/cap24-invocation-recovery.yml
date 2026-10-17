@@ -47,7 +47,8 @@ jobs:
             recovery::invocation_tests::redacted_snapshot_cannot_be_used_as_executable_payload \
             recovery::invocation_tests::foreign_owner_cannot_read_or_resume_another_runs_invocation \
             recovery::invocation_tests::completed_result_is_reused_from_facts_and_terminal_replay_is_denied \
-            recovery::invocation_tests::pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed; do
+            recovery::invocation_tests::pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed \
+            recovery::invocation_tests::terminal_failed_or_cancelled_run_refuses_resume_without_execution; do
             cargo test -p kiana-core --lib "$fixture" --locked -- --exact --test-threads=1
           done
       - name: Compile selected domain targets

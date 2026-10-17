@@ -287,6 +287,7 @@ fn cap24_behavioural_fixtures_are_wired_and_deny_first() {
         "foreign_owner_cannot_read_or_resume_another_runs_invocation",
         "completed_result_is_reused_from_facts_and_terminal_replay_is_denied",
         "pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed",
+        "terminal_failed_or_cancelled_run_refuses_resume_without_execution",
     ];
     for fixture in fixtures {
         assert!(

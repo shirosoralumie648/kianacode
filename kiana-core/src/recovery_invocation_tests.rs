@@ -1047,6 +1047,81 @@ async fn completed_result_is_reused_from_facts_and_terminal_replay_is_denied() {
     cleanup(&path);
 }
 
+/// 【拒绝】已知失败或已取消的 run 与已完成一样，只能从事实读出终态，不能被恢复重放。
+#[tokio::test]
+async fn terminal_failed_or_cancelled_run_refuses_resume_without_execution() {
+    for (terminal_kind, reason) in [
+        ("run.failed", "run_resume_terminal_failed"),
+        ("run.cancelled", "run_resume_terminal_cancelled"),
+    ] {
+        let path = unique_path("terminal-refusal");
+        let run_id = RunId::new();
+        let context = local_context();
+        let turn_id = TurnId::new();
+        let request = mcp_call_request(run_id, turn_id);
+        {
+            let events: Arc<dyn EventStorePort> =
+                Arc::new(JsonlEventLog::open(&path).expect("open cap24 durable journal"));
+            for fact in [
+                run_authorized(run_id, &context, 1),
+                run_capability_requested(run_id, &request, 2),
+                capability_decision(run_id, request.request_id, "allowed", 3),
+                execution_prepared(run_id, &request, 4),
+            ] {
+                events.append(fact).await.expect("append cap24 fact");
+            }
+            events
+                .append(event(
+                    5,
+                    terminal_kind,
+                    json!({"run_id": run_id, "error": format!("cap24-{reason}")}),
+                ))
+                .await
+                .expect("append cap24 terminal fact");
+        }
+        let events: Arc<dyn EventStorePort> =
+            Arc::new(JsonlEventLog::open(&path).expect("reopen cap24 durable journal"));
+        let runner = Arc::new(Cap24Runner::new(pending_tool_state(), true));
+        let approvals = empty_approvals();
+        let core = plane(events.clone(), runner.clone(), approvals.clone());
+        let before = read_facts(&events).await;
+        let expected_error = format!("result_unknown:{reason}");
+
+        let response = core
+            .resume_run(context, Some(run_id))
+            .await
+            .expect("resume returns a response");
+        assert_eq!(
+            response.status,
+            ExecutionStatus::ResultUnknown,
+            "{terminal_kind}"
+        );
+        assert_eq!(
+            response.output["resume"],
+            json!("denied"),
+            "{terminal_kind}"
+        );
+        assert_eq!(response.output["reason"], json!(reason), "{terminal_kind}");
+        assert_eq!(
+            response.error.as_deref(),
+            Some(expected_error.as_str()),
+            "{terminal_kind}"
+        );
+
+        // 终态判定发生在任何 Runner 推进或审批读取之前，且不追加事实。
+        assert!(runner.send_calls().is_empty(), "{terminal_kind}");
+        assert!(runner.restore_calls().is_empty(), "{terminal_kind}");
+        assert_eq!(approvals.decision_reads(), 0, "{terminal_kind}");
+        assert_eq!(approvals.material_reads(), 0, "{terminal_kind}");
+        assert_eq!(
+            read_facts(&events).await.len(),
+            before.len(),
+            "{terminal_kind}"
+        );
+        cleanup(&path);
+    }
+}
+
 /// 【成功/拒绝】待批调用完全从事实与受控材料重建；多个候选时必须 fail-closed。
 #[tokio::test]
 async fn pending_approval_rebuild_is_fact_bound_and_ambiguity_fails_closed() {
