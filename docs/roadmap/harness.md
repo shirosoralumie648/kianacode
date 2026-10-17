@@ -399,6 +399,7 @@ sequenceDiagram
 
 **先拒绝**：`huge_tool_output_is_bounded_before_buffering`、`artifact_from_other_run_is_denied`、`expired_output_reference_is_not_returned_from_cache`。**再成功**：`truncated_result_can_be_read_in_verified_pages`。
 **交付**：内存/磁盘峰值、引用完整性、删除传播测试；二进制输出用类型化引用而非胡乱解码。
+**行为证据（2026-10-17，CI-only）**：daemon lib `h15_bounds`/`h15_output_read` 在内存流与临时归档目录上驱动同一份有界采集与 `read_output_at` 校验（跨 Run/owner、过期、数据 revision、内容篡改、offset/stream/cursor 拒绝优先，再做稳定游标分页成功）；domain `h15_output_ref` 覆盖预算与引用构造边界；删除传播、MCP 全量 bounded result 与跨进程 ArtifactStore 仍开放。
 
 <a id="step-h16"></a>
 

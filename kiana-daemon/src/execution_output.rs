@@ -281,3 +281,79 @@ pub(crate) fn metadata(output: &CappedOutput, budget: &ExecutionOutputBudget) ->
         }
     })
 }
+
+#[cfg(test)]
+/// H15 有界采集与预览的行为夹具。
+///
+/// 这些测试用内存 reader 直接驱动 `read_capped`/`render_capped`/`metadata`，证明超出预算的
+/// 输出在进入内存前就被逐块限制、截断原因有稳定元数据、预览始终有界且 UTF-8 安全。它们不
+/// 启动真实子进程，也不证明操作系统级 pipe/磁盘限额或跨进程归档行为。
+mod h15_bounds {
+    use super::*;
+
+    #[tokio::test]
+    async fn h15_behavior_huge_output_is_bounded_before_buffering() {
+        let mut budget = ExecutionOutputBudget::default();
+        budget.collect_max_bytes = 4 * 1024;
+        budget.persist_max_bytes = 4 * 1024;
+        budget.observed_max_bytes = 16 * 1024;
+        budget.preview_max_bytes = 256;
+        budget.max_lines = 1_000_000;
+        budget.validate().expect("bounded policy");
+
+        // 4 MiB 单一字节流：远大于收集/观测预算。
+        let payload = vec![b'x'; 4 * 1024 * 1024];
+        let output = read_capped(&payload[..], budget.clone())
+            .await
+            .expect("capped read");
+
+        // 保留量由收集上限决定，而不是先读满整数 MiB 再截断。
+        assert_eq!(output.bytes.len(), budget.collect_max_bytes);
+        assert!(output.truncated);
+        assert_eq!(output.read_error.as_deref(), Some("output_total_limit"));
+        // 观测量最多越过硬上限一个读取块，不能无界增长。
+        assert!(output.observed_bytes > budget.observed_max_bytes as u64);
+        assert!(output.observed_bytes <= budget.observed_max_bytes as u64 + READ_CHUNK_SIZE as u64);
+        let metadata = metadata(&output, &budget);
+        assert_eq!(metadata["truncated"], json!(true));
+        assert_eq!(metadata["captured_bytes"], json!(budget.collect_max_bytes));
+    }
+
+    #[tokio::test]
+    async fn h15_behavior_line_limit_stops_reader_with_metadata() {
+        let mut budget = ExecutionOutputBudget::default();
+        budget.collect_max_bytes = 1024 * 1024;
+        budget.persist_max_bytes = 1024 * 1024;
+        budget.observed_max_bytes = 1024 * 1024;
+        budget.max_lines = 4;
+        budget.validate().expect("bounded policy");
+
+        let payload = b"a\nb\nc\nd\ne\nf\n".repeat(200);
+        let output = read_capped(&payload[..], budget.clone())
+            .await
+            .expect("capped read");
+        assert!(output.truncated);
+        assert_eq!(output.read_error.as_deref(), Some("output_line_limit"));
+        assert!(output.lines > budget.max_lines as u64);
+        assert!(output.bytes.len() <= budget.collect_max_bytes);
+    }
+
+    #[test]
+    fn h15_behavior_preview_is_bounded_and_utf8_safe() {
+        // 预览正文不超过预算，并显式标注截断来源（预览超长 vs 采集已截断）。
+        let long = vec![b'z'; 4096];
+        let preview = render_capped(&long, true, 128);
+        let mut parts = preview.split("\n...preview-truncated...");
+        let body = parts.next().expect("preview body");
+        assert!(body.len() <= 128);
+        assert!(preview.contains("...preview-truncated..."));
+
+        let short = render_capped(b"hello", true, 128);
+        assert!(short.contains("...truncated..."));
+
+        // 非法 UTF-8 与二进制控制字节不会以原始字节返回：有损解码为替换字符并过滤控制字符。
+        let raw = render_capped(&[0xff, 0xfe, 0x00, b'k'], false, 128);
+        assert!(raw.contains('\u{fffd}'));
+        assert!(!raw.contains('\u{0}'));
+    }
+}

@@ -1057,6 +1057,22 @@ pub(crate) fn store_output(
     request: &AuthorizedCapabilityRequest,
     output: &mut Value,
 ) -> Result<(), PortError> {
+    store_output_at(&output_directory()?, request, output)
+}
+
+/// `store_output` 的显式归档目录版本。
+///
+/// 【调用者】生产路径经 `store_output` 传入 `KIANA_HOME` 派生的受控归档目录；本模块的
+/// `#[cfg(test)]` 行为夹具传入临时目录，从而在不依赖全局环境变量的情况下驱动同一份
+/// 脱敏、有界预览与引用绑定逻辑。
+/// 【边界】除归档根目录来源不同外，本函数与 `store_output` 完全一致：它仍只通过受控目录
+/// API 发布单文件、仍按 `persist_max_bytes` 限制记录大小，也不放宽任何 owner、Run、数据
+/// revision 或过期语义。
+fn store_output_at(
+    output_root: &Path,
+    request: &AuthorizedCapabilityRequest,
+    output: &mut Value,
+) -> Result<(), PortError> {
     let mut captured = serde_json::Map::new();
     let budget = kiana_domain::ExecutionOutputBudget::default();
     budget
@@ -1119,7 +1135,7 @@ pub(crate) fn store_output(
         return Err(error("output_persist_quota_exceeded"));
     }
     // LocalDir 通过受控目录 API 发布单文件，避免这里直接拼接不受信任文件路径。
-    crate::local_packages::LocalDir::open(&output_directory()?, true)?
+    crate::local_packages::LocalDir::open(output_root, true)?
         .publish(&format!("{id}.json"), &bytes)?;
     let mut output_ref =
         serde_json::to_value(output_ref).map_err(|_| error("output_reference_encode_failed"))?;
@@ -1141,10 +1157,21 @@ pub(crate) fn store_output(
 /// 【设计原因】文件内容可以按需分页而不一次塞进上下文；cursor 将起始偏移绑定到输出 ID、
 /// stream 和内容 digest，避免客户端把另一个偏移误当成同一页的延续。
 fn read_output(arguments: &Value) -> Result<Value, PortError> {
+    read_output_at(&output_directory()?, arguments)
+}
+
+/// `read_output` 的显式归档目录版本。
+///
+/// 【调用者】生产路径经 `read_output` 传入 `KIANA_HOME` 派生的受控归档目录；本模块的
+/// `#[cfg(test)]` 行为夹具传入临时目录，直接驱动同一份 owner/Run/数据 revision/过期/
+/// 内容摘要/游标校验。
+/// 【边界】只改变归档目录来源；身份、Run、数据 revision、过期时刻、内容摘要与游标校验
+/// 与生产读取路径逐条相同，不新增放宽分支。
+fn read_output_at(output_root: &Path, arguments: &Value) -> Result<Value, PortError> {
     let budget = kiana_domain::ExecutionOutputBudget::default();
     let id = serde_json::from_value::<RequestId>(arguments["output_id"].clone())
         .map_err(|_| error("output_id_invalid"))?;
-    let bytes = crate::local_packages::LocalDir::open(&output_directory()?, false)?
+    let bytes = crate::local_packages::LocalDir::open(output_root, false)?
         .read(&format!("{id}.json"), budget.persist_max_bytes)?;
     let record: Value =
         serde_json::from_slice(&bytes).map_err(|_| error("output_record_invalid"))?;
@@ -1819,5 +1846,341 @@ mod tests {
             lease.validate_current(100, 1, lease.fence_token),
             Err("resource_lease_expired".to_owned())
         );
+    }
+}
+
+#[cfg(all(test, unix))]
+/// H15 有界输出归档与受控分页读取的行为夹具。
+///
+/// 这些测试用隔离的临时归档目录直接驱动 `store_output_at`/`read_output_at`，即生产 shell
+/// 输出归档与 `execution.output.read` 校验复用的同一份逻辑：拒绝路径优先覆盖跨 Run、跨
+/// owner、过期、数据 revision 撤销、内容篡改、非法 offset/stream 与伪造 cursor；成功路径
+/// 覆盖有界预览、typed 引用与稳定游标分页复原。
+///
+/// 【边界】它们不经过 DaemonHost/ControlPlane/Broker 组合链，不启动真实子进程，也不证明
+/// 跨进程 ArtifactStore、删除传播、保留策略或操作系统级内存/磁盘限额。
+mod h15_output_read {
+    use super::*;
+    use kiana_domain::CapabilityRequest;
+
+    const ACTOR: &str = "h15-actor";
+    const SESSION: &str = "h15-session";
+
+    /// 建立一个隔离的临时项目目录（同时作为归档目录的父目录）。
+    fn root(label: &str) -> PathBuf {
+        let stamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("time");
+        let stamp = stamp.as_nanos();
+        let path = std::env::temp_dir().join(format!("kiana-h15-{label}-{stamp}"));
+        std::fs::create_dir_all(&path).expect("temp project root");
+        path
+    }
+
+    /// 把可选 Run 序列化成 wire 值，保持与生产请求参数一致。
+    fn run_value(run_id: Option<RunId>) -> Value {
+        match run_id {
+            Some(id) => serde_json::to_value(id).expect("run id"),
+            None => Value::Null,
+        }
+    }
+
+    /// 构造与生产 `identity()` 字段一致的 owner/scope 参数。
+    fn arguments(project_root: &Path, run_id: Option<RunId>) -> Value {
+        json!({
+            "operator_authorized": true,
+            "actor_id": ACTOR,
+            "session_id": SESSION,
+            "role_id": "builder",
+            "department_id": "engineering",
+            "project_root": project_root.to_string_lossy(),
+            "run_id": run_value(run_id),
+        })
+    }
+
+    /// 组装一份已授权 shell 输出请求；`store_output_at` 从这里读取 project_root/Run。
+    fn request(project_root: &Path, run_id: Option<RunId>) -> AuthorizedCapabilityRequest {
+        AuthorizedCapabilityRequest::new(
+            "policy:h15-output-fixture",
+            CapabilityRequest::new(
+                RequestId::new(),
+                CapabilityKind::Filesystem,
+                "shell.exec",
+                arguments(project_root, run_id),
+            ),
+        )
+        .expect("typed handler fixture")
+    }
+
+    /// 断言读取按预期稳定错误码被拒绝。
+    fn deny_value(result: Result<Value, PortError>, expected: &str) {
+        assert!(
+            matches!(result, Err(PortError::Failed(ref code)) if code == expected),
+            "expected {expected}, got {result:?}"
+        );
+    }
+
+    /// 用生产结构与摘要直接发布一份归档记录，用于精确控制过期、数据 revision 与内容篡改。
+    fn publish_record(
+        project: &Path,
+        archive: &Path,
+        run_id: Option<RunId>,
+        stdout: &str,
+        expires_at_unix_ms: u64,
+        data_epoch: u64,
+    ) -> (RequestId, Value) {
+        let output_id = RequestId::new();
+        let identity = identity(&arguments(project, run_id));
+        let captured = json!({"stdout": stdout, "stderr": ""});
+        let content_digest = kiana_domain::json_digest(&captured);
+        let captured_bytes = serde_json::to_vec(&captured).expect("captured bytes");
+        let size_bytes = captured_bytes.len() as u64;
+        let reference = ExecutionOutputRef::new(
+            output_id,
+            run_id,
+            InvocationId::from_uuid(output_id.as_uuid()),
+            content_digest,
+            size_bytes,
+            kiana_domain::json_digest(&identity),
+            expires_at_unix_ms,
+        )
+        .expect("synthetic output reference");
+        let record = json!({
+            "schema": "kiana.execution-output.v1",
+            "identity": identity,
+            "data_epoch": data_epoch,
+            "expires_at_unix_ms": expires_at_unix_ms,
+            "redaction_profile_digest":
+                crate::execution_output::preview_profile_digest(kiana_domain::SecretScanChannel::Stdout),
+            "output_ref": serde_json::to_value(&reference).expect("reference json"),
+            "output": captured,
+        });
+        republish(archive, output_id, &record);
+        (output_id, record)
+    }
+
+    /// 用受控目录 API 覆盖发布一份已存在的归档记录。
+    fn republish(archive: &Path, output_id: RequestId, record: &Value) {
+        let bytes = serde_json::to_vec(record).expect("record bytes");
+        crate::local_packages::LocalDir::open(archive, true)
+            .expect("archive dir")
+            .publish(&format!("{output_id}.json"), &bytes)
+            .expect("publish record");
+    }
+
+    #[test]
+    fn h15_behavior_truncated_result_reads_in_verified_pages() {
+        let project = root("pages");
+        let archive = project.join("execution-output");
+        let run_id = RunId::new();
+        let request = request(&project, Some(run_id));
+        let output_id = request.request.request_id;
+
+        let text = "h15-line-payload\n".repeat(600);
+        let mut output = json!({"stdout": text.clone(), "stderr": ""});
+        store_output_at(&archive, &request, &mut output).expect("store bounded output");
+
+        // 模型侧只拿到有界预览与 typed 引用，不是被称作“完整结果”的原始文本。
+        let budget = kiana_domain::ExecutionOutputBudget::default();
+        let preview = output["stdout"].as_str().expect("preview");
+        assert!(preview.contains("...preview-truncated..."));
+        assert!(preview.len() <= budget.preview_max_bytes + "\n...preview-truncated...".len());
+        let expected_output_id = serde_json::to_value(output_id).expect("output id json");
+        assert_eq!(output["output_ref"]["output_id"], expected_output_id);
+
+        // 分页读取：稳定 cursor、UTF-8 边界与 next_offset 能把归档复原成完整安全文本。
+        let mut assembled = String::new();
+        let mut offset = 0u64;
+        let mut cursor: Option<Value> = None;
+        loop {
+            let mut read = arguments(&project, Some(run_id));
+            read["output_id"] = serde_json::to_value(output_id).expect("output id json");
+            read["stream"] = json!("stdout");
+            read["offset"] = json!(offset);
+            read["limit"] = json!(4096);
+            if let Some(value) = &cursor {
+                read["cursor"] = value.clone();
+            }
+            let page = read_output_at(&archive, &read).expect("verified page");
+            assembled.push_str(page["text"].as_str().expect("page text"));
+            assert_eq!(page["content_digest"], output["output_ref"]["content_digest"]);
+            if page["complete"] == json!(true) {
+                break;
+            }
+            offset = page["next_offset"].as_u64().expect("next offset");
+            cursor = Some(page["next_cursor"].clone());
+            assert!(cursor.as_ref().expect("cursor").is_string());
+        }
+        assert_eq!(assembled, text);
+    }
+
+    #[test]
+    fn h15_behavior_artifact_from_other_run_is_denied() {
+        let project = root("scope");
+        let archive = project.join("execution-output");
+        let run_id = RunId::new();
+        let request = request(&project, Some(run_id));
+        let output_id = request.request.request_id;
+        let mut output = json!({"stdout": "scoped output\n", "stderr": ""});
+        store_output_at(&archive, &request, &mut output).expect("store scoped output");
+
+        // 同一 output id，但请求携带另一个 Run：拒绝。
+        let mut other_run = arguments(&project, Some(RunId::new()));
+        other_run["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        deny_value(
+            read_output_at(&archive, &other_run),
+            "execution_owner_run_mismatch",
+        );
+
+        // 不携带 Run 的请求同样不能读走绑定 Run 的输出。
+        let mut no_run = arguments(&project, None);
+        no_run["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        deny_value(
+            read_output_at(&archive, &no_run),
+            "execution_owner_run_mismatch",
+        );
+
+        // 换成另一个 owner：拒绝。
+        let mut other_actor = arguments(&project, Some(run_id));
+        other_actor["actor_id"] = json!("h15-other-actor");
+        other_actor["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        deny_value(
+            read_output_at(&archive, &other_actor),
+            "execution_owner_mismatch",
+        );
+
+        // 成功对照：原 owner + 原 Run 仍可读取。
+        let mut owner = arguments(&project, Some(run_id));
+        owner["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        let page = read_output_at(&archive, &owner).expect("owner read");
+        assert_eq!(page["complete"], json!(true));
+        assert_eq!(page["text"], json!("scoped output\n"));
+    }
+
+    #[test]
+    fn h15_behavior_expired_output_reference_is_not_returned() {
+        let project = root("expiry");
+        let archive = project.join("execution-output");
+        let policy = crate::data_governance::read_policy(&project).expect("policy");
+        let now = unix_time_ms().expect("clock");
+        let (output_id, _record) = publish_record(
+            &project,
+            &archive,
+            None,
+            "expired payload\n",
+            now - 1_000,
+            policy.revision,
+        );
+        let mut read = arguments(&project, None);
+        read["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        deny_value(read_output_at(&archive, &read), "output_reference_expired");
+
+        // 成功对照：未过期的同形状记录仍可读取。
+        let (fresh_id, _fresh) = publish_record(
+            &project,
+            &archive,
+            None,
+            "fresh payload\n",
+            now + 60_000,
+            policy.revision,
+        );
+        let mut fresh = arguments(&project, None);
+        fresh["output_id"] = serde_json::to_value(fresh_id).expect("output id json");
+        let page = read_output_at(&archive, &fresh).expect("fresh read");
+        assert_eq!(page["text"], json!("fresh payload\n"));
+    }
+
+    #[test]
+    fn h15_behavior_revoked_data_revision_is_denied() {
+        let project = root("epoch");
+        let archive = project.join("execution-output");
+        let policy = crate::data_governance::read_policy(&project).expect("policy");
+        let now = unix_time_ms().expect("clock");
+        // 记录绑定到比当前策略更新的数据 revision，读取时即视为已被撤销。
+        let (output_id, _record) = publish_record(
+            &project,
+            &archive,
+            None,
+            "revocable payload\n",
+            now + 60_000,
+            policy.revision + 1,
+        );
+        let mut read = arguments(&project, None);
+        read["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        deny_value(read_output_at(&archive, &read), "output_data_revoked");
+    }
+
+    #[test]
+    fn h15_behavior_tampered_content_is_denied() {
+        let project = root("tamper");
+        let archive = project.join("execution-output");
+        let policy = crate::data_governance::read_policy(&project).expect("policy");
+        let now = unix_time_ms().expect("clock");
+        let (output_id, mut record) = publish_record(
+            &project,
+            &archive,
+            None,
+            "original payload\n",
+            now + 60_000,
+            policy.revision,
+        );
+        // 保持引用与摘要不变，只改归档正文：内容摘要校验必须拒绝。
+        record["output"]["stdout"] = json!("tampered payload\n");
+        republish(&archive, output_id, &record);
+        let mut read = arguments(&project, None);
+        read["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        deny_value(
+            read_output_at(&archive, &read),
+            "output_content_digest_mismatch",
+        );
+    }
+
+    #[test]
+    fn h15_behavior_invalid_offset_stream_and_cursor_are_denied() {
+        let project = root("cursor");
+        let archive = project.join("execution-output");
+        let policy = crate::data_governance::read_policy(&project).expect("policy");
+        let now = unix_time_ms().expect("clock");
+        // 多字节字符：offset 落在字符中间时不能返回半个字符。
+        let text = "中".repeat(64);
+        let (output_id, _record) = publish_record(
+            &project,
+            &archive,
+            None,
+            &text,
+            now + 60_000,
+            policy.revision,
+        );
+
+        let mut mid = arguments(&project, None);
+        mid["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        mid["offset"] = json!(1);
+        deny_value(read_output_at(&archive, &mid), "output_offset_invalid");
+
+        let mut stream = arguments(&project, None);
+        stream["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        stream["stream"] = json!("pty");
+        deny_value(read_output_at(&archive, &stream), "output_stream_invalid");
+
+        // 伪造 cursor：游标绑定 output/stream/offset/content digest，错误值必须拒绝。
+        let mut forged = arguments(&project, None);
+        forged["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        forged["offset"] = json!(0);
+        forged["limit"] = json!(3);
+        forged["cursor"] = json!(kiana_domain::json_digest(&json!("forged")));
+        deny_value(read_output_at(&archive, &forged), "output_cursor_invalid");
+
+        // 成功对照：合法 cursor 允许读取下一稳定页，next_offset 落在字符边界。
+        let mut first = arguments(&project, None);
+        first["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        first["offset"] = json!(0);
+        first["limit"] = json!(3);
+        let page = read_output_at(&archive, &first).expect("first page");
+        assert_eq!(page["next_offset"], json!(3));
+        let mut second = arguments(&project, None);
+        second["output_id"] = serde_json::to_value(output_id).expect("output id json");
+        second["offset"] = json!(3);
+        second["limit"] = json!(3);
+        second["cursor"] = page["next_cursor"].clone();
+        let page2 = read_output_at(&archive, &second).expect("second page");
+        assert_eq!(page2["complete"], json!(false));
     }
 }
