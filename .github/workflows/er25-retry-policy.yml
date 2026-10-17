@@ -31,6 +31,8 @@ jobs:
       - run: cargo test -p kiana-core --test er14_effect_observation_guard --locked -- --test-threads=1
       - name: Run ER-25 source guard
         run: cargo test -p kiana-core --test er25_retry_policy_guard --locked -- --test-threads=1
+      - name: Run ER-25 behavioural retry fixtures
+        run: cargo test -p kiana-core --test er25_retry_policy --locked -- --test-threads=1
       - name: Compile selected Runner targets
         run: cargo test -p kiana-runner --test h05_stop_guard --no-run --locked
       - run: cargo test -p kiana-runner --test h07_budget_guard --no-run --locked
@@ -40,3 +42,4 @@ jobs:
         run: cargo test -p kiana-core --test cp20_unknown_reconcile_guard --no-run --locked
       - run: cargo test -p kiana-core --test er14_effect_observation_guard --no-run --locked
       - run: cargo test -p kiana-core --test er25_retry_policy_guard --no-run --locked
+      - run: cargo test -p kiana-core --test er25_retry_policy --no-run --locked
