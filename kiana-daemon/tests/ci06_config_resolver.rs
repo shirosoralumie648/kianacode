@@ -273,8 +273,11 @@ fn project_provider_config_denies_untrusted_before_reading_content() {
     let error = resolve_error(&root, trust_facts(false, &project_revision(false)));
     assert_eq!(error, "config_workspace_untrusted");
     fs::remove_dir(&path).expect("remove overlay directory");
-    fs::write(&path, "x".repeat(kiana_provider::MAX_WORKSPACE_CONFIG_BYTES + 1))
-        .expect("oversized overlay");
+    fs::write(
+        &path,
+        "x".repeat(kiana_provider::MAX_WORKSPACE_CONFIG_BYTES + 1),
+    )
+    .expect("oversized overlay");
     let error = resolve_error(&root, trust_facts(false, &project_revision(false)));
     assert_eq!(error, "config_workspace_untrusted");
 }
@@ -293,8 +296,11 @@ fn project_provider_config_keeps_environment_path_when_overlay_is_absent() {
 fn project_provider_config_bounds_reads_before_the_resolver() {
     let root = temp_project("oversized");
     let path = kiana_daemon::project_provider_config::project_provider_config_path(&root);
-    fs::write(&path, "x".repeat(kiana_provider::MAX_WORKSPACE_CONFIG_BYTES + 1))
-        .expect("oversized overlay");
+    fs::write(
+        &path,
+        "x".repeat(kiana_provider::MAX_WORKSPACE_CONFIG_BYTES + 1),
+    )
+    .expect("oversized overlay");
     let error = resolve_error(&root, trust_facts(true, &project_revision(true)));
     assert_eq!(error, "config_workspace_too_large");
 }

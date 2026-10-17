@@ -111,7 +111,9 @@ fn estimate_referencing_zero_rate_card_version_is_rejected() {
     usage.input_tokens = Some(2);
     let mut estimate = card().estimate(&usage, 0).unwrap();
     assert!(estimate.rate_card_version > 0);
-    estimate.validate().expect("non-zero card version control case");
+    estimate
+        .validate()
+        .expect("non-zero card version control case");
 
     estimate.rate_card_version = 0;
     estimate.estimate_digest = estimate.digest();

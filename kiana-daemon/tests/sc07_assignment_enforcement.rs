@@ -15,7 +15,8 @@ use kiana_domain::{
 };
 use kiana_ports::AssignmentDirectoryPort;
 use kiana_protocol::{
-    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope, RoleSpec,
+    ExecutionStatus, PermissionProfile, RequestEnvelope, RequestMetadata, ResponseEnvelope,
+    RoleSpec,
 };
 use kiana_runner::{KianaHarness, ModelClient, ModelOutput, ModelRequest, ScriptedModel};
 use serde_json::json;

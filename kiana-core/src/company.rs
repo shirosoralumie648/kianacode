@@ -1157,7 +1157,9 @@ impl ControlPlane {
             || persisted.size_bytes != admitted_size
             || persisted.content_hash != admitted_hash
         {
-            return Err(company_conflict("company_artifact_staged_manifest_mismatch"));
+            return Err(company_conflict(
+                "company_artifact_staged_manifest_mismatch",
+            ));
         }
         store
             .commit_artifact(persisted.as_ref(), Some(persisted.version))
@@ -1171,7 +1173,9 @@ impl ControlPlane {
         if stored.len() as u64 != persisted.size_bytes
             || kiana_domain::journal_sha256(&stored) != persisted.content_hash
         {
-            return Err(company_conflict("company_artifact_committed_blob_unverified"));
+            return Err(company_conflict(
+                "company_artifact_committed_blob_unverified",
+            ));
         }
         proof.artifact_version = Some(persisted.clone());
         if let Some(artifact) = proof.artifact.as_mut() {

@@ -27,7 +27,10 @@ fn stop_reasons_classify_to_stable_wire_codes_and_terminal_retry() {
     let cases = [
         (ModelStopReason::Length, "model_output_truncated"),
         (ModelStopReason::Refusal, "model_refused"),
-        (ModelStopReason::Pause, "model_pause_requires_explicit_continue"),
+        (
+            ModelStopReason::Pause,
+            "model_pause_requires_explicit_continue",
+        ),
         (ModelStopReason::Incomplete, "model_transport_incomplete"),
         (ModelStopReason::Unknown, "model_stop_reason_unknown"),
     ];
@@ -39,14 +42,25 @@ fn stop_reasons_classify_to_stable_wire_codes_and_terminal_retry() {
         assert_eq!(surface.failure, class, "{code}");
         assert_eq!(surface.wire_code, code, "{code}");
         assert_eq!(surface.stop_reason, stop, "{code}");
-        assert_eq!(surface.disposition, ModelRecoveryDisposition::Terminal, "{code}");
+        assert_eq!(
+            surface.disposition,
+            ModelRecoveryDisposition::Terminal,
+            "{code}"
+        );
         assert_eq!(surface.retry_class, ModelRetryClass::Never, "{code}");
-        assert!(!surface.retryable, "no wire failure class authorizes automatic retry: {code}");
+        assert!(
+            !surface.retryable,
+            "no wire failure class authorizes automatic retry: {code}"
+        );
         assert!(surface.requires_new_authorization, "{code}");
         assert!(!surface.requires_reconciliation, "{code}");
         assert_eq!(surface.cli_exit, 1, "{code}");
         assert_eq!(surface.http_status, 500, "{code}");
-        assert_eq!(surface.capability_error, CapabilityErrorCode::ExecutionFailed, "{code}");
+        assert_eq!(
+            surface.capability_error,
+            CapabilityErrorCode::ExecutionFailed,
+            "{code}"
+        );
         surface.validate().expect("stop surface validates");
     }
     for class in ModelFailureClass::ALL {
@@ -62,8 +76,14 @@ fn stop_reasons_classify_to_stable_wire_codes_and_terminal_retry() {
         ModelFailureClass::from_code("port_failed:model_refused"),
         Some(ModelFailureClass::Refused)
     );
-    assert_eq!(ModelFailureClass::from_stop_reason(ModelStopReason::EndTurn), None);
-    assert_eq!(ModelFailureClass::from_stop_reason(ModelStopReason::ToolUse), None);
+    assert_eq!(
+        ModelFailureClass::from_stop_reason(ModelStopReason::EndTurn),
+        None
+    );
+    assert_eq!(
+        ModelFailureClass::from_stop_reason(ModelStopReason::ToolUse),
+        None
+    );
     assert!(ModelFailureSurface::try_from_code("end_turn").is_none());
 }
 
@@ -100,19 +120,36 @@ fn outcomes_resolve_success_to_none_and_stop_failures_to_their_wire_code() {
 #[test]
 fn repair_dispositions_survive_outcome_projection_while_stop_failures_stay_terminal() {
     for (disposition, wire_code) in [
-        (ModelRecoveryDisposition::FormatRepair, "model_format_repair_unavailable"),
-        (ModelRecoveryDisposition::ToolRepair, "model_tool_repair_unavailable"),
-        (ModelRecoveryDisposition::ContextRepair, "model_context_repair_unavailable"),
+        (
+            ModelRecoveryDisposition::FormatRepair,
+            "model_format_repair_unavailable",
+        ),
+        (
+            ModelRecoveryDisposition::ToolRepair,
+            "model_tool_repair_unavailable",
+        ),
+        (
+            ModelRecoveryDisposition::ContextRepair,
+            "model_context_repair_unavailable",
+        ),
     ] {
         let mut error = ModelError::invalid("model_structured_output_invalid")
             .with_recovery_disposition(disposition);
         error.request_sent = true;
         let surface = ModelFailureSurface::from_outcome(&error.outcome())
             .expect("repair failures keep their disposition");
-        assert_eq!(surface.failure.stable_code(), Some(wire_code), "{disposition:?}");
+        assert_eq!(
+            surface.failure.stable_code(),
+            Some(wire_code),
+            "{disposition:?}"
+        );
         assert_eq!(surface.wire_code, wire_code, "{disposition:?}");
         assert_eq!(surface.disposition, disposition, "{disposition:?}");
-        assert_eq!(surface.retry_class, ModelRetryClass::Never, "{disposition:?}");
+        assert_eq!(
+            surface.retry_class,
+            ModelRetryClass::Never,
+            "{disposition:?}"
+        );
         // A repair surface must not widen the existing conservative error policy.
         assert_eq!(
             surface.capability_error,
@@ -121,7 +158,10 @@ fn repair_dispositions_survive_outcome_projection_while_stop_failures_stay_termi
         );
         assert_eq!(surface.cli_exit, 1, "{disposition:?}");
         assert_eq!(surface.http_status, 500, "{disposition:?}");
-        assert!(!surface.retryable, "repair is never an automatic retry: {disposition:?}");
+        assert!(
+            !surface.retryable,
+            "repair is never an automatic retry: {disposition:?}"
+        );
         assert!(surface.requires_new_authorization, "{disposition:?}");
         surface.validate().expect("repair surface validates");
     }
@@ -135,7 +175,10 @@ fn repair_dispositions_survive_outcome_projection_while_stop_failures_stay_termi
         ModelFailureClass::from_repair_disposition(surface.disposition).is_none(),
         "non-repair failures must not claim a repair disposition"
     );
-    assert_eq!(surface.capability_error, CapabilityErrorCode::ExecutionFailed);
+    assert_eq!(
+        surface.capability_error,
+        CapabilityErrorCode::ExecutionFailed
+    );
 }
 
 #[test]
@@ -148,7 +191,9 @@ fn unknown_or_contradictory_failures_fail_closed_to_unclassified() {
     assert_eq!(unclassified.disposition, ModelRecoveryDisposition::Terminal);
     assert_eq!(unclassified.retry_class, ModelRetryClass::Never);
     assert!(!unclassified.retryable);
-    unclassified.validate().expect("deny-first surface validates");
+    unclassified
+        .validate()
+        .expect("deny-first surface validates");
     assert!(ModelFailureSurface::try_from_code("model_not_a_real_code").is_none());
 
     let mut malformed = ModelError::invalid("model_output_truncated").outcome();
@@ -177,11 +222,17 @@ fn transport_retry_outcomes_keep_typed_retry_but_wire_never_authorizes_it() {
     let surface = ModelFailureSurface::from_outcome(&error.outcome())
         .expect("a transport failure is a model failure surface");
     assert_eq!(surface.failure, ModelFailureClass::TransportRetry);
-    assert_eq!(surface.disposition, ModelRecoveryDisposition::TransportRetry);
+    assert_eq!(
+        surface.disposition,
+        ModelRecoveryDisposition::TransportRetry
+    );
     assert_eq!(surface.retry_class, ModelRetryClass::BeforeSend);
     assert_eq!(surface.wire_code, "connect_failed");
     assert_eq!(surface.stop_reason, ModelStopReason::Unknown);
-    assert!(!surface.retryable, "wire classification never authorizes a retry by itself");
+    assert!(
+        !surface.retryable,
+        "wire classification never authorizes a retry by itself"
+    );
     surface.validate().expect("transport surface validates");
 }
 
@@ -195,14 +246,20 @@ fn response_envelope_exposes_recognized_model_failures_without_collapsing_generi
         cancelled.model_failure().is_none(),
         "lifecycle cancellation stays authoritative over the diagnostic code"
     );
-    assert_eq!(cancelled.failure_code(), Some(CapabilityErrorCode::Cancelled));
+    assert_eq!(
+        cancelled.failure_code(),
+        Some(CapabilityErrorCode::Cancelled)
+    );
 
     let failed = envelope(ExecutionStatus::Failed, Some("model_output_truncated"));
     let surface = failed.model_failure().expect("recognized stop failure");
     assert_eq!(surface.wire_code, "model_output_truncated");
     assert_eq!(surface.disposition, ModelRecoveryDisposition::Terminal);
 
-    let repair = envelope(ExecutionStatus::Failed, Some("model_tool_repair_unavailable"));
+    let repair = envelope(
+        ExecutionStatus::Failed,
+        Some("model_tool_repair_unavailable"),
+    );
     assert_eq!(
         repair.model_failure().map(|surface| surface.disposition),
         Some(ModelRecoveryDisposition::ToolRepair)
@@ -218,7 +275,10 @@ fn response_envelope_exposes_recognized_model_failures_without_collapsing_generi
 
     let unknown = envelope(ExecutionStatus::Failed, Some("model_surprise_failure"));
     assert!(unknown.model_failure().is_none());
-    assert_eq!(unknown.failure_code(), Some(CapabilityErrorCode::ExecutionFailed));
+    assert_eq!(
+        unknown.failure_code(),
+        Some(CapabilityErrorCode::ExecutionFailed)
+    );
 }
 
 #[test]

@@ -35,13 +35,20 @@ fn distinct_model_dispositions_render_distinct_cli_lines() {
     for (code, disposition) in cases {
         let suffix = failure_suffix(&failed(code));
         assert!(suffix.contains(&format!("code={code}")), "{code}: {suffix}");
-        assert!(suffix.contains(&format!("disposition={disposition}")), "{code}: {suffix}");
+        assert!(
+            suffix.contains(&format!("disposition={disposition}")),
+            "{code}: {suffix}"
+        );
         assert!(suffix.contains("retry=never"), "{code}: {suffix}");
         assert!(suffix.contains("retryable=false"), "{code}: {suffix}");
         rendered.push(suffix);
     }
     let unique: BTreeSet<&str> = rendered.iter().map(String::as_str).collect();
-    assert_eq!(unique.len(), rendered.len(), "distinct failures must not collapse: {rendered:?}");
+    assert_eq!(
+        unique.len(),
+        rendered.len(),
+        "distinct failures must not collapse: {rendered:?}"
+    );
     assert_ne!(
         failure_suffix(&failed("model_output_truncated")),
         failure_suffix(&failed("model_format_repair_unavailable")),

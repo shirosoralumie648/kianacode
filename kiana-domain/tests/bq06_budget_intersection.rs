@@ -259,7 +259,10 @@ fn lease_remaining_saturates_at_zero_and_deny_boundaries_hold() {
     assert!(!lease.can_consume(0, 1, 0));
     assert!(!lease.can_consume(0, 0, 1));
     assert_eq!(lease.consume(1, 0, 0).unwrap_err(), "budget_lease_exceeded");
-    assert_eq!(lease.consume_model_call(1).unwrap_err(), "budget_lease_exceeded");
+    assert_eq!(
+        lease.consume_model_call(1).unwrap_err(),
+        "budget_lease_exceeded"
+    );
     assert!(lease.can_reserve(0));
     assert!(!lease.can_reserve(1));
     assert_eq!(lease.reserve(1).unwrap_err(), "spawn_budget_exceeded");

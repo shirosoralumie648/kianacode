@@ -505,7 +505,8 @@ impl BudgetLease {
     /// Remaining model calls under the normalized `model_call_limit` so the legacy zero sentinel
     /// cannot be read as an unlimited remainder.
     pub fn remaining_model_calls(&self) -> u64 {
-        self.model_call_limit().saturating_sub(self.model_calls_used)
+        self.model_call_limit()
+            .saturating_sub(self.model_calls_used)
     }
 
     /// Remaining tokens after cumulative usage, saturated at zero.
@@ -521,7 +522,8 @@ impl BudgetLease {
     /// Remaining reservation headroom under the normalized reservation limit; the
     /// `remaining_reserved` projection backing `can_reserve`/`reserve`.
     pub fn remaining_reserved_budget(&self) -> u64 {
-        self.reservation_limit().saturating_sub(self.reserved_budget)
+        self.reservation_limit()
+            .saturating_sub(self.reserved_budget)
     }
 
     pub fn can_reserve(&self, amount: u64) -> bool {

@@ -166,7 +166,6 @@ impl ModelFailureClass {
             | Self::Unclassified => ModelStopReason::Unknown,
         }
     }
-
 }
 
 /// 一次模型失败的 wire/CLI 分类结果。
@@ -247,7 +246,10 @@ impl ModelFailureSurface {
     ) -> Self {
         Self::new(
             failure,
-            failure.stable_code().unwrap_or(MODEL_FAILURE_UNCLASSIFIED_CODE).to_owned(),
+            failure
+                .stable_code()
+                .unwrap_or(MODEL_FAILURE_UNCLASSIFIED_CODE)
+                .to_owned(),
             ModelRetryClass::Never,
             request_sent,
             side_effect_state,
@@ -332,7 +334,11 @@ impl ModelFailureSurface {
                 Some(outcome.side_effect_state),
             ));
         }
-        if let Some(code) = outcome.error_code.as_deref().filter(|code| !code.trim().is_empty()) {
+        if let Some(code) = outcome
+            .error_code
+            .as_deref()
+            .filter(|code| !code.trim().is_empty())
+        {
             if let Some(class) = ModelFailureClass::from_code(code) {
                 return Some(Self::classified(
                     class,
