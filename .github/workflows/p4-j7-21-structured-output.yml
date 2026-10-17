@@ -16,7 +16,13 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
       - name: Run P4-J7-21 provider fixtures
         run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run P4-J7-21 prepared request fixtures
+        run: cargo test -p kiana-provider --test p4_j7_21_structured_output --locked -- --test-threads=1
       - name: Run P4-J7-21 structured-output source guard
         run: cargo test -p kiana-core --test p4_j7_21_structured_output_guard --locked -- --test-threads=1

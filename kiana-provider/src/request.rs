@@ -133,50 +133,7 @@ pub(crate) fn compile_with_images(
         }
         _ => {}
     }
-    match &spec.response_format {
-        ModelResponseFormat::Text => {}
-        ModelResponseFormat::JsonObject => match route.protocol {
-            ModelProtocol::OpenAiChat => body["response_format"] = json!({"type":"json_object"}),
-            ModelProtocol::OpenAiResponses => {
-                body["text"] = json!({"format":{"type":"json_object"}})
-            }
-            ModelProtocol::OllamaChat => body["format"] = json!("json"),
-            ModelProtocol::GeminiInteractions => {
-                body["response_format"] = json!({"type":"text","mime_type":"application/json"})
-            }
-            ModelProtocol::AnthropicMessages => {
-                return Err(ModelError::invalid("anthropic_json_object_requires_schema"))
-            }
-            ModelProtocol::Legacy => {
-                return Err(ModelError::invalid(
-                    "model_structured_output_protocol_unsupported",
-                ))
-            }
-            _ => {}
-        },
-        ModelResponseFormat::JsonSchema { name, schema } => match route.protocol {
-            ModelProtocol::OpenAiChat => {
-                body["response_format"] = json!({"type":"json_schema","json_schema":{"name":name,"schema":schema,"strict":true}})
-            }
-            ModelProtocol::OpenAiResponses => {
-                body["text"] = json!({"format":{"type":"json_schema","name":name,"schema":schema,"strict":true}})
-            }
-            ModelProtocol::OllamaChat => body["format"] = schema.clone(),
-            ModelProtocol::AnthropicMessages => {
-                body["output_config"] = json!({"format":{"type":"json_schema","schema":schema}})
-            }
-            ModelProtocol::GeminiInteractions => {
-                body["response_format"] =
-                    json!({"type":"text","mime_type":"application/json","schema":schema})
-            }
-            ModelProtocol::Legacy => {
-                return Err(ModelError::invalid(
-                    "model_structured_output_protocol_unsupported",
-                ))
-            }
-            _ => {}
-        },
-    }
+    apply_response_format(&mut body, route.protocol, &spec.response_format)?;
     let bytes = serde_json::to_vec(&body)
         .map_err(|_| ModelError::invalid("model_request_encoding_failed"))?
         .len();
@@ -539,6 +496,62 @@ fn normalize_structured_request(
         message.continuation = None;
     }
     Ok(request)
+}
+/// Apply the requested response format to a compiled provider wire body.
+///
+/// Every supported form is recorded here, separately from tool choice: adding `tools` never
+/// changes this patch and a structured format never suppresses or merges into the tool catalog.
+/// A protocol that cannot express the requested form fails before encoding, so the caller gets a
+/// stable rejection instead of a silent fallback to text. `Text` is always a no-op, keeping the
+/// default request shape byte-identical to the pre-structured-output compiler.
+fn apply_response_format(
+    body: &mut Value,
+    protocol: ModelProtocol,
+    format: &ModelResponseFormat,
+) -> Result<(), ModelError> {
+    match format {
+        ModelResponseFormat::Text => {}
+        ModelResponseFormat::JsonObject => match protocol {
+            ModelProtocol::OpenAiChat => body["response_format"] = json!({"type":"json_object"}),
+            ModelProtocol::OpenAiResponses => {
+                body["text"] = json!({"format":{"type":"json_object"}})
+            }
+            ModelProtocol::OllamaChat => body["format"] = json!("json"),
+            ModelProtocol::GeminiInteractions => {
+                body["response_format"] = json!({"type":"text","mime_type":"application/json"})
+            }
+            ModelProtocol::AnthropicMessages => {
+                return Err(ModelError::invalid("anthropic_json_object_requires_schema"))
+            }
+            ModelProtocol::Legacy => {
+                return Err(ModelError::invalid(
+                    "model_structured_output_protocol_unsupported",
+                ))
+            }
+        },
+        ModelResponseFormat::JsonSchema { name, schema } => match protocol {
+            ModelProtocol::OpenAiChat => {
+                body["response_format"] = json!({"type":"json_schema","json_schema":{"name":name,"schema":schema,"strict":true}})
+            }
+            ModelProtocol::OpenAiResponses => {
+                body["text"] = json!({"format":{"type":"json_schema","name":name,"schema":schema,"strict":true}})
+            }
+            ModelProtocol::OllamaChat => body["format"] = schema.clone(),
+            ModelProtocol::AnthropicMessages => {
+                body["output_config"] = json!({"format":{"type":"json_schema","schema":schema}})
+            }
+            ModelProtocol::GeminiInteractions => {
+                body["response_format"] =
+                    json!({"type":"text","mime_type":"application/json","schema":schema})
+            }
+            ModelProtocol::Legacy => {
+                return Err(ModelError::invalid(
+                    "model_structured_output_protocol_unsupported",
+                ))
+            }
+        },
+    }
+    Ok(())
 }
 fn anthropic_body(
     request: &ModelRequest,
@@ -1053,6 +1066,128 @@ mod p4_j7_21_structured_output_tests {
             ModelRecoveryDisposition::Terminal
         );
         assert!(!error.request_sent);
+    }
+
+    fn answer_schema() -> Value {
+        json!({
+            "type":"object",
+            "properties":{"answer":{"type":"string"}},
+            "required":["answer"],
+            "additionalProperties":false
+        })
+    }
+
+    /// Each supported response form is recorded per protocol as its own wire patch, and `text`
+    /// stays a byte-identical no-op. This is the per-form matrix the card asks for: the same
+    /// requested schema lands on five different protocol shapes instead of one shared fallback.
+    #[test]
+    fn structured_response_format_wire_matrix_is_recorded_per_protocol() {
+        let schema = answer_schema();
+        let named = ModelResponseFormat::JsonSchema {
+            name: "answer".to_owned(),
+            schema: schema.clone(),
+        };
+        let rows = [
+            (
+                ModelProtocol::OpenAiChat,
+                ModelResponseFormat::JsonObject,
+                json!({"response_format":{"type":"json_object"}}),
+            ),
+            (
+                ModelProtocol::OpenAiResponses,
+                ModelResponseFormat::JsonObject,
+                json!({"text":{"format":{"type":"json_object"}}}),
+            ),
+            (
+                ModelProtocol::OllamaChat,
+                ModelResponseFormat::JsonObject,
+                json!({"format":"json"}),
+            ),
+            (
+                ModelProtocol::GeminiInteractions,
+                ModelResponseFormat::JsonObject,
+                json!({"response_format":{"type":"text","mime_type":"application/json"}}),
+            ),
+            (
+                ModelProtocol::OpenAiChat,
+                named.clone(),
+                json!({"response_format":{"type":"json_schema","json_schema":{"name":"answer","schema":schema.clone(),"strict":true}}}),
+            ),
+            (
+                ModelProtocol::OpenAiResponses,
+                named.clone(),
+                json!({"text":{"format":{"type":"json_schema","name":"answer","schema":schema.clone(),"strict":true}}}),
+            ),
+            (
+                ModelProtocol::OllamaChat,
+                named.clone(),
+                json!({"format":schema.clone()}),
+            ),
+            (
+                ModelProtocol::AnthropicMessages,
+                named.clone(),
+                json!({"output_config":{"format":{"type":"json_schema","schema":schema.clone()}}}),
+            ),
+            (
+                ModelProtocol::GeminiInteractions,
+                named,
+                json!({"response_format":{"type":"text","mime_type":"application/json","schema":schema.clone()}}),
+            ),
+        ];
+        for (protocol, format, expected) in rows {
+            let mut body = json!({});
+            apply_response_format(&mut body, protocol, &format).expect("supported response form");
+            assert_eq!(body, expected, "{protocol:?} {format:?}");
+        }
+        for protocol in [
+            ModelProtocol::Legacy,
+            ModelProtocol::AnthropicMessages,
+            ModelProtocol::OpenAiChat,
+            ModelProtocol::OpenAiResponses,
+            ModelProtocol::OllamaChat,
+            ModelProtocol::GeminiInteractions,
+        ] {
+            let mut body = json!({"model":"fixture"});
+            apply_response_format(&mut body, protocol, &ModelResponseFormat::Text)
+                .expect("text is always accepted");
+            assert_eq!(body, json!({"model":"fixture"}), "{protocol:?} text");
+        }
+    }
+
+    #[test]
+    fn unsupported_structured_format_is_rejected_before_encoding() {
+        let schema_format = ModelResponseFormat::JsonSchema {
+            name: "answer".to_owned(),
+            schema: answer_schema(),
+        };
+        for (protocol, format) in [
+            (ModelProtocol::Legacy, ModelResponseFormat::JsonObject),
+            (ModelProtocol::Legacy, schema_format.clone()),
+            (
+                ModelProtocol::AnthropicMessages,
+                ModelResponseFormat::JsonObject,
+            ),
+        ] {
+            let mut body = json!({});
+            let error = apply_response_format(&mut body, protocol, &format).unwrap_err();
+            let expected = match (protocol, &format) {
+                (ModelProtocol::AnthropicMessages, _) => "anthropic_json_object_requires_schema",
+                _ => "model_structured_output_protocol_unsupported",
+            };
+            assert_eq!(error.code, expected, "{protocol:?} {format:?}");
+            assert!(!error.request_sent, "{protocol:?} {format:?}");
+            assert_eq!(error.retry_class, ModelRetryClass::Never);
+            assert_eq!(
+                error.recovery_disposition,
+                ModelRecoveryDisposition::Terminal
+            );
+            assert_eq!(error.side_effect_state, ModelSideEffectState::None);
+            assert_eq!(
+                body,
+                json!({}),
+                "{protocol:?} {format:?} left no partial patch"
+            );
+        }
     }
 }
 
