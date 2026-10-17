@@ -23,6 +23,12 @@ fn evaluation_boundary_evidence_is_scrubbed_and_eval_only() {
         "SafetyViolation",
         "safety_violation",
         "attach_safety_evidence",
+        "is_safe",
+        "blocks_eval_pass",
+        "apply_boundary_invariant",
+        "EvalVerdict::Blocked",
+        "eval_boundary_evidence_header_invalid",
+        "eval_boundary_secret_pattern_unknown",
     ] {
         assert!(
             runtime.contains(marker),
