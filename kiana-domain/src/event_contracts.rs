@@ -2464,7 +2464,9 @@ fn approval_decision_payload_contract(
 /// 【调用者】`validate_event_payload()` 在通常的事件规格之外调用它。
 /// 【输入】事件类型、载荷对象和该类型的默认登记规格。
 /// 【输出】预算 journal、具类型模型调用事件或 model attempt 生命周期各自的必需 ID 和字段白名单。
-/// 【失败】schema 字段存在但类型/值不受支持时返回 `event_model_payload_schema_invalid`。
+/// 【失败】schema 字段存在但类型/值不受支持时返回 `event_model_payload_schema_invalid`；
+/// `model.observed`/`model.unknown` 从未有过无 schema 的旧生产者，因此缺 schema 时同样拒绝，
+/// 而不是按字段并集猜测一种来源。
 /// 【设计原因】不同生产者共用部分事件名，但事实内容不同；按 schema 选单一有界格式，可以避免
 /// 把各格式字段取并集后接收一条混合来源、无法一致解释的事件。
 fn model_payload_contract(
@@ -2474,7 +2476,11 @@ fn model_payload_contract(
 ) -> Result<(&'static [&'static str], &'static [&'static str]), String> {
     if !matches!(
         kind,
-        "model.prepared" | "model.dispatching" | "model.settled"
+        "model.prepared"
+            | "model.dispatching"
+            | "model.observed"
+            | "model.settled"
+            | "model.unknown"
     ) {
         return Ok((spec.required_ids, spec.allowed_fields));
     }
@@ -2491,6 +2497,11 @@ fn model_payload_contract(
             "model.prepared" => Ok((MODEL_BUDGET_PREPARED_FIELDS, MODEL_BUDGET_PREPARED_FIELDS)),
             "model.dispatching" => Ok((MODEL_BUDGET_DISPATCH_FIELDS, MODEL_BUDGET_DISPATCH_FIELDS)),
             "model.settled" => Ok((&["run_id", "model_request_id"], MODEL_BUDGET_SETTLED_FIELDS)),
+            // BQ-11 observation/unknown facts are only ever written with the lifecycle schema;
+            // a schema-less payload here is a different producer and is refused, not guessed.
+            "model.observed" | "model.unknown" => {
+                Err("event_model_payload_schema_invalid".to_owned())
+            }
             _ => unreachable!("model kinds selected above"),
         },
         _ => Err("event_model_payload_schema_invalid".to_owned()),
