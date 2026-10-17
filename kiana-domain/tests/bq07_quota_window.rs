@@ -4,6 +4,29 @@ fn clock(now: u64) -> ClockObservation {
     ClockObservation::observe("fixture", now as u128, now as u128, None, 1).unwrap()
 }
 
+fn budget_for(
+    group: QuotaGroupKey,
+    window: QuotaWindow,
+    max_requests: u64,
+    used_requests: u64,
+) -> QuotaWindowBudget {
+    let mut budget = QuotaWindowBudget {
+        schema: "kiana.quota-window-budget.v1".to_owned(),
+        version: kiana_domain::QUOTA_SCHEMA_VERSION,
+        group,
+        window,
+        max_requests,
+        max_tokens: 100,
+        max_concurrency: 1,
+        used_requests,
+        used_tokens: 0,
+        active_concurrency: 0,
+        budget_digest: String::new(),
+    };
+    budget.budget_digest = budget.digest();
+    budget
+}
+
 #[test]
 fn fixed_utc_window_and_retry_after_are_deterministic() {
     let window = QuotaWindow::from_clock(&clock(125_000), 60_000).unwrap();
@@ -182,4 +205,61 @@ fn misaligned_window_and_empty_group_scope_fail_closed() {
         QuotaGroupKey::new("provider", "credential", Some(String::new()), None).unwrap_err(),
         "quota_group_invalid"
     );
+}
+
+#[test]
+fn alias_and_casing_variants_aggregate_into_one_quota_bucket() {
+    // 别名只是展示名：同 provider/credential/model 的大小写与 alias 变体必须折叠成同一个
+    // quota group 摘要，从而共享同一个额度桶，不能凭一个新别名另开额度来绕过 quota。
+    let canonical = QuotaGroupKey::new(
+        "Provider:Main",
+        "Credential:Primary",
+        Some("Model-X".to_owned()),
+        Some("Friendly-Alias".to_owned()),
+    )
+    .unwrap();
+    let restyled = QuotaGroupKey::new(
+        "provider:main",
+        "credential:primary",
+        Some("model-x".to_owned()),
+        Some("friendly-alias".to_owned()),
+    )
+    .unwrap();
+    assert_eq!(canonical, restyled);
+    assert_eq!(canonical.group_digest, restyled.group_digest);
+
+    // 以 group 摘要为聚合键：canonical 用尽的桶对所有变体可见，别名无法多放行一次。
+    let window = QuotaWindow::from_clock(&clock(125_000), 60_000).unwrap();
+    let exhausted = budget_for(canonical.clone(), window, 1, 1);
+    let mut buckets = std::collections::BTreeMap::new();
+    buckets.insert(exhausted.group.group_digest.clone(), exhausted);
+    let via_variant = buckets
+        .get(&restyled.group_digest)
+        .expect("alias/casing variant must resolve to the canonical bucket");
+    assert_eq!(
+        via_variant.check_at(&clock(125_000), 1, 0, 0).unwrap_err(),
+        "quota_exhausted:retry_after_ms=55000"
+    );
+
+    // 不同 credential 是不同桶：额度不得跨凭据合并，也不能互相顶替。
+    let second_credential = QuotaGroupKey::new(
+        "provider:main",
+        "credential:secondary",
+        Some("model-x".to_owned()),
+        Some("friendly-alias".to_owned()),
+    )
+    .unwrap();
+    assert_ne!(canonical.group_digest, second_credential.group_digest);
+    assert!(!buckets.contains_key(&second_credential.group_digest));
+}
+
+#[test]
+fn tampered_group_digest_is_rejected_before_aggregation() {
+    let mut key =
+        QuotaGroupKey::new("provider", "credential", Some("model".to_owned()), None).unwrap();
+    let other =
+        QuotaGroupKey::new("provider", "credential", Some("other".to_owned()), None).unwrap();
+    // 摘要与内容不一致的 group 不得参与聚合：validate 必须先拒绝。
+    key.group_digest = other.group_digest;
+    assert_eq!(key.validate().unwrap_err(), "quota_group_invalid");
 }

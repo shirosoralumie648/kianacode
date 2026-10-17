@@ -52,3 +52,24 @@ allow case. The focused domain target passed 3/3 tests; the full workspace remai
 and row 196 remains open. `QuotaWindowBudget::check()` currently derives retry-after from the
 window start because the API has no current-time argument; this receipt proves presence of a
 quota denial only, not an exact current-time retry-after calculation.
+
+## 2026-10-17 exact boundaries and group aggregation
+
+The card's deny/allow lists are now fully covered by `kiana-domain/tests/bq07_quota_window.rs`
+(auto-run by `.github/workflows/bq07-quota-window.yml`, no new target):
+
+- exact current-instant retry-after at window boundaries: `119999 -> 1`, `120000 -> 60000`,
+  `179999 -> 1`, `180000 -> 0` (`quota_check_at_reports_exact_retry_after_at_window_boundaries`);
+- rolling windows on exact aligned boundaries with no partial-second drift
+  (`quota_window_rolls_on_exact_boundaries_without_partial_second_drift`);
+- misaligned windows, zero/oversized duration and empty credential/model scopes failing closed
+  (`misaligned_window_and_empty_group_scope_fail_closed`);
+- alias/casing variants of the same provider/credential/model folding to one `group_digest`, so
+  they share one bucket and cannot bypass an exhausted quota, while a different credential stays
+  a distinct bucket (`alias_and_casing_variants_aggregate_into_one_quota_bucket`);
+- a tampered `group_digest` is rejected before it can join the aggregation
+  (`tampered_group_digest_is_rejected_before_aggregation`).
+
+Aggregation is keyed by the canonical `group_digest`; the contract stays pure and in-memory.
+Durable reservation, lease/fence/CAS, cross-process clock store and provider capacity remain
+BQ-08+. Evidence is `feature_status=implemented`, `proof_level=source` (CI pending).
