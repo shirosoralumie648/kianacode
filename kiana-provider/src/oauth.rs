@@ -698,6 +698,28 @@ impl OAuthManager {
                         current.refresh_token.as_deref(),
                     );
                     match material {
+                        Err(OAuthError::ScopeInsufficient) => {
+                            // An insufficient scope is a permanent failure for this grant: fence
+                            // the token to reauth instead of retrying against a credential the
+                            // provider already rejected. The old access material is kept as
+                            // provenance only and can no longer be refreshed.
+                            let metadata = current
+                                .metadata
+                                .reauth()
+                                .map_err(|_| OAuthError::Invalid("oauth_token_metadata_invalid"))?;
+                            let stored = StoredTokens {
+                                metadata,
+                                access_token: current.access_token,
+                                refresh_token: None,
+                            };
+                            match self.persist(&stored) {
+                                Err(error) => Err(error),
+                                Ok(()) => {
+                                    state.tokens = Some(stored);
+                                    Err(OAuthError::ScopeInsufficient)
+                                }
+                            }
+                        }
                         Err(error) => Err(error),
                         Ok(material) => {
                             let metadata = current
@@ -870,6 +892,36 @@ impl OAuthManager {
     pub(crate) async fn revoke(&self) -> Result<OAuthTokenMetadata, OAuthError> {
         let mut state = self.state.lock().unwrap();
         let current = state.tokens.as_ref().ok_or(OAuthError::Missing)?.clone();
+        let metadata = current
+            .metadata
+            .revoke()
+            .map_err(|_| OAuthError::Invalid("oauth_token_metadata_invalid"))?;
+        let stored = StoredTokens {
+            metadata: metadata.clone(),
+            access_token: current.access_token,
+            refresh_token: None,
+        };
+        self.persist(&stored)?;
+        state.tokens = Some(stored);
+        state.refresh_cooldown_until = 0;
+        self.refresh_notify.notify_waiters();
+        Ok(metadata)
+    }
+
+    /// Compare-and-swap invalidation for one observed generation.  A caller may clear only the
+    /// credential it observed: a stale caller is reported as `GenerationConflict` and leaves a
+    /// newer grant untouched, so an old refresh or revoke can never erase the token that superseded
+    /// it.  Revocation advances the generation before publication, so an in-flight refresh of the
+    /// same generation cannot reinstall it.
+    pub(crate) fn invalidate_if_current(
+        &self,
+        observed_generation: u64,
+    ) -> Result<OAuthTokenMetadata, OAuthError> {
+        let mut state = self.state.lock().unwrap();
+        let current = state.tokens.as_ref().ok_or(OAuthError::Missing)?.clone();
+        if current.metadata.generation != observed_generation {
+            return Err(OAuthError::GenerationConflict);
+        }
         let metadata = current
             .metadata
             .revoke()
@@ -1686,6 +1738,120 @@ mod tests {
         assert_eq!(error.code(), "oauth_reauth_required");
         let revoked = manager.revoke().await.expect("revoke");
         assert_eq!(revoked.status, OAuthTokenStatus::Revoked);
+    }
+
+    #[tokio::test]
+    async fn invalidate_if_current_is_generation_cas_and_denies_stale_callers() {
+        let manager = OAuthManager::new(config(), None).expect("manager");
+        assert_eq!(
+            manager.invalidate_if_current(1).unwrap_err(),
+            OAuthError::Missing
+        );
+        let initial = manager
+            .install_tokens("old".to_owned(), Some("refresh".to_owned()), 2_000, 1_000)
+            .expect("seed");
+        let rotated = manager
+            .rotate(
+                initial.generation,
+                "new".to_owned(),
+                Some("new-refresh".to_owned()),
+                5_000,
+                config().scopes,
+                1_000,
+            )
+            .await
+            .expect("rotation");
+        assert_eq!(
+            manager
+                .invalidate_if_current(initial.generation)
+                .unwrap_err(),
+            OAuthError::GenerationConflict
+        );
+        assert_eq!(manager.metadata().expect("metadata"), rotated);
+        let current = manager
+            .access_token(1_501, 0, |_| async {
+                panic!("a stale invalidation must not fence the newer token")
+            })
+            .await
+            .expect("current token");
+        assert_eq!(current.value, "new");
+        let revoked = manager
+            .invalidate_if_current(rotated.generation)
+            .expect("invalidate the observed generation");
+        assert_eq!(revoked.status, OAuthTokenStatus::Revoked);
+        assert_eq!(revoked.generation, rotated.generation + 1);
+        assert_eq!(
+            manager
+                .invalidate_if_current(rotated.generation)
+                .unwrap_err(),
+            OAuthError::GenerationConflict
+        );
+        let calls = Arc::new(AtomicUsize::new(0));
+        let refresh_calls = calls.clone();
+        assert_eq!(
+            manager
+                .access_token(1_501, 0, move |_| async move {
+                    refresh_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(response("must-not-run", None, 3_600))
+                })
+                .await
+                .unwrap_err(),
+            OAuthError::Revoked
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn insufficient_scope_refresh_fences_to_reauth_without_replacement() {
+        let manager = OAuthManager::new(config(), None).expect("manager");
+        let initial = manager
+            .install_tokens(
+                "scoped-access".to_owned(),
+                Some("scoped-refresh".to_owned()),
+                2_000,
+                1_000,
+            )
+            .expect("seed");
+        let error = match manager
+            .access_token(1_500, 1_000, |_| async {
+                Ok(RawTokenResponse {
+                    scope: Some("model.read".to_owned()),
+                    ..response("downgraded-access", Some("downgraded-refresh"), 3_600)
+                })
+            })
+            .await
+        {
+            Ok(_) => panic!("insufficient scope must fail closed"),
+            Err(error) => error,
+        };
+        assert_eq!(error, OAuthError::ScopeInsufficient);
+        let fenced = manager.metadata().expect("fenced metadata");
+        assert_eq!(fenced.status, OAuthTokenStatus::ReauthRequired);
+        assert_eq!(fenced.generation, initial.generation + 1);
+        assert_eq!(fenced.refresh_digest, initial.refresh_digest);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let refresh_calls = calls.clone();
+        assert_eq!(
+            manager
+                .access_token(1_501, 0, move |_| async move {
+                    refresh_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(response("must-not-run", None, 3_600))
+                })
+                .await
+                .unwrap_err(),
+            OAuthError::ReauthRequired
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        let replacement = manager
+            .install_tokens(
+                "fresh-access".to_owned(),
+                Some("fresh-refresh".to_owned()),
+                3_601_500,
+                1_501,
+            )
+            .expect("explicit reauthorization");
+        assert_eq!(replacement.status, OAuthTokenStatus::Active);
+        assert_eq!(replacement.generation, fenced.generation + 1);
     }
 
     #[tokio::test]
