@@ -23,3 +23,12 @@ known denials. Stop evidence and reconciliation requirements remain visible in t
 This slice is `feature_status=implemented`, `proof_level=source`: it does not yet drive a real
 DaemonHost cancellation/restart or lease worker, persist recovery facts, capture process/file/
 network evidence, or prove live/physical effects. Those remain EQ-16+ and ER/PD work.
+
+## Fail-closed verdict bridge
+
+`EvalFaultEvidence::validate` re-checks the schema, plan/evidence digests, terminal code and
+disposition/`effect_known`/`requires_reconciliation` consistency, so a rewritten digest or
+disposition is rejected before it can be trusted. `blocks_eval_pass` is true for every
+reconciliation-required or unconfirmed-effect outcome, and `apply_fault_invariant` downgrades a
+candidate `EvalVerdict::Pass` to `Blocked` whenever a fault is not fully known. An unreconciled
+fault therefore can never be reported as an evaluation pass; `Fail` is preserved unchanged.

@@ -11,6 +11,7 @@ fn evaluation_fault_plan_is_deterministic_and_never_starts_effects() {
         source_guard::item_source(&runtime, "pub struct EvalFaultPlan"),
         source_guard::item_source(&runtime, "pub struct EvalFaultEvidence"),
         source_guard::item_source(&runtime, "impl EvalFaultPlan"),
+        source_guard::item_source(&runtime, "impl EvalFaultEvidence"),
     ]
     .join("\n");
     for marker in [
@@ -24,6 +25,10 @@ fn evaluation_fault_plan_is_deterministic_and_never_starts_effects() {
         "UnknownReconcile",
         "requires_reconciliation",
         "stop_confirmed",
+        "eval_fault_evidence_invalid",
+        "blocks_eval_pass",
+        "apply_fault_invariant",
+        "EvalVerdict::Blocked",
     ] {
         assert!(runtime.contains(marker), "fault marker missing: {marker}");
     }

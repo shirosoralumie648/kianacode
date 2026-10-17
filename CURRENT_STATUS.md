@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 EQ-15 翻 ✅（fault plan 与 fail-closed 不变量，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 187（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/evaluation-fault-plan-baseline.md（新增 fail-closed verdict bridge 段）；kiana-daemon/src/eval_runtime.rs（+impl EvalFaultEvidence::{validate,blocks_eval_pass,apply_fault_invariant}，EvalFaultPlan::apply 收尾调用 validate）；kiana-daemon/tests/eq15_fault_plan.rs（命名夹具增桥接断言、+fault_evidence_rejects_digest_or_disposition_tamper）；kiana-core/tests/eq15_fault_plan_guard.rs（+impl EvalFaultEvidence 边界与 fail-closed marker）；.github/workflows/eq15-fault-plan.yml 为已合并的布线，未改
+worktree_status: 行 187 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/git diff）与手工 rustfmt 风格对齐；.github/workflows/eq15-fault-plan.yml 运行 `cargo test -p kiana-daemon --test eq15_fault_plan --locked -- --test-threads=1`、`cargo test -p kiana-core --test eq15_fault_plan_guard --locked -- --test-threads=1`、`cargo fmt --all --check` 与 target-scoped `--no-run`（同一 test target 自动涵盖新用例，未新增步骤/目标）
+cwd·environment: worktree /workspace/kianacode-worktrees/EQ-15，分支 step/eq-15-20261017-1（基线 master 4b8895356847）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon `eq15_fault_plan` 命名夹具 `fault_plan_preserves_unknown_and_stop_evidence` 在既有七类 fault 覆盖上补齐 fail-closed 桥接——started/unconfirmed cancel race 的 `UnknownReconcile`/`requires_reconciliation`/`effect_known=false` 经 `blocks_eval_pass()` 为 true 且 `apply_fault_invariant(Pass)=Blocked`、`Fail` 保持不变，stop-confirmed cancel 的 `CancelledNotStarted` 为 `Pass` 放行；新增 `fault_evidence_rejects_digest_or_disposition_tamper`（重写 evidence_digest、篡改 disposition、缺失 plan_digest 均以 `eval_fault_evidence_invalid` 拒绝）；core `eq15_fault_plan_guard` 增补 `blocks_eval_pass`/`apply_fault_invariant`/`EvalVerdict::Blocked`/`eval_fault_evidence_invalid` marker 并把 `impl EvalFaultEvidence` 纳入边界，继续禁止第二事实源（无 std::process::Command/tokio::spawn/tokio::time::sleep/reqwest/std::net/CapabilityBroker/KianaHarness/EventStorePort）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: EQ-15 卡「增加 fault plan：approval deny/expire、cancel race、crash after effect、restart、stale lease、result unknown」七类语义、digest 绑定与不安全组合拒绝已在源码层与夹具层齐备；本切片补齐验收 fail-closed 不变量——重校 evidence 摘要/处置一致性，并让未确认 effect/需 reconcile 的 fault 经类型化桥接把候选 `EvalVerdict::Pass` 降级为 `Blocked`，因此未经 reconcile 的 fault 永远不会被报告为评估 pass；行 187 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；`EvalFaultPlan`/`EvalFaultEvidence` 仍是纯 reducer，未接入真实 cancellation/restart/lease worker、未持久化 recovery 事实，也未在真实 DaemonHost target 上驱动 fault/restart（属 ER/PD 与后续 EQ）；`apply_fault_invariant` 只对 fault 自身的已知性 fail-closed，不替代后续 evaluator 的失败/证据判断；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；EQ-15 evaluation fault plan/fail-closed bridge 静态复核
+```
+
 ### 2026-10-17 EQ-14 翻 ✅（证据采集与 flush fail-closed 不变量，CI-only 口径）
 
 ```text
