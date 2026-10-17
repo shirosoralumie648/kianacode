@@ -31,7 +31,7 @@
 | JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `614ef68ba99f8df06dd56c90ca3864956ec1619bef2623bdfba111f7b4315efc` |
 | Memory adapter | `kiana-eventlog/src/memory.rs` | `2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774` |
 | ApprovalStore | `kiana-daemon/src/approval_store.rs` | `c6267bb007b5ede4663f5ae36c16797f9429ca3a167121024cf01ef5bc84230a` |
-| Memory adapter | `kiana-daemon/src/harness_memory.rs` | `e8b99bb7c6ad7bf447e861f5e368b4cbf2abc0226067d498601c2f2590d27e15` |
+| Memory adapter | `kiana-daemon/src/harness_memory.rs` | `278b50288a6cf6e1e65b94ebff7171eea2508f0d077828ae10a556905d9d7ee0` |
 | Artifact boundary | `kiana-core/src/artifacts.rs` | `01938b6dd8e0d396482a3b15cfd22c61d2921916a292d51b2295b94d5658ef66` |
 | Receipt/recovery projection | `kiana-core/src/receipts.rs`, `kiana-core/src/recovery.rs` | `b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67`, `ee6add98f6fab1d024495b58b03462c0a42afe8ae75c82c4506fe6f948011a05`（2026-10-17 重新钉扎） |
 | Query index/cache | `kiana-query/src/index.rs`, `kiana-query/src/repo_map.rs` | `0515f9a2cce54f3d99edac018f3dc079bfe6d907e0523a365cd42cd44647d56c`, `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
