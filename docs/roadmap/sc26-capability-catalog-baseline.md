@@ -32,3 +32,35 @@ proof-level_change: selected ReadOnly denial source → local_behavior; no whole
 limitations: project trust loading, signed-key trust, package lifecycle, runtime revocation, durable catalog, Broker execution and external effects remain outside this fixture
 reviewer: root integration agent; focused SC-26 test review
 ```
+
+## 2026-10-17 completion slice (CI-only)
+
+- `CapabilityCatalogEntry::authorize` only hands out a capability after the entry self-validates
+  and only from its effective set; denied entries keep their deny reason
+  (`capability_catalog_entry_denied:<reason>`) while unrequested or non-effective capabilities
+  return `capability_not_effective:<capability>` and malformed requests return
+  `capability_catalog_request_invalid`.
+- `CapabilityCatalogEntry::check_manifest_drift` plus
+  `CapabilityCatalog::{entry_for_manifest, authorize_manifest}` reject an unknown extension id and
+  every drift class before anything is handed out: identity
+  (`capability_catalog_extension_identity_drift`), version
+  (`capability_catalog_manifest_version_drift`), capability set
+  (`capability_catalog_manifest_capability_drift`) and digest
+  (`capability_catalog_manifest_digest_drift`, which still binds signature metadata).
+- `kiana-domain/tests/sc26_capability_catalog.rs` grows from three to seven deny-first fixtures:
+  skill `allowed_tools` stay descriptive even when host availability, Grant and approval all offer
+  the tool, drift cannot reuse an older entry, denied and unrequested capabilities never
+  authorize, and duplicate identity, invalid manifests, tampered reasons, a bumped generation and
+  a resealed entry digest all fail closed. The successful column pins order-independent catalog
+  digests, serde round-trips and the re-signed-manifest digest change.
+- `kiana-domain/tests/sc26_capability_catalog_guard.rs` keeps the no-execution/no-filesystem
+  negative assertions, adds the `allowed_tools` negative marker and a wiring fixture
+  (`sc26_deny_first_fixtures_are_wired_into_the_catalog_lane`) binding the seven fixture names to
+  `.github/workflows/sc26-capability-catalog.yml` and `scripts/ci/test-shards.json`.
+- The manual `.github/workflows/sc26-capability-catalog.yml` lane runs `cargo fmt --all --check`, both targets with
+  `--test-threads=1`, every fixture individually with `--exact`, and two `--no-run` compile steps.
+  The unified `ci.yml` `kiana-domain-s4/4` shard still owns both targets.
+
+Limitations: the catalog remains a value-only snapshot (no package loading, signature-key trust,
+registry/ProjectTrust read, Broker call or runtime revocation); this record is source-only and CI
+pending because no local build, test or clippy run happened in this session.
