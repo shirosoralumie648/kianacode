@@ -144,3 +144,189 @@ fn reauth_and_revoke_advance_fences_and_unknown_fields_deny() {
     unknown["raw_token"] = serde_json::json!("INT12_RAW_TOKEN_SENTINEL");
     assert!(serde_json::from_value::<OAuthAccountRecord>(unknown).is_err());
 }
+
+#[test]
+fn binding_drift_and_expired_status_fail_closed() {
+    let baseline = account();
+    let secret_ref = SecretRef::new(
+        "keyring",
+        "oauth/account-1",
+        "connector.oauth",
+        "provider:provider-demo",
+        7,
+    )
+    .expect("secret ref");
+    let metadata = || {
+        OAuthTokenMetadata::new(
+            "provider-account-1",
+            OAuthSubject::User,
+            7,
+            scopes(),
+            NOW,
+            NOW + 60_000,
+            json_digest(&serde_json::json!("access-sentinel")),
+            Some(json_digest(&serde_json::json!("refresh-sentinel"))),
+        )
+        .expect("metadata")
+    };
+
+    let wrong_purpose = SecretRef::new(
+        "keyring",
+        "oauth/account-1",
+        "connector.other",
+        "provider:provider-demo",
+        7,
+    )
+    .expect("secret ref");
+    assert_eq!(
+        OAuthAccountRecord::new(
+            ProviderAccountId::new(),
+            "provider-demo",
+            "provider-account-1",
+            OAuthSubject::User,
+            "http://127.0.0.1:43991/callback",
+            scopes(),
+            &wrong_purpose,
+            metadata(),
+        )
+        .unwrap_err(),
+        "oauth_account_secret_ref_binding_mismatch"
+    );
+
+    let wrong_audience = SecretRef::new(
+        "keyring",
+        "oauth/account-1",
+        "connector.oauth",
+        "provider:provider-other",
+        7,
+    )
+    .expect("secret ref");
+    assert_eq!(
+        OAuthAccountRecord::new(
+            ProviderAccountId::new(),
+            "provider-demo",
+            "provider-account-1",
+            OAuthSubject::User,
+            "http://127.0.0.1:43991/callback",
+            scopes(),
+            &wrong_audience,
+            metadata(),
+        )
+        .unwrap_err(),
+        "oauth_account_secret_ref_binding_mismatch"
+    );
+
+    let foreign_provider = OAuthTokenMetadata::new(
+        "provider-account-1",
+        OAuthSubject::User,
+        7,
+        scopes(),
+        NOW,
+        NOW + 60_000,
+        json_digest(&serde_json::json!("access-sentinel")),
+        None,
+    )
+    .expect("metadata");
+    assert_eq!(
+        OAuthAccountRecord::new(
+            ProviderAccountId::new(),
+            "provider-demo",
+            "provider-account-other",
+            OAuthSubject::User,
+            "http://127.0.0.1:43991/callback",
+            scopes(),
+            &secret_ref,
+            foreign_provider,
+        )
+        .unwrap_err(),
+        "oauth_account_provider_binding_mismatch"
+    );
+
+    let stale_generation = OAuthTokenMetadata::new(
+        "provider-account-1",
+        OAuthSubject::User,
+        8,
+        scopes(),
+        NOW,
+        NOW + 60_000,
+        json_digest(&serde_json::json!("access-sentinel")),
+        None,
+    )
+    .expect("metadata");
+    assert_eq!(
+        OAuthAccountRecord::new(
+            ProviderAccountId::new(),
+            "provider-demo",
+            "provider-account-1",
+            OAuthSubject::User,
+            "http://127.0.0.1:43991/callback",
+            scopes(),
+            &secret_ref,
+            stale_generation,
+        )
+        .unwrap_err(),
+        "oauth_account_invalid"
+    );
+
+    for redirect in [
+        "http://127.0.0.1:43991/callback?state=forbidden",
+        "http://127.0.0.1:43991/callback#fragment",
+        "https://user:pass@example.invalid/callback",
+        "http://example.invalid/callback",
+    ] {
+        assert_eq!(
+            OAuthAccountRecord::new(
+                ProviderAccountId::new(),
+                "provider-demo",
+                "provider-account-1",
+                OAuthSubject::User,
+                redirect,
+                scopes(),
+                &secret_ref,
+                metadata(),
+            )
+            .unwrap_err(),
+            "oauth_account_invalid",
+            "unsafe redirect must fail closed: {redirect}"
+        );
+    }
+
+    let mut tampered = serde_json::to_value(&baseline).expect("record json");
+    tampered["scopes"] = serde_json::json!(["account.read"]);
+    let tampered: OAuthAccountRecord = serde_json::from_value(tampered).expect("record shape");
+    assert_eq!(
+        tampered.validate_at(NOW + 1).unwrap_err(),
+        "oauth_account_invalid"
+    );
+
+    assert_eq!(baseline.effective_status(NOW), OAuthAccountStatus::Active);
+    assert_eq!(
+        baseline.effective_status(NOW + 60_000),
+        OAuthAccountStatus::Expired
+    );
+    let expired =
+        OAuthAccountProjection::from_record(&baseline, NOW + 60_000).expect("expired projection");
+    assert_eq!(expired.status, OAuthAccountStatus::Expired);
+
+    assert_eq!(
+        baseline
+            .revoke(
+                baseline.revision - 1,
+                baseline.credential_generation,
+                NOW + 1
+            )
+            .unwrap_err(),
+        "oauth_account_generation_conflict"
+    );
+    let reauth = baseline
+        .require_reauth(baseline.revision, baseline.credential_generation, NOW + 1)
+        .expect("reauth");
+    assert_eq!(
+        reauth
+            .revoke(baseline.revision, baseline.credential_generation, NOW + 2)
+            .unwrap_err(),
+        "oauth_account_generation_conflict"
+    );
+    assert_eq!(reauth.status, OAuthAccountStatus::ReauthRequired);
+    assert_eq!(reauth.account_digest, reauth.digest());
+}

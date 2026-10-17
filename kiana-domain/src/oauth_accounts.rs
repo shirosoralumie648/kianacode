@@ -273,6 +273,11 @@ impl OAuthAccountRecord {
         if observed_revision != self.revision || observed_generation != self.credential_generation {
             return Err("oauth_account_generation_conflict".to_owned());
         }
+        // Revocation is a terminal server-owned decision: it must not be downgraded to the softer
+        // "reauthentication required" state by a later caller.
+        if matches!(self.status, OAuthAccountStatus::Revoked) {
+            return Err("oauth_account_status_fenced".to_owned());
+        }
         let metadata = self
             .token_metadata
             .reauth()

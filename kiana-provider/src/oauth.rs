@@ -651,13 +651,19 @@ impl OAuthManager {
                         metadata: stored.metadata.clone(),
                     });
                 }
-                let refresh_token = stored.refresh_token.clone().ok_or_else(|| {
-                    if stored.metadata.expires_at_unix_ms <= now_unix_ms {
-                        OAuthError::Expired
+                // Proactive refresh is an optimization, not a requirement: a still-valid access
+                // token without refresh material keeps working until it actually expires.  Only
+                // an expired credential is terminal here.
+                let Some(refresh_token) = stored.refresh_token.clone() else {
+                    return if stored.metadata.expires_at_unix_ms > now_unix_ms {
+                        Ok(AccessTokenMaterial {
+                            value: stored.access_token.clone(),
+                            metadata: stored.metadata.clone(),
+                        })
                     } else {
-                        OAuthError::ReauthRequired
-                    }
-                })?;
+                        Err(OAuthError::Expired)
+                    };
+                };
                 if state.refreshing {
                     None
                 } else {
@@ -2251,5 +2257,167 @@ mod tests {
         };
         assert_eq!(error.code(), "oauth_token_file_invalid");
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn proactive_refresh_starts_before_expiry_and_keeps_a_still_valid_token() {
+        let manager = OAuthManager::new(config(), None).expect("manager");
+        manager
+            .install_tokens(
+                "early-access".to_owned(),
+                Some("early-refresh".to_owned()),
+                5_000,
+                1_000,
+            )
+            .expect("seed");
+        let calls = Arc::new(AtomicUsize::new(0));
+
+        // Outside the skew window the cached access token is returned without a refresh.
+        let cached_calls = calls.clone();
+        let cached = manager
+            .access_token(1_000, 500, move |_| {
+                let calls = cached_calls.clone();
+                async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(response(
+                        "unexpected-access",
+                        Some("unexpected-refresh"),
+                        3_600,
+                    ))
+                }
+            })
+            .await
+            .expect("cached token");
+        assert_eq!(cached.value, "early-access");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // Inside the skew window the single-flight leader refreshes ahead of expiry.
+        let leader_calls = calls.clone();
+        let refreshed = manager
+            .access_token(4_600, 1_000, move |refresh| {
+                let calls = leader_calls.clone();
+                async move {
+                    assert_eq!(refresh, "early-refresh");
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(response(
+                        "refreshed-access",
+                        Some("refreshed-refresh"),
+                        3_600,
+                    ))
+                }
+            })
+            .await
+            .expect("proactive refresh");
+        assert_eq!(refreshed.value, "refreshed-access");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        // A transient early-refresh failure keeps the still-valid token and observes the cooldown
+        // instead of starting a second exchange on the next call.
+        manager
+            .install_tokens(
+                "cooldown-access".to_owned(),
+                Some("cooldown-refresh".to_owned()),
+                9_000,
+                4_700,
+            )
+            .expect("cooldown seed");
+        let first = manager
+            .access_token(8_500, 1_000, |_| async { Err(RefreshFailure::Transient) })
+            .await
+            .expect("stale valid token");
+        assert_eq!(first.value, "cooldown-access");
+        let second_calls = Arc::new(AtomicUsize::new(0));
+        let counted = second_calls.clone();
+        let second = manager
+            .access_token(8_600, 1_000, move |_| {
+                let calls = counted.clone();
+                async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(response("unexpected-access", None, 3_600))
+                }
+            })
+            .await
+            .expect("cooldown token");
+        assert_eq!(second.value, "cooldown-access");
+        assert_eq!(second_calls.load(Ordering::SeqCst), 0);
+
+        // Proactive refresh is best effort: a still-valid token without refresh material keeps
+        // working, and only an actually expired credential is terminal.
+        let workload = OAuthManager::new(config(), None).expect("manager");
+        workload
+            .install_tokens("workload-access".to_owned(), None, 5_000, 1_000)
+            .expect("seed");
+        let value = workload
+            .access_token(4_600, 1_000, |_| async {
+                panic!("a still-valid token without refresh material must not refresh")
+            })
+            .await
+            .expect("still-valid workload token");
+        assert_eq!(value.value, "workload-access");
+        let expired = match workload
+            .access_token(5_000, 0, |_| async {
+                panic!("an expired token without refresh material must not refresh")
+            })
+            .await
+        {
+            Ok(_) => panic!("an expired token must fail closed"),
+            Err(error) => error,
+        };
+        assert_eq!(expired, OAuthError::Expired);
+    }
+
+    #[tokio::test]
+    async fn refresh_re_reads_the_current_generation_under_the_lock_before_falling_back() {
+        let root = std::env::temp_dir().join(format!("kiana-int12-{}", RequestId::new()));
+        let path = root.join("oauth.json");
+        let manager = OAuthManager::new(config(), Some(path.clone())).expect("manager");
+        let initial = manager
+            .install_tokens(
+                "old-access".to_owned(),
+                Some("old-refresh".to_owned()),
+                2_000,
+                1_000,
+            )
+            .expect("seed");
+        let (release, wait) = tokio::sync::oneshot::channel::<()>();
+        let (started, started_wait) = tokio::sync::oneshot::channel::<()>();
+        let refreshing = manager.clone();
+        let task = tokio::spawn(async move {
+            refreshing
+                .access_token(1_500, 1_000, move |refresh| async move {
+                    assert_eq!(refresh, "old-refresh");
+                    started.send(()).expect("announce refresh");
+                    wait.await.expect("release refresh");
+                    Err(RefreshFailure::Transient)
+                })
+                .await
+        });
+        started_wait.await.expect("refresh started");
+        let replacement = manager
+            .install_tokens(
+                "replacement-access".to_owned(),
+                Some("replacement-refresh".to_owned()),
+                9_000,
+                1_500,
+            )
+            .expect("replacement grant");
+        assert_eq!(replacement.generation, initial.generation + 1);
+        let persisted = std::fs::read(&path).expect("replacement token file");
+        release.send(()).expect("release stale refresh");
+        let error = match task.await.expect("refresh task") {
+            Ok(_) => panic!("the stale refresh must not fall back to its pre-lock snapshot"),
+            Err(error) => error,
+        };
+        assert_eq!(error, OAuthError::GenerationConflict);
+        assert_eq!(manager.metadata().expect("metadata"), replacement);
+        assert_eq!(std::fs::read(&path).expect("token file"), persisted);
+        let current = manager
+            .access_token(1_501, 0, |_| async {
+                panic!("the replacement token is still valid")
+            })
+            .await
+            .expect("current token");
+        assert_eq!(current.value, "replacement-access");
+        std::fs::remove_dir_all(root).expect("remove fixture directory");
     }
 }
