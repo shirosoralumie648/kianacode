@@ -19,6 +19,10 @@ facts.
 
 - `kiana-domain/tests/er03_redaction.rs` covers nested/bearer/API-key/sentinel, redaction metadata,
   size/depth and artifact-reference behavior.
+- `kiana-domain/tests/sc20_redaction_exits.rs` drives the domain redaction contract per egress
+  point: Event/Receipt-Broker keyed and unkeyed secrets, Provider error projection and echo
+  denial, Runner streaming across chunk boundaries, argv/env/stdout/stderr channel denial,
+  fail-closed shapes (`sk-`, malformed JSON key, NUL) and closed schemas.
 - `kiana-core/tests/er03_redaction_guard.rs` and `kiana-core/tests/sc20_redaction_boundary_guard.rs`
   pin EventLog/Receipt/Runner/Provider/daemon egress markers and reject raw-secret fields.
 - GitHub Actions runs fixtures, source guards and workspace compile; local tests are intentionally
