@@ -19,11 +19,30 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
+      - name: Install the confined MCP fixture runtime and toolchain
+        run: |
+          # The CAP-20 behavioural fixtures spawn the real bwrap boundary and a Python
+          # standard-library stdio MCP server. Both must be present: a missing runtime is a
+          # fail-closed fixture failure, never a fallback to unsandboxed execution.
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          python3 --version
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run MCP lifecycle fixtures
         run: >-
           cargo test -p kiana-daemon --lib harness_mcp::tests:: --locked -- --test-threads=1
+      - name: Run CAP-20 deny-first behavioural fixtures
+        run: |
+          for fixture in \
+            untrusted_or_swapped_mcp_binary_cannot_start \
+            unknown_server_or_ambiguous_tool_is_rejected \
+            discovery_has_no_implicit_host_or_network_authority \
+            stdio_fixture_negotiates_lists_tools_and_has_no_network; do
+            cargo test -p kiana-daemon --lib "harness_mcp::tests::$fixture" --locked -- --exact --test-threads=1
+          done
       - run: cargo test -p kiana-daemon --test p1_j4_01_mcp --locked -- --test-threads=1
       - name: Run CAP-20 source guard
         run: cargo test -p kiana-core --test cap20_mcp_trust_discovery_guard --locked -- --test-threads=1
