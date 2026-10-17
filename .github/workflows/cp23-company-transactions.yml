@@ -10,16 +10,28 @@ jobs:
   cp23-company-transactions:
     name: "CP-23 Company transactions baseline"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
-      - name: Run kiana-core cp23_company_transaction_guard
-        run: cargo test -p kiana-core --test cp23_company_transaction_guard --locked -- --test-threads=1
       - name: Run kiana-domain cp23_company_policy
         run: cargo test -p kiana-domain --test cp23_company_policy --locked -- --test-threads=1
+      - name: Run kiana-core cp23_company_transaction_guard
+        run: cargo test -p kiana-core --test cp23_company_transaction_guard --locked -- --test-threads=1
+      - name: Run CP-23 daemon fixtures by name
+        run: |
+          cargo test -p kiana-daemon --test cp23_company_transactions cp_builder_cannot_self_accept_or_promote_authority --locked -- --exact --test-threads=1
+          cargo test -p kiana-daemon --test cp23_company_transactions cp_company_command_conflict_changes_no_related_object --locked -- --exact --test-threads=1
+          cargo test -p kiana-daemon --test cp23_company_transactions cp_close_cannot_hide_unresolved_effects --locked -- --exact --test-threads=1
+      - name: Compile the CP-23 targets without running them
+        run: |
+          cargo test -p kiana-domain --test cp23_company_policy --locked --no-run
+          cargo test -p kiana-core --test cp23_company_transaction_guard --locked --no-run
+          cargo test -p kiana-daemon --test cp23_company_transactions --locked --no-run

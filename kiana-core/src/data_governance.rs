@@ -910,9 +910,10 @@ impl ControlPlane {
     ///
     /// 【输入与副作用】
     /// `request` 中的 `project_root` 和 `actor_id` 是撤销事实的归属信息；`request_id` 和
-    /// `grant_id` 被写入事件载荷。处理撤销时依次：提交项目失效/取消事件、使项目审批
-    /// 失效、停止同项目运行。只有三步都成功才返回 `Ok(())`，随后 Broker 才有机会执行
-    /// 具体治理 handler；任一步失败都会转成 dispatch 错误并阻止本次派发继续。
+    /// `grant_id` 被写入事件载荷。处理撤销时先按 CP-23 受保护变更表校验主体（operator-only，
+    /// 带 cell 或缺少 actor 的请求以 `governance_operator_required` 拒绝），再依次：提交项目
+    /// 失效/取消事件、使项目审批失效、停止同项目运行。只有三步都成功才返回 `Ok(())`，随后
+    /// Broker 才有机会执行具体治理 handler；任一步失败都会转成 dispatch 错误并阻止本次派发继续。
     ///
     /// 【为什么先做准备步骤】
     /// 在实际删除或修改派生存储前，先建立可核对的撤销事实并停止仍可能读取旧数据的
@@ -921,14 +922,26 @@ impl ControlPlane {
         &self,
         request: &CapabilityRequest,
     ) -> Result<(), CoreError> {
+        let Some(action) = request.arguments["action"].as_str() else {
+            return Ok(());
+        };
         if request.operation != "data.governance"
-            || !matches!(
-                request.arguments["action"].as_str(),
-                Some("delete" | "revoke" | "expire")
-            )
+            || !matches!(action, "delete" | "revoke" | "expire")
         {
             return Ok(());
         }
+        // CP-23: revoking project data is a registered operator mutation. The class entry decides
+        // which subjects may submit it, so a packet cell or a missing actor is refused with the
+        // stable code `governance_operator_required` before any invalidation fact is written or any
+        // approval/run is stopped.
+        let permission = kiana_domain::operator_mutation_permission("data.governance", action)
+            .ok_or_else(|| PortError::Failed("governance_action_unregistered".to_owned()))?;
+        permission
+            .authorize_operator_request(
+                request.cell_id.as_ref(),
+                request.arguments["actor_id"].as_str(),
+            )
+            .map_err(PortError::Failed)?;
         let root = request.arguments["project_root"]
             .as_str()
             .ok_or_else(|| PortError::Failed("governance_project_required".to_owned()))?;
