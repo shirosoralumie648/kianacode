@@ -30,6 +30,21 @@ limitations: 本地未编译未运行，正确的编译/运行与 rustfmt 依赖
 reviewer: root integration agent；SC-15 Runner Started/Stopped/Unknown 生命周期、cancel fencing 与 RunCancellationFact 终态/篡改拒绝静态复核
 ```
 
+### 2026-10-17 CP-22 翻 ✅（协议/动作卡/四入口同一事实的行为层与断线 fixture，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 222（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/cp22-protocol-surfaces-baseline.md（新增 2026-10-17 closure 段）；kiana-entrypoints/tests/cp22_protocol_surfaces.rs（三条命名验收补行为断言 + 共享 submission/observation/recovery helper）；.github/workflows/cp22-protocol-surfaces.yml（+ui33_recovery/sc36_protocol_parity/p4_j7_30_surface_parity/ui07_typed_clients 运行与 --no-run 步）；既有 kiana-protocol/src/{lib,ui_contracts}.rs、kiana-client/src/{lib,protocol_parity,surface_parity,ui_recovery,cli_presenter}.rs、kiana-daemon/src/{lib,run_stream}.rs、kiana-entrypoints/src/*、contrib/desktop/* 本次未改（只读复用其 DTO/映射/重连计划）
+worktree_status: 行 222 🔄 → ✅（CI pending）；只改本 Step 相关测试/workflow/baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点追加；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型可见工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/grep/git diff）与手工 rustfmt 风格对齐；.github/workflows/cp22-protocol-surfaces.yml 运行 ui01_dto、p4_j7_02_sequence、client_methods、p2_m2_01_ui_projection、p0_f01_approval_surfaces、p2_m5_01_web_sync、cli_workbench、cli_resume、ui33_recovery、sc36_protocol_parity、p4_j7_30_surface_parity、ui07_typed_clients、cp22_protocol_surfaces 及其 `--no-run` 与 desktop node fixtures，外加 `cargo fmt --all --check`
+cwd·environment: worktree /workspace/kianacode-worktrees/CP-22，分支 step/cp-22-20261017-1（基线 master 5ae90e44df56）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: kiana-entrypoints `cp22_protocol_surfaces` 三条命名验收的行为层——`cp_all_surfaces_resolve_the_same_pending_once`（四个 `UiActionSubmissionV1` 共享 `command_id`/`idempotency_key`/`expected_cursor`/`expected_revision` 且 validate 通过；`expected_cursor=0` 以 `ui_action_submission_header_invalid` 拒绝；五个 `ProtocolObservation` 经 `compare_protocol_parity` 一致且 reference=daemon，任一入口 `AppliedLocally` 以 `protocol_parity_approval_applied_locally` 拒绝）；`cp_reconnect_replays_terminal_without_replaying_action`（`plan_recovery` Terminal/Disconnect→ReplayTerminal/no-new-effect、Feed/Gap→HydrateSnapshot、`RecoveryFence` Accepted/Duplicate/LateAfterTerminal/OldEpoch、`RunStreamEnvelope::advance_cursor` 重读 terminal 返回 false）；`cp_noninteractive_cli_never_autoapproves_unknown_scope`（`stable_error_from_response` AwaitingApproval→ApprovalRequired/DoNotRetry、ResultUnknown→Unknown/QueryOriginal；`CliExitCode::for_output` 4/8 均非成功；`failure_policy().http_status=409`、ResultUnknown cli_exit=8）；配套 CI fixture ui01_dto、p4_j7_02_sequence、ui33_recovery（断线计划/围栏）、sc36_protocol_parity 与 p4_j7_30_surface_parity（四入口一致/漂移拒绝）、ui07_typed_clients（`query_original` 同 idempotency_key 重发、`CommandRetryForbidden`）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CP-22 卡 Step 1（统一 pending/approve/cancel/resume/receipt DTO 与 command_id/version/cursor/稳定错误码）、Step 2（非交互 CLI 返回可查询 AwaitingApproval、不隐式同意、四入口同一动作卡）、Step 3（snapshot+epoch/cursor 重连、同 ID 重发、迟到 terminal 可补读、Pending/CancelRequested/Unknown 有文本状态与后续动作）在源码层与夹具层齐备；本次把三条命名验收从纯 source marker 升级为 DTO/映射/重连行为断言并接入 CP-22 lane；行 222 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；行为层验证的是协议/DTO/映射与重连计划，不是真实 HTTP/SSE 传输、跨设备投递、durable UI 流保留、远端认证或物理桌面打包；`compare_protocol_parity` 与 `RecoveryFence` 仍是调用方提供的观察/事件，不打开 transport、不执行 effect；CP-23+ 承接 Company/workflow 命令，ER/PD 承接 durable cursor/分页；桌面壳仅按既有 node fixtures 校验；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；CP-22 协议/动作卡/四入口同一事实与断线重连行为层静态复核
+```
+
 ### 2026-10-17 ER-18 翻 ✅（workspace checkpoint identity/hash/size 捕获与 restore evidence 行为夹具，CI-only 口径）
 
 ```text
