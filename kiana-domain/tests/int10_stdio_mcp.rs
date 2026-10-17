@@ -225,14 +225,14 @@ fn handshake_bounds_protocol_session_catalog_and_unknown_fields() {
 /// handshake boundary.
 #[test]
 fn declared_scope_intersection_decides_availability() {
-    let advertisements = vec![advertisement("lookup"), advertisement("admin_lookup")];
+    let advertisements = vec![advertisement("lookup"), advertisement("restricted_lookup")];
     let handshake = McpCapabilityHandshake::negotiate(
         "2025-06-18",
         &json!({"name":"fixture-server"}),
         "session-ref",
         advertisements,
         vec![
-            declared("admin_lookup", "admin"),
+            declared("restricted_lookup", "admin"),
             declared("lookup", "read"),
         ],
         &BTreeSet::from(["read".to_owned()]),
@@ -250,10 +250,10 @@ fn declared_scope_intersection_decides_availability() {
     assert!(lookup.available);
     assert!(!lookup.conditional);
     assert_eq!(lookup.operation_id, "connector.lookup");
-    let admin = by_name("admin_lookup");
-    assert!(!admin.available);
-    assert!(admin.conditional);
-    assert_eq!(admin.operation_id, "connector.admin_lookup");
+    let restricted = by_name("restricted_lookup");
+    assert!(!restricted.available);
+    assert!(restricted.conditional);
+    assert_eq!(restricted.operation_id, "connector.restricted_lookup");
 
     let rendered = serde_json::to_string(&handshake).expect("handshake serializes");
     for leaked in ["admin", "required_scope", "\"read\""] {
