@@ -655,8 +655,8 @@ async fn attempt_reservations_settle_or_mark_unknown_and_never_dangle() {
         retry_after_ms: Some(1),
         emit_delta_before_error: false,
     };
-    let (harness, _, _, _) = harness(model, std::time::Duration::from_secs(5));
-    let events = harness
+    let (reservation_harness, _, _, _) = harness(model, std::time::Duration::from_secs(5));
+    let events = reservation_harness
         .send(RunnerCommand::start_in(
             RunId::new(),
             "reservation states",

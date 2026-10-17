@@ -19,6 +19,9 @@
 > 与两条分支各自的钉扎都不一致，故重钉该行 SHA-256 并与验收测试期望同步；下表其余哈希未变。
 > 2026-10-17（H22）重新钉扎：working-state compaction 落地后只重钉 `compact.rs` 一行 SHA-256，
 > 并与验收测试期望同步；§2/§3 的压缩行按 H22 现状加注，下表其余哈希未变。
+> 2026-10-17（PD-18 合入 master）重新钉扎：删除索引与保留治理落地后，
+> `data_governance.rs` 与 `harness_memory.rs` 重钉两行 SHA-256，并与验收测试期望同步；
+> 下表其余哈希未变。
 
 ## 1. 快照
 
@@ -36,12 +39,12 @@
 | repo map | `kiana-query/src/repo_map.rs` | `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
 | context 命令（core） | `kiana-core/src/context_query.rs` | `e4865d44418b195f5fabe8a24d1d9f846f356b87acd2a5bbcdd0215c911282e9` |
 | context handler（daemon） | `kiana-daemon/src/context_query.rs` | `f862a66b00ef8db99ac4c010c65bbc42cbc689944a5e546f87da67fe7025b6f7` |
-| memory handler | `kiana-daemon/src/harness_memory.rs` | `d92608513bc2562fefc5c1a00482c94511212449d885be08b9d93f2e64a3926f` |
+| memory handler | `kiana-daemon/src/harness_memory.rs` | `13e9fdd6bc57a8acecea306f96a39bffffbdaabcb0eaa4e20682db912c92b149` |
 | memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `06dfbbab7f45cc94826279876e3d97a008fb42b00f154855e8bd2b0ff68a36f9` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
 | 上下文压缩 | `kiana-runner/src/compact.rs` | `595f2385fe1602c0300ce14c60311532166774af4776fdce76eac107bcc293db` |
-| 数据治理 | `kiana-daemon/src/data_governance.rs` | `b701f7e5ba539addedb89e824488da3cd62fca23af449da26d53043d76265fe4` |
+| 数据治理 | `kiana-daemon/src/data_governance.rs` | `fa9a03f688b445c2120589ce51d183d1fcec4266b864f1ddf8cfa5e58fdfca35` |
 
 reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 个顶层文件（`agentdb.rvf`、`agentdb.rvf.lock`、`ruvector.db`、`COMPANYOS-REFERENCES.md`，只登记不计入）。与专项 §24.3 一致；完整清单编在验收测试里。
 
