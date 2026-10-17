@@ -36,7 +36,7 @@
 |---|---|---|
 | Runtime event shape | `kiana-domain/src/states.rs` | `c3efa271aa3b70c0a0dfd1637209ed7e0246b2fc6f28b914d4f7832d4724ad8b` |
 | Transition contract | `kiana-domain/src/journal.rs` | `6966da5534b7bb9155b3282e5338aa5195f362aa6a08ab6564a7a8ddfe24324e` |
-| Schema/ID registry | `kiana-domain/src/contracts.rs` | `e491c7177bb2d1606115ff8e248be4583056309028d7fd957fae9ea075d0d3e6`（2026-10-17 重新钉扎：P4-J7-27 变更后同步；2026-10-16 重新钉扎；原注：OA-05 health schema 扩展） |
+| Schema/ID registry | `kiana-domain/src/contracts.rs` | `171ceaf338c1af81512f43a98ceb5b4b6ab67893646d8e0e4d9132fc3dd9e865`（2026-10-17 重新钉扎：OA-17 eventlog snapshot/query scan schema 注册后同步；2026-10-17 重新钉扎：P4-J7-27 变更后同步；2026-10-16 重新钉扎；原注：OA-05 health schema 扩展） |
 | Domain exports | `kiana-domain/src/lib.rs` | `3cf06f5b893a21ee082b2c236de01bf653b174c644c3b9bd4639e3182b3d9eb1`（2026-10-17 重新钉扎：H23/PD-18 导出后同步；2026-10-17 重新钉扎：CAP-17 `execution_stop` 导出；2026-10-17 重新钉扎；2026-10-16 重新钉扎；原注：OA-04 audit reducer 导出） |
 | Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `87d3f19276ee001422894f5abd84d39b534eed05edd2948fcebcff9ae27ecf3c` |
 | Core audit facade（OA-04） | `kiana-core/src/audit.rs` | `9c444ff6a125a90ac6ba25c1756802e826c40e681ce24f21645f1f08eff9ee22` |
@@ -47,7 +47,7 @@
 | Signal ports/fakes/observer contract（OA-05/OA-06） | `kiana-ports/src/lib.rs` | `36fca0363cd1aab7ca00d3a75375be99ab6aeb13de28f38e42fcf425a96b16f0` |
 | Correlation links（OA-02 overlay） | `kiana-domain/src/correlation.rs` | `9b7614a48f9f348d0f69cc37123b2ca325c4c9ed331a76926d366930ea2a11ab`（nil typed IDs and span-link semantic guard） |
 | Event construction/redaction | `kiana-core/src/events.rs` | `1b9100c8f05ecb0d283a1c48980f712fa65d299fb02b6f667fa1259db6d8f782` |
-| Receipt projection | `kiana-core/src/receipts.rs` | `b5ebf37858e212616523b9d771489c60d1bb087cac74604b2330caad0122fd67` |
+| Receipt projection | `kiana-core/src/receipts.rs` | `3116e1a8f6dfb47c04d2e2716f89c62f7b4a1b74dd56db8c932a417d635cb1fa`（2026-10-17 重新钉扎：CAP-25 receipt plan 证据面变更后同步） |
 | Run/invocation projection | `kiana-core/src/projection.rs` | `a62284905d9ae317d79d4b7ab44b31b0946fc3287f9a4126f7310e67e0e9e72c` |
 | Recovery/checkpoint | `kiana-core/src/recovery.rs` | `b12dbb0fdddde7bbd9e69088dc5565f06e385a231ecc9993c63deefff053e402`（2026-10-17 重新钉扎：CAP-24 恢复夹具与 ER-21 变更后同步；2026-10-17 重新钉扎：ER-21 数据撤销恢复返回 `ResultUnknown`） |
 | Lifecycle receipt write | `kiana-core/src/lifecycle.rs` | `949f618edd85ed818a8f51ee1b2bff6498540b85f19b82e7a77816167b4d6d6b` |
@@ -147,13 +147,13 @@
 | Harness effect/stop metadata（OA-09 overlay） | `kiana-daemon/src/harness_capabilities.rs` | `342dcbca27709f41821872c60ab199595f51ebc6fa9dccabbaf0b040ae5c46ce` |
 | Provider safe telemetry（OA-08 overlay） | `kiana-provider/src/telemetry.rs` | `1a9ec235b5d0cf8c420d758bde425ff89a0ea8c7d746c38f09daf6a7dfc835d5` |
 | Daemon model boundary（OA-08 overlay） | `kiana-daemon/src/model_client.rs` | `02bf42ff2171842679421621d128be26d44298457d758850499eae1694cfa0b9` |
-| EventStore append planning | `kiana-eventlog/src/event_store_core.rs` | `1e1b0ee932b7603c6a31d0e0a0061da694e66c36fb6180a23f338ed267cc09fe` |
-| Journal state/replay | `kiana-eventlog/src/journal_core.rs` | `2c4a7cd0b73e781e4261672be549d252470fece2620223f89a703044406ad529` |
-| JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `44998347e98285fcb42a2bc0369cd2f651997fe36fd6228cc866bc1e2adfa6e3`（2026-10-17 重新钉扎：修复前的遗留漂移） |
-| Memory adapter | `kiana-eventlog/src/memory.rs` | `2af7733b0ba0333c9e13dcd71d63224d0d0fe2a3a72943adff60463738c05774` |
-| RunStream projection | `kiana-daemon/src/run_stream.rs` | `34c22ff79d94f9b13bf2e531d37eb02ce1a971162ff69a7115d4c8c872b03628` |
-| Daemon composition | `kiana-daemon/src/lib.rs` | `cdb0a19083ad8bd5799b6dfb52d0bb344c6b4971e0978cd8882ce820eacd048d`（2026-10-17 重新钉扎：UI-04/SC-25 变更后同步；2026-10-17 重新钉扎） |
-| Port contract | `kiana-ports/src/lib.rs` | `437abaa2c3011cd9e1f9b464d92258eae7eb8ec40f8f91be449700f24b3f887f`（2026-10-17 重新钉扎：PD-14 变更后同步；2026-10-17 重新钉扎；2026-10-16 重新钉扎；原注：OA-02 correlation + OA-05 signal + OA-06 observer overlay） |
+| EventStore append planning | `kiana-eventlog/src/event_store_core.rs` | `bd46b5080bb29f1a19af441f4f6e5756991d0afd7a0b60535134231fea4dc9a8`（2026-10-17 重新钉扎：INT-13 变更后同步） |
+| Journal state/replay | `kiana-eventlog/src/journal_core.rs` | `2ea223f60e1edd73e090b4d7c117a8d69579cb277657edf03c7063d000194ead`（2026-10-17 重新钉扎：OA-17 committed cursor 变更后同步） |
+| JSONL adapter | `kiana-eventlog/src/jsonl.rs` | `2b3370eadf392086a8d57ddb66be2be92c4e0aaaa89412657b7e6f6e3e577322`（2026-10-17 重新钉扎：OA-17 cursor snapshot 转发后同步；原注：修复前的遗留漂移） |
+| Memory adapter | `kiana-eventlog/src/memory.rs` | `d77345e3327ba7a58294f973289ecdb667926edcd6fed7509238f10ac458835d`（2026-10-17 重新钉扎：OA-17 cursor snapshot 后同步） |
+| RunStream projection | `kiana-daemon/src/run_stream.rs` | `42a28b1870b9a03b192fc2cf162a389516a37184c1290267d4e323dad6770c70`（2026-10-17 重新钉扎：UI-06 feed retention 变更后同步） |
+| Daemon composition | `kiana-daemon/src/lib.rs` | `f6d8ac42958c18744af1fe823329a8e49efbb8488942d50a25dfe62e5ab36246`（2026-10-17 重新钉扎：CAP-25/UI-05 变更后同步；2026-10-17 重新钉扎：UI-04/SC-25 变更后同步；2026-10-17 重新钉扎） |
+| Port contract | `kiana-ports/src/lib.rs` | `b1a5f7502a83eccc5192629c502b517864095b8bb95a3c9cdbe98eb71e8a2e46`（2026-10-17 重新钉扎：OA-17 cursor snapshot 端口变更后同步；2026-10-17 重新钉扎：PD-14 变更后同步；2026-10-17 重新钉扎；2026-10-16 重新钉扎；原注：OA-02 correlation + OA-05 signal + OA-06 observer overlay） |
 
 ## 2. Signal matrix
 

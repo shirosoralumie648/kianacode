@@ -29,10 +29,10 @@
 | Swarm ControlPlane | `kiana-core/src/swarm.rs` | `5d54a4e7f41c2edf1233fe0d095e86348213e759d951aa2e5f23b87ce95b0773` |
 | Cell registry | `kiana-core/src/cell_registry.rs` | `2de1f229e57f63b290abb312191d3fbbaaa4787c048adbbf80f68e63703ae40d`（2026-10-17 重新钉扎：CAP-23 变更后同步） |
 | Packet collaboration | `kiana-core/src/collaboration.rs` | `22bfc2df7cbc267e5db4fe6e13bea72f5aa13f3145d913bd1b42896aecaa5a4e` |
-| Port contract | `kiana-ports/src/lib.rs` | `437abaa2c3011cd9e1f9b464d92258eae7eb8ec40f8f91be449700f24b3f887f`（2026-10-17 重新钉扎：PD-14 变更后同步；2026-10-17 重新钉扎） |
-| Protocol route | `kiana-protocol/src/lib.rs` | `2cc01c142489b593ea641012d787c0c3c20eb6402096a511ab50f3bbb938d7e8` |
+| Port contract | `kiana-ports/src/lib.rs` | `b1a5f7502a83eccc5192629c502b517864095b8bb95a3c9cdbe98eb71e8a2e46`（2026-10-17 重新钉扎：OA-17 cursor snapshot 端口变更后同步；2026-10-17 重新钉扎：PD-14 变更后同步；2026-10-17 重新钉扎） |
+| Protocol route | `kiana-protocol/src/lib.rs` | `7752afe54407cdef0f1d3077ebf57d3e46c19303b5ec2fd362e3add238b236c8`（2026-10-17 重新钉扎：OA-17 audit query snapshot/scan 字段后同步） |
 | Command route | `kiana-core/src/commands.rs` | `6dcd0bfc89fcd4eed4eb20c075bd47391cc1e58023141a7d70b11b30ae4c2b4a`（2026-10-17 重新钉扎：EXT-22/EXT-27 变更后同步） |
-| Daemon composition | `kiana-daemon/src/lib.rs` | `cdb0a19083ad8bd5799b6dfb52d0bb344c6b4971e0978cd8882ce820eacd048d`（2026-10-17 重新钉扎：UI-04/SC-25 变更后同步；2026-10-17 重新钉扎） |
+| Daemon composition | `kiana-daemon/src/lib.rs` | `f6d8ac42958c18744af1fe823329a8e49efbb8488942d50a25dfe62e5ab36246`（2026-10-17 重新钉扎：CAP-25/UI-05 变更后同步；2026-10-17 重新钉扎：UI-04/SC-25 变更后同步；2026-10-17 重新钉扎） |
 
 ## 2. 当前事实矩阵
 
