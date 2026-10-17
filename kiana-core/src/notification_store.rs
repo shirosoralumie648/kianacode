@@ -1,8 +1,13 @@
 //! Bounded in-process notification query and projection state.
 //!
-//! `NotificationStore` consumes the existing committed-only `NotificationMaterializer`. It owns
-//! only presentation read/ack state; it never copies HumanTask status, approves an action, writes
-//! EventLog facts, invokes Broker or treats an empty projection as unavailable.
+//! `NotificationStore` is the in-process/in-app channel surface of the notification system. It
+//! consumes the existing committed-only `NotificationMaterializer` and exposes bounded,
+//! server-scoped `list` pages plus projection-only `mark_read`/`acknowledge`/`snooze` mutations.
+//!
+//! The store owns presentation read/ACK state only. It never copies HumanTask/Approval status,
+//! approves an action, appends a committed fact or receipt, drops source history, invokes Broker
+//! or treats an empty projection as unavailable. Queries must be bound to the authenticated recipient
+//! before a page or mutation is answered, so an entrypoint cannot widen the recipient scope.
 
 use crate::{classify_notification, compare_notification_priority, NotificationMaterializer};
 use kiana_domain::{json_digest, HumanInboxItem, RuntimeEvent};
@@ -15,6 +20,9 @@ pub const NOTIFICATION_STORE_SCHEMA: &str = "kiana.notification-store.v1";
 pub const NOTIFICATION_PAGE_SCHEMA: &str = "kiana.notification-page.v1";
 pub const NOTIFICATION_MUTATION_SCHEMA: &str = "kiana.notification-projection-mutation.v1";
 pub const NOTIFICATION_STORE_MAX_PAGE_SIZE: u16 = 30;
+const NOTIFICATION_STORE_MAX_TEXT_BYTES: usize = 512;
+const NOTIFICATION_STORE_MAX_DIGEST_GROUP_BYTES: usize = 128;
+const NOTIFICATION_STORE_MAX_ACTIONS: usize = 16;
 
 fn required(value: &str, field: &'static str, max: usize) -> Result<(), NotificationStoreError> {
     if value.trim().is_empty() || value.len() > max || value.contains(['\0', '\n', '\r']) {
@@ -37,12 +45,14 @@ pub struct NotificationListRequest {
 
 impl NotificationListRequest {
     pub fn validate(&self) -> Result<(), NotificationStoreError> {
-        if self.schema != NOTIFICATION_STORE_SCHEMA
-            || self.limit == 0
-            || self.limit > NOTIFICATION_STORE_MAX_PAGE_SIZE
-            || self.expected_source_cursor == Some(0)
-        {
-            return Err(NotificationStoreError::Invalid("request"));
+        if self.schema != NOTIFICATION_STORE_SCHEMA {
+            return Err(NotificationStoreError::Invalid("schema"));
+        }
+        if self.limit == 0 || self.limit > NOTIFICATION_STORE_MAX_PAGE_SIZE {
+            return Err(NotificationStoreError::Invalid("limit"));
+        }
+        if self.expected_source_cursor == Some(0) {
+            return Err(NotificationStoreError::Invalid("expected_source_cursor"));
         }
         required(&self.recipient_id, "recipient_id", 256)?;
         if let Some(after) = &self.after_item_id {
@@ -63,6 +73,42 @@ pub struct NotificationPageItem {
     pub acknowledged: bool,
     #[serde(default)]
     pub snoozed_until_unix_ms: Option<u64>,
+}
+
+impl NotificationPageItem {
+    /// Validate one page row. The row carries a display-only item plus the presentation state of
+    /// this process; it deliberately carries no authority, decision or task-status field.
+    pub fn validate(&self) -> Result<(), NotificationStoreError> {
+        required(
+            &self.item.item_id,
+            "item_id",
+            NOTIFICATION_STORE_MAX_TEXT_BYTES,
+        )?;
+        required(&self.item.title, "title", NOTIFICATION_STORE_MAX_TEXT_BYTES)?;
+        required(
+            &self.item.source_ref,
+            "source_ref",
+            NOTIFICATION_STORE_MAX_TEXT_BYTES,
+        )?;
+        if self.item.actions.len() > NOTIFICATION_STORE_MAX_ACTIONS {
+            return Err(NotificationStoreError::Invalid("actions"));
+        }
+        if self.due_at_unix_ms == 0 {
+            return Err(NotificationStoreError::Invalid("due_at_unix_ms"));
+        }
+        required(
+            &self.digest_group,
+            "digest_group",
+            NOTIFICATION_STORE_MAX_DIGEST_GROUP_BYTES,
+        )?;
+        if self.snoozed_until_unix_ms == Some(0) {
+            return Err(NotificationStoreError::Invalid("snooze"));
+        }
+        if self.acknowledged && !self.read {
+            return Err(NotificationStoreError::Invalid("acknowledgement"));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -103,8 +149,16 @@ impl NotificationPage {
         {
             return Err(NotificationStoreError::Invalid("page"));
         }
+        for item in &self.items {
+            item.validate()?;
+        }
         if let Some(after) = &self.next_after_item_id {
             required(after, "next_after_item_id", 512)?;
+            // A continuation cursor must point at the last row of this page.  A page that points
+            // anywhere else can loop a client forever or skip rows, so it never validates.
+            if self.items.last().map(|item| item.item.item_id.as_str()) != Some(after.as_str()) {
+                return Err(NotificationStoreError::Invalid("page_next_cursor"));
+            }
         }
         if self.page_digest != self.digest() {
             return Err(NotificationStoreError::DigestMismatch);
@@ -147,7 +201,7 @@ impl NotificationProjectionMutation {
         changed: bool,
         snoozed_until_unix_ms: Option<u64>,
     ) -> Result<Self, NotificationStoreError> {
-        required(&item_id, "item_id", 512)?;
+        required(&item_id, "item_id", NOTIFICATION_STORE_MAX_TEXT_BYTES)?;
         if source_cursor == 0 || projection_revision == 0 {
             return Err(NotificationStoreError::Invalid("mutation"));
         }
@@ -163,7 +217,33 @@ impl NotificationProjectionMutation {
             mutation_digest: String::new(),
         };
         mutation.mutation_digest = mutation.digest();
+        mutation.validate()?;
         Ok(mutation)
+    }
+
+    /// Validate a projection-mutation receipt.
+    ///
+    /// The receipt is a presentation acknowledgement, never a decision: it has no approval,
+    /// decision, task-status or authority field, and a forged receipt carrying one fails to decode
+    /// at the `deny_unknown_fields` boundary before it can ever validate.
+    pub fn validate(&self) -> Result<(), NotificationStoreError> {
+        if self.schema != NOTIFICATION_MUTATION_SCHEMA {
+            return Err(NotificationStoreError::Invalid("mutation_schema"));
+        }
+        required(&self.item_id, "item_id", NOTIFICATION_STORE_MAX_TEXT_BYTES)?;
+        if self.source_cursor == 0 || self.projection_revision == 0 {
+            return Err(NotificationStoreError::Invalid("mutation"));
+        }
+        if self.snoozed_until_unix_ms == Some(0) {
+            return Err(NotificationStoreError::Invalid("mutation_snooze"));
+        }
+        if self.acknowledged && !self.read {
+            return Err(NotificationStoreError::Invalid("mutation_acknowledgement"));
+        }
+        if self.mutation_digest != self.digest() {
+            return Err(NotificationStoreError::DigestMismatch);
+        }
+        Ok(())
     }
 
     pub fn digest(&self) -> String {
@@ -186,6 +266,10 @@ pub enum NotificationStoreError {
     Invalid(&'static str),
     #[error("notification_store_projection_unavailable")]
     ProjectionUnavailable,
+    #[error("notification_store_scope_required")]
+    ScopeRequired,
+    #[error("notification_store_scope_conflict")]
+    ScopeConflict,
     #[error("notification_store_cursor_stale")]
     CursorStale,
     #[error("notification_store_cursor_invalid")]
@@ -217,12 +301,46 @@ struct ProjectionState {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NotificationStore {
     materializer: NotificationMaterializer,
+    /// Server-authenticated recipient bound by the composition root.  `None` means the store has
+    /// not been scoped yet and must not answer a page or mutation.
+    recipient_scope: Option<String>,
     projection: BTreeMap<String, ProjectionState>,
 }
 
 impl NotificationStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Bind the single server-authenticated recipient this store answers for.
+    ///
+    /// The binding is derived by the caller from the authenticated principal, never from a client
+    /// parameter. Rebinding to the same recipient is idempotent; rebinding to a different
+    /// recipient fails closed instead of silently switching or widening the scope.
+    pub fn bind_server_recipient(
+        &mut self,
+        recipient_id: &str,
+    ) -> Result<(), NotificationStoreError> {
+        required(recipient_id, "recipient_id", 256)?;
+        match self.recipient_scope.as_deref() {
+            Some(bound) if bound != recipient_id => Err(NotificationStoreError::ScopeConflict),
+            _ => {
+                self.recipient_scope = Some(recipient_id.to_owned());
+                Ok(())
+            }
+        }
+    }
+
+    pub fn server_recipient(&self) -> Option<&str> {
+        self.recipient_scope.as_deref()
+    }
+
+    fn require_scope(&self, recipient_id: &str) -> Result<(), NotificationStoreError> {
+        match self.recipient_scope.as_deref() {
+            None => Err(NotificationStoreError::ScopeRequired),
+            Some(bound) if bound != recipient_id => Err(NotificationStoreError::RecipientMismatch),
+            Some(_) => Ok(()),
+        }
     }
 
     pub fn apply_committed(
@@ -239,6 +357,14 @@ impl NotificationStore {
         self.materializer.source_cursor()
     }
 
+    /// Number of committed source events retained by the projection.
+    ///
+    /// Applying a committed page can only append to this projection, and read/ACK/snooze mutations
+    /// never remove a retained source event: the count never shrinks.
+    pub fn retained_source_event_count(&self) -> usize {
+        self.materializer.source_event_ids().count()
+    }
+
     pub fn list(
         &self,
         request: NotificationListRequest,
@@ -248,6 +374,7 @@ impl NotificationStore {
         if source_cursor == 0 {
             return Err(NotificationStoreError::ProjectionUnavailable);
         }
+        self.require_scope(&request.recipient_id)?;
         if let Some(expected) = request.expected_source_cursor {
             if expected < source_cursor {
                 return Err(NotificationStoreError::CursorStale);
@@ -330,13 +457,14 @@ impl NotificationStore {
         snoozed_until_unix_ms: u64,
     ) -> Result<NotificationProjectionMutation, NotificationStoreError> {
         required(recipient_id, "recipient_id", 256)?;
-        required(item_id, "item_id", 512)?;
+        required(item_id, "item_id", NOTIFICATION_STORE_MAX_TEXT_BYTES)?;
         if now_unix_ms == 0 || snoozed_until_unix_ms <= now_unix_ms {
             return Err(NotificationStoreError::Invalid("snooze_window"));
         }
         if self.source_cursor() == 0 {
             return Err(NotificationStoreError::ProjectionUnavailable);
         }
+        self.require_scope(recipient_id)?;
         let item = self
             .materializer
             .human_inbox_items(recipient_id)
@@ -384,13 +512,14 @@ impl NotificationStore {
         acknowledge: bool,
     ) -> Result<NotificationProjectionMutation, NotificationStoreError> {
         required(recipient_id, "recipient_id", 256)?;
-        required(item_id, "item_id", 512)?;
+        required(item_id, "item_id", NOTIFICATION_STORE_MAX_TEXT_BYTES)?;
         if now_unix_ms == 0 {
             return Err(NotificationStoreError::Invalid("now_unix_ms"));
         }
         if self.source_cursor() == 0 {
             return Err(NotificationStoreError::ProjectionUnavailable);
         }
+        self.require_scope(recipient_id)?;
         let item = self
             .materializer
             .human_inbox_items(recipient_id)
@@ -411,8 +540,14 @@ impl NotificationStore {
                 return Err(NotificationStoreError::ClockRegression);
             }
             let changed = if acknowledge {
-                let changed = state.acknowledged_at_unix_ms.is_none();
+                let mut changed = state.acknowledged_at_unix_ms.is_none();
                 state.acknowledged_at_unix_ms = Some(now_unix_ms);
+                // An acknowledgement is also a read of the presentation row; it must never be
+                // confused with an approval, which only the original task owner can make.
+                if state.read_at_unix_ms.is_none() {
+                    state.read_at_unix_ms = Some(now_unix_ms);
+                    changed = true;
+                }
                 changed
             } else {
                 let changed = state.read_at_unix_ms.is_none();

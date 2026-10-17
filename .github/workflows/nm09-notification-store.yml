@@ -1,0 +1,29 @@
+name: NM-09 notification store
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-store:
+    name: NM-09 in-process notification store query/page fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-09 notification store fixtures
+        run: cargo test -p kiana-core --test nm09_notification_store --locked -- --test-threads=1
+      - name: Run NM-09 notification store source guard
+        run: cargo test -p kiana-core --test nm09_notification_store_guard --locked -- --test-threads=1
+      - name: Compile NM-09 notification store target
+        run: cargo test -p kiana-core --test nm09_notification_store --no-run --locked
+      - name: Compile NM-09 source guard target
+        run: cargo test -p kiana-core --test nm09_notification_store_guard --no-run --locked

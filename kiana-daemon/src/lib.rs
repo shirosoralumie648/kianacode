@@ -1383,6 +1383,11 @@ impl DaemonHost {
             ));
         }
         let mut store = kiana_core::NotificationStore::new();
+        // The scope is derived from the authenticated principal here and is the only recipient
+        // this store can answer for; a caller cannot widen or switch it afterwards.
+        store
+            .bind_server_recipient(&self.principal.identity.principal_id)
+            .map_err(|error| PortError::Failed(error.to_string()))?;
         store
             .apply_committed(&events, source_cursor)
             .map_err(|error| PortError::Failed(error.to_string()))?;
