@@ -244,6 +244,13 @@ impl ControlPlane {
         if let Err(reason) = command_policy.authorize_context(&context) {
             return self.reject_company(&context, reason).await;
         }
+        // CP-23: every Company mutation is registered in the protected mutation table. A command
+        // whose class entry is missing, malformed, or drifted from the per-command policy fails
+        // closed before the Company state is read, so no related object can change on drift.
+        let mutation_permission = request.command.mutation_permission();
+        if let Err(reason) = mutation_permission.authorize_policy(&command_policy) {
+            return self.reject_company(&context, reason).await;
+        }
         let (state, history) = self.load_company(&context).await?;
         if let Some(previous) = history
             .iter()

@@ -11,6 +11,16 @@ impl ControlPlane {
         if arguments["action"] != "accept_proposal" {
             return Ok(());
         }
+        // CP-23: promoting a proposal is a registered operator mutation. The class entry is the
+        // single subject gate, so a packet cell, a missing actor, or any subject the table does not
+        // register is refused with the stable code `memory_review_operator_required` before the
+        // proposal is read or promoted.
+        let permission =
+            kiana_domain::operator_mutation_permission("memory.review", "accept_proposal")
+                .ok_or_else(|| PortError::Failed("memory_review_action_unregistered".to_owned()))?;
+        permission
+            .authorize_operator_context(context)
+            .map_err(PortError::Failed)?;
         let id = arguments["proposal_id"]
             .as_str()
             .ok_or_else(|| PortError::Failed("memory_proposal_id_required".to_owned()))?;
