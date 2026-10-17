@@ -217,9 +217,17 @@ impl WorkbenchView {
                 "receipt" => ChatAction::Receipt,
                 "parity" => ChatAction::Parity,
                 "connector-health" | "connector_health" if !args.trim().is_empty() => {
-                    ChatAction::Command {
-                        name: "connector.health".to_owned(),
-                        arguments: serde_json::json!({"binding_id":args.trim()}),
+                    // INT-14: Workbench encodes the same typed connector command as CLI/Web/MCP;
+                    // binding/risk/endpoint resolution stays in ControlPlane.
+                    match crate::connector_command::connector_health_route(
+                        kiana_domain::ConnectorSurface::Workbench,
+                        args.trim(),
+                    ) {
+                        Ok(route) => ChatAction::Command {
+                            name: route.name,
+                            arguments: route.arguments,
+                        },
+                        Err(error) => ChatAction::Error(error),
                     }
                 }
                 "governance" if !args.trim().is_empty() => {

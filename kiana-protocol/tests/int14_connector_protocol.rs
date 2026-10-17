@@ -1,6 +1,7 @@
 use kiana_protocol::{
-    ConnectorCommand, ConnectorCommandRequest, RequestBody, RequestEnvelope, RequestMetadata,
-    CONNECTOR_COMMAND_SCHEMA,
+    ConnectorCommand, ConnectorCommandRequest, ConnectorSurface, ConnectorSurfaceCommand,
+    RequestBody, RequestEnvelope, RequestMetadata, CONNECTOR_COMMAND_SCHEMA,
+    CONNECTOR_SURFACE_COMMAND_SCHEMA,
 };
 use serde_json::json;
 
@@ -44,6 +45,36 @@ fn wire_authority_and_unknown_endpoint_fields_fail_closed() {
         decoded.validate().unwrap_err(),
         "connector_server_owned_override"
     );
+}
+
+#[test]
+fn surface_commands_ride_the_same_versioned_envelope_for_every_surface() {
+    let mut request = ConnectorCommandRequest::new(ConnectorCommand::Health);
+    request.binding_id = Some("binding-demo".to_owned());
+    let reference = ConnectorSurfaceCommand::encode(ConnectorSurface::Cli, &request).unwrap();
+    assert_eq!(reference.schema, CONNECTOR_SURFACE_COMMAND_SCHEMA);
+    for surface in [
+        ConnectorSurface::Cli,
+        ConnectorSurface::Web,
+        ConnectorSurface::Workbench,
+        ConnectorSurface::Mcp,
+    ] {
+        let encoded = ConnectorSurfaceCommand::encode(surface, &request).unwrap();
+        assert_eq!(encoded.surface, surface);
+        assert_eq!(encoded.arguments, reference.arguments);
+        let envelope = RequestEnvelope::connector_command(
+            RequestMetadata::local("s", "/repo"),
+            request.clone(),
+        )
+        .unwrap();
+        match &envelope.body {
+            RequestBody::Command(command) => {
+                assert_eq!(command.name, encoded.wire_name);
+                assert_eq!(command.arguments, encoded.arguments);
+            }
+            _ => panic!("connector surface command must use the generic command body"),
+        }
+    }
 }
 
 trait EnvelopeArgumentsSchema {

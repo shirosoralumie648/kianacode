@@ -134,7 +134,16 @@ pub async fn main_from_args(args: &[String]) -> Result<()> {
     metadata.assign_role(&role);
     metadata.permission_profile = profile;
     let request = match mode {
-        "command" => RequestEnvelope::command(metadata, name.unwrap(), arguments),
+        "command" => {
+            // INT-14: the CLI encodes typed connector commands through the same surface encoder
+            // as Web/Workbench/MCP; legacy untyped arguments keep the compatibility path.
+            let route = crate::connector_command::surface_command_route(
+                kiana_domain::ConnectorSurface::Cli,
+                name.as_deref().unwrap_or_default(),
+                arguments,
+            )?;
+            RequestEnvelope::command(metadata, route.name, route.arguments)
+        }
         "approvals" => RequestEnvelope::pending_approvals(metadata, None),
         "resume" => RequestEnvelope::resume_run(metadata, None),
         "approval" => RequestEnvelope::approval_decision_with_proof(

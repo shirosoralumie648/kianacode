@@ -3151,6 +3151,15 @@ async fn command_action(
     // the idempotency slot so malformed/forged cards cannot consume a replay key.
     crate::web_inbox::validate_human_action_command(&body.name, &body.arguments)
         .map_err(ApiError::bad)?;
+    // INT-14: typed connector commands are re-encoded at the Web boundary through the same
+    // surface encoder used by CLI/Workbench/MCP, before any replay key is claimed; legacy
+    // untyped arguments keep the existing compatibility path.
+    let surface_command = crate::connector_command::surface_command_route(
+        kiana_domain::ConnectorSurface::Web,
+        &body.name,
+        body.arguments,
+    )
+    .map_err(ApiError::bad)?;
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
     let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
@@ -3161,8 +3170,8 @@ async fn command_action(
     let response = harness_run::command_envelope_on_host(
         app.host.clone(),
         session_id.clone(),
-        body.name,
-        body.arguments,
+        surface_command.name,
+        surface_command.arguments,
         &app.options()?,
     )
     .await

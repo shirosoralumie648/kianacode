@@ -7,14 +7,15 @@
 //! transport endpoint.  The normalized intent is still only a request; it never calls a Broker.
 
 use crate::{
-    AccountBinding, ConnectorBindingSnapshot, ConnectorDefinition, RequestContext, RiskLevel,
-    SchemaVersion,
+    AccountBinding, ConnectorBindingSnapshot, ConnectorDefinition, ConnectorSurface,
+    RequestContext, RiskLevel, SchemaVersion,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub const CONNECTOR_COMMAND_SCHEMA: &str = "kiana.connector-command.v1";
 pub const CONNECTOR_COMMAND_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const CONNECTOR_SURFACE_COMMAND_SCHEMA: &str = "kiana.connector-surface-command.v1";
 pub const CONNECTOR_NORMALIZED_INTENT_SCHEMA: &str = "kiana.connector-normalized-intent.v1";
 pub const CONNECTOR_PROTOCOL_ERROR_SCHEMA: &str = "kiana.connector-protocol-error.v1";
 pub const CONNECTOR_DATA_BOUNDARY_SCHEMA: &str = "kiana.connector-data-boundary.v1";
@@ -414,6 +415,87 @@ impl ConnectorCommandRequest {
         }
         Ok(Value::Object(output))
     }
+}
+
+/// One connector command encoded by one of the four public surfaces.
+///
+/// The encoding is deliberately surface-independent: CLI, Web, Workbench and MCP produce the
+/// same `wire_name`, `route` and `arguments` for the same logical request, so all four enter the
+/// ControlPlane with one normalized intent.  The `surface` label is correlation/audit metadata
+/// and never authority; actor, role, risk, binding snapshot and endpoint stay server-owned.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorSurfaceCommand {
+    pub schema: String,
+    pub surface: ConnectorSurface,
+    pub command: ConnectorCommand,
+    pub wire_name: String,
+    pub route: String,
+    pub arguments: Value,
+}
+
+impl ConnectorSurfaceCommand {
+    /// Encode a typed request for one surface.  The request is validated first, so a forged
+    /// server-owned field fails with `connector_server_owned_override` before any surface sends
+    /// anything.
+    pub fn encode(
+        surface: ConnectorSurface,
+        request: &ConnectorCommandRequest,
+    ) -> Result<Self, String> {
+        request.validate()?;
+        let command = request.command;
+        Ok(Self {
+            schema: CONNECTOR_SURFACE_COMMAND_SCHEMA.to_owned(),
+            surface,
+            command,
+            wire_name: command.wire_name().to_owned(),
+            route: command.control_plane_route().to_owned(),
+            arguments: request.to_arguments()?,
+        })
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != CONNECTOR_SURFACE_COMMAND_SCHEMA
+            || self.wire_name != self.command.wire_name()
+            || self.route != self.command.control_plane_route()
+            || !self.arguments.is_object()
+        {
+            return Err("connector_surface_command_invalid".to_owned());
+        }
+        let request: ConnectorCommandRequest = serde_json::from_value(self.arguments.clone())
+            .map_err(|_| "connector_surface_command_arguments_invalid".to_owned())?;
+        if request.command != self.command
+            || request
+                .to_arguments()
+                .map_err(|_| "connector_surface_command_arguments_invalid".to_owned())?
+                != self.arguments
+        {
+            return Err("connector_surface_command_arguments_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Re-encode typed connector arguments that arrived through a generic surface command path
+/// (`kiana command`, the Web command route, or the Workbench slash command).
+///
+/// Untyped/legacy arguments return `Ok(None)` and keep the existing compatibility path; typed
+/// arguments must decode strictly and re-encode to the canonical surface command, so every
+/// surface sends the same bytes into the ControlPlane normalizer.
+pub fn normalize_surface_connector_arguments(
+    surface: ConnectorSurface,
+    wire_name: &str,
+    arguments: &Value,
+) -> Result<Option<ConnectorSurfaceCommand>, String> {
+    if arguments.get("schema").and_then(Value::as_str) != Some(CONNECTOR_COMMAND_SCHEMA) {
+        return Ok(None);
+    }
+    let request: ConnectorCommandRequest = serde_json::from_value(arguments.clone())
+        .map_err(|_| "connector_protocol_decode_failed".to_owned())?;
+    if request.command.wire_name() != wire_name {
+        return Err("connector_command_mismatch".to_owned());
+    }
+    ConnectorSurfaceCommand::encode(surface, &request).map(Some)
 }
 
 /// Server-owned data boundary attached to every normalized connector intent.
