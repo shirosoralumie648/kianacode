@@ -423,14 +423,15 @@ impl CostAllocationPortfolio {
                 .totals
                 .validate()
                 .map_err(CostAllocationProjectionError::Invalid)?;
+            let current = (entry.organization_id, entry.project_id);
             if let Some(previous) = previous {
-                if previous >= (entry.organization_id, entry.project_id) {
+                if previous >= current {
                     return Err(CostAllocationProjectionError::Invalid(
                         "cost_allocation_portfolio_project_duplicate".to_owned(),
                     ));
                 }
             }
-            previous = Some((entry.organization_id, entry.project_id));
+            previous = Some(current);
             leaf_count = leaf_count
                 .checked_add(entry.totals.leaf_count)
                 .ok_or_else(|| {
