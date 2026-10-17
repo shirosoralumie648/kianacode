@@ -244,3 +244,87 @@ async fn two_environments_on_same_host_keep_independent_identity_and_private_tmp
         assert!(!args.iter().any(|arg| arg.contains("src=/tmp")));
     }
 }
+
+/// The card-named deny path: a missing, wrong or self-reported-disabled backend must never be
+/// accepted and must never degrade into the host environment. Planning runs against a runtime
+/// binary that does not exist, so any host fallback would surface as a runtime I/O error instead
+/// of the stable dimension code asserted here.
+#[tokio::test]
+async fn missing_or_wrong_backend_never_falls_back_to_host() {
+    let adapter = adapter_fixture();
+    let scope_a = scope("owner-1", "scope-1");
+
+    // Wrong backend label: even with every required dimension claimed enforced, plan denies.
+    let mut wrong_backend = supported_probe();
+    wrong_backend.backend = String::from("bwrap");
+    assert_dimension_unavailable(adapter.plan(&scope_a, &wrong_backend).await);
+
+    // A backend that reports itself disabled must be denied before any plan digest exists.
+    let mut disabled = supported_probe();
+    disabled.failure_reason = Some(String::from("fixture_backend_disabled"));
+    assert_dimension_unavailable(adapter.plan(&scope_a, &disabled).await);
+
+    // A required dimension that is absent rather than explicitly false is still a denial, not a
+    // silent host fallback.
+    let mut missing = supported_probe();
+    missing.capabilities.remove("network_none");
+    missing.enforced.remove("network_none");
+    assert_dimension_unavailable(adapter.plan(&scope_a, &missing).await);
+
+    // No denied plan left recoverable state, so a fabricated plan cannot be prepared either.
+    let forged = EnvironmentPlan {
+        owner_id: scope_a.owner_id.clone(),
+        scope_digest: scope_a.scope_digest.clone(),
+        backend: CONTAINER_BACKEND.to_owned(),
+        backend_version: String::from("fixture"),
+        plan_digest: String::from(
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        ),
+        required_dimensions: Vec::new(),
+    };
+    assert!(matches!(
+        adapter.prepare(&forged).await,
+        Err(PortError::Unavailable(reason)) if reason == "container_plan_not_found"
+    ));
+}
+
+/// The card-named deny path: a backend may not report an unenforced required dimension as
+/// supported. Admission requires the capability claim and an explicit `enforced=true` marker to
+/// agree for every required dimension before a plan digest is created.
+#[tokio::test]
+async fn backend_cannot_report_unenforced_required_dimension_as_supported() {
+    let adapter = adapter_fixture();
+    let scope_a = scope("owner-1", "scope-1");
+
+    for dimension in [
+        "oci_container",
+        "immutable_image",
+        "non_root_user",
+        "network_none",
+        "resource_limits",
+        "owner_scope_labels",
+        "volume_root_identity",
+        "no_host_control_socket",
+    ] {
+        // Capability claimed but no enforcement marker: denied, exactly like explicit false.
+        let mut unmarked = supported_probe();
+        unmarked.enforced.remove(dimension);
+        assert_dimension_unavailable(adapter.plan(&scope_a, &unmarked).await);
+
+        let mut unenforced = supported_probe();
+        unenforced.enforced.insert(dimension.to_owned(), false);
+        assert_dimension_unavailable(adapter.plan(&scope_a, &unenforced).await);
+
+        // A false capability claim cannot be rescued by an `enforced=true` marker.
+        let mut unsupported = supported_probe();
+        unsupported.capabilities.insert(dimension.to_owned(), false);
+        assert_dimension_unavailable(adapter.plan(&scope_a, &unsupported).await);
+    }
+
+    // Positive control: the fully supported, fully enforced probe still plans.
+    let plan = adapter
+        .plan(&scope_a, &supported_probe())
+        .await
+        .expect("supported backend plans");
+    assert_eq!(plan.backend, CONTAINER_BACKEND);
+}

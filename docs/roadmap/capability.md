@@ -471,6 +471,7 @@ CP-13/CAP-07/CAP-10+ 继续。
 - **先拒绝：** `missing_or_wrong_backend_never_falls_back_to_host`、`backend_cannot_report_unenforced_required_dimension_as_supported`；非 Linux、恶意 PATH、不可执行后端、功能被禁用分别覆盖。
 - **成功/回归：** `environment_plan_is_deterministic_for_same_scope`；同一 host 的两个环境拥有独立临时目录和身份。
 - **完成产物：** 本地后端可用性有稳定原因码；检查 `KIANA_SANDBOX_BACKEND` 环境标记不能作为 enforcement 证明。
+- **验收（2026-10-17，CI-only）：** 行为夹具 `kiana-daemon/tests/cap07_environment_backend.rs`（8 个，含卡命名 `missing_or_wrong_backend_never_falls_back_to_host`、`backend_cannot_report_unenforced_required_dimension_as_supported`、`environment_plan_is_deterministic_for_same_scope`）；bwrap 拒绝单测留在 `kiana-daemon/src/harness_sandbox.rs`（`find_bwrap_denies_missing_explicit_binary_with_stable_code`、`find_bwrap_denies_non_executable_explicit_binary_with_stable_code`、`find_bwrap_denies_non_executable_candidate_on_malicious_path`、`find_bwrap_denies_missing_binary_on_path_with_stable_code`、`bwrap_plan_denies_non_executable_explicit_binary_before_planning`）；source guard `kiana-core/tests/cap07_environment_backend_guard.rs`（含 `cap07_behavioural_fixtures_are_wired` 接线守卫）；`.github/workflows/cap07-environment-backend.yml` 与统一 `ci.yml`（`kiana-core-s1/6`、`kiana-daemon` 整 crate）运行。本地未编译未运行，回执依赖 GitHub Actions；bwrap 完整 EnvironmentPort 生命周期与 kernel/live/physical 仍开放。
 
 <a id="step-cap-08"></a>
 
