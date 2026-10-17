@@ -632,6 +632,7 @@ CP-13/CAP-07/CAP-10+ 继续。
 - **先拒绝：** `untrusted_or_swapped_mcp_binary_cannot_start`、`unknown_server_or_ambiguous_tool_is_rejected`、`discovery_has_no_implicit_host_or_network_authority`。
 - **成功/回归：** stdio fixture 在窄 scope 下协商并列出工具，pending approval 引用实际 schema/config 快照；命名相同但版本变化能被发现。
 - **完成产物：** discovery 是独立有预算、可取消的执行行为；不把 `serverInfo`、响应成功或安装成功当作 trust 决定。
+- **验收（2026-10-17，CI-only）：** 行为夹具留在 `kiana-daemon/src/harness_mcp.rs` 测试模块（驱动生产 `parse_servers` + `McpRegistry::prepare`/`McpHandler::run`，并用真实 bwrap 边界启动 stdlib Python stdio server）：卡命名 `untrusted_or_swapped_mcp_binary_cannot_start`、`unknown_server_or_ambiguous_tool_is_rejected`、`discovery_has_no_implicit_host_or_network_authority`，成功/回归 `stdio_fixture_negotiates_lists_tools_and_has_no_network`，另有 `startup_config_parse_rejects_untrusted_shapes`；未受信项目/换二进制在起进程前拒绝，HTTP/SSE/WS discovery 与取消的 discovery 均不起进程，窄 scope 下 fixture 协商 `2025-06-18`、列出并调用工具、证明出站 host listener 连接被拒并确认 stop；snapshot 记录 `server_id`/`transport`/`env_keys`/`credential_refs`/`config_source` 与二进制 hash。source guard `kiana-core/tests/cap20_mcp_trust_discovery_guard.rs`（含 `cap20_behavioural_fixtures_are_wired_and_deny_first` 接线守卫）与 `.github/workflows/cap20-mcp-trust-discovery.yml`（校验 `bwrap`/`python3` 后按名字 `--exact` 运行，统一 `ci.yml` 的 `kiana-daemon` 整 crate shard 自动涵盖）。夹具需要 `bwrap` 与 `python3`，缺失即失败、不回退宿主机。本地未编译未运行，回执依赖 GitHub Actions；协议版本/各 transport 的 live 行为与 physical 仍开放。
 
 <a id="step-cap-21"></a>
 

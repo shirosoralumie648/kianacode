@@ -109,84 +109,18 @@ pub(crate) struct McpRegistry {
 impl McpRegistry {
     pub fn new(events: Arc<dyn EventStorePort>) -> Result<Arc<Self>, PortError> {
         let raw = std::env::var(MCP_SERVERS_ENV).unwrap_or_default();
-        let mut servers: Vec<McpServerConfig> = if raw.trim().is_empty() {
-            Vec::new()
-        } else {
-            if raw.len() > MCP_MAX_CONFIG_BYTES {
-                return Err(mcp_failed("mcp_config_too_large"));
-            }
-            let value = kiana_domain::parse_bounded_json(raw.as_bytes())
-                .map_err(|_| mcp_failed("mcp_config_invalid"))?;
-            if value.is_array() {
-                serde_json::from_value(value)
-            } else {
-                serde_json::from_value(value).map(|server| vec![server])
-            }
-            .map_err(|_| mcp_failed("mcp_config_invalid"))?
-        };
-        if servers.len() > 32 {
-            return Err(mcp_failed("mcp_server_limit"));
-        }
-        let mut names = HashSet::new();
-        for server in &mut servers {
-            if server.name.trim().is_empty()
-                || server.name.len() > 256
-                || !names.insert(server.name.clone())
-            {
-                return Err(mcp_failed("mcp_server_name_invalid"));
-            }
-            match &server.transport {
-                TransportType::Stdio => {
-                    if server.url.is_some()
-                        || server
-                            .headers
-                            .as_ref()
-                            .is_some_and(|headers| !headers.is_empty())
-                    {
-                        return Err(mcp_failed("mcp_transport_config_invalid"));
-                    }
-                    let command = server
-                        .command
-                        .as_ref()
-                        .filter(|c| !c.is_empty() && !c.contains('\0'))
-                        .ok_or_else(|| mcp_failed("mcp_command_required"))?;
-                    let resolved = resolve_command(command)?;
-                    server.command = Some(resolved.to_string_lossy().into_owned());
-                }
-                TransportType::Http | TransportType::Sse => {
-                    let url = server
-                        .url
-                        .as_deref()
-                        .ok_or_else(|| mcp_failed("mcp_http_url_required"))?;
-                    kiana_services::network_policy::validate_http_url(
-                        kiana_services::network_policy::HttpNetworkSurface::HttpMcp,
-                        url,
-                    )
-                    .map_err(|_| mcp_failed("mcp_http_endpoint_denied"))?;
-                    if server.command.is_some() || server.args.is_some() || server.env.is_some() {
-                        return Err(mcp_failed("mcp_http_process_fields_invalid"));
-                    }
-                }
-                _ => return Err(mcp_failed("mcp_transport_unsupported")),
-            }
-            if server.args.as_ref().is_some_and(|args| {
-                args.len() > 128
-                    || args
-                        .iter()
-                        .any(|arg| arg.len() > 16_384 || arg.contains('\0'))
-            }) {
-                return Err(mcp_failed("mcp_config_arguments_invalid"));
-            }
-            for (key, value) in server.env.as_ref().into_iter().flat_map(|env| env.iter()) {
-                if !matches!(key.as_str(), "LANG" | "LC_ALL" | "LC_CTYPE" | "TZ")
-                    || value.len() > 1024
-                    || value.contains('\0')
-                {
-                    return Err(mcp_failed("mcp_config_env_not_supported"));
-                }
-            }
-        }
-        Ok(Arc::new(Self { servers, events }))
+        Ok(Arc::new(Self {
+            servers: parse_servers(&raw)?,
+            events,
+        }))
+    }
+
+    /// Test-only constructor that injects already-validated servers, so behavioural fixtures do
+    /// not depend on process-global environment mutation. It performs no additional validation;
+    /// production paths always go through `new`/`parse_servers`.
+    #[cfg(test)]
+    fn with_servers(servers: Vec<McpServerConfig>, events: Arc<dyn EventStorePort>) -> Arc<Self> {
+        Arc::new(Self { servers, events })
     }
 
     /// Read-only preparation: no MCP process, writes, or RPCs occur before the permit.
@@ -221,6 +155,8 @@ impl McpRegistry {
             &json!({"scope":scope,"server":config.name,"config_hash":config_hash}),
         );
         let mut snapshot = json!({"schema":"kiana.mcp-snapshot.v1","scope":scope,"server":config.name,
+            "config_source":MCP_SERVERS_ENV,"transport":executable["transport"],
+            "env_keys":executable["env_keys"],"credential_refs":executable["credential_refs"],
             "config_hash":config_hash,"discovery_key":key,"executable":executable["executable"],"argument_files":executable["argument_files"]});
         if request.operation == MCP_OPERATION {
             let tools = self.discovery(&key).await?;
@@ -787,6 +723,14 @@ fn health_snapshot(protocol: &Value, tools: &[Value]) -> Value {
 }
 
 fn config_pin(config: &McpServerConfig, root: &Path) -> Result<Value, PortError> {
+    // Provenance every trust/snapshot decision records: which server, which transport, and the
+    // explicit environment/credential references only. Values are never copied here.
+    let mut env_keys: Vec<String> = config
+        .env
+        .as_ref()
+        .map(|env| env.keys().cloned().collect())
+        .unwrap_or_default();
+    env_keys.sort();
     if matches!(&config.transport, TransportType::Http | TransportType::Sse) {
         let url = config
             .url
@@ -806,8 +750,16 @@ fn config_pin(config: &McpServerConfig, root: &Path) -> Result<Value, PortError>
                 names
             })
             .unwrap_or_default();
+        let transport = if config.transport == TransportType::Sse {
+            "sse"
+        } else {
+            "streamable_http"
+        };
         return Ok(json!({
-            "transport": "streamable_http",
+            "server_id": config.name,
+            "transport": transport,
+            "env_keys": env_keys,
+            "credential_refs": header_names,
             "url": url,
             "endpoint_digest": kiana_domain::json_digest(&json!(url)),
             "header_names": header_names
@@ -858,7 +810,14 @@ fn config_pin(config: &McpServerConfig, root: &Path) -> Result<Value, PortError>
     {
         return Err(mcp_failed("mcp_argument_file_limit"));
     }
-    Ok(json!({"executable":executable,"argument_files":files}))
+    Ok(json!({
+        "server_id": config.name,
+        "transport": "stdio",
+        "env_keys": env_keys,
+        "credential_refs": Vec::<String>::new(),
+        "executable": executable,
+        "argument_files": files
+    }))
 }
 
 fn ensure_supported_transport(config: &McpServerConfig) -> Result<(), PortError> {
@@ -1411,6 +1370,92 @@ fn load_servers() -> Result<Vec<McpServerConfig>, PortError> {
         .map_err(|error| PortError::Failed(format!("mcp_config_invalid:{error}")))
 }
 
+/// Trusted startup-only configuration parse. It runs once, before any call, and rejects every
+/// shape that would otherwise be re-read or reinterpreted at call time: duplicate/oversized
+/// names, process fields on a remote transport, non-absolute or unresolvable stdio commands,
+/// oversized arguments, and implicit credential/environment keys. Callers pass the raw
+/// `KIANA_MCP_SERVERS_JSON` body; the function never reads the environment itself.
+fn parse_servers(raw: &str) -> Result<Vec<McpServerConfig>, PortError> {
+    let mut servers: Vec<McpServerConfig> = if raw.trim().is_empty() {
+        Vec::new()
+    } else {
+        if raw.len() > MCP_MAX_CONFIG_BYTES {
+            return Err(mcp_failed("mcp_config_too_large"));
+        }
+        let value = kiana_domain::parse_bounded_json(raw.as_bytes())
+            .map_err(|_| mcp_failed("mcp_config_invalid"))?;
+        if value.is_array() {
+            serde_json::from_value(value)
+        } else {
+            serde_json::from_value(value).map(|server| vec![server])
+        }
+        .map_err(|_| mcp_failed("mcp_config_invalid"))?
+    };
+    if servers.len() > 32 {
+        return Err(mcp_failed("mcp_server_limit"));
+    }
+    let mut names = HashSet::new();
+    for server in &mut servers {
+        if server.name.trim().is_empty()
+            || server.name.len() > 256
+            || !names.insert(server.name.clone())
+        {
+            return Err(mcp_failed("mcp_server_name_invalid"));
+        }
+        match &server.transport {
+            TransportType::Stdio => {
+                if server.url.is_some()
+                    || server
+                        .headers
+                        .as_ref()
+                        .is_some_and(|headers| !headers.is_empty())
+                {
+                    return Err(mcp_failed("mcp_transport_config_invalid"));
+                }
+                let command = server
+                    .command
+                    .as_ref()
+                    .filter(|c| !c.is_empty() && !c.contains('\0'))
+                    .ok_or_else(|| mcp_failed("mcp_command_required"))?;
+                let resolved = resolve_command(command)?;
+                server.command = Some(resolved.to_string_lossy().into_owned());
+            }
+            TransportType::Http | TransportType::Sse => {
+                let url = server
+                    .url
+                    .as_deref()
+                    .ok_or_else(|| mcp_failed("mcp_http_url_required"))?;
+                kiana_services::network_policy::validate_http_url(
+                    kiana_services::network_policy::HttpNetworkSurface::HttpMcp,
+                    url,
+                )
+                .map_err(|_| mcp_failed("mcp_http_endpoint_denied"))?;
+                if server.command.is_some() || server.args.is_some() || server.env.is_some() {
+                    return Err(mcp_failed("mcp_http_process_fields_invalid"));
+                }
+            }
+            _ => return Err(mcp_failed("mcp_transport_unsupported")),
+        }
+        if server.args.as_ref().is_some_and(|args| {
+            args.len() > 128
+                || args
+                    .iter()
+                    .any(|arg| arg.len() > 16_384 || arg.contains('\0'))
+        }) {
+            return Err(mcp_failed("mcp_config_arguments_invalid"));
+        }
+        for (key, value) in server.env.as_ref().into_iter().flat_map(|env| env.iter()) {
+            if !matches!(key.as_str(), "LANG" | "LC_ALL" | "LC_CTYPE" | "TZ")
+                || value.len() > 1024
+                || value.contains('\0')
+            {
+                return Err(mcp_failed("mcp_config_env_not_supported"));
+            }
+        }
+    }
+    Ok(servers)
+}
+
 fn select_server(
     servers: &[McpServerConfig],
     requested: Option<&Value>,
@@ -1701,5 +1746,441 @@ mod tests {
             "isError": true
         }))
         .unwrap());
+    }
+
+    // -----------------------------------------------------------------------------------
+    // CAP-20 behavioural fixtures: trusted MCP configuration and discovery snapshot.
+    //
+    // These fixtures exercise the production boundary — `parse_servers` (the startup parse),
+    // `McpRegistry::prepare`/`McpHandler::run` (snapshot binding and the deny paths) and the
+    // real confined `ConfinedMcpClient` against a stdlib-only Python stdio server. They are
+    // deny-first: an untrusted project, a swapped binary, an unknown server, an unsupported
+    // transport and a cancelled discovery all fail before any process starts, while a
+    // legitimate read-only discovery negotiates, lists tools and proves it has no implicit
+    // host or network authority. A missing `bwrap`/`python3` fails the fixture instead of
+    // degrading to an unsandboxed call; the CAP-20 workflow installs and verifies both.
+    // -----------------------------------------------------------------------------------
+
+    /// Minimal stdio MCP server used by the CAP-20 fixtures. It speaks single-line JSON-RPC over
+    /// stdin/stdout using only the Python standard library, and exposes an `echo` tool plus a
+    /// `probe_network` tool that reports whether an outbound TCP connection succeeds.
+    #[cfg(target_os = "linux")]
+    const CAP20_MCP_SERVER: &str = r##"#!/usr/bin/python3
+import json
+import socket
+import sys
+
+TOOLS = [
+    {
+        "name": "echo",
+        "description": "Echo the supplied message",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"message": {"type": "string", "minLength": 1}},
+            "required": ["message"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "probe_network",
+        "description": "Report whether an outbound TCP connection succeeds",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"port": {"type": "integer"}},
+            "required": ["port"],
+            "additionalProperties": False,
+        },
+    },
+]
+
+
+def send(payload):
+    sys.stdout.write(json.dumps(payload) + "\n")
+    sys.stdout.flush()
+
+
+def probe(port):
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        sock.connect(("127.0.0.1", int(port)))
+        return "connected"
+    except OSError:
+        return "denied"
+    finally:
+        if sock is not None:
+            sock.close()
+
+
+while True:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    line = line.strip()
+    if not line:
+        continue
+    message = json.loads(line)
+    method = message.get("method")
+    if method == "initialize":
+        send({
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "result": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "cap20-fixture", "version": "1.0.0"},
+            },
+        })
+    elif method == "notifications/initialized":
+        continue
+    elif method == "tools/list":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": TOOLS}})
+    elif method == "tools/call":
+        params = message.get("params") or {}
+        name = params.get("name")
+        arguments = params.get("arguments") or {}
+        if name == "echo":
+            text = str(arguments.get("message", ""))
+        elif name == "probe_network":
+            text = probe(arguments.get("port", 0))
+        else:
+            send({
+                "jsonrpc": "2.0",
+                "id": message["id"],
+                "error": {"code": -32601, "message": "unknown tool"},
+            })
+            continue
+        send({
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "result": {"content": [{"type": "text", "text": text}]},
+        })
+    else:
+        send({
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "error": {"code": -32601, "message": "unsupported"},
+        })
+"##;
+
+    #[cfg(target_os = "linux")]
+    fn cap20_temp_root() -> PathBuf {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("kiana-cap20-mcp-{stamp}"));
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    /// Write the stdio MCP fixture server so its canonical path is its own executable.
+    #[cfg(target_os = "linux")]
+    fn cap20_server(root: &Path) -> PathBuf {
+        let path = root.join("cap20_mcp_server.py");
+        std::fs::write(&path, CAP20_MCP_SERVER).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path.canonicalize().unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap20_config(command: &Path) -> McpServerConfig {
+        McpServerConfig {
+            name: "cap20-fixture".to_owned(),
+            transport: TransportType::Stdio,
+            url: None,
+            command: Some(command.to_string_lossy().into_owned()),
+            args: None,
+            env: Some(HashMap::from([("LANG".to_owned(), "C.UTF-8".to_owned())])),
+            headers: None,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap20_registry(servers: Vec<McpServerConfig>) -> Arc<McpRegistry> {
+        McpRegistry::with_servers(servers, Arc::new(kiana_eventlog::MemoryEventLog::new()))
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap20_context(root: &Path) -> RequestContext {
+        let mut context = RequestContext::local("cap20", root.to_string_lossy().into_owned());
+        context.project_trusted = true;
+        context
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap20_request(server: &str, root: &Path, context: &RequestContext) -> CapabilityRequest {
+        CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Network,
+            "mcp.discover",
+            json!({
+                "server": server,
+                "operator_authorized": true,
+                "actor_id": context.actor_id,
+                "project_root": root.to_string_lossy(),
+                "role_id": context.role_id,
+                "department_id": context.department_id,
+            }),
+        )
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap20_authorized(request: CapabilityRequest) -> AuthorizedCapabilityRequest {
+        AuthorizedCapabilityRequest::new("policy:cap20-test", request).unwrap()
+    }
+
+    /// The startup parse is the single trusted configuration authority: it rejects duplicate
+    /// names, the server cap, remote process fields and implicit environment/credential keys,
+    /// and it resolves the executable from a fixed trusted path rather than the caller's PATH.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn startup_config_parse_rejects_untrusted_shapes() {
+        assert!(matches!(
+            parse_servers(""),
+            Ok(servers) if servers.is_empty()
+        ));
+        let duplicate = json!([
+            { "name": "same", "transport": "stdio", "command": "/bin/sh" },
+            { "name": "same", "transport": "stdio", "command": "/bin/sh" }
+        ]);
+        assert!(matches!(
+            parse_servers(&duplicate.to_string()),
+            Err(PortError::Failed(code)) if code == "mcp_server_name_invalid"
+        ));
+        let mut too_many = Vec::new();
+        for index in 0..33 {
+            let name = format!("s{index}");
+            too_many.push(json!({ "name": name, "transport": "stdio", "command": "/bin/sh" }));
+        }
+        assert!(matches!(
+            parse_servers(&Value::Array(too_many).to_string()),
+            Err(PortError::Failed(code)) if code == "mcp_server_limit"
+        ));
+        let remote_with_process = json!({
+            "name": "remote",
+            "transport": "http",
+            "url": "https://example.com/mcp",
+            "command": "/bin/sh"
+        });
+        assert!(matches!(
+            parse_servers(&remote_with_process.to_string()),
+            Err(PortError::Failed(code)) if code == "mcp_http_process_fields_invalid"
+        ));
+        let implicit_credential = json!({
+            "name": "stdio",
+            "transport": "stdio",
+            "command": "/bin/sh",
+            "env": { "API_TOKEN": "secret" }
+        });
+        assert!(matches!(
+            parse_servers(&implicit_credential.to_string()),
+            Err(PortError::Failed(code)) if code == "mcp_config_env_not_supported"
+        ));
+        let unresolvable = json!({
+            "name": "stdio",
+            "transport": "stdio",
+            "command": "definitely-not-a-real-tool"
+        });
+        assert!(matches!(
+            parse_servers(&unresolvable.to_string()),
+            Err(PortError::Failed(code)) if code == "mcp_command_unavailable"
+        ));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn untrusted_or_swapped_mcp_binary_cannot_start() {
+        let root = cap20_temp_root();
+        let script = cap20_server(&root);
+
+        // An untrusted project never reaches a process: the confined client refuses first.
+        let scope = json!({
+            "project_trusted": false,
+            "project_root": root.to_string_lossy(),
+            "sandbox": "read-only",
+            "path_allow": ["."],
+            "mcp_snapshot": config_pin(&cap20_config(&script), &root).unwrap(),
+        });
+        let (_sender, cancellation) = watch::channel(false);
+        let refused = crate::mcp_stdio::ConfinedMcpClient::connect(
+            &cap20_config(&script),
+            &scope,
+            cancellation.clone(),
+        )
+        .await;
+        assert!(matches!(
+            refused,
+            Err(PortError::Failed(code)) if code == "mcp_project_untrusted"
+        ));
+
+        // A trusted project whose pinned binary changed after preparation is refused too.
+        let registry = cap20_registry(vec![cap20_config(&script)]);
+        let context = cap20_context(&root);
+        let prepared = registry
+            .prepare(&context, &cap20_request("cap20-fixture", &root, &context))
+            .await
+            .expect("discovery prepare pins the executable");
+        assert_eq!(prepared.arguments["mcp_snapshot"]["schema"], "kiana.mcp-snapshot.v1");
+        std::fs::write(&script, "#!/bin/sh\nexit 0\n").unwrap();
+        let handler = McpHandler {
+            registry: registry.clone(),
+        };
+        let denied = handler.run(cap20_authorized(prepared), cancellation).await;
+        assert!(matches!(
+            denied,
+            Err(PortError::Failed(code)) if code == "mcp_config_changed"
+        ));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn unknown_server_or_ambiguous_tool_is_rejected() {
+        let root = cap20_temp_root();
+        let script = cap20_server(&root);
+        let registry = cap20_registry(vec![cap20_config(&script)]);
+        let context = cap20_context(&root);
+
+        let refused = registry
+            .prepare(&context, &cap20_request("not-configured", &root, &context))
+            .await;
+        assert!(matches!(
+            refused,
+            Err(PortError::Failed(code)) if code == "mcp_server_unknown"
+        ));
+
+        let echo = advertised_tool("echo", json!({ "type": "object" }));
+        assert!(matches!(
+            select_advertised_tool(&[echo.clone(), echo], "echo"),
+            Err(PortError::Failed(code)) if code == "mcp_tool_ambiguous"
+        ));
+        assert!(matches!(
+            select_advertised_tool(
+                &[advertised_tool("echo", json!({ "type": "object" }))],
+                "missing"
+            ),
+            Err(PortError::Failed(code)) if code == "mcp_tool_unknown"
+        ));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn discovery_has_no_implicit_host_or_network_authority() {
+        let root = cap20_temp_root();
+        let script = cap20_server(&root);
+        let context = cap20_context(&root);
+
+        // A remote transport is refused, never silently downgraded to a local call.
+        let remote = McpServerConfig {
+            name: "remote".to_owned(),
+            transport: TransportType::Http,
+            url: Some("https://example.com/mcp".to_owned()),
+            command: None,
+            args: None,
+            env: None,
+            headers: None,
+        };
+        for transport in [TransportType::Http, TransportType::Sse, TransportType::Ws] {
+            let mut server = remote.clone();
+            server.transport = transport;
+            assert!(matches!(
+                ensure_supported_transport(&server),
+                Err(PortError::Failed(code)) if code == "mcp_transport_unsupported"
+            ));
+        }
+        let registry = cap20_registry(vec![remote]);
+        assert!(matches!(
+            registry
+                .prepare(&context, &cap20_request("remote", &root, &context))
+                .await,
+            Err(PortError::Failed(code)) if code == "mcp_transport_unsupported"
+        ));
+
+        // A cancelled discovery never starts the pinned process.
+        let (_sender, cancellation) = watch::channel(true);
+        let scope = json!({
+            "project_trusted": true,
+            "project_root": root.to_string_lossy(),
+            "sandbox": "read-only",
+            "path_allow": ["."],
+            "timeout_ms": 60000,
+            "mcp_snapshot": config_pin(&cap20_config(&script), &root).unwrap(),
+        });
+        let cancelled = crate::mcp_stdio::ConfinedMcpClient::connect(
+            &cap20_config(&script),
+            &scope,
+            cancellation,
+        )
+        .await;
+        assert!(matches!(
+            cancelled,
+            Err(PortError::Failed(code)) if code == "cancelled:mcp_not_started"
+        ));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn stdio_fixture_negotiates_lists_tools_and_has_no_network() {
+        let root = cap20_temp_root();
+        let script = cap20_server(&root);
+        let config = cap20_config(&script);
+        let pin = config_pin(&config, &root).expect("config pin");
+        assert_eq!(pin["server_id"], "cap20-fixture");
+        assert_eq!(pin["transport"], "stdio");
+        assert_eq!(pin["env_keys"], json!(["LANG"]));
+        assert_eq!(pin["credential_refs"], json!([]));
+        let scope = json!({
+            "project_trusted": true,
+            "project_root": root.to_string_lossy(),
+            "sandbox": "read-only",
+            "path_allow": ["."],
+            "timeout_ms": 60000,
+            "mcp_snapshot": pin,
+        });
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client =
+            crate::mcp_stdio::ConfinedMcpClient::connect(&config, &scope, cancellation)
+                .await
+                .expect("confined stdio MCP fixture must negotiate");
+        assert_eq!(client.server_info["protocol_version"], "2025-06-18");
+
+        let tools = client.list_tools().await.expect("tools/list");
+        for tool in &tools {
+            validate_advertised_tool(tool).expect("advertised tool passes the boundary");
+        }
+        let names: Vec<&str> = tools
+            .iter()
+            .filter_map(|tool| tool["name"].as_str())
+            .collect();
+        assert_eq!(names, vec!["echo", "probe_network"], "{tools:?}");
+
+        let echoed = client
+            .call_tool("echo", json!({ "message": "cap20-ok" }))
+            .await
+            .expect("tools/call echo");
+        assert_eq!(echoed["content"][0]["text"], "cap20-ok");
+
+        // The confined discovery has no implicit host or network authority: a real outbound
+        // connection to a host listener is denied even though the tool itself runs.
+        let host = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("host listener");
+        let port = host.local_addr().unwrap().port();
+        let probe = client
+            .call_tool("probe_network", json!({ "port": port }))
+            .await
+            .expect("tools/call probe_network");
+        assert_eq!(probe["content"][0]["text"], "denied");
+
+        let stopped = client.stop().await.expect("confirmed stop");
+        assert_eq!(stopped["stop_confirmed"], true);
+
+        let _ = std::fs::remove_dir_all(root);
     }
 }
