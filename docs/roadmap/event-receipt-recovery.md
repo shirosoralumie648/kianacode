@@ -521,12 +521,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-25 — Retry policy and new attempt　⏳
+##### ER-25 — Retry policy and new attempt　✅
 
 - **落点：** `kiana-domain` retry/timeout contracts、`kiana-core/dispatch.rs`；关联 `P2-K6-01`、`H05/H07/H08`。
 - **动作：** 持久化 max attempts/backoff/deadline/error classifier/idempotency requirement；仅在 effect 明确未发生且 policy 允许时创建新 attempt，重新做 authority/approval/lease preflight。
 - **先拒绝：** `unknown_effect_never_auto_retries`、`policy_denied_never_retries`、`retry_exhaustion_is_terminal_failure_or_unknown`。
 - **成功/回归：** transient before dispatch、known no-effect failure、timeout、attempt exhaustion、backoff deadline 和 duplicate idempotency key。
+- **验收（测试名与卡片名对齐）：** 拒绝/回归由树内行为夹具覆盖并接入 `.github/workflows/er25-retry-policy.yml`：`kiana-core/tests/er25_retry_policy.rs` 驱动真实 `kiana_domain::RetryPolicy::classify` 与 `RetryAttemptReservation` 值边界——先拒绝 `unknown_effect_never_auto_retries`（post-send `Unknown` → `side_effect_unknown`；已投递 delta → `observed_delta`；非幂等 → `non_idempotent`）、`policy_denied_never_retries`（`Never`/repair 处置 → `recovery_disposition_not_retryable`；已发送 → `request_already_sent`；拒而未发 → `retry_class_not_allowed`）、`retry_exhaustion_is_terminal_failure_or_unknown`（attempt budget `attempt_budget`、request budget `request_budget`、超 deadline `deadline` 均终态）；成功/回归 `transient_before_dispatch_creates_a_bounded_new_attempt`、`known_no_effect_failure_honors_retry_after_backoff`、`absolute_deadline_bounds_backoff_before_a_new_attempt`、`duplicate_idempotency_key_is_fenced_at_the_attempt_reservation`；`er25_retry_policy_guard` 保留既有 source guard 并新增夹具命名/接线守卫 `retry_behavioural_fixtures_are_wired`；Runner 侧 transient before-send/Unknown/取消边界由既有 H05 `typed_recovery_disposition_bounds_runner_routing` 与 H11 `unknown_result_never_triggers_automatic_retry` 行为夹具在本 lane 复跑。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 source guard（marker 匹配）与基线，没有可运行的拒绝/成功夹具。本次补齐先拒绝与回归行为并接入 `er25-retry-policy.yml`（含 `--no-run`）；proof_level 维持 source；本地未编译未运行，CI 回执未等待；真实 provider socket 退避、跨进程 retry durability 与外部 effect 对账仍开放。
 
 #### E. Query、入口和业务接线
 
