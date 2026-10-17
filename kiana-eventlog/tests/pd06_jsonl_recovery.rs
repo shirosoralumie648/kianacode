@@ -234,7 +234,10 @@ async fn jsonl_v2_refuses_directory_replacement_after_open() {
         fs::read_to_string(moved.join("events.jsonl")).unwrap(),
         format!("{}\n", serde_json::to_string(&first).unwrap())
     );
-    assert!(!path.exists(), "replacement parent must not receive new facts");
+    assert!(
+        !path.exists(),
+        "replacement parent must not receive new facts"
+    );
     drop(store);
     fs::remove_dir_all(root).unwrap();
 }
@@ -340,10 +343,15 @@ async fn jsonl_v2_flush_and_shutdown_acks_are_observable_and_close_rejects_write
 async fn jsonl_v2_reopen_keeps_the_complete_prefix_and_repairs_only_the_torn_tail() {
     let path = temp_path("v2-prefix");
     let request_id = RequestId::new();
-    let first = RuntimeEvent::new(request_id, 1, "run.started", json!({"sequence": 1}))
-        .unwrap()
-        .with_stream_metadata("run", "run-v2-prefix", 1)
-        .with_idempotency_key("pd06:v2-prefix:1");
+    let first = RuntimeEvent::new(
+        request_id,
+        1,
+        "run.started",
+        json!({"run_id": "run-v2-prefix", "sequence": 1}),
+    )
+    .unwrap()
+    .with_stream_metadata("run", "run-v2-prefix", 1)
+    .with_idempotency_key("pd06:v2-prefix:1");
     let batch = TransitionBatch {
         command_id: request_id,
         command_digest: "b".repeat(64),
@@ -352,7 +360,12 @@ async fn jsonl_v2_reopen_keeps_the_complete_prefix_and_repairs_only_the_torn_tai
     };
 
     let store = JsonlEventLog::open(&path).unwrap();
-    assert!(store.commit_transition(batch).await.unwrap().receipt().is_some());
+    assert!(store
+        .commit_transition(batch)
+        .await
+        .unwrap()
+        .receipt()
+        .is_some());
     drop(store);
 
     // 在完整提交帧之后追加一段不完整的帧前缀，等价于写入过程中被强杀留下的尾部。

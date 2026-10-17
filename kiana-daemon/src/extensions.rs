@@ -1449,7 +1449,9 @@ mod tests {
         ScopeDimension, ScopeLimit, ScopeSet, SessionId, EXTENSION_MANIFEST_SCHEMA,
         EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
     };
-    use kiana_ports::{CapabilityBrokerPort, EventStorePort, ExecutionPermitVerifierPort, PortError};
+    use kiana_ports::{
+        CapabilityBrokerPort, EventStorePort, ExecutionPermitVerifierPort, PortError,
+    };
     use ring::signature::{Ed25519KeyPair, KeyPair};
     use serde_json::json;
     use std::collections::{BTreeMap, BTreeSet};
@@ -1863,7 +1865,13 @@ mod tests {
 
         // (b) stale registry generation: disabling advances the registry to generation 2, so the
         // scope captured at generation 1 must fail closed even though role and package match.
-        append_registry_state(&events, &scope_id, 2, &installed_state(&package, "disabled")).await;
+        append_registry_state(
+            &events,
+            &scope_id,
+            2,
+            &installed_state(&package, "disabled"),
+        )
+        .await;
         let stale = extension_request(&project_root, "builder", &issued_scope);
         assert_eq!(
             registry
@@ -1895,7 +1903,10 @@ mod tests {
         let disabled = extension_request(&project_root, "builder", &disabled_scope);
         assert_eq!(
             registry
-                .check(&disabled, &disabled_scope.contract(ExtensionEffect::ReadOnly))
+                .check(
+                    &disabled,
+                    &disabled_scope.contract(ExtensionEffect::ReadOnly)
+                )
                 .await
                 .expect_err("disabled package must fail closed"),
             PortError::Failed("extension_execution_snapshot_inactive".to_owned())
@@ -1961,7 +1972,10 @@ mod tests {
             .await
             .expect("control admission passes");
         let control_broker = sealed_broker(control_registry.clone(), calls.clone());
-        let result = control_broker.execute(control).await.expect("control dispatch");
+        let result = control_broker
+            .execute(control)
+            .await
+            .expect("control dispatch");
         assert_eq!(result.output["fixture"], json!("extension-admission"));
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }

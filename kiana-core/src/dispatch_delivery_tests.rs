@@ -475,7 +475,9 @@ async fn delivery_before_commit_is_denied_then_claims_once_after_commit() {
 
     // committed fact 缺失：在稳定码上拒绝，且不写 claim、不调用 Runner。
     assert_eq!(
-        core.deliver_capability_result(fixture.run_id, fixture.result.clone()).await.unwrap_err(),
+        core.deliver_capability_result(fixture.run_id, fixture.result.clone())
+            .await
+            .unwrap_err(),
         dispatch_error("result_unknown:result_delivery_source_missing")
     );
     fixture.no_delivery().await;
@@ -490,7 +492,9 @@ async fn delivery_before_commit_is_denied_then_claims_once_after_commit() {
     let mut altered = fixture.result.clone();
     altered.output["answer"] = json!("uncommitted caller value");
     assert_eq!(
-        core.deliver_capability_result(fixture.run_id, altered).await.unwrap_err(),
+        core.deliver_capability_result(fixture.run_id, altered)
+            .await
+            .unwrap_err(),
         dispatch_error("result_unknown:result_delivery_source_mismatch")
     );
     fixture.no_delivery().await;
@@ -510,11 +514,16 @@ async fn delivery_before_commit_is_denied_then_claims_once_after_commit() {
     assert_eq!(claims.len(), 1);
     assert_eq!(claims[0].causation_event_id, Some(source.event_id));
     assert_eq!(claims[0].data["receipt_digest"], committed_receipt_digest);
-    assert_eq!(claims[0].data["result_digest"], json!(json_digest(&json!(fixture.result))));
+    assert_eq!(
+        claims[0].data["result_digest"],
+        json!(json_digest(&json!(fixture.result)))
+    );
 
     // 重试幂等：已有 claim 不新增，Runner 不再被推进。
     assert_eq!(
-        core.deliver_capability_result(fixture.run_id, fixture.result.clone()).await.unwrap_err(),
+        core.deliver_capability_result(fixture.run_id, fixture.result.clone())
+            .await
+            .unwrap_err(),
         dispatch_error("result_unknown:result_delivery_already_claimed")
     );
     assert_eq!(fixture.runner.calls.lock().unwrap().len(), 1);

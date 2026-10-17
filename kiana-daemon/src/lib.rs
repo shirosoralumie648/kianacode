@@ -163,11 +163,11 @@ use kiana_ports::{
     ObservabilityQueueClass, ObservabilityQueueError, ObservabilityQueueStats, PortError,
     QueuedObservabilityItem, RunnerPort, WorkflowQueueStore,
 };
-use kiana_provider::{ProviderGateway, WorkspaceConfigTrust};
 use kiana_protocol::{
     RequestBody, RequestEnvelope, RequestMetadata, ResponseEnvelope, UiAction, UiCursor,
     UiFeedCursorV1, UiFeedFrameV1, UiSnapshot, PROTOCOL_SCHEMA,
 };
+use kiana_provider::{ProviderGateway, WorkspaceConfigTrust};
 use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, RuntimeConfig};
 pub use local_artifacts::LocalArtifactStore;
 pub use notification_stream::{
@@ -191,7 +191,8 @@ use std::sync::Arc;
 use std::time::Duration;
 pub use storage::{
     acquire_surface_storage, resolve_storage_root, resolve_surface_storage_root, StorageLease,
-    StorageSurface, StorageSurfaceBinding, LOCAL_STORAGE_AUTHORITY_EPOCH, LOCAL_STORAGE_INSTANCE_ID,
+    StorageSurface, StorageSurfaceBinding, LOCAL_STORAGE_AUTHORITY_EPOCH,
+    LOCAL_STORAGE_INSTANCE_ID,
 };
 pub use supervisor_adapters::NarrowSupervisorAdapter;
 pub use workflow_ingress::WorkflowEventVerifier;
@@ -1026,7 +1027,11 @@ impl DaemonHost {
         surface: StorageSurface,
         project_root: impl AsRef<Path>,
     ) -> Result<(StorageLease, StorageSurfaceBinding), PortError> {
-        acquire_surface_storage(surface, project_root.as_ref(), self.principal.actor_id.clone())
+        acquire_surface_storage(
+            surface,
+            project_root.as_ref(),
+            self.principal.actor_id.clone(),
+        )
     }
 
     /// Subscribe to additive run-stream events for one run.

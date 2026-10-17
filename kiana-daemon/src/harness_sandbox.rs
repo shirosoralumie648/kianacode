@@ -763,7 +763,7 @@ mod tests {
         assert!(args
             .windows(2)
             .any(|window| { window[0] == "--tmpfs" && window[1] == "/sys" }));
-        assert!(!args.contains(&"--share-net".to_string()));
+        assert!(!args.iter().any(|arg| arg.starts_with("--share-")));
         let cap = args.iter().position(|arg| arg == "--cap-drop").unwrap();
         assert_eq!(args.get(cap + 1).map(String::as_str), Some("ALL"));
         let clear = args.iter().position(|arg| arg == "--clearenv").unwrap();
@@ -932,7 +932,10 @@ mod tests {
         std::env::set_var("PATH", &root);
 
         let error = find_bwrap().unwrap_err();
-        assert_eq!(error, PortError::Failed("sandbox_unavailable:bwrap".to_owned()));
+        assert_eq!(
+            error,
+            PortError::Failed("sandbox_unavailable:bwrap".to_owned())
+        );
 
         let _ = fs::remove_dir_all(root);
     }

@@ -68,7 +68,9 @@ impl SecretStore for FixtureSecretStore {
             ));
         }
         if binding.purpose != self.purpose {
-            return Err(PortError::Conflict("secret_store_purpose_denied".to_owned()));
+            return Err(PortError::Conflict(
+                "secret_store_purpose_denied".to_owned(),
+            ));
         }
         let known = self
             .values

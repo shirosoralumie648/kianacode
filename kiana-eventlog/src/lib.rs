@@ -84,7 +84,7 @@ pub use credential_rotation::MemoryCredentialRotationStore; // 凭证轮换
 pub use integrity::{
     scan_jsonl, IntegrityRecoveryReport, IntegrityScanReport, IntegrityScanStatus,
 }; // 完整性检查
-pub use jsonl::{JsonlEventLog, JournalRecovery}; // 落盘 append-only 实现 + 打开时尾部恢复回执
+pub use jsonl::{JournalRecovery, JsonlEventLog}; // 落盘 append-only 实现 + 打开时尾部恢复回执
 pub use ledger_source::{
     read_billing_page, read_ledger_page, BillingSourcePage, BILLING_SOURCE_IS_READ_ONLY,
 }; // 账本类只读接口

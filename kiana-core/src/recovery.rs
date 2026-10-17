@@ -573,8 +573,12 @@ impl ControlPlane {
             ));
         }
         if snapshot.data_epoch != self.data_epoch(&context.project_root).await? {
-            return Ok(CoreResponse::blocked(
-                context.request_id,
+            // 数据代次在快照之后被撤销：旧快照不能再作为可执行续体，而这次恢复请求的
+            // 结果也无法被证明，必须返回稳定的 ResultUnknown，而不是假装它只是一个
+            // 可重试的阻塞。该检查先于陈旧游标检查。
+            return Ok(resume_unknown_response(
+                &context,
+                run_id,
                 "run_resume_data_revoked",
             ));
         }

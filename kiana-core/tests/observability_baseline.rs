@@ -40,7 +40,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/lib.rs",
-        "852dd1c5cceebba034a10a0e11f8f15bedb57de8b264e05017c0e3b1766498c7",
+        "f56345cb6062aee79fca4e73b60876c45fe54b8b1eaac630c46bdfad8ff21ffd",
     ),
     (
         "kiana-core/src/events.rs",
@@ -56,7 +56,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-core/src/recovery.rs",
-        "5169aecfa239d023af97ea5ddccf0019204dbfdf01d5a14e8e3c3972c9ec1721",
+        "ee6add98f6fab1d024495b58b03462c0a42afe8ae75c82c4506fe6f948011a05",
     ),
     (
         "kiana-core/src/lifecycle.rs",
@@ -72,7 +72,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-eventlog/src/lib.rs",
-        "fe98b8bffdf86cc49ce6630bdf3240b8d92b9590024ce3b2aea7edb132b090f4",
+        "a39842dead47f80e0bb9539a79ccffb0ea13ba65402512aaa86d779a3d337934",
     ),
     (
         "kiana-eventlog/src/event_store_core.rs",
@@ -84,7 +84,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-eventlog/src/jsonl.rs",
-        "614ef68ba99f8df06dd56c90ca3864956ec1619bef2623bdfba111f7b4315efc",
+        "44998347e98285fcb42a2bc0369cd2f651997fe36fd6228cc866bc1e2adfa6e3",
     ),
     (
         "kiana-eventlog/src/memory.rs",
@@ -96,11 +96,11 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "adccf8fb406ccb509eab25e416b4a3607860621192fd5c93778bf599b9c39149",
+        "384db8716260eaa3a450dfa6263eb3b4c3b28eb95d2b3aa0b204d21f55919826",
     ),
     (
         "kiana-ports/src/lib.rs",
-        "313d3d95987d9343fa0c821faa162645c4cb7221acb541970a75ebfae8797dec",
+        "a58b9c59f2c548820f5ac75da734d302859220f822441794c51887b888728b2f",
     ),
 ];
 

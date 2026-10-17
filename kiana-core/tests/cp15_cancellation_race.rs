@@ -11,12 +11,12 @@ use kiana_core::{ControlPlane, RunOutcome};
 use kiana_domain::{
     AggregateVersion, ApprovalChallenge, ApprovalDecision, ApprovalDecisionRecord, ApprovalId,
     ApprovalState, AuthorizedCapabilityRequest, CapabilityRequest, CapabilityResult,
-    ExecutionStatus, PendingApproval, PermissionProfile, PolicyDecision,
+    ExecutionStatus, GateDecision, PendingApproval, PermissionProfile, PolicyDecision,
     PreparedApprovalConsumption, RequestContext, RequestId, RunId, RuntimeEvent,
     APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
-use kiana_gates::{GateDecision, GateEngine};
+use kiana_gates::GateEngine;
 use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError};
 use kiana_runner::{KianaHarness, ScriptedModel};
@@ -48,8 +48,7 @@ fn not_executed_call_ids(events: &[RuntimeEvent]) -> Vec<String> {
     let mut ids = events
         .iter()
         .filter(|event| {
-            event.kind == "run.tool_result"
-                && event.data.get("not_executed") == Some(&json!(true))
+            event.kind == "run.tool_result" && event.data.get("not_executed") == Some(&json!(true))
         })
         .filter_map(|event| event.data.get("call_id").and_then(Value::as_str))
         .map(str::to_owned)
@@ -482,7 +481,11 @@ async fn cp_cancel_approval_dispatch_race_has_one_legal_outcome() {
             .cancel_run(cancel_context, Some(run_id), "user".to_owned())
             .await
             .unwrap();
-        assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+        assert_eq!(
+            cancelled.status,
+            ExecutionStatus::Cancelled,
+            "{cancelled:?}"
+        );
 
         // A late approval cannot resurrect the invocation once cancel won the read-set.
         let mut decision_context = context.clone();
@@ -649,7 +652,11 @@ async fn cp_every_queued_invocation_gets_a_terminal_result() {
         .cancel_run(cancel_context, Some(run_id), "user".to_owned())
         .await
         .unwrap();
-    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::Cancelled,
+        "{cancelled:?}"
+    );
     assert_eq!(*broker.calls.lock().await, 0);
 
     let stream = events

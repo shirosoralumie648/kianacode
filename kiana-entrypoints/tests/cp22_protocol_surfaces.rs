@@ -282,8 +282,8 @@ fn cp_all_surfaces_resolve_the_same_pending_once() {
     .into_iter()
     .map(pending_observation)
     .collect::<Vec<_>>();
-    let report = compare_protocol_parity(&observations)
-        .expect("one shared pending across surfaces");
+    let report =
+        compare_protocol_parity(&observations).expect("one shared pending across surfaces");
     assert_eq!(report.reference_surface, ProtocolSurface::Daemon);
     assert_eq!(report.surfaces.len(), 5);
 
@@ -409,16 +409,14 @@ fn cp_reconnect_replays_terminal_without_replaying_action() {
     // Behavioural layer: a terminal reconnect replays the retained terminal and never opens a
     // second effect; a sequence gap forces a snapshot instead of silently continuing.
     let replay_input = recovery_input(RecoveryPhase::Terminal, RecoveryFault::Disconnect);
-    let replay = plan_recovery(&replay_input)
-        .expect("terminal disconnect plans a display replay");
+    let replay = plan_recovery(&replay_input).expect("terminal disconnect plans a display replay");
     assert_eq!(replay.decision, RecoveryDecision::ReplayTerminal);
     assert!(!replay.new_effect_allowed);
     assert!(!replay.snapshot_required);
     assert_eq!(replay.command_id, "cmd-cp22");
 
     let gap_input = recovery_input(RecoveryPhase::Feed, RecoveryFault::Gap);
-    let gap = plan_recovery(&gap_input)
-        .expect("feed gap plans a snapshot");
+    let gap = plan_recovery(&gap_input).expect("feed gap plans a snapshot");
     assert_eq!(gap.decision, RecoveryDecision::HydrateSnapshot);
     assert!(gap.snapshot_required);
     assert!(!gap.new_effect_allowed);
@@ -571,8 +569,8 @@ fn cp_noninteractive_cli_never_autoapproves_unknown_scope() {
         output: serde_json::json!({}),
         error: None,
     };
-    let awaiting_error = stable_error_from_response(&awaiting)
-        .expect("awaiting approval is not success");
+    let awaiting_error =
+        stable_error_from_response(&awaiting).expect("awaiting approval is not success");
     assert_eq!(awaiting_error.code, UiErrorCode::ApprovalRequired);
     assert_eq!(awaiting_error.retry, UiRetryDisposition::DoNotRetry);
     assert_eq!(
@@ -587,8 +585,8 @@ fn cp_noninteractive_cli_never_autoapproves_unknown_scope() {
         status: ExecutionStatus::ResultUnknown,
         ..awaiting.clone()
     };
-    let unknown_error = stable_error_from_response(&unknown)
-        .expect("unknown outcome is not success");
+    let unknown_error =
+        stable_error_from_response(&unknown).expect("unknown outcome is not success");
     assert_eq!(unknown_error.code, UiErrorCode::Unknown);
     assert_eq!(unknown_error.retry, UiRetryDisposition::QueryOriginal);
     assert_eq!(

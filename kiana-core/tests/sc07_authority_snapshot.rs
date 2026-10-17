@@ -147,11 +147,9 @@ fn authority_snapshot_rejects_foreign_role_project_and_untrusted_effect() {
 #[test]
 fn authority_provenance_exposes_server_sources_and_revisions() {
     let (snapshot, _, _) = fixture(true);
-    let provenance = SecurityAuthorityProvenance::from_authority(
-        &snapshot,
-        "fixture.assignment_directory",
-    )
-    .unwrap();
+    let provenance =
+        SecurityAuthorityProvenance::from_authority(&snapshot, "fixture.assignment_directory")
+            .unwrap();
     assert_eq!(provenance.project_id, snapshot.assignment.project_id);
     assert_eq!(
         provenance.organization_id,
@@ -174,10 +172,7 @@ fn authority_provenance_exposes_server_sources_and_revisions() {
         snapshot.assignment.assignment_revision
     );
     assert_eq!(provenance.department_id, "executing");
-    assert_eq!(
-        provenance.department_revision,
-        snapshot.department.revision
-    );
+    assert_eq!(provenance.department_revision, snapshot.department.revision);
     assert_eq!(provenance.authority_epoch, snapshot.authority_epoch);
     assert_eq!(
         SecurityAuthorityProvenance::from_json(&provenance.to_json().unwrap()).unwrap(),

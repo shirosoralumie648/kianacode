@@ -236,12 +236,8 @@ fn intent_only_reaches_control_plane_as_a_server_shaped_request() {
     // A forged authority field is still rejected before any Broker call.
     let mut forged = request.to_arguments().unwrap();
     forged["actor_id"] = json!("forged");
-    let error = normalize_connector_intent(
-        ConnectorCommand::Invoke.wire_name(),
-        forged,
-        &context,
-    )
-    .unwrap_err();
+    let error = normalize_connector_intent(ConnectorCommand::Invoke.wire_name(), forged, &context)
+        .unwrap_err();
     assert_eq!(error.code, ConnectorProtocolErrorCode::AuthorityOverride);
     assert_eq!(error.broker_calls, 0);
 }

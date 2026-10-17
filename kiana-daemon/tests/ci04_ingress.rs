@@ -119,15 +119,8 @@ fn authenticated_ingress_trail_threads_the_spine_and_recovers_via_link() {
     let turn_id = TurnId::new();
     let invocation_id = InvocationId::new();
     let execution_id = ExecutionId::new();
-    let attempt = AttemptRef::new(
-        run_id,
-        turn_id,
-        invocation_id,
-        execution_id,
-        command_id,
-        1,
-    )
-    .unwrap();
+    let attempt =
+        AttemptRef::new(run_id, turn_id, invocation_id, execution_id, command_id, 1).unwrap();
     let trail = trail
         .with_run(run_id)
         .unwrap()

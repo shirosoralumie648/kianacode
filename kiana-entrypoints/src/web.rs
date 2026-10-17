@@ -870,7 +870,10 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
     println!("folder: {}", workdir.display());
     println!("trusted: {}", if trusted { "yes" } else { "no" });
     println!("sandbox: {}", launch.sandbox);
-    println!("storage root: {} ({})", storage_root.canonical_path, storage_binding.root_id);
+    println!(
+        "storage root: {} ({})",
+        storage_root.canonical_path, storage_binding.root_id
+    );
     println!("loopback only. SSE display stream; receipts remain authoritative.");
     if let Some(ready_nonce) = desktop_nonce {
         let record = instance_lease

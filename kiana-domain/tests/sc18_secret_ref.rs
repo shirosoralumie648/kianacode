@@ -12,8 +12,14 @@ use kiana_domain::{
 const SENTINEL: &str = "SC18_SECRET_REF_SENTINEL";
 
 fn reference() -> SecretRef {
-    SecretRef::new("env", "SC18_REF_KEY", "provider.request", "fake-provider", 3)
-        .expect("valid reference")
+    SecretRef::new(
+        "env",
+        "SC18_REF_KEY",
+        "provider.request",
+        "fake-provider",
+        3,
+    )
+    .expect("valid reference")
 }
 
 fn endpoint_digest() -> String {
@@ -49,7 +55,10 @@ fn secret_ref_is_opaque_versioned_and_digest_bound() {
     let mut drifted = reference.clone();
     drifted.generation = 4;
     assert_ne!(drifted.digest(), reference.digest());
-    assert_eq!(drifted.validate().unwrap_err(), "secret_ref_digest_mismatch");
+    assert_eq!(
+        drifted.validate().unwrap_err(),
+        "secret_ref_digest_mismatch"
+    );
 }
 
 #[test]
@@ -86,12 +95,24 @@ fn secret_ref_is_not_transferable_across_account_purpose_or_audience() {
     let digest = lease.endpoint_digest.clone();
 
     lease
-        .validate_for(1_050, "fake-provider", "provider.request", "fake-provider", &digest)
+        .validate_for(
+            1_050,
+            "fake-provider",
+            "provider.request",
+            "fake-provider",
+            &digest,
+        )
         .expect("bound lease");
 
     assert_eq!(
         lease
-            .validate_for(1_050, "other-provider", "provider.request", "fake-provider", &digest)
+            .validate_for(
+                1_050,
+                "other-provider",
+                "provider.request",
+                "fake-provider",
+                &digest
+            )
             .unwrap_err(),
         "credential_lease_provider_mismatch"
     );
@@ -103,7 +124,13 @@ fn secret_ref_is_not_transferable_across_account_purpose_or_audience() {
     );
     assert_eq!(
         lease
-            .validate_for(1_050, "fake-provider", "provider.request", "other-audience", &digest)
+            .validate_for(
+                1_050,
+                "fake-provider",
+                "provider.request",
+                "other-audience",
+                &digest
+            )
             .unwrap_err(),
         "credential_lease_audience_mismatch"
     );

@@ -771,7 +771,10 @@ async fn consumed_permit_with_lost_commit_ack_is_classified_effect_possibly_star
         ]
     );
     let class = kiana_domain::classify_dispatch_stream(&records);
-    assert_eq!(class, kiana_domain::DispatchCrashClass::EffectPossiblyStarted);
+    assert_eq!(
+        class,
+        kiana_domain::DispatchCrashClass::EffectPossiblyStarted
+    );
     assert!(class.handler_may_have_started());
     assert!(!class.is_terminal());
     assert!(!class.requires_unknown_terminal());

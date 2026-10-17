@@ -210,10 +210,8 @@ fn dispatch_crash_classification_rejects_corrupt_streams() {
 fn dispatch_reservation_digest_binds_snapshot_and_read_set() {
     let (permit, _) = permit();
     let reservation = json!({"budget":{"lease_id":"budget-1"},"cell":{"cell_id":"cell-1"}});
-    let digest = kiana_domain::dispatch_reservation_digest(
-        &reservation,
-        &permit.authority_versions,
-    );
+    let digest =
+        kiana_domain::dispatch_reservation_digest(&reservation, &permit.authority_versions);
     // 同一组快照与 read-set 每次都得到相同摘要（规范化 JSON，无墙钟/随机数）。
     assert_eq!(
         digest,

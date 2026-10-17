@@ -820,11 +820,17 @@ mod tests {
         // 只授权 move 的源路径时，目标仍在写集外，必须拒绝。
         let source_only = request(json!(["source.txt"]));
         let error = prepare_patch_request(&source_only, APPLY_PATCH_OPERATION).unwrap_err();
-        assert_eq!(error, PortError::Failed("apply_patch_scope_denied".to_owned()));
+        assert_eq!(
+            error,
+            PortError::Failed("apply_patch_scope_denied".to_owned())
+        );
         // 反过来只授权目标、未覆盖源路径时同样拒绝。
         let target_only = request(json!(["destination.txt"]));
         let error = prepare_patch_request(&target_only, APPLY_PATCH_OPERATION).unwrap_err();
-        assert_eq!(error, PortError::Failed("apply_patch_scope_denied".to_owned()));
+        assert_eq!(
+            error,
+            PortError::Failed("apply_patch_scope_denied".to_owned())
+        );
         // 两端都在授权范围内才进入真正的解析与执行。
         let both = request(json!(["source.txt", "destination.txt"]));
         let (_, accepted) = prepare_patch_request(&both, APPLY_PATCH_OPERATION).unwrap();

@@ -339,8 +339,13 @@ async fn gateway_snapshot_and_catalog_never_expose_raw_credential() {
     .expect("provider gateway");
     let catalog = serde_json::to_string(&gateway.catalog()).expect("catalog json");
     assert!(!catalog.contains("CI08_SECRET_SENTINEL"));
-    let snapshot = gateway.configuration_snapshot().expect("configuration snapshot");
+    let snapshot = gateway
+        .configuration_snapshot()
+        .expect("configuration snapshot");
     let encoded = serde_json::to_string(&snapshot).expect("snapshot json");
     assert!(!encoded.contains("CI08_SECRET_SENTINEL"));
-    assert!(gateway.workspace_configuration_snapshot().expect("workspace snapshot").is_none());
+    assert!(gateway
+        .workspace_configuration_snapshot()
+        .expect("workspace snapshot")
+        .is_none());
 }

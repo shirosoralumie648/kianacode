@@ -1788,16 +1788,19 @@ mod tests {
         );
         let calls = Arc::new(AtomicUsize::new(0));
         let refresh_calls = calls.clone();
-        assert_eq!(
-            manager
-                .access_token(1_501, 0, move |_| async move {
-                    refresh_calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(response("must-not-run", None, 3_600))
-                })
-                .await
-                .unwrap_err(),
-            OAuthError::Revoked
-        );
+        let error = match manager
+            .access_token(1_501, 0, move |_| async move {
+                refresh_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(response("must-not-run", None, 3_600))
+            })
+            .await
+        {
+            // `AccessTokenMaterial` intentionally has no `Debug` (it owns a secret buffer), so the
+            // revoked path is asserted by matching instead of `unwrap_err`.
+            Ok(_) => panic!("a revoked generation must fence the request"),
+            Err(error) => error,
+        };
+        assert_eq!(error, OAuthError::Revoked);
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 
@@ -1831,16 +1834,17 @@ mod tests {
         assert_eq!(fenced.refresh_digest, initial.refresh_digest);
         let calls = Arc::new(AtomicUsize::new(0));
         let refresh_calls = calls.clone();
-        assert_eq!(
-            manager
-                .access_token(1_501, 0, move |_| async move {
-                    refresh_calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(response("must-not-run", None, 3_600))
-                })
-                .await
-                .unwrap_err(),
-            OAuthError::ReauthRequired
-        );
+        let error = match manager
+            .access_token(1_501, 0, move |_| async move {
+                refresh_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(response("must-not-run", None, 3_600))
+            })
+            .await
+        {
+            Ok(_) => panic!("a reauthentication fence must deny the request"),
+            Err(error) => error,
+        };
+        assert_eq!(error, OAuthError::ReauthRequired);
         assert_eq!(calls.load(Ordering::SeqCst), 0);
         let replacement = manager
             .install_tokens(

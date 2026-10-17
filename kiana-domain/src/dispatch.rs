@@ -331,12 +331,9 @@ pub fn classify_dispatch_stream(records: &[RuntimeEvent]) -> DispatchCrashClass 
         ["execution.prepared", "invocation.dispatching", "invocation.executing"] => {
             DispatchCrashClass::EffectPossiblyStarted
         }
-        [
-            "execution.prepared",
-            "invocation.dispatching",
-            "invocation.executing",
-            "execution.result_committed",
-        ] => DispatchCrashClass::ResultCommitted,
+        ["execution.prepared", "invocation.dispatching", "invocation.executing", "execution.result_committed"] => {
+            DispatchCrashClass::ResultCommitted
+        }
         // pre-Broker 终结路径：permit 未被消费，直接以 Unknown 关账。
         ["execution.prepared", "execution.result_committed"] => DispatchCrashClass::ResultCommitted,
         _ => DispatchCrashClass::Corrupt,

@@ -10123,12 +10123,13 @@ async fn resume_without_pending_approval_continues_through_drive_run() {
     );
     let mut resume_context = context.clone();
     resume_context.request_id = RequestId::new();
-    let response = core
-        .resume_run(resume_context, Some(run_id))
-        .await
-        .unwrap();
+    let response = core.resume_run(resume_context, Some(run_id)).await.unwrap();
     // No terminal Runner event: 续体没有结果证据时只能是 ResultUnknown，不能伪造成 Completed。
-    assert_eq!(response.status, ExecutionStatus::ResultUnknown, "{response:?}");
+    assert_eq!(
+        response.status,
+        ExecutionStatus::ResultUnknown,
+        "{response:?}"
+    );
     assert_eq!(response.error.as_deref(), Some("run_result_missing"));
     assert_eq!(*runner.restores.lock().await, 1);
     assert_eq!(*runner.resumes.lock().await, 1);
@@ -10140,7 +10141,10 @@ async fn resume_without_pending_approval_continues_through_drive_run() {
         .filter(|event| event.kind == "run.resume_prepared")
         .collect::<Vec<_>>();
     assert_eq!(claims.len(), 1);
-    assert_eq!(claims[0].data["snapshot_event_id"], json!(snapshot_event_id));
+    assert_eq!(
+        claims[0].data["snapshot_event_id"],
+        json!(snapshot_event_id)
+    );
     assert_eq!(claims[0].data["turn"]["semantics"], json!("resume"));
     let _ = std::fs::remove_dir_all(root);
 }
@@ -10256,7 +10260,11 @@ async fn cancel_before_dispatch_has_zero_effect() {
         broker.clone(),
     );
     let root = temp_project();
-    let context = trusted_context_in(&root, "er22-before-dispatch");
+    let mut context = trusted_context_in(&root, "er22-before-dispatch");
+    // Balanced auto-approves local writes, so it never produces a pending invocation. The
+    // fixture needs a genuinely undecided approval and therefore starts from the Safe profile,
+    // where `apply_patch` waits for an explicit decision.
+    context.permission_profile = PermissionProfile::Safe;
     bind_test_runtime_authority(&harness.core, &context).await;
 
     let awaiting = harness
@@ -10284,7 +10292,11 @@ async fn cancel_before_dispatch_has_zero_effect() {
         .cancel_run(cancel_context, None, "user".to_owned())
         .await
         .unwrap();
-    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::Cancelled,
+        "{cancelled:?}"
+    );
     assert!(
         cancelled
             .error
@@ -10427,10 +10439,17 @@ async fn cancel_after_dispatch_without_stop_is_unknown() {
     let run_id = RunId::parse_str(cancelled.output["run_id"].as_str().unwrap()).unwrap();
 
     let started = finish_runner_task(start_task).await.unwrap();
-    assert_eq!(started.status, ExecutionStatus::ResultUnknown, "{started:?}");
+    assert_eq!(
+        started.status,
+        ExecutionStatus::ResultUnknown,
+        "{started:?}"
+    );
     assert_eq!(*broker.calls.lock().await, 1, "the effect was dispatched");
 
-    let stream = events.read_stream("run", &run_id.to_string()).await.unwrap();
+    let stream = events
+        .read_stream("run", &run_id.to_string())
+        .await
+        .unwrap();
     assert!(
         !stream.iter().any(|event| event.kind == "run.cancelled"),
         "an unconfirmed stop must never project run.cancelled: {stream:?}"
@@ -10511,8 +10530,12 @@ async fn late_result_cannot_resurrect_run() {
         let mut start_context = context.clone();
         start_context.request_id = RequestId::new();
         tokio::spawn(async move {
-            core.start_run(start_context, "cancel before late completion".to_owned(), None)
-                .await
+            core.start_run(
+                start_context,
+                "cancel before late completion".to_owned(),
+                None,
+            )
+            .await
         })
     };
     wait_for_runner_entry(entered_wait, &mut start_task).await;
@@ -10523,7 +10546,11 @@ async fn late_result_cannot_resurrect_run() {
         .cancel_run(cancel_context, None, "user".to_owned())
         .await
         .unwrap();
-    assert_eq!(cancelled.status, ExecutionStatus::Cancelled, "{cancelled:?}");
+    assert_eq!(
+        cancelled.status,
+        ExecutionStatus::Cancelled,
+        "{cancelled:?}"
+    );
     let run_id = RunId::parse_str(cancelled.output["run_id"].as_str().unwrap()).unwrap();
 
     // The held runner now emits a completion; the committed terminal must not be reopened.
@@ -10542,7 +10569,10 @@ async fn late_result_cannot_resurrect_run() {
         core.run_state(run_id).await.unwrap().outcome,
         Some(RunOutcome::Cancelled)
     );
-    let stream = events.read_stream("run", &run_id.to_string()).await.unwrap();
+    let stream = events
+        .read_stream("run", &run_id.to_string())
+        .await
+        .unwrap();
     let terminals = stream
         .iter()
         .filter(|event| {

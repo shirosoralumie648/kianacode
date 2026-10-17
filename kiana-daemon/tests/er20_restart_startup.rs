@@ -61,7 +61,9 @@ impl RunnerPort for ZeroCallRunner {
 
     async fn restore(&self, _run_id: RunId, _checkpoint: Value) -> Result<(), PortError> {
         self.restores.fetch_add(1, Ordering::SeqCst);
-        Err(PortError::Unavailable("restart_must_not_restore".to_owned()))
+        Err(PortError::Unavailable(
+            "restart_must_not_restore".to_owned(),
+        ))
     }
 }
 

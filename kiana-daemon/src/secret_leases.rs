@@ -318,7 +318,13 @@ impl SecretLeaseAuthority {
         now_unix_ms: u64,
         ttl_ms: u64,
     ) -> Result<CredentialLease, PortError> {
-        self.validate_binding(reference, provider_account, purpose, audience, endpoint_digest)?;
+        self.validate_binding(
+            reference,
+            provider_account,
+            purpose,
+            audience,
+            endpoint_digest,
+        )?;
         let ttl_ms = if ttl_ms == 0 {
             CREDENTIAL_LEASE_DEFAULT_TTL_MS
         } else {
@@ -367,7 +373,13 @@ impl SecretLeaseAuthority {
         endpoint_digest: &str,
         now_unix_ms: u64,
     ) -> Result<(), PortError> {
-        self.validate_binding(reference, provider_account, purpose, audience, endpoint_digest)?;
+        self.validate_binding(
+            reference,
+            provider_account,
+            purpose,
+            audience,
+            endpoint_digest,
+        )?;
         if &lease.secret_ref != reference {
             return Err(PortError::Conflict(
                 "secret_lease_reference_mismatch".to_owned(),
@@ -388,7 +400,13 @@ impl SecretLeaseAuthority {
             }
         }
         lease
-            .validate_for(now_unix_ms, provider_account, purpose, audience, endpoint_digest)
+            .validate_for(
+                now_unix_ms,
+                provider_account,
+                purpose,
+                audience,
+                endpoint_digest,
+            )
             .map_err(PortError::Conflict)?;
         lease.consume(now_unix_ms).map_err(PortError::Conflict)
     }
@@ -408,7 +426,13 @@ impl SecretLeaseAuthority {
         endpoint_digest: &str,
         now_unix_ms: u64,
     ) -> Result<SecretRotationReceipt, PortError> {
-        self.validate_binding(reference, provider_account, purpose, audience, endpoint_digest)?;
+        self.validate_binding(
+            reference,
+            provider_account,
+            purpose,
+            audience,
+            endpoint_digest,
+        )?;
         if now_unix_ms == 0 {
             return Err(PortError::Failed("secret_lease_clock_invalid".to_owned()));
         }

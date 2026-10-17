@@ -77,9 +77,7 @@ fn cancel_reaps_process_group_and_records_one_turn_terminal() {
         "stop_confirmed",
     ] {
         assert!(
-            shell.contains(marker)
-                || supervisor.contains(marker)
-                || execution.contains(marker),
+            shell.contains(marker) || supervisor.contains(marker) || execution.contains(marker),
             "H08 process-group reap marker missing: {marker}"
         );
     }

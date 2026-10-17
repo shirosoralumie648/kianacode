@@ -483,7 +483,10 @@ async fn architecture_main(args: &[String]) -> Result<()> {
                 .as_str()
                 .unwrap_or("unknown")
         );
-        println!("Storage root: {} ({})", storage_root.canonical_path, storage_binding.root_id);
+        println!(
+            "Storage root: {} ({})",
+            storage_root.canonical_path, storage_binding.root_id
+        );
     }
     Ok(())
 }

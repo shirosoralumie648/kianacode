@@ -491,9 +491,7 @@ impl SecretStoreBinding {
         if !self
             .endpoint_digest
             .strip_prefix("sha256:")
-            .is_some_and(|hex| {
-                hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
-            })
+            .is_some_and(|hex| hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
         {
             return Err("secret_store_binding_endpoint_digest_invalid".to_owned());
         }
@@ -536,9 +534,13 @@ pub trait SecretStore: Send + Sync {
             return Err(PortError::Failed(code));
         }
         if secret_ref.purpose != binding.purpose || secret_ref.audience != binding.audience {
-            return Err(PortError::Conflict("secret_store_binding_mismatch".to_owned()));
+            return Err(PortError::Conflict(
+                "secret_store_binding_mismatch".to_owned(),
+            ));
         }
-        let resolution = self.resolve_secret(secret_ref, binding, now_unix_ms).await?;
+        let resolution = self
+            .resolve_secret(secret_ref, binding, now_unix_ms)
+            .await?;
         resolution.validate_for(secret_ref, now_unix_ms)?;
         Ok(resolution)
     }

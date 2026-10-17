@@ -405,7 +405,12 @@ async fn authority_provenance_reports_server_sources_and_revisions() {
     provision_builder_assignment(&host, &root, organization_id).await;
 
     let provenance = host
-        .authority_provenance(&root.to_string_lossy(), organization_id, "builder", now_ms())
+        .authority_provenance(
+            &root.to_string_lossy(),
+            organization_id,
+            "builder",
+            now_ms(),
+        )
         .await
         .expect("server-owned provenance query");
     assert_eq!(provenance.trust_source, "daemon.project_authority");
@@ -422,7 +427,12 @@ async fn authority_provenance_reports_server_sources_and_revisions() {
     // A foreign organization cannot read an assignment the daemon does not own.
     let foreign_organization = OrganizationId::new();
     let denied = host
-        .authority_provenance(&root.to_string_lossy(), foreign_organization, "builder", now_ms())
+        .authority_provenance(
+            &root.to_string_lossy(),
+            foreign_organization,
+            "builder",
+            now_ms(),
+        )
         .await
         .expect_err("foreign organization must not resolve an assignment");
     let reason = match denied {
