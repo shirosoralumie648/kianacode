@@ -94,6 +94,7 @@ mod process_supervisor;
 pub mod project_provider_config;
 mod restore_verifier;
 mod run_stream;
+mod secret_leases;
 mod shell_plan;
 mod startup_coordinator;
 mod storage;
@@ -179,6 +180,11 @@ use run_stream::RunStreamBus;
 pub use run_stream::{
     RunStreamFeedError, RunStreamFeedSubscription, RunStreamSubscription,
     UiFeedBackpressureMetrics, UI_FEED_QUEUE_CAPACITY,
+};
+pub use secret_leases::{
+    SecretLeaseAuthority, SecretLeaseJournalRecord, SecretLeaseStatus, SecretRevocationReceipt,
+    SecretRotationReceipt, SECRET_LEASE_JOURNAL_SCHEMA, SECRET_REVOCATION_RECEIPT_SCHEMA,
+    SECRET_ROTATION_RECEIPT_SCHEMA,
 };
 use std::path::Path;
 use std::sync::Arc;

@@ -8,6 +8,8 @@ fn sc19_secret_rotation_and_revocation_are_generation_fenced() {
     let ports = include_str!("../../kiana-ports/src/lib.rs");
     let leases = include_str!("../src/resource_leases.rs");
     let daemon = include_str!("../../kiana-daemon/src/lib.rs");
+    let daemon_leases = include_str!("../../kiana-daemon/src/secret_leases.rs");
+    let daemon_fixture = include_str!("../../kiana-daemon/tests/sc19_secret_lease.rs");
     let fixture = include_str!("../../kiana-domain/tests/ci09_oauth_contracts.rs");
     let guard = include_str!("ci09_oauth_guard.rs");
 
@@ -107,6 +109,53 @@ fn sc19_secret_rotation_and_revocation_are_generation_fenced() {
             assert!(
                 !source.contains(forbidden),
                 "SC-19 raw token boundary marker: {forbidden}"
+            );
+        }
+    }
+    for marker in [
+        "SecretLeaseAuthority",
+        "pub fn issue_lease",
+        "pub fn consume_lease",
+        "pub fn rotate",
+        "pub fn revoke",
+        "pub fn export_journal",
+        "pub fn restore_from_journal",
+        "secret_lease_revoked",
+        "secret_lease_generation_conflict",
+        "secret_lease_generation_rollback",
+        "secret_lease_restore_plaintext_rejected",
+        "SECRET_ROTATION_RECEIPT_SCHEMA",
+        "SECRET_REVOCATION_RECEIPT_SCHEMA",
+        "SECRET_LEASE_JOURNAL_SCHEMA",
+        "deny_unknown_fields",
+    ] {
+        assert!(
+            daemon_leases.contains(marker),
+            "SC-19 daemon lease marker missing: {marker}"
+        );
+    }
+    for marker in [
+        "expired_lease_is_denied_before_injection",
+        "one_shot_lease_cannot_be_replayed",
+        "revoked_slot_denies_further_lease_consume_and_rotate",
+        "rotation_receipt_is_generation_fenced",
+        "restore_rejects_plaintext_and_round_trips_secret_free",
+        "secret_lease_restore_plaintext_rejected",
+    ] {
+        assert!(
+            daemon_fixture.contains(marker),
+            "SC-19 daemon fixture marker missing: {marker}"
+        );
+    }
+    for source in [daemon_leases, daemon_fixture] {
+        for forbidden in [
+            "secret_value: String",
+            "access_token: String",
+            "refresh_token: Option<String>",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "SC-19 daemon raw secret boundary marker: {forbidden}"
             );
         }
     }
