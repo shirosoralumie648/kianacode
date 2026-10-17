@@ -1,0 +1,37 @@
+name: "INT-07 connector adapter ports baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int07-connector-ports:
+    name: "INT-07 connector adapter ports baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Narrow ports: ConnectorAdapter / EffectObserver / CredentialProbe / WebhookVerifier.
+      # The fixture covers known/unknown/stop/health results plus the deny paths (missing
+      # capability, stale permit, foreign lease, foreign/late observation, raw secret, unknown
+      # fields). The source guard pins the port surface and this lane's wiring.
+      - name: Run ports connector adapter fixtures
+        run: cargo test -p kiana-ports --test int07_connector_ports --locked -- --test-threads=1
+      - name: Run core connector ports source guard
+        run: cargo test -p kiana-core --test int07_connector_ports_guard --locked -- --test-threads=1
+
+      - name: Compile ports connector adapter target
+        run: cargo test -p kiana-ports --test int07_connector_ports --no-run --locked
+      - name: Compile core connector ports guard target
+        run: cargo test -p kiana-core --test int07_connector_ports_guard --no-run --locked
