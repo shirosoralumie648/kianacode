@@ -26,6 +26,11 @@ jobs:
       - run: cargo test -p kiana-domain --test er01_event_contract --locked -- --test-threads=1
       - run: cargo test -p kiana-domain --test pd02_schema --locked -- --test-threads=1
       - run: cargo test -p kiana-domain --test ci04_ingress --locked -- --test-threads=1
+      - name: Run migration preflight/rollback and legacy wire fixtures
+        run: cargo test -p kiana-domain --test dep27_migration_registry --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test dep28_migration_preflight --locked -- --test-threads=1
+      - run: cargo test -p kiana-domain --test dep32_migration_rollback --locked -- --test-threads=1
+      - run: cargo test -p kiana-protocol --test h34_legacy_compat --locked -- --test-threads=1
       - name: Run Core schema and journal guards
         run: cargo test -p kiana-core --test p0_a01b_schema_guard --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test pd02_schema_guard --locked -- --test-threads=1
@@ -45,6 +50,10 @@ jobs:
       - run: cargo test -p kiana-domain --test er01_event_contract --no-run --locked
       - run: cargo test -p kiana-domain --test pd02_schema --no-run --locked
       - run: cargo test -p kiana-domain --test ci04_ingress --no-run --locked
+      - run: cargo test -p kiana-domain --test dep27_migration_registry --no-run --locked
+      - run: cargo test -p kiana-domain --test dep28_migration_preflight --no-run --locked
+      - run: cargo test -p kiana-domain --test dep32_migration_rollback --no-run --locked
+      - run: cargo test -p kiana-protocol --test h34_legacy_compat --no-run --locked
       - name: Compile selected Core targets
         run: cargo test -p kiana-core --test cp28_migration_boundary_guard --no-run --locked
       - run: cargo test -p kiana-core --test dependency_boundaries --no-run --locked

@@ -45,6 +45,8 @@ jobs:
         run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --locked -- --test-threads=1
       - name: Run CP-26 source guard
         run: cargo test -p kiana-core --test cp26_decision_trace_guard --locked -- --test-threads=1
+      - name: Run CP-26 evidence chains
+        run: cargo test -p kiana-core --test cp26_evidence_chains --locked -- --test-threads=1
       - name: Compile domain CP-26 fixtures
         run: cargo test -p kiana-domain --test oa04_audit_taxonomy --no-run --locked
       - run: cargo test -p kiana-domain --test sc03_security_reason --no-run --locked
@@ -59,3 +61,4 @@ jobs:
       - run: cargo test -p kiana-core --test sc03_security_reason_guard --no-run --locked
       - run: cargo test -p kiana-core --test sc20_redaction_boundary_guard --no-run --locked
       - run: cargo test -p kiana-core --test cp26_decision_trace_guard --no-run --locked
+      - run: cargo test -p kiana-core --test cp26_evidence_chains --no-run --locked

@@ -717,8 +717,8 @@ sequenceDiagram
 - **Step 1**：每项决定能回答谁、什么 action、用了哪些 authority/rule 版本、为什么 Allow/Ask/Deny、批准是谁给的、哪个 attempt 执行及效果是否确认。
 - **Step 2**：分开 policy decision、authorization commit、dispatch、result、verification/correction 事件；统一 correlation/causation，trace_id 不替代业务 ID。
 - **Step 3**：在落盘前脱敏，拒绝码不依赖敏感文本匹配；指标可以异步降级，授权事实写失败必须阻止派发。提供只读 explain，输出明确为诊断而非执行许可。
-- **验收**：`cp_decision_trace_links_every_effect_to_its_authority`、`cp_secret_never_appears_in_error_event_receipt_or_explain`、`cp_explain_does_not_consume_grant_or_approval`。
-- **交付**：一次成功、一次硬拒绝、一次 Unknown 的完整证据链示例。
+- **验收**：`cp_decision_trace_links_every_effect_to_its_authority`、`cp_secret_never_appears_in_error_event_receipt_or_explain`、`cp_explain_does_not_consume_grant_or_approval`；行为证据链 fixture `kiana-core/tests/cp26_evidence_chains.rs`（`cp26_success_chain_links_each_effect_to_its_authority`、`cp26_hard_denial_chain_never_records_a_confirmed_effect`、`cp26_unknown_chain_stays_unknown_until_reconciled`、`cp26_self_submitted_audit_row_is_rejected_before_persist`、`cp26_secret_never_appears_in_projected_explain_row`），接入 `.github/workflows/cp26-decision-trace.yml` 与 `kiana-core-s3/6`。
+- **交付**：一次成功、一次硬拒绝、一次 Unknown 的完整证据链示例；实现见 `kiana-core/tests/cp26_evidence_chains.rs` 与 [`cp26-decision-trace-baseline.md`](cp26-decision-trace-baseline.md) §Evidence chains。
 
 <a id="step-cp-27"></a>
 
@@ -746,8 +746,8 @@ sequenceDiagram
 - **Step 1**：按版本处理旧 request/run 事件、单独审批文件、无 epoch 的 snapshot、旧 Continue；缺乏授权来源的旧记录保留查询，要求重新授权后才能执行。
 - **Step 2**：迁移先 dry-run 与导出核对，原数据保留，切换只有一个权威 writer；new/old daemon 不得同时写不同事实源，失败可回到受限只读查询。
 - **Step 3**：产品构造器强制要求事务/恢复能力，兼容默认方法不能冒充 durable；清查 direct Runner/Broker/legacy CLI 调用，仅让经控制面的产品路由到达执行器。
-- **验收**：`cp_legacy_authority_records_require_reauthorization`、`cp_old_writer_cannot_mutate_new_journal`、`cp_every_product_constructor_enforces_the_same_boundary`；保留旧 wire fixture，新增版本单独断言。
-- **交付**：迁移矩阵、升级/降级处理说明与架构边界测试；移除旧分支依据实际调用可达性。
+- **验收**：`cp_legacy_authority_records_require_reauthorization`、`cp_old_writer_cannot_mutate_new_journal`、`cp_every_product_constructor_enforces_the_same_boundary`、`cp_migration_matrix_and_single_writer_are_explicit`；保留旧 wire fixture `h34_legacy_compat`，新增版本单独断言。
+- **交付**：迁移矩阵、升级/降级处理说明与架构边界测试（见 [`cp28-migration-boundary-baseline.md`](cp28-migration-boundary-baseline.md)）；移除旧分支依据实际调用可达性。
 
 <a id="step-cp-29"></a>
 

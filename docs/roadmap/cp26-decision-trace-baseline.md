@@ -21,6 +21,26 @@ new authority paths.
 The GitHub workflow runs existing OA/ER/SC audit, receipt, redaction and security fixtures, then
 the CP-26 source guard and workspace test-target compilation.  Local runtime tests are not run.
 
+## Evidence chains
+
+`kiana-core/tests/cp26_evidence_chains.rs` folds committed events through the server-owned audit
+reducer and projection to produce the three complete chains the card asks for:
+
+1. **Allow** — `run.authorized` (authorization commit) → `run.capability_requested` (dispatch) →
+   `capability.decision=allowed` (policy allow) → `capability.completed` (confirmed effect).  One
+   correlation root (`corr-success`) spans every row; the authorization commit keeps its
+   `input_digest`, and every capability row keeps its `command_id`.
+2. **Hard denial** — `authorization.denied` → `capability.blocked`.  Both rows are `Denied`; the
+   chain never contains an accepted or consumed effect.
+3. **Unknown** — `capability.result_unknown` → `recovery.requested` → `recovery.reconciled`.  The
+   unconfirmed capability fact stays `Unknown`; only the later recovery row is `Consumed`.
+
+Each row is asserted to validate, to point back at exactly its source event and request, to carry
+the fixed authority/data epochs and a bound `action_digest`, and to keep `server:control-plane` as
+its actor.  Two negative cases reject a self-submitted `audit.*` row and a payload that pre-bakes
+an `audit_record`.  A redaction case asserts a secret sentinel never appears in the projected
+explain row and that the stored reason code is `[REDACTED]`.
+
 ## Limits
 
 This is source plus CI-fixture evidence only.  It does not claim a remote SIEM, live provider

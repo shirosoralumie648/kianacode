@@ -17,6 +17,8 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
     let daemon = include_str!("../../kiana-daemon/src/model_client.rs");
     let provider_fixture = include_str!("../../kiana-provider/tests/ci07_secret_store.rs");
     let lease_fixture = include_str!("../../kiana-domain/tests/ci07_credential_lease.rs");
+    let secret_ref_fixture = include_str!("../../kiana-domain/tests/sc18_secret_ref.rs");
+    let secret_store_fixture = include_str!("../../kiana-ports/tests/sc18_secret_store.rs");
 
     for marker in [
         "pub struct SecretRef",
@@ -64,6 +66,13 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
         "never returns raw secret bytes or strings",
         "CredentialResolution",
         "resolve_credential",
+        "pub trait SecretStore",
+        "pub struct SecretStoreBinding",
+        "SECRET_STORE_BINDING_SCHEMA",
+        "fn store_name",
+        "resolve_secret_checked",
+        "secret_store_unknown",
+        "secret_store_binding_mismatch",
     ] {
         assert!(
             ports.contains(marker),
@@ -182,4 +191,9 @@ fn sc18_secret_ref_store_and_egress_boundary_is_opaque_and_deny_first() {
     }
     assert!(lease_fixture.contains("lease_json_has_no_secret_slot"));
     assert!(provider_fixture.contains("missing_resolution_fails_closed"));
+    assert!(secret_ref_fixture.contains("not_transferable_across_account_purpose"));
+    assert!(secret_ref_fixture.contains("wire_log_event_payload_carries_no_secret_value"));
+    assert!(secret_store_fixture.contains("unknown_provider_account_or_purpose"));
+    assert!(secret_store_fixture.contains("not_transferable_across_purpose_or_audience"));
+    assert!(secret_store_fixture.contains("wire_log_event_payload_carries_no_secret_value"));
 }
