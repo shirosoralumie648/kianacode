@@ -389,8 +389,12 @@ pub use notification_priority::{
 };
 pub use notification_projector::NotificationProjection;
 pub use notification_projector::{
-    NotificationProjector, NotificationProjectorError, NotificationVisibility,
-    NOTIFICATION_PROJECTOR_SCHEMA,
+    NotificationInboxEntry, NotificationInboxSnapshot, NotificationProjector,
+    NotificationProjectorError, NotificationReadStateFact, NotificationRetentionAdmission,
+    NotificationRetentionDecision, NotificationVisibility, NOTIFICATION_INBOX_SNAPSHOT_SCHEMA,
+    NOTIFICATION_PROJECTOR_SCHEMA, NOTIFICATION_READ_STATE_SCHEMA,
+    NOTIFICATION_RETENTION_ADMISSION_SCHEMA, NOTIFICATION_RETENTION_PAYLOAD_LAYERS,
+    NOTIFICATION_RETENTION_SCHEMA, NOTIFICATION_RETENTION_VERSION,
 };
 pub use notification_recovery::{
     plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
