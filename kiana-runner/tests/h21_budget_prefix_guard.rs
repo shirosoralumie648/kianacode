@@ -61,7 +61,7 @@ fn h21_behaviour_fixtures_are_wired_into_the_diagnostic_lane() {
         "h21_cache_hit_cannot_bypass_data_revocation",
     ];
     let success = "h21_context_fits_actual_wire_budget_and_preserves_stable_prefix";
-    for fixture in deny.iter().chain([success]) {
+    for fixture in deny.iter().copied().chain([success]) {
         assert!(
             behavior.contains(fixture),
             "H21 behavior fixture missing: {fixture}"
