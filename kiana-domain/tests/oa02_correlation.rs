@@ -1,7 +1,8 @@
 use kiana_domain::{
-    AttemptRef, CausationRef, CorrelationContext, CorrelationScope, EventId, ExecutionId,
-    InvocationId, OrganizationId, ProjectId, RequestContext, RequestId, RunId, SessionId, SpanLink,
-    SpanLinkKind, TraceParent, TurnId,
+    AttemptRef, CausationRef, CorrelationContext, CorrelationScope, CorrelationStage,
+    CorrelationTrail, EventId, ExecutionId, InvocationId, OrganizationId, ProjectId,
+    RequestContext, RequestId, RunId, SessionId, SpanId, SpanLink, SpanLinkKind, TraceParent,
+    TurnId,
 };
 use uuid::Uuid;
 
@@ -443,4 +444,237 @@ fn malformed_attempt_and_causation_command_ids_fail_closed() {
             .unwrap_err(),
         "correlation_causation_command_id_invalid"
     );
+}
+
+#[test]
+fn trail_threads_authenticated_ingress_through_the_execution_spine() {
+    let request = request();
+    let scope = scope(&request);
+    let root = CorrelationContext::root(&request, scope.clone(), 3, 5, None).unwrap();
+    let command_id = root.command_id.unwrap();
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let invocation_id = InvocationId::new();
+    let execution_id = ExecutionId::new();
+    let trail = CorrelationTrail::from_ingress(root.clone()).unwrap();
+    assert_eq!(trail.current_stage(), CorrelationStage::Ingress);
+    let trail = trail
+        .with_run(run_id)
+        .unwrap()
+        .with_turn(turn_id)
+        .unwrap()
+        .with_invocation(invocation_id, execution_id)
+        .unwrap();
+    let attempt = AttemptRef::new(
+        run_id,
+        turn_id,
+        invocation_id,
+        execution_id,
+        command_id,
+        2,
+    )
+    .unwrap();
+    let trail = trail
+        .with_attempt(attempt.clone())
+        .unwrap()
+        .provider()
+        .unwrap()
+        .broker()
+        .unwrap()
+        .event_log(9)
+        .unwrap();
+
+    assert_eq!(trail.current_stage(), CorrelationStage::EventLog);
+    assert_eq!(trail.entries().len(), CorrelationStage::ORDERED.len());
+    for (index, entry) in trail.entries().iter().enumerate() {
+        assert_eq!(entry.stage, CorrelationStage::ORDERED[index]);
+        assert_eq!(entry.context.trace_id, root.trace_id);
+        assert_eq!(entry.context.request_id, request.request_id);
+        assert_eq!(entry.context.scope(), scope);
+        assert_eq!(entry.context.actor_ref, root.actor_ref);
+        assert_eq!(entry.context.authority_epoch, 3);
+        assert_eq!(entry.context.data_epoch, 5);
+        assert_eq!(entry.context.command_id, Some(command_id));
+        if index > 0 {
+            assert_eq!(
+                entry.context.parent_span_id,
+                Some(trail.entries()[index - 1].context.span_id.clone())
+            );
+            assert_ne!(entry.context.span_id, trail.entries()[index - 1].context.span_id);
+        }
+    }
+    assert_eq!(
+        trail.context_at(CorrelationStage::Invocation).unwrap().attempt,
+        Some(attempt)
+    );
+    assert_eq!(
+        trail.context_at(CorrelationStage::Provider).unwrap().attempt,
+        trail.context_at(CorrelationStage::Invocation).unwrap().attempt
+    );
+    assert_eq!(trail.event_correlation().unwrap().source_cursor, Some(9));
+    trail.validate().unwrap();
+}
+
+#[test]
+fn trail_rejects_out_of_order_and_terminal_advances() {
+    let request = request();
+    let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();
+    let trail = CorrelationTrail::from_ingress(root).unwrap();
+    assert_eq!(
+        trail.clone().provider().unwrap_err(),
+        "correlation_trail_stage_order"
+    );
+    assert_eq!(
+        trail.clone().with_turn(TurnId::new()).unwrap_err(),
+        "correlation_trail_stage_order"
+    );
+    assert_eq!(
+        trail
+            .clone()
+            .with_attempt(AttemptRef::new(
+                RunId::new(),
+                TurnId::new(),
+                InvocationId::new(),
+                ExecutionId::new(),
+                RequestId::new(),
+                1,
+            )
+            .unwrap())
+            .unwrap_err(),
+        "correlation_attempt_requires_invocation"
+    );
+
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let trail = trail
+        .with_run(run_id)
+        .unwrap()
+        .with_turn(turn_id)
+        .unwrap()
+        .with_invocation(InvocationId::new(), ExecutionId::new())
+        .unwrap()
+        .provider()
+        .unwrap()
+        .broker()
+        .unwrap()
+        .event_log(1)
+        .unwrap();
+    assert_eq!(
+        trail.clone().event_log(2).unwrap_err(),
+        "correlation_trail_terminal"
+    );
+    assert_eq!(trail.clone().broker().unwrap_err(), "correlation_trail_terminal");
+}
+
+#[test]
+fn trail_rebuild_rejects_forged_stage_order_parent_and_identity_drift() {
+    let request = request();
+    let root = CorrelationContext::root(&request, scope(&request), 2, 4, None).unwrap();
+    let run_id = RunId::new();
+    let turn_id = TurnId::new();
+    let valid = CorrelationTrail::from_ingress(root)
+        .unwrap()
+        .with_run(run_id)
+        .unwrap()
+        .with_turn(turn_id)
+        .unwrap()
+        .with_invocation(InvocationId::new(), ExecutionId::new())
+        .unwrap();
+
+    assert_eq!(
+        CorrelationTrail::from_entries(Vec::new()).unwrap_err(),
+        "correlation_trail_empty"
+    );
+
+    let mut non_ingress = valid.entries().to_vec();
+    non_ingress.remove(0);
+    assert_eq!(
+        CorrelationTrail::from_entries(non_ingress).unwrap_err(),
+        "correlation_trail_ingress_required"
+    );
+
+    let mut ingress_parent = valid.entries().to_vec();
+    ingress_parent[0].context.parent_span_id = Some(SpanId::new());
+    assert_eq!(
+        CorrelationTrail::from_entries(ingress_parent).unwrap_err(),
+        "correlation_trail_ingress_parent_forbidden"
+    );
+
+    let mut reordered = valid.entries().to_vec();
+    reordered[1].stage = CorrelationStage::Ingress;
+    assert_eq!(
+        CorrelationTrail::from_entries(reordered).unwrap_err(),
+        "correlation_trail_stage_order"
+    );
+
+    let mut actor_drift = valid.entries().to_vec();
+    actor_drift[2].context.actor_ref = "attacker".to_owned();
+    assert_eq!(
+        CorrelationTrail::from_entries(actor_drift).unwrap_err(),
+        "correlation_trail_identity_drift"
+    );
+
+    let mut trace_drift = valid.entries().to_vec();
+    trace_drift[3].context.trace_id = kiana_domain::TraceId::new();
+    assert_eq!(
+        CorrelationTrail::from_entries(trace_drift).unwrap_err(),
+        "correlation_trail_trace_drift"
+    );
+
+    let mut parent_drift = valid.entries().to_vec();
+    parent_drift[2].context.parent_span_id = Some(SpanId::new());
+    assert_eq!(
+        CorrelationTrail::from_entries(parent_drift).unwrap_err(),
+        "correlation_trail_parent_link"
+    );
+}
+
+#[test]
+fn trail_async_recovery_uses_a_link_and_a_new_span() {
+    let request = request();
+    let root = CorrelationContext::root(&request, scope(&request), 1, 1, None).unwrap();
+    let trail = CorrelationTrail::from_ingress(root)
+        .unwrap()
+        .with_run(RunId::new())
+        .unwrap()
+        .with_turn(TurnId::new())
+        .unwrap()
+        .with_invocation(InvocationId::new(), ExecutionId::new())
+        .unwrap()
+        .provider()
+        .unwrap()
+        .broker()
+        .unwrap()
+        .event_log(4)
+        .unwrap();
+
+    assert_eq!(
+        trail
+            .async_recovery(SpanLinkKind::Parent)
+            .unwrap_err(),
+        "correlation_async_parent_link_forbidden"
+    );
+
+    let upstream = trail.current().clone();
+    let recovery = trail.async_recovery(SpanLinkKind::FollowsFrom).unwrap();
+    assert_eq!(recovery.upstream, upstream.current_span());
+    assert_eq!(recovery.relationship, SpanLinkKind::FollowsFrom);
+    assert!(recovery.context.parent_span_id.is_none());
+    assert_ne!(recovery.context.span_id, upstream.span_id);
+    assert_eq!(recovery.context.trace_id, upstream.trace_id);
+    assert_eq!(recovery.context.run_id, None);
+    assert_eq!(recovery.context.turn_id, None);
+    assert_eq!(recovery.context.invocation_id, None);
+    assert_eq!(recovery.context.attempt, None);
+    assert_eq!(recovery.context.source_cursor, None);
+    assert_eq!(
+        recovery.context.span_links,
+        vec![SpanLink::new(upstream.current_span(), SpanLinkKind::FollowsFrom)]
+    );
+
+    let recovered = recovery.trail().unwrap();
+    assert_eq!(recovered.current_stage(), CorrelationStage::Ingress);
+    assert_eq!(recovered.current().trace_id, upstream.trace_id);
+    let resumed = recovered.with_run(RunId::new()).unwrap();
+    assert_eq!(resumed.current_stage(), CorrelationStage::Run);
 }
