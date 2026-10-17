@@ -1,4 +1,4 @@
-name: SC-28 dependency, license and advisory scanner
+name: SC-28 dependency, license, advisory and SBOM scanner
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
       - "scripts/supply-chain-scan.sh"
       - "scripts/supply-chain-scan.py"
       - "scripts/validate-sc28-supply-chain.sh"
+      - "scripts/tests/test_sc28_supply_chain.py"
       - "kiana-core/tests/sc28_supply_chain_guard.rs"
       - "docs/roadmap/sc28-supply-chain-baseline.md"
       - ".github/workflows/sc28-supply-chain.yml"
@@ -21,6 +22,7 @@ on:
       - "scripts/supply-chain-scan.sh"
       - "scripts/supply-chain-scan.py"
       - "scripts/validate-sc28-supply-chain.sh"
+      - "scripts/tests/test_sc28_supply_chain.py"
       - "kiana-core/tests/sc28_supply_chain_guard.rs"
       - "docs/roadmap/sc28-supply-chain-baseline.md"
       - ".github/workflows/sc28-supply-chain.yml"
@@ -43,13 +45,15 @@ jobs:
       - run: cargo fmt --all --check
       - name: Resolve the committed lockfile
         run: cargo fetch --locked
-      - name: Install pinned scanner tools
+      - name: Install cargo-audit and cargo-deny scanners
         env:
           SC28_TOOL_ROOT: ${{ runner.temp }}/sc28-tools
         run: |
           mkdir -p "$SC28_TOOL_ROOT"
           cargo install cargo-audit --locked --root "$SC28_TOOL_ROOT"
           cargo install cargo-deny --locked --root "$SC28_TOOL_ROOT"
+      - name: Run SC-28 deny-first normalizer fixtures
+        run: python3 -B scripts/tests/test_sc28_supply_chain.py
       - name: Run locked dependency, license, advisory and SBOM scan
         env:
           SC28_TOOL_ROOT: ${{ runner.temp }}/sc28-tools

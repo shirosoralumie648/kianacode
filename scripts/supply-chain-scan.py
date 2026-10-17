@@ -19,6 +19,27 @@ from typing import Any
 SCHEMA = "kiana.supply-chain-scan.v1"
 QUARANTINE_SCHEMA = "kiana.supply-chain-quarantine.v1"
 
+# The closed set of quarantine reason codes, in evaluation order. Every reason a
+# report can carry comes from this tuple; a new failure mode adds a code here
+# instead of writing a free-form detail string, so a reviewer can diff the
+# contract instead of grepping prose.
+REASON_CODES = (
+    "lockfile_missing",
+    "lockfile_resolution_failed",
+    "dependency_graph_empty",
+    "lockfile_drift",
+    "lockfile_digest_mismatch",
+    "license_unknown",
+    "advisory_scanner_missing",
+    "advisory_scan_failed",
+    "advisory_found",
+    "critical_threshold_exceeded",
+    "high_threshold_exceeded",
+    "advisory_severity_unclassified",
+    "policy_scanner_missing",
+    "dependency_policy_failed",
+)
+
 
 def read_json(path: pathlib.Path, default: Any) -> Any:
     try:
@@ -35,6 +56,12 @@ def sha256_file(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
+def metadata_packages(metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    """The Cargo packages the SBOM is built from; an empty list is a failure."""
+
+    return [item for item in metadata.get("packages", []) if isinstance(item, dict)]
+
+
 def package_ref(package: dict[str, Any]) -> str:
     name = package.get("name") or "unknown"
     version = package.get("version") or "0.0.0"
@@ -48,7 +75,9 @@ def package_ref(package: dict[str, Any]) -> str:
 
 
 def spdx_id(package_id: str) -> str:
-    return "SPDXRef-Package-" + hashlib.sha256(package_id.encode("utf-8")).hexdigest()[:24]
+    return (
+        "SPDXRef-Package-" + hashlib.sha256(package_id.encode("utf-8")).hexdigest()[:24]
+    )
 
 
 def package_license(package: dict[str, Any]) -> tuple[str, bool, str | None]:
@@ -63,8 +92,12 @@ def package_license(package: dict[str, Any]) -> tuple[str, bool, str | None]:
 
 def normalize_advisories(path: pathlib.Path) -> dict[str, Any]:
     payload = read_json(path, {})
-    vulnerabilities = payload.get("vulnerabilities", {}) if isinstance(payload, dict) else {}
-    listed = vulnerabilities.get("list", []) if isinstance(vulnerabilities, dict) else []
+    vulnerabilities = (
+        payload.get("vulnerabilities", {}) if isinstance(payload, dict) else {}
+    )
+    listed = (
+        vulnerabilities.get("list", []) if isinstance(vulnerabilities, dict) else []
+    )
     if not isinstance(listed, list):
         listed = []
 
@@ -73,7 +106,9 @@ def normalize_advisories(path: pathlib.Path) -> dict[str, Any]:
     for item in listed[:1000]:
         if not isinstance(item, dict):
             continue
-        advisory = item.get("advisory") if isinstance(item.get("advisory"), dict) else item
+        advisory = (
+            item.get("advisory") if isinstance(item.get("advisory"), dict) else item
+        )
         advisory_id = str(advisory.get("id") or advisory.get("url") or "unknown")
         severity = str(advisory.get("severity") or "unknown").lower()
         if severity not in severity_counts:
@@ -100,11 +135,23 @@ def normalize_advisories(path: pathlib.Path) -> dict[str, Any]:
 def make_sbom(
     metadata: dict[str, Any], lock_digest: str, source_revision: str, version: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    packages = [item for item in metadata.get("packages", []) if isinstance(item, dict)]
-    packages.sort(key=lambda item: (str(item.get("name", "")), str(item.get("version", "")), str(item.get("id", ""))))
+    packages = metadata_packages(metadata)
+    packages.sort(
+        key=lambda item: (
+            str(item.get("name", "")),
+            str(item.get("version", "")),
+            str(item.get("id", "")),
+        )
+    )
     workspace_members = set(metadata.get("workspace_members", []))
-    refs = {str(item.get("id")): package_ref(item) for item in packages if item.get("id")}
-    spdx_refs = {str(item.get("id")): spdx_id(str(item.get("id"))) for item in packages if item.get("id")}
+    refs = {
+        str(item.get("id")): package_ref(item) for item in packages if item.get("id")
+    }
+    spdx_refs = {
+        str(item.get("id")): spdx_id(str(item.get("id")))
+        for item in packages
+        if item.get("id")
+    }
 
     components: list[dict[str, Any]] = []
     spdx_packages: list[dict[str, Any]] = []
@@ -115,7 +162,10 @@ def make_sbom(
         license_value, unknown, license_file = package_license(package)
         if unknown:
             unknown_license.append(
-                {"name": str(package.get("name") or "unknown"), "version": str(package.get("version") or "unknown")}
+                {
+                    "name": str(package.get("name") or "unknown"),
+                    "version": str(package.get("version") or "unknown"),
+                }
             )
         component: dict[str, Any] = {
             "bom-ref": ref,
@@ -126,7 +176,11 @@ def make_sbom(
             "licenses": (
                 [{"license": {"name": license_value}}]
                 if license_file
-                else ([{"expression": license_value}] if license_value != "NOASSERTION" else [{"license": {"name": "NOASSERTION"}}])
+                else (
+                    [{"expression": license_value}]
+                    if license_value != "NOASSERTION"
+                    else [{"license": {"name": "NOASSERTION"}}]
+                )
             ),
         }
         source = package.get("source")
@@ -137,17 +191,34 @@ def make_sbom(
             component["externalReferences"] = [{"type": "vcs", "url": repository}]
         components.append(component)
 
-        spdx_license = "NOASSERTION" if license_file else (license_value if not unknown else "NOASSERTION")
+        spdx_license = (
+            "NOASSERTION"
+            if license_file
+            else (license_value if not unknown else "NOASSERTION")
+        )
         spdx_packages.append(
             {
                 "SPDXID": spdx_refs.get(package_id, spdx_id(package_id)),
                 "name": package.get("name") or "unknown",
                 "versionInfo": package.get("version") or "0.0.0",
-                "downloadLocation": source if isinstance(source, str) and source.startswith(("http://", "https://")) else "NOASSERTION",
+                "downloadLocation": source
+                if isinstance(source, str)
+                and source.startswith(("http://", "https://"))
+                else "NOASSERTION",
                 "licenseConcluded": spdx_license,
                 "licenseDeclared": spdx_license,
                 "filesAnalyzed": False,
-                "externalRefs": ([{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": ref}] if ref.startswith("pkg:") else []),
+                "externalRefs": (
+                    [
+                        {
+                            "referenceCategory": "PACKAGE-MANAGER",
+                            "referenceType": "purl",
+                            "referenceLocator": ref,
+                        }
+                    ]
+                    if ref.startswith("pkg:")
+                    else []
+                ),
             }
         )
 
@@ -160,16 +231,29 @@ def make_sbom(
         node_id = str(node.get("id") or "")
         if node_id not in refs:
             continue
-        depends_on = sorted(refs[item] for item in node.get("dependencies", []) if item in refs)
+        depends_on = sorted(
+            refs[item] for item in node.get("dependencies", []) if item in refs
+        )
         dependencies.append({"ref": refs[node_id], "dependsOn": depends_on})
         for dependency in depends_on:
             relationships.append(
-                {"spdxElementId": spdx_refs[node_id], "relationshipType": "DEPENDS_ON", "relatedSpdxElement": spdx_id(next((key for key, value in refs.items() if value == dependency), dependency))}
+                {
+                    "spdxElementId": spdx_refs[node_id],
+                    "relationshipType": "DEPENDS_ON",
+                    "relatedSpdxElement": spdx_id(
+                        next(
+                            (key for key, value in refs.items() if value == dependency),
+                            dependency,
+                        )
+                    ),
+                }
             )
 
     root_name = "kiana"
     root_version = version.strip() or "0.0.0"
-    serial_seed = uuid.uuid5(uuid.NAMESPACE_URL, f"kiana:{lock_digest}:{source_revision}")
+    serial_seed = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"kiana:{lock_digest}:{source_revision}"
+    )
     properties = [
         {"name": "kiana:lockfile-sha256", "value": lock_digest},
         {"name": "kiana:source-revision", "value": source_revision},
@@ -181,7 +265,12 @@ def make_sbom(
         "serialNumber": f"urn:uuid:{serial_seed}",
         "version": 1,
         "metadata": {
-            "component": {"type": "application", "name": root_name, "version": root_version, "bom-ref": "kiana"},
+            "component": {
+                "type": "application",
+                "name": root_name,
+                "version": root_version,
+                "bom-ref": "kiana",
+            },
             "properties": properties,
         },
         "components": components,
@@ -193,14 +282,26 @@ def make_sbom(
         "SPDXID": "SPDXRef-DOCUMENT",
         "name": f"kiana-{root_version}",
         "documentNamespace": f"https://kiana.dev/sbom/{lock_digest}",
-        "creationInfo": {"created": "1970-01-01T00:00:00Z", "creators": ["Tool: kiana-supply-chain-scan"]},
+        "creationInfo": {
+            "created": "1970-01-01T00:00:00Z",
+            "creators": ["Tool: kiana-supply-chain-scan"],
+        },
         "packages": spdx_packages,
         "relationships": [
-            {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-Application"},
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relationshipType": "DESCRIBES",
+                "relatedSpdxElement": "SPDXRef-Application",
+            },
             *relationships,
         ],
         "annotations": [
-            {"annotationDate": "1970-01-01T00:00:00Z", "annotationType": "OTHER", "annotator": "Tool: kiana-supply-chain-scan", "comment": f"lockfile-sha256={lock_digest}"}
+            {
+                "annotationDate": "1970-01-01T00:00:00Z",
+                "annotationType": "OTHER",
+                "annotator": "Tool: kiana-supply-chain-scan",
+                "comment": f"lockfile-sha256={lock_digest}",
+            }
         ],
     }
     # SPDX requires an application package for the DESCRIBES relationship.  It
@@ -228,6 +329,8 @@ def main() -> int:
     parser.add_argument("--source-revision", default="unknown")
     parser.add_argument("--lock-before", required=True)
     parser.add_argument("--lock-after", required=True)
+    parser.add_argument("--lock-present", default="true")
+    parser.add_argument("--metadata-exit", type=int, default=0)
     parser.add_argument("--lock-dirty", default="false")
     parser.add_argument("--expected-lock-digest", default="")
     parser.add_argument("--audit-json", type=pathlib.Path, required=True)
@@ -235,6 +338,8 @@ def main() -> int:
     parser.add_argument("--deny-exit", type=int, default=127)
     parser.add_argument("--audit-tool", default="missing")
     parser.add_argument("--deny-tool", default="missing")
+    parser.add_argument("--audit-version", default="unknown")
+    parser.add_argument("--deny-version", default="unknown")
     parser.add_argument("--max-high", type=int, default=0)
     parser.add_argument("--max-critical", type=int, default=0)
     args = parser.parse_args()
@@ -242,39 +347,139 @@ def main() -> int:
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     metadata = read_json(args.metadata, {})
-    lock_digest = sha256_file(args.lockfile)
+    packages = metadata_packages(metadata)
+    lock_present = args.lock_present.lower() != "false" and args.lockfile.is_file()
+    lock_digest = sha256_file(args.lockfile) if lock_present else "missing"
     version_path = args.lockfile.parent / "VERSION"
-    version = version_path.read_text(encoding="utf-8").strip() if version_path.is_file() else "0.0.0"
-    cyclonedx, spdx_data = make_sbom(metadata, lock_digest, args.source_revision, version)
-    (out_dir / "sbom.cdx.json").write_text(json.dumps(cyclonedx, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (out_dir / "sbom.spdx.json").write_text(json.dumps(spdx_data["spdx"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    version = (
+        version_path.read_text(encoding="utf-8").strip()
+        if version_path.is_file()
+        else "0.0.0"
+    )
+    cyclonedx, spdx_data = make_sbom(
+        metadata, lock_digest, args.source_revision, version
+    )
+    (out_dir / "sbom.cdx.json").write_text(
+        json.dumps(cyclonedx, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    (out_dir / "sbom.spdx.json").write_text(
+        json.dumps(spdx_data["spdx"], indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     advisory = normalize_advisories(args.audit_json)
-    lock_drift = args.lock_before != args.lock_after or args.lock_dirty.lower() == "true"
-    expected_mismatch = bool(args.expected_lock_digest and args.expected_lock_digest != lock_digest)
+    lock_dirty = args.lock_dirty.lower() == "true"
+    lock_drift = lock_present and (args.lock_before != args.lock_after or lock_dirty)
+    expected_mismatch = bool(
+        args.expected_lock_digest and args.expected_lock_digest != lock_digest
+    )
+    # Thresholds are an explicit, reviewed tolerance budget; the shipped gate sets
+    # both to zero, so the default policy still quarantines on any finding. An
+    # unclassified severity is never tolerated, whatever the budget says.
+    allowed_high = max(args.max_high, 0)
+    allowed_critical = max(args.max_critical, 0)
+    budget = allowed_high + allowed_critical
     high_count = advisory["severity_counts"].get("high", 0)
     critical_count = advisory["severity_counts"].get("critical", 0)
+    unclassified_count = advisory["severity_counts"].get("unknown", 0)
     reasons: list[dict[str, str]] = []
+    if not lock_present:
+        reasons.append(
+            {
+                "code": "lockfile_missing",
+                "detail": "Cargo.lock is absent, so an unlocked dependency graph cannot be scanned",
+            }
+        )
+    if lock_present and args.metadata_exit != 0:
+        reasons.append(
+            {
+                "code": "lockfile_resolution_failed",
+                "detail": f"cargo metadata --locked exited {args.metadata_exit}",
+            }
+        )
+    if not packages:
+        reasons.append(
+            {
+                "code": "dependency_graph_empty",
+                "detail": "cargo metadata produced no packages; the SBOM would be unverifiable",
+            }
+        )
     if lock_drift:
-        reasons.append({"code": "lockfile_drift", "detail": "Cargo.lock changed during metadata resolution or is dirty in the checkout"})
+        reasons.append(
+            {
+                "code": "lockfile_drift",
+                "detail": "Cargo.lock changed during metadata resolution or is dirty in the checkout",
+            }
+        )
     if expected_mismatch:
-        reasons.append({"code": "lockfile_digest_mismatch", "detail": "Cargo.lock does not match SC28_EXPECTED_LOCKFILE_SHA256"})
+        reasons.append(
+            {
+                "code": "lockfile_digest_mismatch",
+                "detail": "Cargo.lock does not match SC28_EXPECTED_LOCKFILE_SHA256",
+            }
+        )
     if spdx_data["unknown_license"]:
-        reasons.append({"code": "license_unknown", "detail": f"{len(spdx_data['unknown_license'])} package(s) have no license metadata"})
+        reasons.append(
+            {
+                "code": "license_unknown",
+                "detail": f"{len(spdx_data['unknown_license'])} package(s) have no license metadata",
+            }
+        )
     if args.audit_tool == "missing":
-        reasons.append({"code": "advisory_scanner_missing", "detail": "cargo-audit is required in the CI gate"})
+        reasons.append(
+            {
+                "code": "advisory_scanner_missing",
+                "detail": "cargo-audit is required in the CI gate",
+            }
+        )
     elif args.audit_exit != 0:
-        reasons.append({"code": "advisory_scan_failed", "detail": f"cargo audit exited {args.audit_exit}"})
-    if advisory["count"] > 0:
-        reasons.append({"code": "advisory_found", "detail": f"cargo-audit reported {advisory['count']} vulnerable package(s)"})
-    if critical_count > args.max_critical:
-        reasons.append({"code": "critical_threshold_exceeded", "detail": f"critical={critical_count}, allowed={args.max_critical}"})
-    if high_count > args.max_high:
-        reasons.append({"code": "high_threshold_exceeded", "detail": f"high={high_count}, allowed={args.max_high}"})
+        reasons.append(
+            {
+                "code": "advisory_scan_failed",
+                "detail": f"cargo audit exited {args.audit_exit}",
+            }
+        )
+    if advisory["count"] > budget:
+        reasons.append(
+            {
+                "code": "advisory_found",
+                "detail": f"cargo-audit reported {advisory['count']} vulnerable package(s); the tolerated budget is {budget}",
+            }
+        )
+    if critical_count > allowed_critical:
+        reasons.append(
+            {
+                "code": "critical_threshold_exceeded",
+                "detail": f"critical={critical_count}, allowed={allowed_critical}",
+            }
+        )
+    if high_count > allowed_high:
+        reasons.append(
+            {
+                "code": "high_threshold_exceeded",
+                "detail": f"high={high_count}, allowed={allowed_high}",
+            }
+        )
+    if unclassified_count > 0:
+        reasons.append(
+            {
+                "code": "advisory_severity_unclassified",
+                "detail": f"{unclassified_count} finding(s) carry no classified severity and are never tolerated",
+            }
+        )
     if args.deny_tool == "missing":
-        reasons.append({"code": "policy_scanner_missing", "detail": "cargo-deny is required in the CI gate"})
+        reasons.append(
+            {
+                "code": "policy_scanner_missing",
+                "detail": "cargo-deny is required in the CI gate",
+            }
+        )
     elif args.deny_exit != 0:
-        reasons.append({"code": "dependency_policy_failed", "detail": f"cargo deny exited {args.deny_exit}"})
+        reasons.append(
+            {
+                "code": "dependency_policy_failed",
+                "detail": f"cargo deny exited {args.deny_exit}",
+            }
+        )
 
     status = "quarantined" if reasons else "passed"
     report = {
@@ -286,38 +491,78 @@ def main() -> int:
             "sha256": lock_digest,
             "before_sha256": args.lock_before,
             "after_sha256": args.lock_after,
-            "dirty": args.lock_dirty.lower() == "true",
+            "dirty": lock_dirty,
             "expected_sha256": args.expected_lock_digest or None,
+            "present": lock_present,
+        },
+        "dependency_graph": {
+            "package_count": len(packages),
+            "metadata_exit_code": args.metadata_exit,
+            "resolved": bool(packages) and args.metadata_exit == 0,
+        },
+        "scanner_tools": {
+            "cargo_audit": args.audit_version[:120],
+            "cargo_deny": args.deny_version[:120],
         },
         "sbom": {"cyclonedx": "sbom.cdx.json", "spdx": "sbom.spdx.json"},
-        "license": {"unknown_count": len(spdx_data["unknown_license"]), "unknown": spdx_data["unknown_license"][:100]},
+        "license": {
+            "unknown_count": len(spdx_data["unknown_license"]),
+            "unknown": spdx_data["unknown_license"][:100],
+        },
         "advisory": {
             "tool": args.audit_tool,
             "exit_code": args.audit_exit,
             "count": advisory["count"],
             "severity_counts": advisory["severity_counts"],
-            "max_high": args.max_high,
-            "max_critical": args.max_critical,
+            "max_high": allowed_high,
+            "max_critical": allowed_critical,
+            "budget": budget,
             "findings": advisory["findings"],
         },
-        "dependency_policy": {"tool": args.deny_tool, "exit_code": args.deny_exit, "config": "deny.toml"},
-        "quarantine": {"status": "quarantined" if reasons else "clear", "reasons": reasons},
+        "dependency_policy": {
+            "tool": args.deny_tool,
+            "exit_code": args.deny_exit,
+            "config": "deny.toml",
+        },
+        "quarantine": {
+            "status": "quarantined" if reasons else "clear",
+            "reasons": reasons,
+            "reason_codes": list(REASON_CODES),
+        },
         "limitations": [
             "CI scanner output is source and dependency metadata evidence; it is not a signed release provenance proof.",
             "A clean local fixture cannot prove production artifact, registry, signer or runtime effect integrity.",
+            "The advisory thresholds are a reviewed tolerance budget (max_high + max_critical); the shipped gate pins both to zero so any finding quarantines, and unclassified severities are never tolerated.",
         ],
     }
-    (out_dir / "supply-chain-report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out_dir / "supply-chain-report.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     quarantine = {
         "schema": QUARANTINE_SCHEMA,
         "status": report["quarantine"]["status"],
         "source_revision": args.source_revision,
         "lockfile_sha256": lock_digest,
+        "lockfile_present": lock_present,
+        "dependency_graph_packages": len(packages),
+        "scanner_tools": report["scanner_tools"],
         "reasons": reasons,
+        "reason_codes": list(REASON_CODES),
         "automatic_release_allowed": not reasons,
     }
-    (out_dir / "quarantine.json").write_text(json.dumps(quarantine, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"status": status, "report": str(out_dir / "supply-chain-report.json"), "quarantine_reasons": reasons}, sort_keys=True))
+    (out_dir / "quarantine.json").write_text(
+        json.dumps(quarantine, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(
+        json.dumps(
+            {
+                "status": status,
+                "report": str(out_dir / "supply-chain-report.json"),
+                "quarantine_reasons": reasons,
+            },
+            sort_keys=True,
+        )
+    )
     return 1 if reasons else 0
 
 
