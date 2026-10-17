@@ -11,6 +11,14 @@ fn pd06_keeps_jsonl_as_eventstore_fact_source_with_fail_closed_recovery() {
         "event_store_atomic_transitions_unsupported",
         "parse_json_value_reject_duplicates",
         "StrictValueSeed",
+        "eventlog_parent_changed",
+        "eventlog_symlink_rejected",
+        "eventlog_hardlink_rejected",
+        "eventlog_disk_limit",
+        "eventlog_worker_failed",
+        "eventlog_worker_queue_full",
+        "eventlog_closed",
+        "eventlog_file_removed",
     ] {
         assert!(
             jsonl.contains(marker) || ports.contains(marker),
