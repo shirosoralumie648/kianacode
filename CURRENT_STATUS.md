@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 SC-10 翻 ✅（approver scope 与一次性消费回执，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 121（🔄 → ✅）；kiana-core/src/approval_binding.rs（+ApproverScope、+ApprovalConsumptionReceipt、+HumanInboxItem::decide_with_scope、+HumanInboxItem::consume_with_receipt）；kiana-core/src/lib.rs（re-export）；kiana-core/tests/sc10_approval_binding.rs（+5 fixture）；kiana-core/tests/sc10_approval_guard.rs（+marker）；docs/roadmap/security-approval-baseline.md §6
+worktree_status: 行 121 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具与共享文档（roadmap 行/变更日志、CURRENT_STATUS）的单点回填；无 Cargo.toml/Cargo.lock/package.json 变化；未新增执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）
+cwd·environment: worktree /workspace/kianacode-worktrees/SC-10，分支 step/sc-10-20261017-1（基线 master d2476e6216da）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: Core `sc10_approval_binding` 新增 5 个——approval_binding_rejects_arguments_only_drift（同 RequestId 与命令名、仅改 arguments → PolicyApprovalBindingMismatch）、approver_scope_authorizes_matching_binding_and_rejects_drift（跨项目 AUTH_PROJECT_MISMATCH、越权命令 AUTH_ROLE_MISMATCH、epoch 漂移 POLICY_AUTHORITY_EPOCH_STALE、自批 POLICY_SELF_APPROVAL_FORBIDDEN、scope 过期 POLICY_APPROVAL_EXPIRED，strict serde + unknown field 拒绝）、approver_scope_is_strict_and_canonical（重复项目/空命令集合/篡改 epoch 拒绝）、human_inbox_decide_with_scope_enforces_approver_scope（scope 授权后才 Approved，越权/跨项目/自批/过期在状态转换前拒绝）、human_inbox_consume_emits_one_shot_receipt（回执字段与 binding/scope 摘要一致、round-trip、重复消费/篡改/未知字段拒绝）；`sc10_approval_guard` 增加 ApproverScope/ApprovalConsumptionReceipt/decide_with_scope/consume_with_receipt/authorize/AuthProjectMismatch/AuthRoleMismatch/PolicyAuthorityEpochStale marker；既有 6 个 fixture 与 1 个 guard 不变；两 target 仍在 `kiana-core-s6/6` shard
+exit_code: 本地未运行；CI 回执未等待
+status_change: SC-10 卡退出条件（exact command/target/payload digest、approver scope、一次性消费与回执）在源码层覆盖且 fixtures 接入现有 CI shard，row 121 提升 ✅（CI pending）；自批/跨项目/越权命令/epoch 漂移/scope 过期/重复消费/回执篡改全部 fail-closed；生产 approver 接线仍未完成
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行测试，编译/运行正确性依赖 GitHub Actions；ApproverScope/回执/decide_with_scope 尚未被生产 JournalApprovalStore 调用，ControlPlane 审批仍按原 requester context 决定，无独立 approver 身份/范围、durable inbox projector、跨副本 CAS、可信时钟、GrantScope 原子重验、Secret/redaction/TOCTOU 或跨进程 recovery；external/live/physical proof 未获
+reviewer: root integration agent；SC-10 静态复核
+```
+
 ### 2026-10-17 SC-07 翻 ✅（可查询 authority 来源/revision 与项目隔离拒绝矩阵，CI-only 口径）
 
 ```text
