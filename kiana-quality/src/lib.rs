@@ -95,8 +95,10 @@ pub use fixtures::{
     FixtureFamily, TraceFixture, FIXTURE_SCHEMA,
 };
 pub use flake::{
-    evaluate_flake, AttemptOutcome, FlakeAttempt, FlakeClassifierEvaluator, FlakeFinalStatus,
-    FlakeInput, FlakeQuarantine, InfraFailureClass, FLAKE_EVALUATOR_ID, FLAKE_INPUT_SCHEMA,
+    classify_flake, evaluate_flake, flake_attempt_evidence_digest, AttemptOutcome, FlakeAttempt,
+    FlakeClassification, FlakeClassifierEvaluator, FlakeFinalStatus, FlakeInput, FlakeQuarantine,
+    InfraFailureClass, FLAKE_ATTEMPT_SCHEMA, FLAKE_EVALUATOR_ID, FLAKE_INPUT_SCHEMA,
+    FLAKE_QUARANTINE_SCHEMA, MAX_FLAKE_ATTEMPTS, MAX_FLAKE_TEXT_BYTES, MAX_QUARANTINE_TTL_MS,
 };
 pub use gate::{
     evaluate_gate, GateEvaluator, GateInput, GateVerdict, QualityGateConfig, QualityGateDecision,
