@@ -751,11 +751,31 @@ impl DaemonHost {
         context.actor_id = Some(assignment.principal.principal_id.clone());
         context.role_id = assignment.role_id.clone();
         context.department_id = assignment.department_id.clone();
-        let project = self.project_identity(&context.project_root)?;
+        let (authority, project) =
+            self.authority_snapshot_for_assignment(&context.project_root, assignment)?;
+        authority
+            .validate_request(&context, &project)
+            .map_err(PortError::Failed)?;
+        kiana_core::validate_company_assignment(&context, assignment, now_unix_ms, write)
+            .map_err(|reason| PortError::Failed(reason.to_owned()))?;
+        Ok(context)
+    }
+
+    /// Assemble the server-owned authority snapshot for an already-resolved assignment.
+    ///
+    /// The daemon-derived project identity is checked against the assignment *before* any trust,
+    /// department or authority assembly, so a foreign project assignment fails with
+    /// `assignment_project_mismatch` and never reaches the authority join.
+    fn authority_snapshot_for_assignment(
+        &self,
+        project_root: &str,
+        assignment: &ResolvedAssignment,
+    ) -> Result<(kiana_core::SecurityAuthoritySnapshot, ProjectIdentity), PortError> {
+        let project = self.project_identity(project_root)?;
         if assignment.project_id != project.project_id {
             return Err(PortError::Failed("assignment_project_mismatch".to_owned()));
         }
-        let project_trust = self.project_trust_snapshot(&context.project_root, 1)?;
+        let project_trust = self.project_trust_snapshot(project_root, 1)?;
         let department = DepartmentSpec::lookup(&assignment.department_id)
             .ok_or_else(|| PortError::Failed("department_unknown".to_owned()))?;
         let department = kiana_domain::DepartmentSnapshot::from_spec(
@@ -773,12 +793,33 @@ impl DaemonHost {
             assignment.authority_epoch,
         )
         .map_err(PortError::Failed)?;
-        authority
-            .validate_request(&context, &project)
-            .map_err(PortError::Failed)?;
-        kiana_core::validate_company_assignment(&context, assignment, now_unix_ms, write)
-            .map_err(|reason| PortError::Failed(reason.to_owned()))?;
-        Ok(context)
+        Ok((authority, project))
+    }
+
+    /// Read-only provenance query for the server-owned authority inputs that would govern an
+    /// effect request against `project_root`.
+    ///
+    /// It resolves the daemon-owned assignment and trust, joins them through Core's
+    /// `SecurityAuthoritySnapshot`, and returns the source label and revision of each input, or the
+    /// same stable denial code the request path would return. It never grants a role, never fences
+    /// a session and never dispatches; callers still need the normal ControlPlane admission before
+    /// any effect.
+    pub async fn authority_provenance(
+        &self,
+        project_root: &str,
+        organization_id: OrganizationId,
+        role_id: &str,
+        now_unix_ms: u64,
+    ) -> Result<kiana_core::SecurityAuthorityProvenance, PortError> {
+        let assignment = self
+            .resolve_assignment_for_project(project_root, organization_id, role_id, now_unix_ms)
+            .await?;
+        let (authority, _) = self.authority_snapshot_for_assignment(project_root, &assignment)?;
+        kiana_core::SecurityAuthorityProvenance::from_authority(
+            &authority,
+            ASSIGNMENT_DIRECTORY_SOURCE,
+        )
+        .map_err(PortError::Failed)
     }
 
     /// Fail-closed admission for [`DaemonHost::with_assignment_enforcement`] hosts.
@@ -2292,6 +2333,10 @@ fn request_may_execute(body: &RequestBody) -> bool {
         _ => true,
     }
 }
+
+/// Server-owned source label recorded for assignments resolved through the daemon's assignment
+/// directory. It is a provenance label only; the directory still owns resolution.
+const ASSIGNMENT_DIRECTORY_SOURCE: &str = "daemon.assignment_directory";
 
 /// Map an assignment admission failure to its stable rejection code.
 ///
