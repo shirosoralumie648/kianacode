@@ -228,3 +228,53 @@ fn er_lease_expiry_does_not_release_live_process() {
         "lifecycle stop",
     );
 }
+
+/// ER-19 behaviour fixtures must exist and be wired into the focused workflow, so the
+/// card's deny/success paths are covered by runnable tests rather than markers alone.
+#[test]
+fn er19_behavior_fixtures_cover_card_exit_conditions() {
+    let execution = include_str!("../../kiana-daemon/src/execution_control.rs");
+    let supervisor = include_str!("../../kiana-daemon/src/process_supervisor.rs");
+    let domain_fixture = include_str!("../../kiana-domain/tests/er19_job_handle.rs");
+    let workflow = include_str!("../../.github/workflows/er19-process-handle.yml");
+
+    require(
+        execution,
+        &[
+            "fn er19_stale_handle_cannot_stop_new_execution",
+            "fn er19_lease_expiry_does_not_release_live_process",
+            "job_handle_identity_mismatch",
+            "job_handle_expired",
+        ],
+        "daemon handle behaviour fixtures",
+    );
+    require(
+        supervisor,
+        &[
+            "fn er19_stop_confirms_live_group_leader",
+            "fn er19_stop_without_group_identity_is_unknown",
+            "ProcessGroupState::Empty",
+            "ProcessGroupState::Unknown",
+        ],
+        "daemon stop-evidence fixtures",
+    );
+    require(
+        domain_fixture,
+        &[
+            "fn er19_stale_handle_cannot_stop_new_execution",
+            "fn er19_lease_expiry_does_not_release_live_process",
+            "job_handle_digest_mismatch",
+            "resource_lease_expired",
+            "resource_lease_fence_token_reused",
+        ],
+        "domain contract fixtures",
+    );
+    require(
+        workflow,
+        &[
+            "cargo test -p kiana-daemon --lib er19",
+            "cargo test -p kiana-domain --test er19_job_handle",
+        ],
+        "ER-19 workflow wiring",
+    );
+}

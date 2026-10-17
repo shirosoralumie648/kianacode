@@ -1672,4 +1672,152 @@ mod tests {
             .is_some_and(|descriptor| descriptor.replay_class == "replay_safe")));
         assert_eq!(response.output["does_not_grant_execution"], true);
     }
+
+    /// ER-19：构造一份与控制面 `validate_job_handle` 一致的句柄身份材料。
+    ///
+    /// 返回 `(handle, project_root, arguments)`；`project_root` 与句柄 `project_digest`
+    /// 都基于同一个已 canonicalize 的临时目录，因此成功路径可稳定通过。
+    fn er19_handle(owner: &str, session: &str) -> (JobHandle, String, Value) {
+        let root = std::env::temp_dir()
+            .canonicalize()
+            .expect("temp dir canonical");
+        let project_root = root.to_string_lossy().into_owned();
+        let session_id = SessionId::new(session);
+        let project_digest = kiana_domain::json_digest(&json!({
+            "project_root": root,
+            "session_id": session_id.clone(),
+        }));
+        let arguments = json!({
+            "actor_id": owner,
+            "session_id": session,
+            "project_root": project_root,
+            "run_id": Value::Null,
+            "turn_id": Value::Null,
+        });
+        let handle = JobHandle::new(
+            RequestId::new(),
+            RequestId::new(),
+            None,
+            None,
+            owner,
+            session_id,
+            project_digest,
+            1,
+            Some(4242),
+            unix_time_ms().expect("clock") + 3_600_000,
+        )
+        .expect("job handle");
+        (handle, project_root, arguments)
+    }
+
+    /// ER-19：按 `process.started` 事实形状组装 continuation 身份。
+    fn er19_identity(handle: &JobHandle, process_id: RequestId, request_id: RequestId) -> Value {
+        json!({
+            "job_handle": serde_json::to_value(handle).expect("job handle json"),
+            "process_id": process_id,
+            "request_id": request_id,
+        })
+    }
+
+    /// ER-19：断言 `validate_job_handle` 以预期稳定错误码拒绝。
+    fn er19_deny(result: Result<JobHandle, PortError>, expected: &str) {
+        assert!(
+            matches!(result, Err(PortError::Failed(ref code)) if code == expected),
+            "expected {expected}, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn er19_stale_handle_cannot_stop_new_execution() {
+        let (handle, _project_root, arguments) = er19_handle("er19-actor", "er19-session");
+
+        // 成功路径：句柄与它自己启动的 execution 身份一致时通过校验。
+        let identity = er19_identity(&handle, handle.job_id, handle.start_request_id);
+        assert!(validate_job_handle(&identity, &arguments).is_ok());
+
+        // 拒绝：旧句柄被拿去控制另一个 execution（不同的 job/process id）。
+        let stale = er19_identity(&handle, RequestId::new(), handle.start_request_id);
+        er19_deny(
+            validate_job_handle(&stale, &arguments),
+            "job_handle_identity_mismatch",
+        );
+
+        // 拒绝：非原 owner 不能用该句柄续用。
+        let mut foreign_owner = arguments.clone();
+        foreign_owner["actor_id"] = json!("other-actor");
+        er19_deny(
+            validate_job_handle(&identity, &foreign_owner),
+            "job_handle_owner_mismatch",
+        );
+
+        // 拒绝：身份材料被篡改后摘要不符，fail-closed 为 job_handle_invalid。
+        let mut tampered = serde_json::to_value(&handle).expect("job handle json");
+        tampered["job_id"] = json!(RequestId::new());
+        let tampered_identity = json!({
+            "job_handle": tampered,
+            "process_id": handle.job_id,
+            "request_id": handle.start_request_id,
+        });
+        er19_deny(
+            validate_job_handle(&tampered_identity, &arguments),
+            "job_handle_invalid",
+        );
+    }
+
+    #[test]
+    fn er19_lease_expiry_does_not_release_live_process() {
+        // TTL 到期只拒绝后续操作，不能单独作为“进程已停止”的证据。
+        let root = std::env::temp_dir()
+            .canonicalize()
+            .expect("temp dir canonical");
+        let project_root = root.to_string_lossy().into_owned();
+        let session = SessionId::new("er19-session");
+        let project_digest = kiana_domain::json_digest(&json!({
+            "project_root": root,
+            "session_id": session.clone(),
+        }));
+        let expired = JobHandle::new(
+            RequestId::new(),
+            RequestId::new(),
+            None,
+            None,
+            "er19-actor",
+            session,
+            project_digest,
+            1,
+            Some(4242),
+            unix_time_ms().expect("clock").max(2) - 1,
+        )
+        .expect("expired job handle still decodes");
+        let arguments = json!({
+            "actor_id": "er19-actor",
+            "session_id": "er19-session",
+            "project_root": project_root,
+            "run_id": Value::Null,
+            "turn_id": Value::Null,
+        });
+        let identity = er19_identity(&expired, expired.job_id, expired.start_request_id);
+        er19_deny(
+            validate_job_handle(&identity, &arguments),
+            "job_handle_expired",
+        );
+
+        // 运行期资源租约在同一时刻同样以过期拒绝，而不是返回“已释放”。
+        let lease = kiana_domain::ResourceLease::new(
+            kiana_domain::StorageLockId::new(),
+            kiana_domain::FenceTokenId::new(),
+            "src/lib.rs",
+            RunId::new(),
+            None,
+            "er19-session",
+            1,
+            10,
+            100,
+        )
+        .expect("resource lease");
+        assert_eq!(
+            lease.validate_current(100, 1, lease.fence_token),
+            Err("resource_lease_expired".to_owned())
+        );
+    }
 }

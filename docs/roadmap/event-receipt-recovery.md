@@ -447,12 +447,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-19 — Worker/process handle 与 fencing token　⏳
+##### ER-19 — Worker/process handle 与 fencing token　✅
 
 - **落点：** `kiana-core/sessions.rs`、`kiana-daemon/execution_*`、backend supervisor；关联 `CP-12/16/17`、`CAP-12/17/27`。
 - **动作：** 将 process group/job/container handle、owner、lease、attempt、fencing token 和 stop report 持久化；reconnect/stop 必须核验 handle identity，TTL 不能单独证明已停止。
 - **先拒绝：** `stale_handle_cannot_stop_new_execution`、`child_escape_or_leader_exit_is_unknown`、`lease_expiry_does_not_release_live_process`。
 - **成功/回归：** process tree、setsid、PTY/pipe、container child、daemon crash 和 bounded reap 均有真实 stop/effect report。
+- **验收（测试名与卡片名对齐）：** 拒绝与成功路径由树内夹具覆盖，均接入 `.github/workflows/er19-process-handle.yml`：`kiana-domain/tests/er19_job_handle.rs` 有 `er19_stale_handle_cannot_stop_new_execution`、`er19_lease_expiry_does_not_release_live_process`；`kiana-daemon` lib（`--lib er19`）有 `er19_stale_handle_cannot_stop_new_execution`、`er19_lease_expiry_does_not_release_live_process`（真实 `validate_job_handle`）与 `er19_stop_confirms_live_group_leader`、`er19_stop_without_group_identity_is_unknown`（真实 spawn 的停止证据）；`er19_process_handle_guard` 保留 `er_child_escape_or_leader_exit_is_unknown` 并新增夹具命名/接线守卫。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 source guard 与基线，没有可运行的拒绝/成功夹具。本次补上 domain 契约夹具（JobHandle 摘要绑定不可变身份、缺进程组/零过期 fail-closed、lease successor 必须推进 fence token、到期只拒绝不释放、旧 token 拒用）和 daemon 行为夹具（真实 `validate_job_handle` 拒绝旧句柄/异 owner/篡改/过期；`ProcessSupervisor::stop` 对真实子进程只有在 leader 回收且进程组观察为空时才 `confirmed`，无可观察进程组身份时保持 `Unknown`）。`er19_stop_without_group_identity_is_unknown` 承载卡片 `child_escape_or_leader_exit_is_unknown` 的「无进程组证据不得确认停止」语义。proof_level 维持 source；本地未编译未运行，CI 回执未等待；container child、daemon-crash 重启恢复、多主机 fencing、逃逸子进程检测与物理掉电仍开放。
 
 <a id="step-er-20"></a>
 

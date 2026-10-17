@@ -303,3 +303,47 @@ fn observe_process_group(_: u32) -> ProcessGroupState {
 fn signal_process_group(_: u32, _: i32) -> bool {
     false
 }
+
+#[cfg(all(test, unix))]
+/// ER-19 停止证据行为夹具：真实 spawn 一个子进程，核对 leader 回收与进程组观察
+/// 如何决定 `confirmed`。这些夹具只证明本机 supervisor 的观察语义，不是
+/// 跨主机 fencing、container 后代或掉电恢复证据。
+mod er19_tests {
+    use super::*;
+
+    /// 构造一个可被 TERM/KILL 结束的长驻子进程命令。
+    fn sleeping_command() -> Command {
+        let mut command = Command::new("sleep");
+        command.arg("30");
+        command.kill_on_drop(true);
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        command
+    }
+
+    /// 成功路径：leader 在可观察进程组内被回收，且组被观察为空时才算确认停止。
+    #[tokio::test]
+    async fn er19_stop_confirms_live_group_leader() {
+        let mut command = sleeping_command();
+        command.process_group(0);
+        let mut child = command.spawn().expect("spawn sleep");
+        let process_group_id = child.id().expect("leader pid");
+        let report =
+            ProcessSupervisor::stop("er19-live", &mut child, Some(process_group_id)).await;
+        assert!(report.confirmed, "live stop must confirm: {report:?}");
+        assert!(report.leader_reaped);
+        assert_eq!(report.process_group, ProcessGroupState::Empty);
+    }
+
+    /// 拒绝：没有可观察的 process-group 身份时，leader 退出/回收也不能被报告为已确认停止。
+    #[tokio::test]
+    async fn er19_stop_without_group_identity_is_unknown() {
+        let mut command = sleeping_command();
+        let mut child = command.spawn().expect("spawn sleep");
+        let report = ProcessSupervisor::stop("er19-no-group", &mut child, None).await;
+        assert!(!report.confirmed, "no group, not confirmed: {report:?}");
+        assert_eq!(report.process_group, ProcessGroupState::Unknown);
+    }
+}
