@@ -46,7 +46,8 @@
 
 use kiana_domain::{
     json_digest, AttemptId, BillingUnknownReason, ModelProtocol, NormalizedUsage,
-    PreparedModelCall, RunId, UsageConfidence, UsageId, UsageObservation, UsageSource, UsageVector,
+    PreparedModelCall, ProviderUsageContainment, RunId, UsageConfidence, UsageId, UsageObservation,
+    UsageSource, UsageVector,
 };
 use serde_json::{Map, Value};
 
@@ -69,6 +70,25 @@ pub const PROVIDER_USAGE_ADAPTER_SCHEMA: &str = "kiana.provider-usage-adapter.v1
 /// 也就是**拒绝这条用量数据**，而不是截断成一个看似合理的数。
 
 pub const MAX_PROVIDER_USAGE_TOKENS: u64 = 1_000_000_000;
+
+/// 协议方言的字段包含关系（containment）——由 domain 的 `ProviderUsageContainment::declared`
+/// 单一表提供，本函数只是适配器侧的读取入口。
+///
+/// 【为什么适配器要暴露这张表】
+/// 适配器是唯一知道“这个协议的 `cached_tokens` 是嵌在 prompt 计数里，还是单独报的”的地方。
+/// 下游（结算、预算、Receipt）如果自己再猜一遍关系，就会出现“同一批 token 被两个组件各加一次”
+/// 的静默重复计费。把 dialect 判定留在适配器侧，消费者只读这一处声明。
+///
+/// 【为什么不是第二张表】
+/// `Some(true)`（已含）/ `Some(false)`（独立可加）/ `None`（未声明）三态的定义与维护都属于
+/// `kiana-domain::ProviderUsageContainment`；这里不再复制字段值，避免两处漂移。
+///
+/// 【⚠ `None` 的语义不是“独立”】
+/// 未声明表示“我们不知道这个维度是否已含在容器里”。此时既不能相加（可能重复），
+/// 也不能丢弃（可能少算）；保守做法是让定价保持 `Unsupported`/Unknown。
+pub fn provider_usage_containment(protocol: ModelProtocol) -> ProviderUsageContainment {
+    ProviderUsageContainment::declared(protocol)
+}
 
 /// 统一生成错误码：`provider_usage_<字段>_invalid`。
 ///
@@ -514,6 +534,57 @@ fn check_total(input: Option<u64>, output: Option<u64>, total: Option<u64>) -> R
     Ok(())
 }
 
+/// 用协议的包含关系表检查“可证伪的矛盾”。
+///
+/// 【检查什么】
+/// 当协议明确声明某维度**已含在**容器里（`Some(true)`）时，若对端同时报了容器和维度，
+/// 则必须有 `维度 <= 容器`。例如 OpenAI 的 `cached_tokens` 含在 `prompt_tokens` 里，
+/// 回一个 `cached_tokens > prompt_tokens` 就说明这两个数字不可能同时为真。
+///
+/// 【不检查什么】
+/// - 未声明（`None`）的维度：关系未知，既不能相加也不能丢弃，留给定价层保守处理。
+/// - 明确独立（`Some(false)`）的维度：本来就可以大于输入（Anthropic 的缓存读写是**额外的**）。
+/// - 只报了维度、没报容器的部分观测：无法证明，也**不在这里拒绝**——按“缺字段保留 unknown”
+///   原则保留为 Partial，由结算层的包含关系算术报 `provider_usage_containment_unprovable`。
+///
+/// 【错误码】 与 domain 的 `subtract_contained` 保持同一词表
+/// `provider_usage_containment_violated:<容器字段>`，让上层按一个字符串就能匹配到“包含关系矛盾”。
+fn check_containment(protocol: ModelProtocol, vector: &UsageVector) -> Result<(), String> {
+    let containment = provider_usage_containment(protocol);
+    let contained = |declaration: Option<bool>| declaration == Some(true);
+    let candidates = [
+        (
+            contained(containment.cache_read_contained_in_input),
+            vector.input_tokens,
+            vector.cache_read_tokens,
+            "input_tokens",
+        ),
+        (
+            contained(containment.cache_write_contained_in_input),
+            vector.input_tokens,
+            vector.cache_write_tokens,
+            "input_tokens",
+        ),
+        (
+            contained(containment.reasoning_contained_in_output),
+            vector.output_tokens,
+            vector.reasoning_output_tokens,
+            "output_tokens",
+        ),
+    ];
+    for (is_contained, container, dimension, field) in candidates {
+        if !is_contained {
+            continue;
+        }
+        if let (Some(container), Some(dimension)) = (container, dimension) {
+            if dimension > container {
+                return Err(format!("provider_usage_containment_violated:{field}"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Normalize one server-owned provider response into the neutral billing usage vector.
 ///
 /// The response may report a served model different from the requested route model.  The
@@ -532,14 +603,16 @@ fn check_total(input: Option<u64>, output: Option<u64>, total: Option<u64>) -> R
 ///   5. 拆出 served_model（对方说自己用了哪个模型）
 ///   6. 按协议取 7 个计数字段
 ///   7. 交叉校验 total
-///   8. 根据“有几个字段”定 confidence：Known / Partial / Unknown
-///   9. 组装 NormalizedUsage，填 served_model_id / retry_ordinal，重算摘要，validate
+///   8. 按协议的字段包含关系拒绝可证伪的矛盾（`维度 > 容器`）
+///   9. 根据“有几个字段”定 confidence：Known / Partial / Unknown
+///  10. 组装 NormalizedUsage，填 served_model_id / retry_ordinal，重算摘要，validate
 /// ```
 ///
 /// 【调用者】
 /// `rg -n "normalize_provider_usage"` 在生产代码中**未找到调用点**，
-/// 仅 `kiana-core/tests/bq10_normalized_usage_guard.rs` 断言它存在。
-/// 当前是已就位的契约层函数。
+/// 目前只有 `kiana-provider/tests/bq10_normalized_usage.rs`、
+/// `kiana-provider/tests/p4_j7_24_usage_containment.rs` 与
+/// `kiana-core/tests/bq10_normalized_usage_guard.rs` 引用它。当前是已就位的契约层函数。
 ///
 /// 【输入】
 /// - `prepared`：已冻结、已封存的调用。它的 `route` 提供 provider/model/connection 身份。
@@ -560,6 +633,7 @@ fn check_total(input: Option<u64>, output: Option<u64>, total: Option<u64>) -> R
 /// - `provider_usage_response_invalid`：回包根节点不是对象。
 /// - `provider_usage_<字段>_invalid`：某字段类型错或超上限。
 /// - `provider_usage_total_inconsistent` / `..._total_overflow`：总数与分项矛盾。
+/// - `provider_usage_containment_violated:<容器字段>`：协议声明“已含”的维度大于其容器。
 /// - `NormalizedUsage::new` / `validate` 的领域层错误。
 
 pub fn normalize_provider_usage(
@@ -643,6 +717,9 @@ pub fn normalize_provider_usage(
         artifact_bytes: 0,
         storage_bytes: 0,
     };
+    // 字段包含关系在出站前再拦一次：协议声明“已含”的维度如果大于容器，这两个数字不可能同时为真。
+    // 这一步只拒绝**可证伪**的矛盾；未声明/未报容器的情形保持 Partial，留给结算层保守处理。
+    check_containment(prepared.route.protocol, &vector)?;
     // basis 记录“这些数字是用哪套规则、从哪个方言抽出来的”，格式为
     // `kiana.provider-usage-adapter.v1:<协议短名>`，例如
     // `kiana.provider-usage-adapter.v1:anthropic_messages`。
