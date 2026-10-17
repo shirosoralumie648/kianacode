@@ -119,9 +119,21 @@ impl MemoryMutationJournalStage {
         {
             return Err("memory_mutation_journal_target_mismatch".to_owned());
         }
-        if record.import_mode == MemoryImportMode::Native && record.origin == MemoryOrigin::Unknown
-        {
+        // A journal-carrying record must carry resolved, non-forgeable provenance.  Legacy rows
+        // are a read-only import projection and can never be materialized by a mutation; an
+        // unresolved origin must not become an authoritative row; and an Agent-authorised
+        // mutation (the model path) may only materialize a Model-origin record, so a
+        // hook/git/user label claimed there is a forged origin rather than a server derivation.
+        if record.import_mode != MemoryImportMode::Native {
+            return Err("memory_mutation_journal_import_mode_invalid".to_owned());
+        }
+        if record.origin == MemoryOrigin::Unknown {
             return Err("memory_mutation_journal_origin_unresolved".to_owned());
+        }
+        if mutation.authority == MemoryMutationAuthority::Agent
+            && record.origin != MemoryOrigin::Model
+        {
+            return Err("memory_mutation_journal_origin_forged".to_owned());
         }
         match self {
             Self::Candidate | Self::Draft => {
