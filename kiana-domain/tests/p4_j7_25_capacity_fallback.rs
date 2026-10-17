@@ -652,7 +652,7 @@ fn allowed_fallback_has_its_own_route_and_usage_receipt() {
         &original,
         request.original_attempt_id,
         &FallbackRequirements {
-            context_scope_digest: request.context_scope_digest.clone(),
+            context_scope_digest: digest('a'),
             data_boundary_digest: request.data_boundary_digest.clone(),
             budget_digest: request.budget_digest.clone(),
             original_permit_digest: request.original_permit_digest.clone(),
@@ -666,7 +666,7 @@ fn allowed_fallback_has_its_own_route_and_usage_receipt() {
             route: candidate.route.clone(),
             capabilities: candidate.capabilities.clone(),
             credential_revision: candidate.credential_revision.clone(),
-            context_scope_digest: request.context_scope_digest.clone(),
+            context_scope_digest: digest('a'),
             data_boundary_digest: request.data_boundary_digest.clone(),
             budget_digest: request.budget_digest.clone(),
             permit_digest: candidate.permit_digest.clone(),
