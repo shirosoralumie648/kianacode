@@ -7,9 +7,9 @@
 //! ```text
 //! 检索 adapter / 上下文构造者
 //!     -> RetrievalRequest（查询词、权限范围摘要、可选查询向量）
-//!     -> RetrievalItem[]（文本、来源摘要、范围摘要、上游 allowed 判定、可选条目向量）
+//!     -> RetrievalItem[]（文本、来源摘要、范围摘要、来源证据、上游 allowed 判定、可选条目向量）
 //!     -> rank_retrieval()（校验 -> 词项/BM25 与向量排名 -> RRF 合并 -> MMR 去冗余）
-//!     -> RetrievalResult（可解释分数、rank、匹配词、降级原因和结果摘要）
+//!     -> RetrievalResult（每个命中带 RetrievalEvidence、算法版本、health 与空结果原因）
 //!     -> kiana-query::UnifiedRetrievalPort / 后续上下文消费者
 //! ```
 //!
@@ -18,8 +18,15 @@
 //! 这些声明。本文件也不读取索引/数据库、不生成 embedding、不加载模型、不发网络请求、不执行工具或副作用。
 //! 2026-10-17（CM-12）：Daemon memory tool 经 `UnifiedRetrievalPort`、CLI memory search 直接调用本算法；
 //! 算法本身仍是纯计算，候选来源、授权与降级输入由各自调用者负责。
+//! 2026-10-17（CM-14）：候选必须携带 `RetrievalItemProvenance`（source ref/revision/generation/freshness/
+//! evidence），每个 `RetrievalHit` 输出对应 `RetrievalEvidence`（含 rank components），`RetrievalResult`
+//! 输出 Ready/Degraded/Denied/Unavailable `RetrievalHealth` 与空结果原因；缺少来源证据的候选在打分前
+//! fail-closed。
 
-use crate::{json_digest, memory_tokens, SchemaVersion};
+use crate::{
+    json_digest, memory_tokens, RetrievalEvidence, RetrievalHealth, RetrievalHealthStatus,
+    RetrievalItemProvenance, RetrievalRetryPolicy, SchemaVersion,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -265,9 +272,9 @@ pub fn retrieval_scope_digest<'a>(labels: impl IntoIterator<Item = &'a str>) -> 
 /// 一个已由检索 adapter 整理好的候选内容。
 ///
 /// 输入通常来自已选定的索引/记忆快照；`allowed` 是上游对该候选能否进入本次结果的决定，`dense_vector`
-/// 是可选的预计算向量。Domain 只做字段格式检查、scope 一致性检查和 `allowed` 过滤，不读取来源或重新
-/// 执行 ACL 策略。被标为不允许的项仍会先做基本字段校验，并会参与初步文本 tokenization；但其统计、得分和
-/// 最终命中均被排除。
+/// 是可选的预计算向量，`provenance` 是候选来源证据。Domain 只做字段格式检查、scope 一致性检查、
+/// provenance 检查和 `allowed` 过滤，不读取来源或重新执行 ACL 策略。被标为不允许的项仍会先做基本字段
+/// 校验，并会参与初步文本 tokenization；但其统计、得分和最终命中均被排除。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RetrievalItem {
@@ -275,10 +282,13 @@ pub struct RetrievalItem {
     pub id: String,
     /// 用于稀疏检索的正文。当前合同未给该字符串设置独立长度上限。
     pub text: String,
-    /// 来源内容摘要标签；本模块验证摘要外形但不从 `text` 重算或认证来源。
+    /// 来源内容摘要标签；本模块验证摘要外形但不从 `text` 重算或认证来源。命中的
+    /// `RetrievalEvidence.source_snapshot_digest` 必须与它相等，保证证据和排名输入绑定同一快照。
     pub source_digest: String,
     /// 生成该候选时使用的权限范围摘要，必须和 request 的范围摘要相等。
     pub permission_scope_digest: String,
+    /// 候选来源证据：source ref、revision、generation、freshness 与 evidence 状态。
+    pub provenance: RetrievalItemProvenance,
     /// 上游准入结果；`false` 的候选会计入过滤数但不会进入排名。
     pub allowed: bool,
     /// 候选来源时间（Unix 毫秒），仅在 MMR 同分时作为较新的优先条件。
@@ -289,10 +299,11 @@ pub struct RetrievalItem {
 }
 
 impl RetrievalItem {
-    /// 检查候选 ID、来源/scope 摘要及向量数值。
+    /// 检查候选 ID、来源/scope 摘要、provenance 与向量数值。
     ///
     /// 【调用者】`rank_retrieval()` 对输入切片中的每项调用，包括 `allowed=false` 的候选。
-    /// 【失败】空/超长 ID、摘要格式错误、空向量或非有限向量会使整次检索失败。
+    /// 【失败】空/超长 ID、摘要格式错误、缺 source/generation 的来源证据、空向量或非有限向量会使整次
+    /// 检索失败。
     /// 【边界】没有正文大小、向量维度/数量上限，也不比较重复 ID 或来源摘要与正文内容。
     fn validate(&self) -> Result<(), String> {
         required(&self.id, "retrieval_item_id", 512)?;
@@ -301,6 +312,7 @@ impl RetrievalItem {
             &self.permission_scope_digest,
             "retrieval_item_permission_scope_digest",
         )?;
+        self.provenance.validate()?;
         if self.dense_vector.as_ref().is_some_and(|vector| {
             vector.is_empty() || vector.iter().any(|value| !value.is_finite())
         }) {
@@ -314,6 +326,8 @@ impl RetrievalItem {
 ///
 /// `rank` 是最终 MMR 选择顺序的一基序号；稀疏与密集 rank 分别记录各自通道名次，RRF/MMR 分数记录融合
 /// 和去冗余阶段结果。`Option` rank/score 为空表示该条目没有进入对应通道（例如无查询向量或无匹配项）。
+/// `provenance` 是 CM-14 的来源证据：候选来源引用、revision、snapshot generation、freshness、evidence
+/// 以及机器可读的 rank components；缺少来源证据的候选不会出现在结果里。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RetrievalHit {
@@ -323,6 +337,8 @@ pub struct RetrievalHit {
     pub source_digest: String,
     /// 本次请求的 scope 摘要；validator 要求每个 hit 与结果范围相同。
     pub permission_scope_digest: String,
+    /// 候选来源证据（CM-14）；candidate_id/rank/snapshot digest 必须与 hit 自身一致。
+    pub provenance: RetrievalEvidence,
     /// 最终输出顺序，从 1 开始。
     pub rank: u32,
     /// 命中的不同 query term 数量，不是原文频次。
@@ -345,7 +361,9 @@ pub struct RetrievalHit {
 
 /// 一次检索的最终只读结果，供 adapter 或后续上下文构造使用。
 ///
-/// 它把 profile、request 和权限范围摘要一路带到 hits，并以 `result_digest` 对整份输出做内容自校验。
+/// 它把 profile、request、权限范围摘要和候选快照 generation 一路带到 hits，每个 hit 携带
+/// `RetrievalEvidence`，并以 `health` + `empty_reason` 说明本次读取是否降级/被拒绝/不可用以及空结果
+/// 原因；`result_digest` 对整份输出做内容自校验。
 /// 有结果结构不等于结果已经持久化、已送给模型或通过安全审查。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -362,6 +380,9 @@ pub struct RetrievalResult {
     pub request_digest: String,
     /// 该结果所属的权限范围摘要。
     pub permission_scope_digest: String,
+    /// 候选快照的 generation 标签：取输入候选中最大的 provenance generation，没有候选时为 0。
+    /// 它只标识本次读取绑定到哪一代候选，不是索引 generation 或授权代际。
+    pub source_generation: u64,
     /// 输入项中 `allowed=false` 的数量。
     pub acl_filtered_count: u32,
     /// 按最终 MMR 顺序排列的命中。
@@ -369,15 +390,73 @@ pub struct RetrievalResult {
     /// 排名通道不可用等降级原因；空列表表示本次未记录降级原因，不代表语义质量已验证。
     #[serde(default)]
     pub degraded_reasons: Vec<String>,
-    /// 对 header、通道分数、命中和降级原因求出的无密钥结果摘要。
+    /// 本次读取的健康状态：Ready/Degraded/Denied/Unavailable，带原因与显式重试边界。
+    pub health: RetrievalHealth,
+    /// 空结果原因；有命中时必须为空，没有命中时必须解释（无候选/全被过滤/limit 为 0/无匹配）。
+    #[serde(default)]
+    pub empty_reason: Option<String>,
+    /// 对 header、通道分数、命中、health 和空结果原因求出的无密钥结果摘要。
     pub result_digest: String,
 }
 
+/// 由排名过程事实派生 health 与空结果原因。
+///
+/// 【规则】全部候选被上游 ACL 过滤 → Denied（拒绝不可重试）；否则有降级原因 → Degraded（Domain 自己
+/// 产生的降级都是确定性的，因此不可重试）；否则 Ready。没有任何命中时必须给出原因标签：无候选
+/// `no_candidates_in_scope`、全被过滤 `no_permitted_candidates`、调用方 limit 为 0 `result_limit_zero`、
+/// 其余无匹配 `no_query_match`。
+/// 【边界】这里只描述本次读取，不重新授权、不探测通道；`Safe` 重试策略只能由知道瞬时故障的调用方通过
+/// `RetrievalHealth::degraded_channel()` 显式声明。
+fn result_health(
+    item_count: usize,
+    allowed_count: usize,
+    degraded_reasons: &[String],
+    source_generation: u64,
+    hit_count: u32,
+    limit: usize,
+) -> Result<(RetrievalHealth, Option<String>), String> {
+    let empty_reason = if hit_count == 0 {
+        Some(
+            if item_count == 0 {
+                "no_candidates_in_scope"
+            } else if allowed_count == 0 {
+                "no_permitted_candidates"
+            } else if limit == 0 {
+                "result_limit_zero"
+            } else {
+                "no_query_match"
+            }
+            .to_owned(),
+        )
+    } else {
+        None
+    };
+    let health = if item_count > 0 && allowed_count == 0 {
+        RetrievalHealth::denied(
+            "acl_scope_denied_all_candidates",
+            source_generation,
+            hit_count,
+        )?
+    } else if let Some(reason) = degraded_reasons.first() {
+        RetrievalHealth::degraded_channel(
+            reason.clone(),
+            RetrievalRetryPolicy::Deterministic,
+            source_generation,
+            hit_count,
+        )?
+    } else {
+        RetrievalHealth::ready(source_generation, hit_count)?
+    };
+    Ok((health, empty_reason))
+}
+
 impl RetrievalResult {
-    /// 根据本次 profile/request 和排序过程生成结果 DTO，并填入结果摘要。
+    /// 根据本次 profile/request 与排名过程生成结果 DTO，填入 health/empty_reason 和结果摘要。
     ///
-    /// 【调用者】只由同文件 `rank_retrieval()` 在完成排名后调用。
-    /// 【输入/输出】接收被过滤计数、已排序 hits 与降级原因；不再次读取候选数据。
+    /// 【调用者】只由同文件 `rank_retrieval()` 在完成排名后调用；health 与空结果原因由 `result_health()`
+    /// 按同一批排名事实（含 limit）派生后传入。
+    /// 【输入/输出】接收被过滤计数、已排序 hits、降级原因、候选快照 generation 与派生 health；不再次读取
+    /// 候选数据。
     /// 【副作用】构造内存值，不存储或发布结果。
     fn new(
         profile: &RetrievalProfile,
@@ -385,7 +464,10 @@ impl RetrievalResult {
         acl_filtered_count: u32,
         hits: Vec<RetrievalHit>,
         degraded_reasons: Vec<String>,
-    ) -> Self {
+        source_generation: u64,
+        health: RetrievalHealth,
+        empty_reason: Option<String>,
+    ) -> Result<Self, String> {
         let mut result = Self {
             schema: RETRIEVAL_RESULT_SCHEMA.to_owned(),
             version: UNIFIED_RETRIEVAL_VERSION,
@@ -393,21 +475,26 @@ impl RetrievalResult {
             profile_digest: profile.profile_digest.clone(),
             request_digest: request.request_digest.clone(),
             permission_scope_digest: request.permission_scope_digest.clone(),
+            source_generation,
             acl_filtered_count,
             hits,
             degraded_reasons,
+            health,
+            empty_reason,
             result_digest: String::new(),
         };
         result.result_digest = result.digest();
-        result
+        result.validate()?;
+        Ok(result)
     }
 
-    /// 检查结果 header、rank 顺序、scope 一致性、浮点数和自摘要。
+    /// 检查结果 header、rank 顺序、scope 一致性、命中证据、health/空结果原因与自摘要。
     ///
     /// 【调用者】`rank_retrieval()` 在返回前，以及消费方需要检查结构完整性时。
-    /// 【失败】命中 rank 不连续、scope 不一致、分数不是有限数或结果摘要不匹配时返回稳定错误。
-    /// 【边界】这里没有原始 request/profile/items，因此不能重算排序，也不校验 hit ID 唯一性、source_digest
-    /// 格式或结果条数是否符合原调用者要求；自摘要不是签名。
+    /// 【失败】命中 rank 不连续、scope 不一致、分数不是有限数、hit 证据与 hit/结果不一致、health 与
+    /// 结果计数/generation 不一致、空结果缺原因或结果摘要不匹配时返回稳定错误。
+    /// 【边界】这里没有原始 request/profile/items，因此不能重算排序，也不校验 hit ID 唯一性或结果条数是否
+    /// 符合原调用者要求；自摘要不是签名。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != RETRIEVAL_RESULT_SCHEMA || self.version != UNIFIED_RETRIEVAL_VERSION {
             return Err("retrieval_result_header_invalid".to_owned());
@@ -423,6 +510,22 @@ impl RetrievalResult {
             &self.permission_scope_digest,
             "retrieval_result_permission_scope_digest",
         )?;
+        self.health.validate()?;
+        if self.health.source_generation != self.source_generation
+            || self.health.result_count != self.hits.len() as u32
+        {
+            return Err("retrieval_result_health_mismatch".to_owned());
+        }
+        if (self.hits.is_empty() != self.empty_reason.is_some())
+            || self.empty_reason.as_deref().is_some_and(|reason| {
+                reason.trim().is_empty() || reason.len() > 256 || reason.contains('\0')
+            })
+        {
+            return Err("retrieval_result_empty_reason_invalid".to_owned());
+        }
+        if matches!(self.health.status, RetrievalHealthStatus::Denied) && !self.hits.is_empty() {
+            return Err("retrieval_result_denied_with_hits".to_owned());
+        }
         for (rank, hit) in self.hits.iter().enumerate() {
             if hit.rank != rank as u32 + 1
                 || hit.permission_scope_digest != self.permission_scope_digest
@@ -432,6 +535,15 @@ impl RetrievalResult {
                 || !hit.mmr_score.is_finite()
             {
                 return Err("retrieval_result_hit_invalid".to_owned());
+            }
+            hit.provenance.validate()?;
+            if hit.provenance.candidate_id != hit.id
+                || hit.provenance.rank != hit.rank
+                || hit.provenance.source_snapshot_digest != hit.source_digest
+                || hit.provenance.generation == 0
+                || hit.provenance.generation > self.source_generation
+            {
+                return Err("retrieval_result_hit_evidence_mismatch".to_owned());
             }
         }
         digest(&self.result_digest, "retrieval_result_digest")?;
@@ -450,9 +562,12 @@ impl RetrievalResult {
             "profile_digest": self.profile_digest,
             "request_digest": self.request_digest,
             "permission_scope_digest": self.permission_scope_digest,
+            "source_generation": self.source_generation,
             "acl_filtered_count": self.acl_filtered_count,
             "hits": self.hits,
             "degraded_reasons": self.degraded_reasons,
+            "health": self.health,
+            "empty_reason": self.empty_reason,
         }))
     }
 }
@@ -465,16 +580,19 @@ impl RetrievalResult {
 /// golden-context 校验也使用该函数重放固定输入。2026-10-17（CM-12）：Daemon memory tool 经
 /// `UnifiedRetrievalPort` 调用，CLI memory search 直接调用本函数；两者不再各自维护排名公式。
 /// 【输入】经过可信上游构造的 profile/request/candidate slice 和最大命中数 `limit`。候选的 scope 必须与
-/// request 一致；`allowed` 和 `acl_filtered` 应由上游权限筛选流程提供。
-/// 【输出】校验通过的 `RetrievalResult`，携带每个通道名次、分数、匹配词和降级原因。
-/// 【失败】profile/request/item 合同、scope 不一致或候选/limit 超限时返回具体错误；结果自校验失败也会
-/// 阻止返回部分结果。Query adapter 会把这些字符串错误映射为 `PortError::Failed`。
+/// request 一致；`allowed`、`acl_filtered` 与候选 provenance 应由上游权限筛选/来源解析流程提供。
+/// 【输出】校验通过的 `RetrievalResult`：每个命中携带 `RetrievalEvidence`（来源引用/revision/snapshot
+/// digest/generation/freshness/evidence/rank components），结果携带 `health`（Ready/Degraded/Denied/
+/// Unavailable）与空结果原因。
+/// 【失败】profile/request/item/provenance 合同、scope 不一致或候选/limit 超限时返回具体错误；结果自校验
+/// 失败也会阻止返回部分结果。Query adapter 会把这些字符串错误映射为 `PortError::Failed`。
 /// 【核心流程】先检查合同与边界，再以 `allowed` 列表计算 BM25/dense 两路排名，RRF 融合名次，最后 MMR
-/// 逐次选最高分条目并记录完整解释字段。
+/// 逐次选最高分条目并记录完整解释字段与来源证据。
 /// 【为什么分阶段融合】词项评分可解释并擅长精确匹配，向量通道可补充语义近邻，RRF 在不同分数尺度之间
 /// 合并 rank，MMR 再减少最终列表中的重复内容。任何阶段都不代替权限决策。
 /// 【容易误改】所有排序 tie-break 都用于输入重放稳定性；改 profile 常数或先后比较字段会改变历史排名，应
-/// 同时更新算法版本与 golden 对照，而不能只把它当作内部实现细节。
+/// 同时更新算法版本与 golden 对照，而不能只把它当作内部实现细节。命中证据直接来自候选 provenance，
+/// 不要在这里“补造”来源、generation 或 freshness。
 /// 【副作用】纯函数式计算，不访问存储、模型或网络，不修改输入切片。
 pub fn rank_retrieval(
     profile: &RetrievalProfile,
@@ -657,11 +775,35 @@ pub fn rank_retrieval(
             .filter(|term| term_sets[index].contains(*term))
             .cloned()
             .collect::<Vec<_>>();
+        let rank = hits.len() as u32 + 1;
+        // rank components 是命中证据里的机器可读通道记录：与上面的显式字段同源，dense 只在有正分时出现。
+        let mut rank_components = BTreeMap::from([
+            ("exact".to_owned(), f64::from(exact[index])),
+            ("bm25".to_owned(), bm25[index]),
+            ("rrf".to_owned(), rrf[index]),
+            ("mmr".to_owned(), mmr_score),
+        ]);
+        if let Some(dense_score) = dense[index] {
+            rank_components.insert("dense".to_owned(), dense_score);
+        }
+        // 证据直接取自候选 provenance；Domain 不补造来源、generation 或 freshness。
+        let provenance = RetrievalEvidence::new(
+            items[index].id.clone(),
+            items[index].provenance.source_ref.clone(),
+            items[index].provenance.source_revision.clone(),
+            items[index].source_digest.clone(),
+            items[index].provenance.generation,
+            items[index].provenance.freshness,
+            items[index].provenance.evidence,
+            rank,
+            rank_components,
+        )?;
         hits.push(RetrievalHit {
             id: items[index].id.clone(),
             source_digest: items[index].source_digest.clone(),
             permission_scope_digest: request.permission_scope_digest.clone(),
-            rank: hits.len() as u32 + 1,
+            provenance,
+            rank,
             exact_score: exact[index],
             bm25_score: bm25[index],
             dense_score: dense[index],
@@ -672,8 +814,32 @@ pub fn rank_retrieval(
             matched_terms,
         });
     }
-    // 构造并立即校验完整结果，任何内部计算产生的非法浮点数或错误 rank 都不会作为部分成功返回。
-    let result = RetrievalResult::new(profile, request, acl_filtered_count, hits, degraded_reasons);
+    // 快照 generation 标签：取候选中最大的 provenance generation；没有候选时保持 0（空结果允许）。
+    let source_generation = items
+        .iter()
+        .map(|item| item.provenance.generation)
+        .max()
+        .unwrap_or(0);
+    // health/空结果原因与排序共用同一批计数：拒绝、降级和空结果都必须显式解释。
+    let (health, empty_reason) = result_health(
+        items.len(),
+        allowed.len(),
+        &degraded_reasons,
+        source_generation,
+        hits.len() as u32,
+        limit,
+    )?;
+    // 构造并立即校验完整结果，任何内部计算产生的非法浮点数、错误 rank 或证据错位都不会作为部分成功返回。
+    let result = RetrievalResult::new(
+        profile,
+        request,
+        acl_filtered_count,
+        hits,
+        degraded_reasons,
+        source_generation,
+        health,
+        empty_reason,
+    )?;
     result.validate()?;
     Ok(result)
 }

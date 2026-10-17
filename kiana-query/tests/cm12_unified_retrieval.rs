@@ -3,7 +3,9 @@
 //! 这些用例只驱动 `kiana-query` 的 port adapter 与 Domain 入口，不启动 CLI 进程或 daemon；它们证明
 //! adapter 不做自己的排名，并保留 ACL-first（被拒绝候选不进入排名、不改变允许候选的分数）。
 
-use kiana_domain::{RetrievalItem, RetrievalRequest};
+use kiana_domain::{
+    EvidenceStatus, Freshness, RetrievalItem, RetrievalItemProvenance, RetrievalRequest,
+};
 use kiana_ports::RetrievalPort;
 use kiana_query::{rank_unified, UnifiedRetrievalPort};
 
@@ -14,6 +16,18 @@ fn digest(value: char) -> String {
     )
 }
 
+/// CM-14：固定来源证据 fixture，adapter 必须原样透传，不做二次加工。
+fn provenance(id: &str) -> RetrievalItemProvenance {
+    RetrievalItemProvenance::new(
+        format!("fixture:{id}"),
+        "revision:1",
+        7,
+        Freshness::Current,
+        EvidenceStatus::Attributed,
+    )
+    .expect("fixture provenance")
+}
+
 fn items() -> Vec<RetrievalItem> {
     vec![
         RetrievalItem {
@@ -21,6 +35,7 @@ fn items() -> Vec<RetrievalItem> {
             text: "checkout deployment archive notes".to_owned(),
             source_digest: digest('a'),
             permission_scope_digest: digest('s'),
+            provenance: provenance("a"),
             allowed: true,
             created_at_ms: 1,
             dense_vector: None,
@@ -30,6 +45,7 @@ fn items() -> Vec<RetrievalItem> {
             text: "checkout deployment".to_owned(),
             source_digest: digest('b'),
             permission_scope_digest: digest('s'),
+            provenance: provenance("b"),
             allowed: true,
             created_at_ms: 2,
             dense_vector: None,
@@ -73,6 +89,7 @@ fn port_keeps_acl_first_before_any_scoring() {
         text: "checkout checkout checkout".to_owned(),
         source_digest: digest('d'),
         permission_scope_digest: digest('s'),
+        provenance: provenance("denied"),
         allowed: false,
         created_at_ms: 9,
         dense_vector: None,

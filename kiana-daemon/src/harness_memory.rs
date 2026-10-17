@@ -440,6 +440,8 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
         .unwrap_or(DEFAULT_LIMIT as u64)
         .min(MAX_LIMIT as u64) as usize;
     let mut records = Vec::new();
+    // 同一次检索共用同一个时间基准：fence 判定与 freshness 标签都从它派生，避免逐条读时钟。
+    let snapshot_now_ms = now_ms();
     for collection in collections {
         let path = collection_path_scoped(
             &collection,
@@ -459,7 +461,7 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
                 &data_policy,
                 data_policy.data_epoch,
                 &project_root,
-                now_ms(),
+                snapshot_now_ms,
             )
             .map_err(failed)?;
             if fence.searchable() {
@@ -474,7 +476,17 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
         .collect::<std::collections::BTreeSet<_>>();
     records.retain(|record| !superseded.contains(&record.id));
     records.sort_by(|a, b| (&a.collection, &a.id).cmp(&(&b.collection, &b.id)));
-    let mut hits = crate::memory_retrieval::rank_records(&records, &query, limit)?;
+    // CM-14：候选携带来源证据进入统一排名；health 与命中一起返回，空/降级/拒绝都必须可见。
+    let ranked = crate::memory_retrieval::rank_records(
+        &records,
+        &query,
+        limit,
+        crate::memory_retrieval::RetrievalSnapshotContext {
+            data_epoch: data_policy.data_epoch,
+            now_ms: snapshot_now_ms,
+        },
+    )?;
+    let mut hits = ranked.hits;
     for hit in &mut hits {
         hit["query"] = json!(query);
         hit["retrieved_by"] = json!(role.role_id);
@@ -483,7 +495,7 @@ fn search_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value
     Ok(
         json!({"schema":MEMORY_SEARCH_SCHEMA,"query":query,"terms":terms,
         "role_id":role.role_id,"department_id":role.department_id,"session_id":session_id,
-        "data_epoch":data_policy.data_epoch,"hits":hits}),
+        "data_epoch":data_policy.data_epoch,"hits":hits,"retrieval_health":ranked.health}),
     )
 }
 

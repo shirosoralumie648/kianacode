@@ -4,15 +4,16 @@
 //! `RetrievalProfile`，把上层调用转交给该纯算法，并把其字符串错误包装为 `PortError`：
 //!
 //! ```text
-//! 上游准备 RetrievalRequest + RetrievalItem[] + limit
+//! 上游准备 RetrievalRequest + RetrievalItem[]（含来源证据）+ limit
 //!     -> UnifiedRetrievalPort::retrieve()
 //!     -> kiana-domain::rank_retrieval()
-//!     -> RetrievalResult 或 PortError::Failed
+//!     -> RetrievalResult（命中证据 + health）或 PortError::Failed
 //! ```
 //!
 //! 本文件不读取索引、不创建候选、不做身份/ACL 决策，也不生成 embedding。2026-10-17（CM-12）：Daemon
 //! memory tool 经本 adapter 调用 Domain 算法，CLI memory search 直接调用 `kiana_domain::rank_retrieval`；
-//! 两个适配器共享同一排名实现，但候选授权与降级输入仍各自准备。
+//! 两个适配器共享同一排名实现，但候选授权与降级输入仍各自准备。2026-10-17（CM-14）：候选 provenance 与
+//! 结果 health/空结果原因原样通过本 adapter，不做二次加工。
 
 use kiana_domain::{
     rank_retrieval, RetrievalItem, RetrievalProfile, RetrievalRequest, RetrievalResult,

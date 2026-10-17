@@ -3,7 +3,9 @@ use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use kiana_domain::{
-    memory_query_terms, retrieval_scope_digest, RetrievalItem, RetrievalProfile, RetrievalRequest,
+    memory_query_terms, retrieval_scope_digest, EvidenceStatus, Freshness, RetrievalHealth,
+    RetrievalItem, RetrievalItemProvenance, RetrievalProfile, RetrievalRequest,
+    RETRIEVAL_UNVERSIONED_GENERATION,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -132,7 +134,7 @@ impl Command for MemoryCommand {
                     return Err(anyhow!("memory search requires query"));
                 }
                 let records = read_memory_records(&store_path)?;
-                let hits = search_memory_records(&records, query, 10)?;
+                let outcome = search_memory_records(&records, query, 10)?;
                 let report = json!({
                     "schema": "kiana.memory-search.v1",
                     "store_file": store_path.display().to_string(),
@@ -140,7 +142,12 @@ impl Command for MemoryCommand {
                     "terms": memory_query_terms(query),
                     "limit": 10,
                     "record_count": records.len(),
-                    "hits": hits,
+                    "hits": outcome.hits,
+                    // CM-14：空结果/降级/拒绝必须显式可见，而不是只给一个空 hits 数组。
+                    "retrieval": {
+                        "health": outcome.health,
+                        "empty_reason": outcome.empty_reason,
+                    },
                 });
                 if json_output {
                     Ok(CommandResult::text(serde_json::to_string_pretty(&report)?))
@@ -355,22 +362,33 @@ fn kind_counts(records: &[MemoryRecord]) -> serde_json::Map<String, Value> {
         .collect()
 }
 
+/// 一次 CLI memory 检索的命中投影与健康标签。
+///
+/// `hits` 是既有的 JSON hit 形状（新增 `retrieval_evidence`）；`health`/`empty_reason` 来自统一检索
+/// 结果，说明本次读取是否完成、为什么为空。
+struct MemorySearchOutcome {
+    hits: Vec<Value>,
+    health: RetrievalHealth,
+    empty_reason: Option<String>,
+}
+
 /// 用统一的 sparse/exact 排名合同对本地记忆记录排序。
 ///
-/// 【作用】CLI 不再自带“词项包含计数 + 时间”排序：这里把每条记录投影成 `RetrievalItem`（正文与旧
-/// 实现一致地包含 kind/source/text 作为匹配面，摘要用记录正文的 SHA-256），然后交给
-/// `kiana_domain::rank_retrieval` 用同一 `RetrievalProfile::unified()`（exact/BM25-CJK → RRF60 → MMR）
-/// 排名，最后映射回既有 hit 形状。
-/// 【输入/输出】本地结构化记录、查询文本与上限；成功返回 id/kind/source/score（命中的不同词项数）/
-/// matched_terms/text/redaction_count/created_at_ms。
+/// 【作用】CLI 不再自带“词项包含计数 + 时间”排序：这里把每条记录投影成 `RetrievalItem`（匹配面与旧
+/// 实现一致地包含 kind/source/text，摘要用记录正文的 SHA-256，来源证据用 `local-memory:{id}` 与内容摘要
+/// revision），然后交给 `kiana_domain::rank_retrieval` 用同一 `RetrievalProfile::unified()`
+/// （exact/BM25-CJK → RRF60 → MMR）排名，最后映射回既有 hit 形状并附带命中级 `retrieval_evidence`。
+/// 【输入/输出】本地结构化记录、查询文本与上限；成功返回 hits（既有字段 + `retrieval_evidence`）与派生
+/// health/空结果原因。
 /// 【失败】请求或条目畸形（例如手改文件里的空 id）、候选或上限越界时返回错误，不静默降级成部分结果。
 /// 【边界】CLI 检索没有服务端 ACL 与 dense 通道：`scope` 摘要只把同一次本地记录快照绑定到 request/item，
-/// 不是权限判断；本地记录读取由 `kiana memory` 自身范围决定。
+/// 不是权限判断；本地记录读取由 `kiana memory` 自身范围决定。本地存储不维护代际计数器，因此 generation
+/// 使用文档化的 `RETRIEVAL_UNVERSIONED_GENERATION` 标签，freshness 只是只读标签。
 fn search_memory_records(
     records: &[MemoryRecord],
     query: &str,
     limit: usize,
-) -> anyhow::Result<Vec<Value>> {
+) -> anyhow::Result<MemorySearchOutcome> {
     let scope_labels = records
         .iter()
         .map(|record| record.id.clone())
@@ -378,16 +396,31 @@ fn search_memory_records(
     let permission_scope_digest = retrieval_scope_digest(scope_labels.iter().map(String::as_str));
     let items = records
         .iter()
-        .map(|record| RetrievalItem {
-            id: record.id.clone(),
-            text: format!("{} {} {}", record.kind, record.source, record.text),
-            source_digest: format!("sha256:{:x}", Sha256::digest(record.text.as_bytes())),
-            permission_scope_digest: permission_scope_digest.clone(),
-            allowed: true,
-            created_at_ms: u64::try_from(record.created_at_ms).unwrap_or(u64::MAX),
-            dense_vector: None,
+        .map(|record| {
+            let text_digest = format!("sha256:{:x}", Sha256::digest(record.text.as_bytes()));
+            Ok(RetrievalItem {
+                id: record.id.clone(),
+                text: format!("{} {} {}", record.kind, record.source, record.text),
+                source_digest: text_digest.clone(),
+                permission_scope_digest: permission_scope_digest.clone(),
+                provenance: RetrievalItemProvenance::new(
+                    format!("local-memory:{}", record.id),
+                    format!("content-digest:{text_digest}"),
+                    RETRIEVAL_UNVERSIONED_GENERATION,
+                    Freshness::Current,
+                    if record.source.trim().is_empty() {
+                        EvidenceStatus::Unverifiable
+                    } else {
+                        EvidenceStatus::Attributed
+                    },
+                )
+                .map_err(|error| anyhow!("memory retrieval provenance invalid: {error}"))?,
+                allowed: true,
+                created_at_ms: u64::try_from(record.created_at_ms).unwrap_or(u64::MAX),
+                dense_vector: None,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<anyhow::Result<Vec<_>>>()?;
     let request = RetrievalRequest::new(query, permission_scope_digest, None)
         .map_err(|error| anyhow!("memory retrieval request invalid: {error}"))?;
     let result =
@@ -412,15 +445,29 @@ fn search_memory_records(
             "text": record.text,
             "redaction_count": record.redaction_count,
             "created_at_ms": record.created_at_ms,
+            // CM-14：命中级来源证据（source ref/revision/generation/freshness/evidence/rank components）。
+            "retrieval_evidence": hit.provenance,
         }));
     }
-    Ok(hits)
+    Ok(MemorySearchOutcome {
+        hits,
+        health: result.health.clone(),
+        empty_reason: result.empty_reason.clone(),
+    })
 }
 
 fn render_search_report(report: &Value) -> String {
     let query = report["query"].as_str().unwrap_or_default();
     let mut lines = vec![format!("Memory search\nquery: {query}")];
-    for hit in report["hits"].as_array().into_iter().flatten() {
+    let hits = report["hits"].as_array();
+    if hits.is_none_or(|hits| hits.is_empty()) {
+        // CM-14：空结果必须解释原因（无记录/无匹配/limit 为 0），而不是静默输出空列表。
+        let reason = report["retrieval"]["empty_reason"]
+            .as_str()
+            .unwrap_or("no_query_match");
+        lines.push(format!("(no hits: {reason})"));
+    }
+    for hit in hits.into_iter().flatten() {
         lines.push(format!(
             "- [{}] {} ({})",
             hit["kind"].as_str().unwrap_or("note"),
@@ -580,6 +627,19 @@ mod tests {
         assert_eq!(search["hits"].as_array().unwrap().len(), 1);
         assert_eq!(search["hits"][0]["kind"], "decision");
         assert_eq!(search["hits"][0]["redaction_count"], 0);
+        // CM-14：命中的来源证据与检索 health 一起可见；空结果原因只在空结果时出现。
+        assert_eq!(search["retrieval"]["health"]["status"], "ready");
+        assert_eq!(search["retrieval"]["empty_reason"], Value::Null);
+        let evidence = &search["hits"][0]["retrieval_evidence"];
+        assert_eq!(evidence["generation"], 1);
+        assert_eq!(evidence["freshness"], "current");
+        assert_eq!(evidence["evidence"], "attributed");
+        assert!(evidence["source_ref"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("local-memory:mem-")));
+        assert!(evidence["source_revision"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("content-digest:sha256:")));
 
         let _ = fs::remove_dir_all(&root);
         std::env::remove_var("KIANA_HOME");
@@ -732,14 +792,15 @@ mod tests {
             parity_record("mem-short", "note", "manual", "checkout deployment", 20),
             parity_record("mem-other", "note", "manual", "界面 颜色 说明", 10),
         ];
-        let hits =
+        let outcome =
             super::search_memory_records(&records, "checkout deployment", 5).expect("CLI ranking");
+        let hits = &outcome.hits;
         let ids = hits
             .iter()
             .map(|hit| hit["id"].as_str().unwrap_or_default().to_owned())
             .collect::<Vec<_>>();
         assert_eq!(ids, vec!["mem-short", "mem-long"]);
-        for hit in &hits {
+        for hit in hits {
             assert_eq!(hit["score"], 2);
         }
 
@@ -751,14 +812,26 @@ mod tests {
         let scope = super::retrieval_scope_digest(scope_labels.iter().map(String::as_str));
         let items = records
             .iter()
-            .map(|record| super::RetrievalItem {
-                id: record.id.clone(),
-                text: format!("{} {} {}", record.kind, record.source, record.text),
-                source_digest: format!("sha256:{:x}", Sha256::digest(record.text.as_bytes())),
-                permission_scope_digest: scope.clone(),
-                allowed: true,
-                created_at_ms: u64::try_from(record.created_at_ms).unwrap_or(u64::MAX),
-                dense_vector: None,
+            .map(|record| {
+                let text_digest = format!("sha256:{:x}", Sha256::digest(record.text.as_bytes()));
+                super::RetrievalItem {
+                    id: record.id.clone(),
+                    text: format!("{} {} {}", record.kind, record.source, record.text),
+                    source_digest: text_digest.clone(),
+                    permission_scope_digest: scope.clone(),
+                    // CM-14：与生产路径同源的来源证据，才能逐字段比对命中证据。
+                    provenance: super::RetrievalItemProvenance::new(
+                        format!("local-memory:{}", record.id),
+                        format!("content-digest:{text_digest}"),
+                        super::RETRIEVAL_UNVERSIONED_GENERATION,
+                        super::Freshness::Current,
+                        super::EvidenceStatus::Attributed,
+                    )
+                    .expect("parity provenance"),
+                    allowed: true,
+                    created_at_ms: u64::try_from(record.created_at_ms).unwrap_or(u64::MAX),
+                    dense_vector: None,
+                }
             })
             .collect::<Vec<_>>();
         let request = super::RetrievalRequest::new("checkout deployment", scope, None)
@@ -772,11 +845,60 @@ mod tests {
             .map(|hit| hit.id.clone())
             .collect::<Vec<_>>();
         assert_eq!(ids, expected_ids);
+        assert_eq!(outcome.health, expected.health);
         for (hit, expected_hit) in hits.iter().zip(&expected.hits) {
             assert_eq!(
                 hit["matched_terms"],
                 serde_json::json!(expected_hit.matched_terms)
             );
+            // CM-14：命中级来源证据必须与统一算法结果逐字段一致。
+            assert_eq!(
+                hit["retrieval_evidence"],
+                serde_json::json!(expected_hit.provenance)
+            );
         }
+    }
+
+    #[test]
+    /// CM-14：空结果必须给出原因（无记录/无匹配），命中结果必须带来源证据；两者都不能静默省略。
+    fn cli_memory_search_explains_empty_results_and_keeps_hit_evidence() {
+        let records = vec![parity_record(
+            "mem-color",
+            "note",
+            "manual",
+            "界面 颜色 说明",
+            10,
+        )];
+        let empty =
+            super::search_memory_records(&records, "checkout deployment", 5).expect("CLI ranking");
+        assert!(empty.hits.is_empty());
+        assert_eq!(empty.empty_reason.as_deref(), Some("no_query_match"));
+        assert_eq!(
+            empty.health.status,
+            kiana_domain::RetrievalHealthStatus::Ready
+        );
+
+        // 没有记录时原因是“范围内没有候选”，而不是伪装成“查询无匹配”。
+        let store_empty =
+            super::search_memory_records(&[], "checkout deployment", 5).expect("CLI empty store");
+        assert!(store_empty.hits.is_empty());
+        assert_eq!(
+            store_empty.empty_reason.as_deref(),
+            Some("no_candidates_in_scope")
+        );
+
+        // 命中路径：来源证据使用无版本存储标签与内容摘要 revision，且 generation 非零。
+        let hit_outcome = super::search_memory_records(&records, "颜色", 5).expect("CLI ranking");
+        assert_eq!(hit_outcome.hits.len(), 1);
+        assert_eq!(hit_outcome.empty_reason, None);
+        let evidence = &hit_outcome.hits[0]["retrieval_evidence"];
+        assert_eq!(evidence["generation"], 1);
+        assert_eq!(evidence["freshness"], "current");
+        assert_eq!(evidence["evidence"], "attributed");
+        assert_eq!(evidence["source_ref"], "local-memory:mem-color");
+        assert!(evidence["source_revision"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("content-digest:sha256:")));
+        assert!(evidence["rank_components"]["rrf"].is_number());
     }
 }

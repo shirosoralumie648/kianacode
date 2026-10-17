@@ -19,13 +19,22 @@ fn digest(value: char) -> String {
 }
 
 /// 建立不带向量的候选记录，并用 `allowed` 单独控制是否进入本次排名。
-/// source/scope digest 都是上面的格式 fixture，时间戳只用于最终排序的平局条件。
+/// source/scope digest 都是上面的格式 fixture，时间戳只用于最终排序的平局条件；CM-14 的来源证据同样是
+/// 固定 fixture 标签（非零 generation），不是真实快照。
 fn item(id: &str, text: &str, allowed: bool, created_at_ms: u64) -> RetrievalItem {
     RetrievalItem {
         id: id.to_owned(),
         text: text.to_owned(),
         source_digest: digest(if allowed { 'a' } else { 'b' }),
         permission_scope_digest: digest('s'),
+        provenance: RetrievalItemProvenance::new(
+            format!("fixture:{id}"),
+            "revision:1".to_owned(),
+            7,
+            Freshness::Current,
+            EvidenceStatus::Attributed,
+        )
+        .expect("fixture provenance"),
         allowed,
         created_at_ms,
         dense_vector: None,
