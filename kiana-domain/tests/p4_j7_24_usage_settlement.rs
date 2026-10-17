@@ -649,6 +649,93 @@ fn cumulative_cache_and_reasoning_usage_is_not_double_counted() {
 }
 
 #[test]
+fn delta_observation_is_not_settled_as_cumulative() {
+    let attempt_id = AttemptId::new();
+    let run_id = RunId::new();
+    // A delta reports only the increment since the previous observation.  Billing it as the
+    // attempt's total would undercharge, so the settlement contract only accepts the
+    // accumulator's cumulative observation.
+    let delta = NormalizedUsage::new(
+        UsageId::new(),
+        attempt_id,
+        run_id,
+        Some("provider-a".to_owned()),
+        "model-a",
+        "connection-a",
+        tokens(Some(4), Some(2)),
+        UsageSource::Provider,
+        UsageObservation::Delta,
+        Some(1),
+        UsageConfidence::Known,
+        None,
+        "provider fixture",
+        digest('d'),
+    )
+    .expect("delta observation");
+    assert_eq!(
+        ProviderUsageSettlement::from_usage_with_protocol(
+            &delta,
+            ModelProtocol::OpenAiChat,
+            None,
+            1,
+            100,
+        )
+        .unwrap_err(),
+        "provider_usage_delta_observation_not_settleable"
+    );
+    assert_eq!(
+        ProviderUsageCorrection::new(
+            &delta,
+            SettlementCost::Unknown {
+                reason: BillingUnknownReason::ReconciliationRequired,
+            },
+            digest('e'),
+            "late provider usage",
+            200,
+        )
+        .unwrap_err(),
+        "provider_usage_delta_observation_not_settleable"
+    );
+
+    // The validator, not only the constructor, refuses a delta that arrives with consistent
+    // digests: a deserialized fact cannot smuggle an unaccumulated increment into billing.
+    let mut settlement = ProviderUsageSettlement::from_usage_with_protocol(
+        &usage_with(
+            attempt_id,
+            run_id,
+            "provider-a",
+            tokens(Some(10), Some(5)),
+            UsageConfidence::Known,
+            None,
+        ),
+        ModelProtocol::OpenAiChat,
+        None,
+        1,
+        100,
+    )
+    .expect("final settlement");
+    let mut smuggled = settlement.usage.clone();
+    smuggled.observation = UsageObservation::Delta;
+    smuggled.sequence = Some(2);
+    smuggled.usage_digest = smuggled.digest();
+    settlement.usage = smuggled;
+    settlement.settlement_digest = settlement.digest();
+    assert_eq!(
+        settlement.validate().unwrap_err(),
+        "provider_usage_delta_observation_not_settleable"
+    );
+
+    // A cumulative snapshot is a terminal observation of the same shape and stays settleable;
+    // only the delta shape is refused.
+    let mut cumulative = settlement.usage.clone();
+    cumulative.observation = UsageObservation::Snapshot;
+    cumulative.usage_digest = cumulative.digest();
+    settlement.usage = cumulative;
+    settlement.settlement_digest = settlement.digest();
+    settlement.validate().expect("cumulative snapshot settles");
+}
+
+#[test]
 fn self_hosted_route_does_not_default_external_cost_to_zero() {
     let usage = usage_with(
         AttemptId::new(),

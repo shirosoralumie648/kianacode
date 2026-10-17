@@ -2,12 +2,14 @@
 //!
 //! This module is deliberately a value-level boundary.  It normalizes the usage that a provider
 //! reported, pins the rate-card version used for an estimate and keeps unknown/measured cost
-//! distinct.  It does not reserve a capability, write an EventLog or authorize a retry.
+//! distinct.  It does not reserve a capability, write an EventLog or authorize a retry.  Only the
+//! accumulator's cumulative observation settles an attempt: a raw delta is rejected so a fraction
+//! of an attempt's usage can never masquerade as its total.
 
 use crate::{
     json_digest, AttemptId, BillingState, BillingUnknownReason, CostEstimate, ExecutionId,
     ModelProtocol, Money, NormalizedUsage, ProviderReceiptRef, RateCard, RateCardId, SchemaVersion,
-    UsageConfidence, UsageId, UsageVector,
+    UsageConfidence, UsageId, UsageObservation, UsageVector,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -279,6 +281,12 @@ impl ProviderUsageSettlement {
             || self.usage.run_id != self.run_id
         {
             return Err("provider_usage_settlement_identity_mismatch".to_owned());
+        }
+        // A settlement is the terminal observation of one attempt.  A delta only reports the
+        // increment since the previous observation, so billing it here would charge a fraction of
+        // the attempt's consumption; it must be accumulated first.
+        if matches!(self.usage.observation, UsageObservation::Delta) {
+            return Err("provider_usage_delta_observation_not_settleable".to_owned());
         }
         self.cost.validate()?;
         if self.state == BillingState::Unknown && !self.cost.is_unknown() {
@@ -780,6 +788,11 @@ impl ProviderUsageCorrection {
         self.usage.validate()?;
         if self.usage.attempt_id != self.attempt_id || self.usage.run_id != self.run_id {
             return Err("provider_usage_correction_identity_mismatch".to_owned());
+        }
+        // A correction is a terminal observation too: a delta must be accumulated before it can
+        // replace (or explain) an already settled charge.
+        if matches!(self.usage.observation, UsageObservation::Delta) {
+            return Err("provider_usage_delta_observation_not_settleable".to_owned());
         }
         self.cost.validate()
     }

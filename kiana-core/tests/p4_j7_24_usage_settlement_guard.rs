@@ -31,6 +31,8 @@ fn usage_settlement_keeps_cost_and_authority_boundaries_separate() {
         "provider_usage_correction_target_mismatch",
         "RateCardSnapshot",
         "provider_usage_overflow",
+        // 只有累计观测能结算：增量（delta）必须先经 accumulator 累加。
+        "provider_usage_delta_observation_not_settleable",
     ] {
         assert!(
             domain.contains(marker) || pricing.contains(marker) || provider.contains(marker),
