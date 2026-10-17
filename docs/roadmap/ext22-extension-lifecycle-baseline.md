@@ -55,3 +55,30 @@ proof-level_change: install-state source → local_behavior; no durable/live/phy
 limitations: typed approval/config/dependency/trust snapshots still have no complete protocol-to-daemon consumer; the broader daemon extension unit module retains a pre-existing signature error-prefix failure; durable CAS/recovery and UI/multi-surface integration remain open
 reviewer: root integration agent with EXT-22 lifecycle audit; focused install-state reviewer
 ```
+
+## 2026-10-17 CI-only slice (typed lifecycle binding)
+
+The typed contract above now has product-path consumers. `inspect` returns the binding inputs
+(`dependency_snapshot_digest` and `trust_revision`); the ControlPlane mints the
+`ExtensionLifecycleMutation` digest only after injecting its server-owned actor/project
+fields; the daemon re-derives the same mutation before any registry CAS and recomputes both
+snapshots against the *current* folded registry and live `ProjectTrust`, so forged or stale
+bindings are refused without appending an event. `stage` publishes the verified bytes into
+the immutable cache and appends an inert `staged` record; `install` may only advance from a
+stage-owned record with the same package hash; `enable` still requires the approval id and a
+typed host/user/project/run configuration snapshot bound to the same mutation. The binding
+runs inside the existing `extension.manage` → ControlPlane → daemon append-only CAS path; no
+second execution loop, no new test target, no manifest/lockfile change.
+
+```text
+source_snapshot: worktree step/ext-22-20261017-1 (base master be76f0e425ef) at step commit 44f1392f; kiana-domain/src/extension_lifecycle.rs, kiana-core/src/commands.rs, kiana-daemon/src/extensions.rs and their ext22 tests
+worktree_status: roadmap row 357 🔄 → ✅ (CI pending); source plus tests wired to the manual ext22 lane and shard-claimed targets; no Cargo.toml/Cargo.lock/package.json change, no new test target
+command_argv: CI-only; locally only cargo fmt --all, standalone rustfmt --edition 2021 --check on the five changed Rust files, bash scripts/ci/validate-doc-references.sh and a manual replication of the scripts/ci/test-shards.json coverage check; no cargo build/test/check/clippy/run, make, npm, smoke or acceptance script was executed
+cwd·environment: repository root Linux/bash; GitHub Actions ubuntu-latest is the runtime of the new manual lane (receipt not awaited)
+fixture·cassette: kiana-domain/tests/ext22_extension_lifecycle.rs 5 tests (+mutation_rebuilds_from_command_arguments_and_requires_every_binding, +config_snapshot_binds_only_to_its_enable_mutation); kiana-daemon ext22_lifecycle_binding_rejects_forged_and_stale_mutations (operator/duplicate digest/forged digest/missing trust/stale trust/stale dependency/foreign snapshot/missing snapshot body all rejected with zero appended events) and ext22_inspect_stage_install_enable_pipeline_binds_typed_lifecycle (inspect → stage → re-stage → install → premature enable deny → enable with approval + typed config → idempotent replay → stale registry generation conflict)
+exit_code: not run locally; unknown; CI receipt not awaited
+status_change: EXT-22 feature_status moves partial → implemented on source: the card's inspect/stage/install/enable bindings, the enable approval + config snapshot requirement and the single mutation path all have source contracts and deny-first fixtures; proof stays source until GitHub Actions runs
+proof-level_change: no promotion; source stays source (no local_behavior/durable/live/physical claim)
+limitations: approval validity/consumption beyond presence+binding+recording belongs to EXT-23; no typed CLI/workbench/web install/enable surface yet (CLI still exposes list/search/inspect); durable CAS projection/recovery and multi-surface integration remain open; the pre-existing daemon unit-module signature error-prefix failure noted in the 2026-10-08 block is unrelated and was not retested; the shared baseline also carries a pre-existing cargo-fmt drift in kiana-entrypoints/src/workbench_chat.rs that this step left untouched (out of scope), so the repository-wide fmt gate depends on the owning step
+reviewer: root integration agent; static review of the minting/verification path, deny codes, fixtures, manual lane and roadmap backfill
+```
