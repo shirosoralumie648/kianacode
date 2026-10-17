@@ -224,3 +224,44 @@ fn rebuild_does_not_issue_permit() {
         }
     }
 }
+
+/// Behavioural fixtures must exist and stay read-only; the source guard above only proves shape.
+#[test]
+fn er20_behavioural_fixtures_are_wired() {
+    let core_fixture = include_str!("er20_restart_projector.rs");
+    let daemon_fixture = include_str!("../../kiana-daemon/tests/er20_restart_startup.rs");
+    for name in [
+        "er20_restart_never_auto_resumes_pending_run",
+        "er20_rebuild_lists_multiple_pending_approvals_and_fences_resources",
+        "er20_valid_empty_store_is_distinct_from_populated_rebuild",
+        "er20_projection_checkpoint_mismatch_forces_rebuild",
+        "er20_orphan_dispatch_is_visible_after_restart",
+        "er20_restart_rebuild_is_deterministic",
+    ] {
+        assert!(
+            core_fixture.contains(name),
+            "ER-20 core fixture missing: {name}"
+        );
+    }
+    for name in [
+        "er20_daemon_restart_reads_journal_without_resuming",
+        "er20_daemon_refuses_corrupt_journal_before_recovery_state",
+    ] {
+        assert!(
+            daemon_fixture.contains(name),
+            "ER-20 daemon fixture missing: {name}"
+        );
+    }
+    for fixture in [core_fixture, daemon_fixture] {
+        for forbidden in [
+            "issue_permit(",
+            "consume_approval(",
+            "execute_authorized_request(",
+        ] {
+            assert!(
+                !fixture.contains(forbidden),
+                "restart fixture widened authority: {forbidden}"
+            );
+        }
+    }
+}
