@@ -30,6 +30,21 @@ limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Acti
 reviewer: root integration agent；H08 取消/停止边界源码与既有夹具静态复核
 ```
 
+### 2026-10-17 CI-06 翻 ✅（DaemonHost 组合根装配项目 provider 配置，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 166（🔄 → ✅，CI pending）与 §3 变更日志；kiana-daemon/src/lib.rs（新增 `DaemonHost::provider_gateway_for_project` 与 `use kiana_provider::{ProviderGateway, WorkspaceConfigTrust}`）；kiana-daemon/tests/ci06_config_resolver.rs（source guard 增加三处 composition-root 标记断言；新增 4 个 DaemonHost fixture + FixedTrustAuthority/daemon_host/port_reason helper）；kiana-daemon/src/project_provider_config.rs、kiana-provider/src/resolver.rs、kiana-provider/tests/ci06_config_resolver.rs、kiana-core/tests/ci06_config_resolver.rs、.github/workflows/ci06-config-resolver.yml 未改（既有单一解析器与 fixture 保持不变）
+worktree_status: 行 166 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具与共享文档（roadmap 该行/变更日志、CURRENT_STATUS）的单点回填；无 Cargo.toml/Cargo.lock/package.json、scripts/ci/test-shards.json 变化（沿用既有 ci06_config_resolver target/shard）；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与 `bash scripts/ci/validate-doc-references.sh`（通过）
+cwd·environment: worktree /workspace/kianacode-worktrees/CI-06，分支 step/ci-06-20261017-1（基线 master d075cbd9e41c）；GitHub Actions ubuntu-latest 为运行时（回执未等待）；daemon fixture 以 `with_harness_and_project_authority`（内存 EventLog，无磁盘/网络副作用）构造宿主
+fixture·cassette: daemon `ci06_config_resolver` 新增 4 个——`daemon_host_gateway_denies_untrusted_project_before_opening_overlay`（未信任权威下覆盖文件/directory 均在打开前返回 `config_workspace_untrusted`，directory 一例证明 gate 先于 open）；`daemon_host_gateway_fences_trust_revision_drift_before_the_resolver`（可信权威 + 故意非法 JSON，`Some(stale_revision)` 先于解析返回 `config_project_trust_revision_changed`）；`daemon_host_gateway_matches_the_provider_entrypoint_snapshot`（同覆盖输入下 DaemonHost 的 `configuration_snapshot`/`workspace_configuration_snapshot` 与 provider `from_workspace` 逐字相等，`project_trust_revision` 一致）；`daemon_host_gateway_keeps_environment_path_when_overlay_is_absent`（缺省覆盖返回 `Ok(None)` 回退既有环境/builtin 路径）；source guard `config_resolver_is_the_only_product_parser` 增加 `provider_gateway_for_project`/`gateway_from_project_config`/`WorkspaceConfigTrust` 断言；全部随既有 `cargo test -p kiana-daemon --test ci06_config_resolver` 接入 `ci06-config-resolver.yml`
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CI-06 卡退出条件在源码层覆盖——先拒绝（unknown field/major、未信任 workspace config 在打开前拒绝、非法 URL/凭据/query、profile 缺失/非法、超限且不请求 provider）与成功/回归（显式 > 可信 workspace/project > environment > builtin 的 precedence、canonical secret-free snapshot、`reload_workspace` 原子 reload、trust/generation revision fencing、daemon host 与 provider 入口同一 snapshot）均在源码与 fixture 层；此前「gateway_from_project_config 无人调用」的缺口由 DaemonHost 组合根方法关闭；行 166 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行测试，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions（`--locked --offline`）；`provider_gateway_for_project` 是组合根暴露的装配入口，尚未在生产默认构造路径（如 `local_with_model_config`）中自动采用项目覆盖——daemon 服务多项目（按 `RequestContext.project_root`），单项目构造器语义不成立；durable ConfigSnapshotStore/snapshot 持久化、跨进程 generation、schema migration/upcaster、redirect/route admission（CI-08）、SecretStore/lease（CI-07）、live/physical effect 仍开放；`project_identity` 与 trust 读取为两次独立观察，未在 DaemonHost 层证明 TOCTOU 原子性；CI 回执未等待
+reviewer: root integration agent；CI-06 DaemonHost 组合根装配、trust/revison fence 顺序与跨入口 snapshot 契约静态复核
+```
+
 ### 2026-10-17 ER-13 翻 ✅（result delivery 的 crash window 与跨进程重启恢复，CI-only 口径）
 
 ```text

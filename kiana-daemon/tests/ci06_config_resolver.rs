@@ -1,9 +1,11 @@
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use kiana_daemon::LocalModelConfig;
+use kiana_daemon::{DaemonHost, LocalModelConfig, ProjectTrustAuthority};
+use kiana_ports::PortError;
 use kiana_provider::{ProviderConfig, ProviderGateway, WorkspaceConfigTrust};
 
 #[test]
@@ -71,6 +73,12 @@ fn config_resolver_is_the_only_product_parser() {
     assert!(lib.contains("pub mod project_provider_config;"));
     assert!(!project_config.contains("serde_json::from"));
     assert!(!project_config.contains("config::connections"));
+
+    // The composition root must actually call the single parser; the project overlay is not a
+    // second entrypoint that only tests exercise.
+    assert!(lib.contains("pub fn provider_gateway_for_project"));
+    assert!(lib.contains("project_provider_config::gateway_from_project_config"));
+    assert!(lib.contains("WorkspaceConfigTrust"));
 }
 
 #[test]
@@ -363,4 +371,141 @@ fn project_provider_config_matches_the_provider_entrypoint_snapshot() {
         repeated.configuration_snapshot().unwrap(),
         daemon_gateway.configuration_snapshot().unwrap()
     );
+}
+
+// ---------------------------------------------------------------------------
+// DaemonHost composition-root assembly (CI-06)
+//
+// `project_provider_config` is the file/trust boundary; these fixtures prove the daemon composition
+// root actually calls it, deriving trust from its own `ProjectTrustAuthority` (never the caller),
+// fencing revision drift before the resolver, and producing the same canonical snapshot as the
+// direct provider entrypoint.
+// ---------------------------------------------------------------------------
+
+struct FixedTrustAuthority {
+    trusted: bool,
+}
+
+impl ProjectTrustAuthority for FixedTrustAuthority {
+    fn project_trusted(&self, _project_root: &Path) -> Result<bool, String> {
+        Ok(self.trusted)
+    }
+}
+
+fn daemon_host(trusted: bool) -> DaemonHost {
+    DaemonHost::with_harness_and_project_authority(
+        kiana_runner::KianaHarness::new(Arc::new(kiana_runner::UnavailableModel::default())),
+        Arc::new(FixedTrustAuthority { trusted }),
+    )
+    .expect("fixture daemon host")
+}
+
+fn port_reason(error: PortError) -> String {
+    match error {
+        PortError::Failed(reason) => reason,
+        other => panic!("unexpected port error: {other}"),
+    }
+}
+
+#[test]
+fn daemon_host_gateway_denies_untrusted_project_before_opening_overlay() {
+    let _env = EnvRestore::new();
+    let root = temp_project("host-untrusted");
+    let path = kiana_daemon::project_provider_config::project_provider_config_path(&root);
+    fs::write(&path, project_overlay("ci06-host-model")).expect("project overlay");
+    let host = daemon_host(false);
+    let project_root = root.to_str().expect("utf-8 project root");
+
+    let error = host
+        .provider_gateway_for_project(LocalModelConfig::default(), project_root, None)
+        .err()
+        .expect("untrusted project with an overlay must fail closed");
+    assert_eq!(port_reason(error), "config_workspace_untrusted");
+
+    // A directory at the overlay path proves the gate runs before any open: an open-first
+    // implementation would surface not-regular-file/unreadable instead of the trust denial.
+    fs::remove_file(&path).expect("remove overlay file");
+    fs::create_dir(&path).expect("directory at overlay path");
+    let error = host
+        .provider_gateway_for_project(LocalModelConfig::default(), project_root, None)
+        .err()
+        .expect("untrusted project must deny before opening");
+    assert_eq!(port_reason(error), "config_workspace_untrusted");
+    fs::remove_dir(&path).expect("remove overlay directory");
+}
+
+#[test]
+fn daemon_host_gateway_fences_trust_revision_drift_before_the_resolver() {
+    let _env = EnvRestore::new();
+    let root = temp_project("host-revision-drift");
+    let path = kiana_daemon::project_provider_config::project_provider_config_path(&root);
+    // Deliberately invalid text: the revision fence must win over parsing.
+    fs::write(&path, "not JSON at all").expect("invalid overlay");
+    let host = daemon_host(true);
+
+    // The daemon observes trust=true, so an admitted revision derived from trust=false is stale.
+    let stale = project_revision(false);
+    let error = host
+        .provider_gateway_for_project(
+            LocalModelConfig::default(),
+            root.to_str().expect("utf-8 project root"),
+            Some(&stale),
+        )
+        .err()
+        .expect("stale trust revision must be fenced");
+    assert_eq!(port_reason(error), "config_project_trust_revision_changed");
+}
+
+#[test]
+fn daemon_host_gateway_matches_the_provider_entrypoint_snapshot() {
+    let _env = EnvRestore::new();
+    let root = temp_project("host-canonical");
+    let raw = project_overlay("ci06-host-model");
+    let path = kiana_daemon::project_provider_config::project_provider_config_path(&root);
+    fs::write(&path, &raw).expect("project overlay");
+    let revision = project_revision(true);
+    let host = daemon_host(true);
+
+    let gateway = host
+        .provider_gateway_for_project(
+            LocalModelConfig::default(),
+            root.to_str().expect("utf-8 project root"),
+            None,
+        )
+        .expect("trusted overlay resolves")
+        .expect("overlay exists");
+    let provider_gateway = ProviderGateway::from_workspace(
+        ProviderConfig::default(),
+        &raw,
+        trust_facts(true, &revision),
+    )
+    .expect("provider entrypoint");
+    assert_eq!(
+        gateway.configuration_snapshot().unwrap(),
+        provider_gateway.configuration_snapshot().unwrap(),
+        "the composition root must produce the provider entrypoint snapshot"
+    );
+    assert_eq!(
+        gateway.workspace_configuration_snapshot().unwrap(),
+        provider_gateway.workspace_configuration_snapshot().unwrap()
+    );
+    let workspace = gateway
+        .workspace_configuration_snapshot()
+        .unwrap()
+        .expect("secret-free workspace snapshot");
+    assert_eq!(workspace.project_trust_revision, revision);
+}
+
+#[test]
+fn daemon_host_gateway_keeps_environment_path_when_overlay_is_absent() {
+    let root = temp_project("host-absent");
+    let host = daemon_host(true);
+    let resolution = host
+        .provider_gateway_for_project(
+            LocalModelConfig::default(),
+            root.to_str().expect("utf-8 project root"),
+            None,
+        )
+        .expect("missing overlay is not a failure");
+    assert!(resolution.is_none(), "no project resource exists to load");
 }
