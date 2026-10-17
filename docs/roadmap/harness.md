@@ -465,7 +465,9 @@ sequenceDiagram
 
 <a id="step-h20"></a>
 
-#### H20 — 不可变 StepContext 与可解释的上下文编译　⏳
+#### H20 — 不可变 StepContext 与可解释的上下文编译　✅
+
+当前 source slice 与 CI-only 证据见 [`h20-context-plan-baseline.md`](h20-context-plan-baseline.md)。
 
 **关联原单元**：`P1-J2-01/03/04`、`P1-C-03`、`P1-L4-01`。**依赖**：H04、H09、H18。
 
@@ -475,6 +477,7 @@ sequenceDiagram
 
 **先拒绝**：`untrusted_project_instruction_never_enters_privileged_section`、`route_change_between_estimate_and_send_is_fenced`。**再成功**：`same_step_snapshot_renders_same_request_and_provenance`。
 **交付**：真正送到 fake provider 的请求断言和 ContextPlan 解释；不是只检查 PromptSection 存在。
+**行为证据（2026-10-17，CI-only）**：`kiana-runner/src/step_context.rs` 在每步 `prepare_call` 之后用同一份 bundle、消息快照与最终 wire 预算编译 `ContextPlan` 并冻结 `ResolvedStepContext`，路由/目录/workspace/data 漂移在预留预算与发送之前以 `step_context_fence:` 前缀拒绝（`resolved_context_route_changed` 等）；`kiana-runner/tests/h20_context_behavior.rs` 用真实 `KianaHarness` + 捕获型 fake provider 驱动三条卡片命名夹具——`h20_untrusted_project_instruction_never_enters_privileged_section`（工作区项目指令只留在 Context 层，声明 Product 权威以 `context_product_source_untrusted` 拒绝）、`h20_route_change_between_estimate_and_send_is_fenced`（第二步路由与钉住摘要不一致 → 在发送前 fence，被拒步骤永不触达 provider）、`h20_same_step_snapshot_renders_same_request_and_provenance`（prepared 请求与 sent 请求逐字节相同，且按记录的解释重编译复现 plan/request 摘要、workspace/data 绑定与 Task 层 provenance）；`kiana-runner/tests/h20_context_guard.rs` 增源码守卫与 `h20_behaviour_fixtures_are_wired_into_the_diagnostic_lane` 接线守卫（夹具名绑定行为文件、baseline 与 focused workflow）；`.github/workflows/h20-context-plan-diagnostic.yml` 重建为单 job（fmt、三个 target、逐夹具 `--exact` 与三个 `--no-run` 编译）。runner 侧 `ScopeSet` 是占位值、workspace/data 是内容派生摘要（真实授权与 EventStore 权威仍在 ControlPlane/Core）；provider 原生 wire 前缀变化与真实 tokenizer 上限仍属 H21（见 baseline）。
 
 <a id="step-h21"></a>
 
