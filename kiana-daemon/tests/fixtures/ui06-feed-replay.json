@@ -1,0 +1,30 @@
+{
+  "schema": "kiana.ui06-feed-replay-fixture.v1",
+  "step": "UI-06",
+  "queue_capacity": 256,
+  "replay_window": 128,
+  "gap_reasons": [
+    "sequence_gap",
+    "replay_expired",
+    "old_epoch",
+    "instance_changed",
+    "sequence_ahead",
+    "backpressure",
+    "terminal_retention"
+  ],
+  "required": [
+    "snapshot boundary before every delta stream",
+    "server-owned feed sequence and gap target cursor",
+    "bounded replay window with explicit replay flags",
+    "terminal retention for reconnecting clients",
+    "explicit backpressure metrics for stalled consumers",
+    "gap hydration through the read-only snapshot page"
+  ],
+  "denied": [
+    "delta before a snapshot boundary, foreign instance or old epoch",
+    "replay outside the bounded window or a duplicate frame delivered twice",
+    "cursor ahead of the server accepted as a feed position",
+    "unbounded queue or a stalled consumer blocking committed facts",
+    "delta after terminal, forged terminal delta or a second execution loop"
+  ]
+}

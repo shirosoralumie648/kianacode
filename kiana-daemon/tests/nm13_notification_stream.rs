@@ -210,3 +210,87 @@ fn old_epoch_and_terminal_late_update_fail_closed() {
         ))
     );
 }
+
+#[test]
+fn terminal_retention_and_unknown_frames_never_collapse_into_a_delta() {
+    let mut replayed =
+        NotificationStreamBridge::new(RunId::new(), "instance-13", "epoch-13").unwrap();
+    assert_eq!(
+        replayed.ingest(&frame(
+            4,
+            UiFeedFrameKind::SnapshotBoundary,
+            false,
+            "instance-13",
+            "epoch-13",
+            7
+        )),
+        Ok(NotificationStreamDisposition::SnapshotBoundary)
+    );
+    // The retained terminal shares the boundary position; it must still be reported as the
+    // terminal fact instead of being suppressed as a duplicate frame.
+    assert_eq!(
+        replayed.ingest(&frame(
+            4,
+            UiFeedFrameKind::Terminal,
+            true,
+            "instance-13",
+            "epoch-13",
+            7
+        )),
+        Ok(NotificationStreamDisposition::Terminal)
+    );
+    assert!(replayed.cursor().terminal);
+    assert_eq!(
+        replayed.ingest(&frame(
+            4,
+            UiFeedFrameKind::Terminal,
+            true,
+            "instance-13",
+            "epoch-13",
+            7
+        )),
+        Ok(NotificationStreamDisposition::Terminal)
+    );
+    assert_eq!(
+        replayed.ingest(&frame(
+            5,
+            UiFeedFrameKind::Delta,
+            false,
+            "instance-13",
+            "epoch-13",
+            8
+        )),
+        Err(NotificationStreamError::TerminalUpdate)
+    );
+
+    let mut unknown =
+        NotificationStreamBridge::new(RunId::new(), "instance-13", "epoch-13").unwrap();
+    unknown
+        .ingest(&frame(
+            1,
+            UiFeedFrameKind::SnapshotBoundary,
+            false,
+            "instance-13",
+            "epoch-13",
+            3,
+        ))
+        .unwrap();
+    assert!(!unknown.snapshot_required());
+    assert_eq!(
+        unknown.ingest(&frame(
+            2,
+            UiFeedFrameKind::Unknown,
+            false,
+            "instance-13",
+            "epoch-13",
+            4,
+        )),
+        Ok(NotificationStreamDisposition::Unknown)
+    );
+    // The position is the server's, so the cursor advances; the payload stays uninterpreted and
+    // the surface is told to hydrate the snapshot instead of rendering it as content.
+    assert_eq!(unknown.cursor().feed_sequence, 2);
+    assert_eq!(unknown.cursor().source_cursor, 4);
+    assert!(!unknown.cursor().terminal);
+    assert!(unknown.snapshot_required());
+}

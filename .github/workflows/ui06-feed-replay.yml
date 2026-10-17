@@ -1,0 +1,38 @@
+name: "UI-06 feed cursor, gap, replay and backpressure"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui06-feed-replay:
+    name: "UI-06 feed cursor, gap, replay and backpressure"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-protocol ui06_feed_contract
+        run: cargo test -p kiana-protocol --test ui06_feed_contract --locked -- --test-threads=1
+      - name: Run kiana-daemon run_stream fixtures
+        run: cargo test -p kiana-daemon --lib run_stream::tests --locked -- --test-threads=1
+      - name: Run kiana-daemon ui06_feed_replay
+        run: cargo test -p kiana-daemon --test ui06_feed_replay --locked -- --test-threads=1
+      - name: Run kiana-daemon nm13_notification_stream
+        run: cargo test -p kiana-daemon --test nm13_notification_stream --locked -- --test-threads=1
+      - name: Run kiana-core ui06_feed_replay_guard
+        run: cargo test -p kiana-core --test ui06_feed_replay_guard --locked -- --test-threads=1
+      - name: Compile the affected targets without running
+        run: cargo test -p kiana-protocol -p kiana-daemon -p kiana-core --no-run --locked
