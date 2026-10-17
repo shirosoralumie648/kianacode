@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 ER-13 翻 ✅（result delivery 的 crash window 与跨进程重启恢复，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 139（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/event-receipt-recovery.md#step-er-13（卡片标题 ✅ + 新增「验收」条目与实际测试名对齐 + 2026-10-17 收口说明）；kiana-core/src/dispatch_delivery_tests.rs（EventStore 类型泛化为 Arc<dyn EventStorePort>、新增 Fixture::with_store/with_store_semantics、+2 fixture）；kiana-core/src/dispatch.rs 与 kiana-core/tests/er13_result_delivery.rs 未改（既有 committed_delivery_source / result.delivery_claimed / three-way CAS claim 实现与 guard 保持不变）
+worktree_status: 行 139 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具与共享文档（roadmap 该行/变更日志、CURRENT_STATUS）单点回填；无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与阅读源码/夹具
+cwd·environment: worktree /workspace/kianacode-worktrees/ER-13，分支 step/er-13-20261017-1（基线 master b6cf2ef30290）；GitHub Actions ubuntu-latest 为运行时（回执未等待）；JsonlEventLog fixture 依赖 Unix（cfg(unix)），与既有 oa26/ER-05 持久化 fixture 同平台假设
+fixture·cassette: Core `dispatch_delivery_tests` 新增 2 个——`crash_window_after_claim_is_recovered_from_a_reopened_durable_log`（文件后背 `JsonlEventLog`：prepare/result_committed 落盘后用 `Fault::StoredUnknownClaim` 提交 claim 却只返回 Unknown，进程内 Runner 零调用；关闭并重开日志、重建 ControlPlane 与全新 Runner 后投递以 `result_unknown:result_delivery_already_claimed` 拒绝、新 Runner 零回调、`classify_dispatch_execution(&execution_id)` = `DispatchCrashClass::ResultCommitted`、claim 流仍 1 条）与 `restarted_control_plane_reuses_the_committed_claim_exactly_once`（同 EventLog 上两个 ControlPlane/两个 Runner：第一个赢得 claim 并回调一次，重启实例被 already_claimed 拒绝且新 Runner 零回调，claim 流仍 1 条）；既有 12 个 delivery fixture 与 `kiana-core/tests/er13_result_delivery.rs` source guard 不变；两 fixture 随 `cargo test -p kiana-core --lib dispatch::delivery_tests` 接入 `.github/workflows/er13-result-delivery.yml`（模块内自动涵盖），workflow 未新增步骤
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: ER-13 卡「先拒绝」（无 committed fact 拒绝、同一结果恰好推进一次、late result 不越 cancel fence）与「成功/回归」（broker success/failure/unknown、callback 失败、重复 callback、daemon crash window 可重建）在源码层与 fixture 层覆盖，此前缓存的 callback 崩溃/跨进程恢复缺口由本切片两个 crash/restart fixture 关闭；行 139 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行测试，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；新 JsonlEventLog fixture 只证明「同一主机、同一文件日志、顺序重开」的恢复语义，未证明真实多进程并发、掉电/部分写、跨主机 fencing 或 durable store 的 fsync 时序；ControlPlane 仍为单一进程内组合根，无独立 daemon 重启编排测试；无 provider receipt/reconcile、terminal shutdown 或 external/live/physical effect 证明；`EventStorePort` 泛化仅覆盖测试夹具，不影响产品路径；CI 回执未等待
+reviewer: root integration agent；ER-13 delivery 共享路径与 crash/restart fixture 静态复核
+```
+
 ### 2026-10-17 SC-10 翻 ✅（approver scope 与一次性消费回执，CI-only 口径）
 
 ```text
