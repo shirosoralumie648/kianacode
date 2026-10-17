@@ -474,6 +474,7 @@
    "nm06_notification_materializer_guard",
    "nm07_notification_dedup_guard",
    "nm08_delivery_worker_guard",
+   "nm08_notification_delivery",
    "nm09_notification_store",
    "nm09_notification_store_guard",
    "nm10_notification_action",

@@ -357,7 +357,11 @@ pub use notification_action::{
     NOTIFICATION_ACTION_GATE_SCHEMA,
 };
 pub use notification_delivery::{
-    NotificationDeliveryPlan, NotificationDeliveryWorker, NOTIFICATION_DELIVERY_WORKER_SCHEMA,
+    NotificationDeliveryPlan, NotificationDeliveryRecoveryStep, NotificationDeliveryWorker,
+    NotificationOutboxDrainAction, NotificationOutboxDrainDisposition,
+    NotificationOutboxDrainPolicy, NotificationOutboxDrainReport,
+    NOTIFICATION_DELIVERY_WORKER_SCHEMA, NOTIFICATION_OUTBOX_DRAIN_MAX_RELEASES,
+    NOTIFICATION_OUTBOX_DRAIN_POLICY_SCHEMA, NOTIFICATION_OUTBOX_DRAIN_SCHEMA,
 };
 pub use notification_external::{
     admit_external_notification, observe_external_notification_receipt,

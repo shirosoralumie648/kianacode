@@ -1,0 +1,33 @@
+name: NM-08 notification outbox
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-outbox:
+    name: NM-08 durable outbox, worker and drain fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-08 durable outbox fixtures
+        run: cargo test -p kiana-eventlog --test nm08_notification_outbox --locked -- --test-threads=1
+      - name: Run NM-08 delivery worker fixtures
+        run: cargo test -p kiana-core --test nm08_notification_delivery --locked -- --test-threads=1
+      - name: Run NM-08 source guard
+        run: cargo test -p kiana-core --test nm08_delivery_worker_guard --locked -- --test-threads=1
+      - name: Compile NM-08 durable outbox target
+        run: cargo test -p kiana-eventlog --test nm08_notification_outbox --no-run --locked
+      - name: Compile NM-08 delivery worker target
+        run: cargo test -p kiana-core --test nm08_notification_delivery --no-run --locked
+      - name: Compile NM-08 source guard target
+        run: cargo test -p kiana-core --test nm08_delivery_worker_guard --no-run --locked
