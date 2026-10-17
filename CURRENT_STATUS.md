@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 OA-12 翻 ✅（metric label/quality/cardinality 治理补齐：形状拒绝、overflow 注册指标发布、estimate/measured 双向绑定与 replay/live 一致夹具，CI-only 口径）
+
+```text
+source_snapshot: 提交 dd8ca651（step: OA-12 metric label, quality and cardinality governance）；kiana-core/src/metrics.rs（`METRIC_CARDINALITY_OVERFLOW_TOTAL`、`MetricCardinalityError::CatalogMissing`、按形状的标签值拒绝、label key 先 `is_high_cardinality_label` 再显式名字表、`overflow_point()` 边界/注册纪律、reducer 透传 `overflow_total`/`overflow_point`）；kiana-domain/src/observability.rs（`MetricDefinition::validate` 的 `_estimated_total`/`_measured_total` source 绑定；`MetricPoint::validate_with_catalog` 的 `metric_estimate_source_conflict`/`metric_estimate_reported_as_measured`）；kiana-core/src/lib.rs（再导出 `METRIC_CARDINALITY_OVERFLOW_TOTAL`）；kiana-core/tests/oa12_metric_governance.rs（13 个夹具）；.github/workflows/oa12-metric-governance.yml（+domain `oa01_contracts` 步骤）；docs/roadmap.md §1.1 行 271（🔄 → ✅，CI pending）与 §3 变更日志（2026-10-17 `OA-12` 行）；Cargo.toml/Cargo.lock/package.json、scripts/ci/test-shards.json、五个模型可见工具面与冻结项、既有 OA-12 证据块（2026-09-15/2026-10-04）本次未改
+worktree_status: 行 271 🔄 → ✅（CI pending）；只改本 Step 相关源码/测试/workflow 并单点回填共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）；仍走唯一执行脊柱（本切片只有事件派生投影与守卫，不新增执行循环、不直接执行副作用）；无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未新增 test target
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；静态核对命令：`git status --short`、`git diff --stat`、`git diff --check`（0）、`git diff <file>`、`rg`/`grep`/`sed`/`cat`、`python3 scripts/roadmap-goal.py`、`bash scripts/ci/validate-doc-references.sh`（通过，732 文档全解析）；`bash scripts/ci/validate-workflows.sh` 因本环境无 ruby 未运行；运行时接线条目：`.github/workflows/oa12-metric-governance.yml` 的 `cargo test -p kiana-core --test oa12_metric_governance --locked -- --test-threads=1`、`cargo test -p kiana-domain --test oa01_contracts --locked -- --test-threads=1` 与 `--no-run` 编译步；统一 `ci.yml` 的 `kiana-core-s4/6` shard 已认领 `oa12_metric_governance`
+cwd·environment: worktree /workspace/kianacode-worktrees/OA-12，分支 step/oa-12-20261017-1（基线 master e867ce06）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: kiana-core/tests/oa12_metric_governance.rs 13 个夹具直接驱动生产 `MetricCatalog`/`MetricPoint`/`MetricCardinalityGuard`/`MetricReducer` 与真实 `project_operational_metrics` 投影，不 spawn 进程、不触权限路径。先拒绝：路径/payload/secret/digest label value 与 `file_path`/`prompt_text`/`raw_response` label key 全拒（overflow 计数=10）、64×16 series 恰好用满 `MAX_METRIC_SERIES` 后以 `SeriesLimit` 拒绝并计数、catalog allowlist 的 `trace_id` 仍 `ForbiddenLabel` 且形状/漂移拒绝不计数、`_estimated_total`/`_measured_total` 目录定义冲突与 estimate/measured 双向拒绝（derived 源只能报 estimate）、无边界不伪造 overflow（缺注册 `CatalogMissing`）、counter reset/游标回退/批量部分失败不改变快照、`projector_cursor > source_cursor` 拒绝、外 catalog digest 快照先拒绝。成功/回归：builtin catalog 类型/单位/label/版本稳定与 digest 跨序列化一致、远端 catalog 篡改/未知字段 fail-closed、live 增量与 replay 同 cursor 的 points/limitations 一致
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: OA-12 卡四条先拒绝（raw ID/path/prompt/secret 作为 label、cardinality overflow、estimated-as-measured、counter reset 伪造成功）与两条成功回归（event replay 与 live reducer 对同一 cursor 一致；counter/gauge/histogram 单位、label allowlist、overflow 计数与版本稳定）此前只有部分源级实现：标签值只挡少量形状、overflow 只有计数没有可发布的注册点、`_estimated_total`/`_measured_total` 只有点侧没有目录侧绑定、replay/live/游标/原子性没有夹具；本次把形状级标签拒绝、overflow 注册指标发布与缺注册拒绝、目录 source/quality 双向绑定、以及 replay/live/游标/原子性/远端 catalog digest 夹具全部落到树内，并把 domain 规则变更的回归（`oa01_contracts`）接入 OA-12 lane；行 271 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source（树内夹具与 CI 接线已就位，但本地未执行、回执未等待；无 local_behavior/durable/live/physical 提升）
+limitations: 无 durable MetricSink/queue、无跨进程 checkpoint、无运行时 gauge 供给与 live exporter；overflow 计数不落盘；估算指标仍不证明实测成本或外部效果；本环境无法运行 cargo/rustfmt，布局按 rustfmt 默认风格（无 rustfmt.toml）对齐，最终以 CI `cargo fmt --all --check` 与 shard 回执为准
+reviewer: step 源码静态复核（逐条对照 kiana-domain 构造器/校验分支与 `guard.observe` 顺序核对夹具期望）；无本地运行时评审
+```
+
 ### 2026-10-17 CAP-17 翻 ✅（run→execution 集合停止跟踪：并发执行不再互相覆盖取消，先拒绝行为夹具，CI-only 口径）
 
 ```text
