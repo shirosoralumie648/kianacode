@@ -650,6 +650,7 @@
    "sc10_approval_guard",
    "sc11_entrypoint_guard",
    "sc11_entrypoint_parity",
+   "sc12_invocation_permit",
    "sc12_permit_guard",
    "sc13_path_toctou_guard",
    "sc14_network_policy_guard",
