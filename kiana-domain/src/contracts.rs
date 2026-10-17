@@ -277,6 +277,12 @@ pub const ID_CONTRACTS: &[IdContract] = &[
         wire_shape: IdWireShape::Uuid,
     },
     IdContract {
+        type_name: "NotificationActionDecisionId",
+        owner_crate: env!("CARGO_PKG_NAME"),
+        wire_name: "notification_action_decision_id",
+        wire_shape: IdWireShape::Uuid,
+    },
+    IdContract {
         type_name: "DeliveryReceiptId",
         owner_crate: env!("CARGO_PKG_NAME"),
         wire_name: "delivery_receipt_id",
@@ -3970,6 +3976,7 @@ mod tests {
         CostCorrectionId,
         QuotaReservationId,
         ActionRefId,
+        NotificationActionDecisionId,
         DeliveryReceiptId,
         QualityArtifactId,
         QualityTransitionId,
@@ -4160,6 +4167,7 @@ mod tests {
         CostCorrectionId,
         QuotaReservationId,
         ActionRefId,
+        NotificationActionDecisionId,
         DeliveryReceiptId,
         QualityArtifactId,
         QualityTransitionId,
