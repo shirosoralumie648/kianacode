@@ -19,12 +19,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
+      - name: Install bubblewrap for daemon sandbox fixtures
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run environment and scope fixtures
         run: cargo test -p kiana-daemon --test eq09_eval_runtime --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test eq09_eval_runtime_guard --locked -- --test-threads=1
       - run: cargo test -p kiana-domain --test cap03_execution_scope --locked -- --test-threads=1
+      - name: Run CAP-07 environment plan fixtures
+        run: cargo test -p kiana-daemon --test cap07_environment_backend --locked -- --test-threads=1
+      - name: Run daemon sandbox unit fixtures
+        run: cargo test -p kiana-daemon --lib harness_sandbox --locked -- --test-threads=1
       - name: Run CAP-07 source guard
         run: cargo test -p kiana-core --test cap07_environment_backend_guard --locked -- --test-threads=1
       - name: Compile daemon and Core targets
@@ -33,3 +43,6 @@ jobs:
       - name: Compile domain and CAP-07 guard targets
         run: cargo test -p kiana-domain --test cap03_execution_scope --no-run --locked
       - run: cargo test -p kiana-core --test cap07_environment_backend_guard --no-run --locked
+      - name: Compile daemon plan fixtures and sandbox unit tests
+        run: cargo test -p kiana-daemon --test cap07_environment_backend --no-run --locked
+      - run: cargo test -p kiana-daemon --lib --no-run --locked

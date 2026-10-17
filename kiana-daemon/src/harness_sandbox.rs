@@ -842,4 +842,116 @@ mod tests {
 
         let _ = fs::remove_dir_all(&root);
     }
+
+    /// 保存并恢复进程环境变量，供 `find_bwrap` 的 fail-closed fixture 使用。
+    ///
+    /// 仓库约定 daemon 测试串行执行（`--test-threads=1`），因此这里允许直接修改
+    /// 进程环境；guard 在 drop 时无条件恢复原值，避免泄漏给后续用例。
+    struct EnvOverride {
+        saved: Vec<(&'static str, Option<OsString>)>,
+    }
+
+    impl EnvOverride {
+        fn capture(keys: &[&'static str]) -> Self {
+            let saved = keys
+                .iter()
+                .map(|key| (*key, std::env::var_os(key)))
+                .collect();
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvOverride {
+        fn drop(&mut self) {
+            for (key, value) in &self.saved {
+                match value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_bwrap_denies_missing_explicit_binary_with_stable_code() {
+        let root = temp_root();
+        let _env = EnvOverride::capture(&[ENV_BWRAP, "PATH"]);
+        std::env::set_var(ENV_BWRAP, root.join("bwrap-missing"));
+        std::env::set_var("PATH", &root);
+
+        let error = find_bwrap().unwrap_err();
+        assert!(matches!(
+            error,
+            PortError::Failed(reason) if reason.starts_with("sandbox_unavailable:bwrap")
+        ));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_bwrap_denies_non_executable_explicit_binary_with_stable_code() {
+        let root = temp_root();
+        let candidate = root.join("bwrap");
+        fs::write(&candidate, b"fixture").unwrap();
+        fs::set_permissions(&candidate, fs::Permissions::from_mode(0o644)).unwrap();
+        let _env = EnvOverride::capture(&[ENV_BWRAP, "PATH"]);
+        std::env::set_var(ENV_BWRAP, &candidate);
+
+        let error = find_bwrap().unwrap_err();
+        let expected = "sandbox_unavailable:bwrap:not_executable".to_owned();
+        assert_eq!(error, PortError::Failed(expected));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_bwrap_denies_non_executable_candidate_on_malicious_path() {
+        let root = temp_root();
+        let candidate = root.join("bwrap");
+        fs::write(&candidate, b"fixture").unwrap();
+        fs::set_permissions(&candidate, fs::Permissions::from_mode(0o644)).unwrap();
+        let _env = EnvOverride::capture(&[ENV_BWRAP, "PATH"]);
+        std::env::remove_var(ENV_BWRAP);
+        std::env::set_var("PATH", &root);
+
+        let error = find_bwrap().unwrap_err();
+        let expected = "sandbox_unavailable:bwrap:not_executable".to_owned();
+        assert_eq!(error, PortError::Failed(expected));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn find_bwrap_denies_missing_binary_on_path_with_stable_code() {
+        let root = temp_root();
+        let _env = EnvOverride::capture(&[ENV_BWRAP, "PATH"]);
+        std::env::remove_var(ENV_BWRAP);
+        std::env::set_var("PATH", &root);
+
+        let error = find_bwrap().unwrap_err();
+        assert_eq!(error, PortError::Failed("sandbox_unavailable:bwrap".to_owned()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bwrap_plan_denies_non_executable_explicit_binary_before_planning() {
+        let root = temp_root();
+        let candidate = root.join("bwrap");
+        fs::write(&candidate, b"fixture").unwrap();
+        fs::set_permissions(&candidate, fs::Permissions::from_mode(0o644)).unwrap();
+        let _env = EnvOverride::capture(&[ENV_BWRAP, "PATH"]);
+        std::env::set_var(ENV_BWRAP, &candidate);
+        std::env::set_var("PATH", &root);
+
+        let error = bwrap_plan(&root, &root, "read-only").unwrap_err();
+        let expected = "sandbox_unavailable:bwrap:not_executable".to_owned();
+        assert_eq!(error, PortError::Failed(expected));
+
+        let _ = fs::remove_dir_all(root);
+    }
 }
