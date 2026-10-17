@@ -385,7 +385,7 @@ pub trait ConnectorHttpsTransport: Send + Sync {
     /// 1. capabilities.validate()          适配器声明了必需的能力吗？
     /// 2. request.validate()                请求本身通过全部七项校验吗？
     /// 3. 代理一致性检查                     请求要代理，但适配器不支持代理？
-    /// 4. self.send(request)                真正发送
+    /// 4. self.send request                 真正发送
     /// 5. validate_receipt_for_permit()     回执与许可对得上吗？
     /// ```
     ///
@@ -439,9 +439,10 @@ pub trait ConnectorHttpsTransport: Send + Sync {
         let permit = request.permit.clone();
         // 关卡 4：真正发送。只有前三关都过了才走到这里。
         let receipt = self.send(request).await?;
-        // 关卡 5：回执必须与本次许可匹配，防止响应被张冠李戴。
-        crate::connector::validate_receipt_for_permit(&receipt, &binding, &permit)
-            .map_err(|error| PortError::Conflict(error.to_string()))?;
+        // 关卡 5：回执必须与本次许可匹配，防止响应被张冠李戴。校验器已经返回带稳定
+        // `connector_provider_receipt_binding_invalid` 原因的 `PortError`，这里直接透传，
+        // 不能再包一层 `PortError::Conflict(error.to_string())`（那会把 Denial 前缀重复一次）。
+        crate::connector::validate_receipt_for_permit(&receipt, &binding, &permit)?;
         Ok(receipt)
     }
 }

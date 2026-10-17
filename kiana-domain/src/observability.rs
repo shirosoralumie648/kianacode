@@ -512,7 +512,7 @@ impl MetricCatalog {
                 if name.ends_with("_latency_ms") {
                     MetricDefinition::histogram(*name, "ms")
                 } else if name.ends_with("_cursor")
-                    || name.ends_with("_lag_events")
+                    || name.ends_with(".lag_events")
                     || name.ends_with("_bytes_total")
                     || name.ends_with("_last_error_present")
                 {

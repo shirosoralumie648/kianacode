@@ -28,7 +28,6 @@ fn governance_projection_rebuilds_and_binds_memory_deletion_index() {
         "deletion_index_digest",
         "retention_expired",
         "deletion_index_project_mismatch",
-        "memory_deletion_index_epoch_stale",
     ] {
         assert!(domain.contains(marker), "missing fence marker: {marker}");
     }
@@ -36,6 +35,9 @@ fn governance_projection_rebuilds_and_binds_memory_deletion_index() {
         "MEMORY_DELETION_INDEX_SCHEMA",
         "memory_deletion_index_digest_mismatch",
         "memory_deletion_surface_evidence_required",
+        // The epoch binding (and therefore the stale-index refusal) lives in the index module;
+        // the projection fence propagates that reason unchanged.
+        "memory_deletion_index_epoch_stale",
     ] {
         assert!(index.contains(marker), "missing index marker: {marker}");
     }

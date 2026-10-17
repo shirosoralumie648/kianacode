@@ -146,6 +146,17 @@ fn counter_catalog(name: &str, allowed_labels: &[&str]) -> MetricCatalog {
     MetricCatalog::new(vec![definition]).expect("valid test catalog")
 }
 
+/// Same as `counter_catalog`, plus the cardinality guard's own overflow counter. A catalog that
+/// registers `kiana.metrics.cardinality_overflow_total` is the only one from which the guard may
+/// publish an overflow point; the guard never invents the metric on its own.
+fn counter_catalog_with_overflow(name: &str, allowed_labels: &[&str]) -> MetricCatalog {
+    let mut catalog = counter_catalog(name, allowed_labels);
+    catalog
+        .metrics
+        .push(MetricDefinition::counter(OVERFLOW_METRIC, "count"));
+    MetricCatalog::new(catalog.metrics).expect("valid test catalog")
+}
+
 fn event(sequence: u64, kind: &str, data: serde_json::Value) -> RuntimeEvent {
     RuntimeEvent::new(RequestId::new(), sequence, kind, data).unwrap()
 }
@@ -263,7 +274,7 @@ fn remote_catalog_is_digest_bound_and_unknown_fields_fail_closed() {
 
 #[test]
 fn guard_rejects_path_prompt_and_secret_labels_and_values() {
-    let catalog = counter_catalog(
+    let catalog = counter_catalog_with_overflow(
         GOVERNED_METRIC,
         &["component", "file_path", "prompt_text", "raw_response"],
     );
@@ -308,7 +319,7 @@ fn guard_rejects_path_prompt_and_secret_labels_and_values() {
 
 #[test]
 fn guard_counts_series_overflow_at_the_bound_and_never_silently_drops_it() {
-    let catalog = counter_catalog(SERIES_METRIC, &["component", "shard", "replica"]);
+    let catalog = counter_catalog_with_overflow(SERIES_METRIC, &["component", "shard", "replica"]);
     let mut guard = MetricCardinalityGuard::new(catalog).unwrap();
     let mut cursor = 0_u64;
     for component in 0..kiana_domain::MAX_METRIC_LABEL_VALUES {

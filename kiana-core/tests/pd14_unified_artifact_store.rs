@@ -150,8 +150,14 @@ fn unavailable(reason: &str) -> PortError {
 }
 
 async fn committed(store: &UnifiedArtifactStore, content: &[u8]) -> ArtifactRef {
+    committed_for(store, SCOPE_A, content).await
+}
+
+/// Stage and commit one immutable artifact under the given owner scope. The store only accepts
+/// versions whose scope digest it owns, so the scope is part of the fixture identity.
+async fn committed_for(store: &UnifiedArtifactStore, scope: &str, content: &[u8]) -> ArtifactRef {
     let manifest = store
-        .stage_content(version(SCOPE_A, content), content.to_vec())
+        .stage_content(version(scope, content), content.to_vec())
         .await
         .expect("stage");
     store
@@ -396,7 +402,7 @@ async fn identical_bytes_are_deduplicated_but_scopes_never_merge() {
     let store_b = UnifiedArtifactStore::open(&root, SCOPE_B)
         .await
         .expect("store b");
-    let scoped = committed(&store_b, &content).await;
+    let scoped = committed_for(&store_b, SCOPE_B, &content).await;
     assert_eq!(store_b.read_content(&scoped).await.expect("read"), content);
     assert_eq!(file_count(&root.join("blobs")), 1);
     assert_eq!(file_count(&root.join("scopes")), 6);
