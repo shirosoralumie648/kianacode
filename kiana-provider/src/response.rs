@@ -1,3 +1,4 @@
+use crate::replay::{CapturedReplay, ReplayCaptureBuffer};
 use crate::transport::Framer;
 use kiana_domain::*;
 use serde::de::{MapAccess, SeqAccess, Visitor};
@@ -555,6 +556,9 @@ struct Block {
     input: Value,
     closed: bool,
     kind: String,
+    /// Exact private wire item (`thinking`/`thought`/`reasoning`) captured for protected replay.
+    /// Never projected into public output or deltas.
+    private: Option<Value>,
 }
 pub(crate) struct Accumulator {
     protocol: ModelProtocol,
@@ -573,6 +577,8 @@ pub(crate) struct Accumulator {
     gemini_terminal_status: Option<String>,
     gemini_step_usage: Option<ModelUsage>,
     gemini_step_usage_complete: bool,
+    /// DeepSeek-compatible private reasoning text, kept out of public output.
+    chat_reasoning: String,
 }
 impl Accumulator {
     pub(crate) fn new(protocol: ModelProtocol) -> Self {
@@ -593,12 +599,21 @@ impl Accumulator {
             gemini_terminal_status: None,
             gemini_step_usage: None,
             gemini_step_usage_complete: true,
+            chat_reasoning: String::new(),
         }
     }
     pub(crate) fn push(
         &mut self,
         data: &str,
         on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+    ) -> Result<bool, ModelError> {
+        self.push_capturing(data, on_delta, &mut ReplayCaptureBuffer::disabled())
+    }
+    pub(crate) fn push_capturing(
+        &mut self,
+        data: &str,
+        on_delta: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        capture: &mut ReplayCaptureBuffer,
     ) -> Result<bool, ModelError> {
         if self.finished {
             return Err(error("provider_frame_after_terminal"));
@@ -616,11 +631,11 @@ impl Accumulator {
         }
         let value = parse_provider_json(data.as_bytes(), "provider_frame_json_invalid")?;
         match self.protocol {
-            ModelProtocol::AnthropicMessages => self.anthropic(value, on_delta)?,
-            ModelProtocol::OpenAiChat => self.chat(value, on_delta)?,
-            ModelProtocol::OpenAiResponses => self.responses(value, on_delta)?,
-            ModelProtocol::OllamaChat => self.ollama(value, on_delta)?,
-            ModelProtocol::GeminiInteractions => self.gemini(value, on_delta)?,
+            ModelProtocol::AnthropicMessages => self.anthropic(value, on_delta, capture)?,
+            ModelProtocol::OpenAiChat => self.chat(value, on_delta, capture)?,
+            ModelProtocol::OpenAiResponses => self.responses(value, on_delta, capture)?,
+            ModelProtocol::OllamaChat => self.ollama(value, on_delta, capture)?,
+            ModelProtocol::GeminiInteractions => self.gemini(value, on_delta, capture)?,
             _ => return Err(error("provider_protocol_unsupported")),
         }
         Ok(self.finished)
@@ -652,6 +667,7 @@ impl Accumulator {
         &mut self,
         value: Value,
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        capture: &mut ReplayCaptureBuffer,
     ) -> Result<(), ModelError> {
         match value["type"].as_str() {
             Some("message_start") => {
@@ -694,7 +710,17 @@ impl Accumulator {
                         );
                     }
                     Some("thinking" | "redacted_thinking") => {
-                        return Err(error("provider_private_replay_not_configured"))
+                        if !capture.is_enabled() {
+                            return Err(error("provider_private_replay_not_configured"));
+                        }
+                        self.blocks.insert(
+                            index,
+                            Block {
+                                kind: "private".to_owned(),
+                                private: Some(content.clone()),
+                                ..Default::default()
+                            },
+                        );
                     }
                     _ => return Err(error("provider_content_block_unsupported")),
                 }
@@ -722,6 +748,24 @@ impl Accumulator {
                             .as_str()
                             .ok_or_else(|| error("provider_tool_json_invalid"))?,
                     )?,
+                    // Private thinking deltas stay inside the captured item and never reach the
+                    // public delta stream.
+                    Some("thinking_delta") if block.kind == "private" => {
+                        let block = self.blocks.get_mut(&index).unwrap();
+                        let private = block
+                            .private
+                            .as_mut()
+                            .ok_or_else(|| error("provider_private_replay_not_configured"))?;
+                        append_private_text(private, "thinking", &value["delta"]["thinking"])?;
+                    }
+                    Some("signature_delta") if block.kind == "private" => {
+                        let block = self.blocks.get_mut(&index).unwrap();
+                        let private = block
+                            .private
+                            .as_mut()
+                            .ok_or_else(|| error("provider_private_replay_not_configured"))?;
+                        append_private_text(private, "signature", &value["delta"]["signature"])?;
+                    }
                     _ => return Err(error("provider_delta_type_mismatch")),
                 }
             }
@@ -732,6 +776,31 @@ impl Accumulator {
                     .ok_or_else(|| error("provider_stop_without_block"))?;
                 if block.closed {
                     return Err(error("provider_duplicate_block_stop"));
+                }
+                if block.kind == "private" {
+                    let item = block
+                        .private
+                        .as_ref()
+                        .ok_or_else(|| error("provider_private_replay_not_configured"))?;
+                    match item["type"].as_str() {
+                        Some("redacted_thinking") => {
+                            if item["data"].as_str().map_or(true, |data| data.is_empty()) {
+                                return Err(error("provider_private_replay_incomplete"));
+                            }
+                        }
+                        Some("thinking") => {
+                            if item["signature"]
+                                .as_str()
+                                .map_or(true, |signature| signature.is_empty())
+                                || item["thinking"]
+                                    .as_str()
+                                    .map_or(true, |thinking| thinking.is_empty())
+                            {
+                                return Err(error("provider_private_replay_incomplete"));
+                            }
+                        }
+                        _ => return Err(error("provider_private_replay_incomplete")),
+                    }
                 }
                 block.closed = true;
             }
@@ -768,6 +837,7 @@ impl Accumulator {
         &mut self,
         value: Value,
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        capture: &mut ReplayCaptureBuffer,
     ) -> Result<(), ModelError> {
         if value.get("error").is_some() {
             return Err(error("provider_stream_error"));
@@ -802,11 +872,16 @@ impl Accumulator {
         if delta["refusal"].as_str().is_some_and(|s| !s.is_empty()) {
             return Err(error("model_refused"));
         }
-        if delta["reasoning_content"]
-            .as_str()
-            .is_some_and(|s| !s.is_empty())
-        {
-            return Err(error("provider_private_replay_not_configured"));
+        if let Some(reasoning) = delta["reasoning_content"].as_str() {
+            if !reasoning.is_empty() {
+                if !capture.is_enabled() {
+                    return Err(error("provider_private_replay_not_configured"));
+                }
+                if self.chat_reasoning.len().saturating_add(reasoning.len()) > 4 * 1024 * 1024 {
+                    return Err(error("provider_text_limit"));
+                }
+                self.chat_reasoning.push_str(reasoning);
+            }
         }
         if let Some(text) = delta["content"].as_str() {
             self.text(0, text, sink)?;
@@ -859,6 +934,7 @@ impl Accumulator {
         &mut self,
         value: Value,
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        capture: &mut ReplayCaptureBuffer,
     ) -> Result<(), ModelError> {
         match value["type"].as_str() {
             Some("response.created" | "response.in_progress") => {
@@ -871,6 +947,21 @@ impl Accumulator {
                 }
                 let item = &value["item"];
                 let kind = required(item, "type")?;
+                if kind == "reasoning" {
+                    if !capture.is_enabled() {
+                        return Err(error("provider_private_replay_not_configured"));
+                    }
+                    self.blocks.insert(
+                        n,
+                        Block {
+                            kind: "private".to_owned(),
+                            id: item["id"].as_str().unwrap_or_default().to_owned(),
+                            private: Some(item.clone()),
+                            ..Default::default()
+                        },
+                    );
+                    return Ok(());
+                }
                 if !matches!(kind, "message" | "function_call") {
                     return Err(error("provider_private_or_hosted_item_unsupported"));
                 }
@@ -921,7 +1012,22 @@ impl Accumulator {
                     .blocks
                     .get_mut(&n)
                     .ok_or_else(|| error("provider_stop_without_block"))?;
-                if block.closed || value["item"]["id"] != block.id {
+                if block.closed {
+                    return Err(error("provider_item_identity_mismatch"));
+                }
+                if block.kind == "private" {
+                    // The terminal item carries the final encrypted reasoning payload. Some
+                    // compatible providers omit the item id on these events; the id is only
+                    // compared when both sides declared one.
+                    let done_id = value["item"]["id"].as_str().unwrap_or_default();
+                    if !block.id.is_empty() && done_id != block.id {
+                        return Err(error("provider_item_identity_mismatch"));
+                    }
+                    block.private = Some(value["item"].clone());
+                    block.closed = true;
+                    return Ok(());
+                }
+                if value["item"]["id"] != block.id {
                     return Err(error("provider_item_identity_mismatch"));
                 }
                 if block.kind == "tool_use"
@@ -958,6 +1064,7 @@ impl Accumulator {
         &mut self,
         value: Value,
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        _capture: &mut ReplayCaptureBuffer,
     ) -> Result<(), ModelError> {
         if value.get("error").is_some() {
             return Err(error("provider_stream_error"));
@@ -1027,6 +1134,7 @@ impl Accumulator {
         &mut self,
         value: Value,
         sink: &mut (dyn FnMut(ModelDelta) -> Result<(), String> + Send),
+        capture: &mut ReplayCaptureBuffer,
     ) -> Result<(), ModelError> {
         match value["event_type"].as_str() {
             Some("interaction.created") => {
@@ -1109,7 +1217,19 @@ impl Accumulator {
                             },
                         );
                     }
-                    "thought" => return Err(error("provider_private_replay_not_configured")),
+                    "thought" | "thought_summary" => {
+                        if !capture.is_enabled() {
+                            return Err(error("provider_private_replay_not_configured"));
+                        }
+                        self.blocks.insert(
+                            n,
+                            Block {
+                                kind: "private".to_owned(),
+                                private: Some(item.clone()),
+                                ..Default::default()
+                            },
+                        );
+                    }
                     _ => return Err(error("provider_private_or_hosted_item_unsupported")),
                 }
             }
@@ -1139,6 +1259,27 @@ impl Accumulator {
                             .as_str()
                             .ok_or_else(|| error("provider_tool_json_invalid"))?,
                     )?,
+                    // Private thought deltas stay inside the captured step.
+                    Some("text") if block.kind == "private" => {
+                        let private = self
+                            .blocks
+                            .get_mut(&n)
+                            .unwrap()
+                            .private
+                            .as_mut()
+                            .ok_or_else(|| error("provider_private_replay_not_configured"))?;
+                        append_private_content_text(private, &value["delta"]["text"])?;
+                    }
+                    Some("signature_delta") if block.kind == "private" => {
+                        let private = self
+                            .blocks
+                            .get_mut(&n)
+                            .unwrap()
+                            .private
+                            .as_mut()
+                            .ok_or_else(|| error("provider_private_replay_not_configured"))?;
+                        append_private_text(private, "signature", &value["delta"]["signature"])?;
+                    }
                     _ => return Err(error("provider_delta_type_mismatch")),
                 }
             }
@@ -1216,10 +1357,68 @@ impl Accumulator {
         Ok(())
     }
     pub(crate) fn finish(self, prepared: &PreparedModelCall) -> Result<ModelReply, ModelError> {
+        let mut capture = ReplayCaptureBuffer::disabled();
+        let (reply, captured) = self.finish_capturing(prepared, &mut capture)?;
+        if captured.is_some() {
+            // Private material must be stored through a protected adapter; dropping it silently
+            // would lose the signature the next continuation needs.
+            return Err(error("provider_private_replay_not_configured"));
+        }
+        Ok(reply)
+    }
+
+    /// Finish a stream that was pushed with [`Accumulator::push_capturing`].
+    ///
+    /// Private continuation items are recorded into the caller's bounded buffer instead of
+    /// being projected into the public reply. Callers must bind them to a protected store; the
+    /// provider does not choose scope, TTL or persistence.
+    pub(crate) fn finish_capturing(
+        mut self,
+        prepared: &PreparedModelCall,
+        capture: &mut ReplayCaptureBuffer,
+    ) -> Result<(ModelReply, Option<CapturedReplay>), ModelError> {
+        let private_items = self.take_private_items();
+        let reply = self.build_reply(prepared, capture.is_enabled())?;
+        if private_items.is_empty() {
+            return Ok((reply, None));
+        }
+        if !capture.is_enabled() {
+            return Err(error("provider_private_replay_not_configured"));
+        }
+        for (index, item) in private_items {
+            capture.record(index, item)?;
+        }
+        let captured = capture.take_capture()?;
+        Ok((reply, captured))
+    }
+
+    /// Drains captured private items so `build_reply` can consume `self` without dropping them.
+    fn take_private_items(&mut self) -> Vec<(usize, Value)> {
+        let mut items = self
+            .blocks
+            .iter()
+            .filter_map(|(index, block)| block.private.as_ref().map(|item| (*index, item.clone())))
+            .collect::<Vec<_>>();
+        if !self.chat_reasoning.is_empty() {
+            let reasoning = std::mem::take(&mut self.chat_reasoning);
+            items.insert(0, (0, Value::String(reasoning)));
+        }
+        items
+    }
+
+    fn build_reply(
+        self,
+        prepared: &PreparedModelCall,
+        allow_private: bool,
+    ) -> Result<ModelReply, ModelError> {
         if !self.finished {
             return Err(error("provider_stream_incomplete"));
         }
-        if let Some(value) = self.final_value {
+        if let Some(mut value) = self.final_value {
+            if allow_private {
+                // Captured separately; the public decoder must see only public items.
+                crate::replay::strip_private_items(&prepared.route, &mut value);
+            }
             let result = decode(value, prepared)?;
             let text = self
                 .blocks
@@ -1254,6 +1453,9 @@ impl Accumulator {
         for block in self.blocks.into_values() {
             if block.kind == "text" {
                 text.push_str(&block.text);
+            } else if block.kind == "private" {
+                // Captured for protected replay; never projected as public text or a tool call.
+                continue;
             } else {
                 let ordinal = tool_ordinal;
                 tool_ordinal += 1;
@@ -1393,6 +1595,82 @@ pub fn replay_stream_fixture(
     ))
 }
 
+fn replay_frames_capturing(
+    accumulator: &mut Accumulator,
+    frames: impl IntoIterator<Item = String>,
+    deltas: &mut Vec<ModelDelta>,
+    prepared: &PreparedModelCall,
+    capture: &mut ReplayCaptureBuffer,
+) -> Result<Option<(ModelReply, Option<CapturedReplay>)>, ModelError> {
+    for frame in frames {
+        let finished = accumulator.push_capturing(
+            &frame,
+            &mut |delta| {
+                deltas.push(delta);
+                Ok(())
+            },
+            capture,
+        )?;
+        if finished {
+            let terminal =
+                std::mem::replace(accumulator, Accumulator::new(prepared.route.protocol));
+            return terminal.finish_capturing(prepared, capture).map(Some);
+        }
+    }
+    Ok(None)
+}
+
+/// Same fixture boundary as [`replay_stream_fixture`], but with the private replay capture
+/// buffer enabled.
+///
+/// Private thinking/signature/reasoning items are kept out of the public reply and delta list
+/// and returned as an opaque [`CapturedReplay`] the caller must bind to a protected store. The
+/// provider chooses no scope, TTL or persistence; without a caller that stores it, the material
+/// is dropped and the next continuation fails closed.
+pub fn replay_stream_fixture_capturing(
+    prepared: PreparedModelCall,
+    chunks: &[Vec<u8>],
+    max_frame: usize,
+) -> Result<(ModelReply, Vec<ModelDelta>, Option<CapturedReplay>), ModelError> {
+    prepared.validate()?;
+    if max_frame == 0 {
+        return Err(ModelError::invalid("provider_fixture_frame_limit_invalid"));
+    }
+    if !prepared.route.streaming {
+        return Err(ModelError::invalid("provider_fixture_requires_streaming"));
+    }
+    let ndjson = prepared.route.protocol == ModelProtocol::OllamaChat;
+    let mut framer = Framer::new(ndjson, max_frame);
+    let mut accumulator = Accumulator::new(prepared.route.protocol);
+    let mut capture = ReplayCaptureBuffer::enabled(prepared.route.protocol);
+    let mut deltas = Vec::new();
+    for chunk in chunks {
+        if let Some((reply, captured)) = replay_frames_capturing(
+            &mut accumulator,
+            framer.push(chunk)?,
+            &mut deltas,
+            &prepared,
+            &mut capture,
+        )? {
+            return Ok((reply, deltas, captured));
+        }
+    }
+    if let Some((reply, captured)) = replay_frames_capturing(
+        &mut accumulator,
+        framer.finish()?,
+        &mut deltas,
+        &prepared,
+        &mut capture,
+    )? {
+        return Ok((reply, deltas, captured));
+    }
+    Err(ModelError::transport(
+        "provider_stream_incomplete",
+        ModelRetryClass::Never,
+        true,
+    ))
+}
+
 fn index(value: &Value, key: &str) -> Result<usize, ModelError> {
     value[key]
         .as_u64()
@@ -1405,6 +1683,47 @@ fn append_args(block: &mut Block, part: &str) -> Result<(), ModelError> {
         return Err(error("provider_tool_arguments_limit_or_closed"));
     }
     block.args.push_str(part);
+    Ok(())
+}
+
+/// Append a private text delta into the captured Gemini step content array.
+fn append_private_content_text(item: &mut Value, delta: &Value) -> Result<(), ModelError> {
+    let text = delta
+        .as_str()
+        .ok_or_else(|| error("provider_private_replay_incomplete"))?;
+    if text.is_empty() {
+        return Ok(());
+    }
+    let content = item["content"]
+        .as_array_mut()
+        .ok_or_else(|| error("provider_private_replay_incomplete"))?;
+    match content.last_mut() {
+        Some(block) if block["type"] == "text" => {
+            let current = block["text"].as_str().unwrap_or_default().to_owned();
+            if current.len().saturating_add(text.len()) > 4 * 1024 * 1024 {
+                return Err(error("provider_text_limit"));
+            }
+            block["text"] = Value::String(format!("{current}{text}"));
+        }
+        _ => content.push(json!({"type":"text","text":text})),
+    }
+    Ok(())
+}
+
+/// Append a private text/signature delta into the captured wire item. The text never reaches the
+/// public delta stream or the public output blocks.
+fn append_private_text(item: &mut Value, field: &str, delta: &Value) -> Result<(), ModelError> {
+    let text = delta
+        .as_str()
+        .ok_or_else(|| error("provider_private_replay_incomplete"))?;
+    if text.is_empty() {
+        return Ok(());
+    }
+    let current = item[field].as_str().unwrap_or_default().to_owned();
+    if current.len().saturating_add(text.len()) > 4 * 1024 * 1024 {
+        return Err(error("provider_text_limit"));
+    }
+    item[field] = Value::String(format!("{current}{text}"));
     Ok(())
 }
 fn verify_item(
@@ -2708,7 +3027,14 @@ mod tests {
             sandbox: "read-only".to_owned(),
         };
         let names = ToolNameMap::from_tools(&tools, true).unwrap();
-        let body = crate::request::ollama_body(&request, "", &[], &names).unwrap();
+        let body = crate::request::ollama_body(
+            &request,
+            "",
+            &[],
+            &names,
+            &crate::replay::ReplayInjection::default(),
+        )
+        .unwrap();
         assert_eq!(
             body["messages"][0]["tool_calls"][0]["id"],
             streamed.output.tool_calls[0].id

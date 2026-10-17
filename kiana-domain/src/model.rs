@@ -723,6 +723,9 @@ pub struct ProtectedReplayRef {
     pub tool_catalog_digest: String,
     #[serde(default)]
     pub data_revision: String,
+    /// Private dialect this reference binds; absent for legacy references.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<crate::protected_replay::ReasoningReplayKind>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

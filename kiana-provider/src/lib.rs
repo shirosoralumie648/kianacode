@@ -16,6 +16,7 @@ mod connector_quota;
 mod credentials;
 mod fallback;
 mod oauth;
+pub mod replay;
 mod request;
 mod resolver;
 mod response;
@@ -36,7 +37,7 @@ pub use resolver::{
     redacted_workspace_value, ConfigResolver, WorkspaceConfig, WorkspaceConfigTrust,
     WorkspaceProfile, MAX_WORKSPACE_CONFIG_BYTES,
 };
-pub use response::replay_stream_fixture;
+pub use response::{replay_stream_fixture, replay_stream_fixture_capturing};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 pub use telemetry::{safe_prepared_metadata, MODEL_ATTEMPT_TELEMETRY_SCHEMA};
@@ -357,6 +358,28 @@ impl ProviderGateway {
     ) -> Result<PreparedModelCall, ModelError> {
         let state = self.snapshot()?;
         request::compile_with_images(state.connection(&spec)?, request, spec, &images)
+    }
+
+    /// Prepare a request that resumes a provider continuation through a protected replay
+    /// adapter. The adapter owns scope, TTL and persistence; this gateway only refuses to
+    /// compile when the material is missing, expired, revoked or bound to another route.
+    pub fn prepare_call_with_protected_replay(
+        &self,
+        request: ModelRequest,
+        spec: ModelCallSpec,
+        images: Vec<ImageInputAdmission>,
+        source: &dyn ProtectedReplaySource,
+        now_unix_ms: u64,
+    ) -> Result<PreparedModelCall, ModelError> {
+        let state = self.snapshot()?;
+        request::compile_with_protected_replay(
+            state.connection(&spec)?,
+            request,
+            spec,
+            &images,
+            source,
+            now_unix_ms,
+        )
     }
 }
 #[async_trait]

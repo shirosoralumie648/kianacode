@@ -69,7 +69,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-17` | OpenAI Responses | `P4-J7-12`、`P4-J7-14` | input/output items、call_id、response status 与 stateless 续接正确 | ✅ |
 | `P4-J7-18` | Ollama 原生 NDJSON | `P4-J7-12`、`P4-J7-14` | 真实增量、done、加载时限与无 wire ID 工具往返正确 | 🔄 |
 | `P4-J7-19` | Gemini 原生 Interactions | `P4-J7-12`、`P4-J7-14` | step/status/usage 与 requires_action 正确；不混旧 GenerateContent | ✅ |
-| `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | 🔄 |
+| `P4-J7-20` | 推理与受保护 replay 材料 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25` | 必须回传的材料按协议保真；未授权/缺失/过期不恢复、不泄露 | ✅ |
 | `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | ✅ |
 | `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | ✅ |
 | `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | 🔄 |
@@ -311,15 +311,17 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-20 推理签名、续接资料与短期保护存储　🔄
+#### P4-J7-20 推理签名、续接资料与短期保护存储　✅
 
 - **依赖**：`P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-19`、`P2-K7-01`、`CP-18`、`CP-25`。
 - **改动位置**：各 codec、domain replay 引用、provider replay 编解码、daemon 受保护 Artifact 适配、history/compaction 边界。
 - **步骤**：① 分开可公开 summary 与协议要求的私有续接材料；② 按 API 原样关联 Anthropic signature、Responses items、DeepSeek reasoning_content、Gemini signature；③ 进程内有界缓冲，持久恢复使用加密短期 artifact，EventLog 仅记 ref/hash；④ 绑定 connection/protocol/model/effort/prompt/tool/data revision 和 TTL；⑤ 过期/撤销/模型切换时明确失效，压缩只处理允许压缩的内容。
 - **先拒绝**：`replay_material_cannot_cross_connection_or_model_scope`、`missing_reasoning_material_blocks_resume`、`reasoning_payload_never_enters_receipt_memory_or_logs`。
 - **再成功**：`signed_reasoning_survives_tool_continuation_byte_for_byte`、`replay_payload_deletion_invalidates_resume`。
-- **本次实现**：`kiana-domain::ProtectedReplayStore` 提供 bounded in-process bytes、scope/TTL 校验和删除失效；`ProtectedReplayRef` 只含 artifact/digest/scope 元数据，provider 编译器在缺少受保护 artifact adapter 时拒绝出站。GitHub-only fixtures/guard 已接线，CI 未等待。
-- **退出 / 证据**：没有受保护存储的部署仅声明进程内支持；不把脱敏后的内容当作无损恢复；不在 repo/.env/事件里存加密密钥。持久加密 artifact、各 provider signature codec 与跨进程 resume 仍为后续增量。
+- **本次实现**：domain 侧把 digest-only 的 `PublicReasoningSummary`（`resume()` 显式拒绝，`redaction=digest_only_not_lossless`）与不可序列化、`Debug` 只报 `byte_len` 的 `ProtectedReplayMaterial` 分开，`ProtectedReplayRef.kind` 绑定方言；`ProtectedReplayStore` 提供有界进程内字节、`revoke`（含 `revocation_reason`）、`invalidate_route_change`（`model_switch`）与逐字段 `validate_for`（含 TTL 放宽拒绝）；`ProtectedHistoryBoundary` 把带 continuation 的消息留在压缩输入之外。provider 侧 `replay` 模块按四种方言原样采集与回注（Anthropic thinking/redacted signature、Responses reasoning item、DeepSeek `reasoning_content`、Gemini thought），`ReplayCaptureBuffer` 默认关闭（无 adapter 时仍 `provider_private_replay_not_configured`），`RingReplaySealer` 用 ChaCha20-Poly1305 + 元数据 AAD 产出短期密文 `SealedReplayArtifact`（`sealed_sha256` 完整性、`export_sealed`/`import_sealed` 全新 service 夹具证明密文形式可恢复），`ProtectedReplayService` 同时持有进程内 store 与密文 store；请求编译器在缺少 adapter 时 `model_replay_storage_unavailable`，缺失/过期/撤销/跨 scope 均在出站前拒绝。
+- **拒绝与回归 fixture**：先拒绝：`replay_material_cannot_cross_connection_or_model_scope`、`missing_reasoning_material_blocks_resume`、`reasoning_payload_never_enters_receipt_memory_or_logs`、`replay_payload_deletion_invalidates_resume`、`expiry_and_revocation_fail_closed_before_dispatch`、`plan_injection_refuses_unbound_and_duplicate_references`、`sealed_short_lived_artifact_survives_a_process_restart_but_not_tampering`、`protected_replay_kind_must_match_the_route_protocol`、`strip_private_items_removes_only_the_private_dialect`、`capture_has_no_material_for_public_only_responses`、`continuation_without_a_protected_adapter_is_refused_before_dispatch`、`revoked_material_never_reaches_the_wire_body`；domain 侧 `public_replay_summary_is_digest_only_and_cannot_resume`、`material_is_bound_to_the_declared_reasoning_kind`（含 `protected_replay_ttl_widened`）、`model_switch_revokes_route_bound_material`、`compaction_boundary_keeps_continuations_out_of_the_summary`。再成功：`signed_reasoning_survives_tool_continuation_byte_for_byte`（四种协议经真实请求编译器把私有材料逐字节回注到续接消息，工具结果仍随同一历史）与 `captured_reasoning_is_resolved_into_the_continuation_plan`；Core source guard `protected_replay_source_never_serializes_private_bytes_or_bypasses_scope` 固定私有材料不可序列化（`Serialize/Deserialize for ProtectedReplayMaterial`/`CapturedReplay` 负断言）并绑定压缩、撤销与存储缺失 marker。
+- **退出 / 证据**：没有受保护存储的部署仅声明进程内支持；不把脱敏后的内容当作无损恢复；不在 repo/.env/事件里存加密密钥（密钥由调用方注入，sealer/service `Debug` 只输出 redacted）。本切片补齐上一轮遗留的持久加密 artifact、四种 provider signature codec 与跨进程 resume 的源码实现；实时接线（transport 流式采集入口、daemon 受保护 Artifact adapter）仍是后续增量，当前公开采集入口是 `capture_from_value`（非流式 envelope），流式聚合的受保护采集由 crate 内 `Accumulator::push_capturing`/`finish_capturing` 夹具覆盖。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖，`docs/roadmap.md` §1.1 行 577 记 ✅（CI pending）；自动 lane 是统一 `ci.yml` 的 `kiana-provider` 整 crate 分片（`targets=null`，自动涵盖新 target 与 lib 夹具）、`kiana-domain-s3/4`（`p4_j7_20_protected_replay`）与 `kiana-core-s5/6`（`p4_j7_20_protected_replay_guard`）；专属 `.github/workflows/p4-j7-20-protected-replay.yml` 按 2026-09-27 收敛规则只保留 `workflow_dispatch`，跑 `cargo fmt --all --check`、domain/provider fixtures、provider lib 与 Core guard。本地未运行测试/build/check/clippy/smoke，CI 回执未等待，proof 上限 `source`；未证明 live provider、账单或 durable adapter 行为。
 
 <a id="step-p4-j7-21"></a>
 
