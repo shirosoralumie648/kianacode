@@ -6,10 +6,10 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`SC-10`](security-compliance.md#step-sc-10) |
-| feature_status | `partial`（strict typed facade 与 CI fixtures；生产 independent-approver path 未接入） |
-| proof_level | `source`（整卡）；typed facade 的 scope-drift fixture 有 `local_behavior` 回执，生产接线仍未证明 |
-| authority | ControlPlane + existing ApprovalStore CAS；`ApprovalBinding`/`HumanInboxItem` 当前只是未接入的 typed value facade |
-| this step does | facade 类型保存 command/target/payload/context digest、principal/session/project/GrantId/epoch/policy/expiry；同一 item 值的状态转换拒绝 self-ID 与 terminal 重复 |
+| feature_status | `partial`（strict typed facade + `ApproverScope` / consumption receipt 与 CI fixtures；生产 independent-approver path 未接入） |
+| proof_level | `source`（整卡）；typed facade 的 scope-drift/expiry fixture 有 `local_behavior` 回执，生产接线仍未证明 |
+| authority | ControlPlane + existing ApprovalStore CAS；`ApprovalBinding`/`ApproverScope`/`HumanInboxItem`/`ApprovalConsumptionReceipt` 当前都是未接入生产路径的 typed value facade |
+| this step does | facade 类型保存 command/target/payload/context digest、principal/session/project/GrantId/epoch/policy/expiry；`ApproverScope` 绑定审批人身份+项目/命令集合+epoch+scope 有效期并做自批/跨项目/越权命令/epoch 漂移/过期拒绝；同一 item 值的状态转换拒绝 self-ID 与 terminal 重复；`consume_with_receipt` 产出可校验的一次性消费回执 |
 | this step does not | 不实现生产独立 approver 身份/范围、durable inbox projector、外部 human identity、GrantStore、Broker dispatch、第二审批循环或自动重试 |
 
 ## 1. Contract
@@ -79,3 +79,34 @@ proof-level_change: focused in-memory expiry denial source → local_behavior; n
 limitations: no production call site, independent approver identity/scope, durable inbox projector, CAS/revision persistence, trusted clock, GrantScope intersection, broker dispatch, redaction/TOCTOU or cross-process recovery proof
 reviewer: root integration agent with read-only SC-10 audit; focused approval-binding reviewer
 ```
+
+## 6. Approver scope + consumption receipt (2026-10-17)
+
+`ApproverScope`（`kiana.approver-scope.v1`）是独立于原请求主体的审批范围声明：字段包括已认证
+`approver`、允许审批的 `project_ids`（按 UUID 规范排序、非空）、允许的 `command_kinds`
+（排序去重、非空）、`authority_epoch` 与 scope 自身 `expires_at_unix_ms`，并带
+`scope_digest`。`authorize(&binding, now)` 在状态转换前依次拒绝：scope 过期
+（`POLICY_APPROVAL_EXPIRED`）、自身审批（`POLICY_SELF_APPROVAL_FORBIDDEN`）、跨项目
+（`AUTH_PROJECT_MISMATCH`）、越权命令（`AUTH_ROLE_MISMATCH`）、authority epoch 漂移
+（`POLICY_AUTHORITY_EPOCH_STALE`）。`HumanInboxItem::decide_with_scope` 先用该 scope 授权，
+再复用原 `decide` 的自批/终态/过期规则。
+
+`ApprovalConsumptionReceipt`（`kiana.approval-consumption-receipt.v1`）把一次已发生的审批
+消费钉成可校验值：approval/request ID、binding/scope 摘要、approver、消费 revision 与消费
+时刻。`HumanInboxItem::consume_with_receipt(now)` 先执行 `consume`，再从 Consumed 值构造回执；
+重复消费已 Consumed 的项以 `approval_inbox_not_approved` 拒绝，篡改 binding/digest 绑定字段
+或加入未知字段的回执在解码/校验阶段 fail closed。
+
+新增/更新的 CI-only fixtures（沿用现有 `kiana-core-s6/6` shard，本地不运行）：
+
+| Fixture | Assertion |
+|---|---|
+| `approval_binding_rejects_arguments_only_drift` | 相同 RequestId 与命令名、仅变化 arguments 时 `validate_request` 返回 `PolicyApprovalBindingMismatch` |
+| `approver_scope_authorizes_matching_binding_and_rejects_drift` | scope 严格 serde；跨项目/越权命令/epoch 漂移/自身审批/scope 过期分别返回稳定码 |
+| `approver_scope_is_strict_and_canonical` | 重复项目、空命令集合、篡改 epoch 拒绝 |
+| `human_inbox_decide_with_scope_enforces_approver_scope` | scope 授权后才产生 Approved；越权/跨项目/自批/过期在状态转换前拒绝 |
+| `human_inbox_consume_emits_one_shot_receipt` | 回执字段与 binding 摘要一致、round-trip、重复消费/篡改/未知字段拒绝 |
+
+本页 proof ceiling 仍是 `source`：`ApproverScope`/回执未被生产 `JournalApprovalStore` 调用，
+没有 durable inbox、跨副本 CAS、可信时钟、外部人类认证或 live/physical 证据；这些差距保持
+显式开放，由 SC-11+ / CP / ER / PD 承接。

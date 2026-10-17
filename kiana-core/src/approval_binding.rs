@@ -5,7 +5,9 @@
 //! 本文件位于 `kiana-core`，定义两类纯数据对象（Value Object）：
 //!
 //! - [`ApprovalBinding`]：把一个审批精确绑定到某个请求、身份、项目、权限上下文和有效期；
-//! - [`HumanInboxItem`]：把审批状态投影成可供人工界面展示/转换的有界值对象。
+//! - [`HumanInboxItem`]：把审批状态投影成可供人工界面展示/转换的有界值对象；
+//! - [`ApproverScope`]：声明一个已认证审批人被允许审批的项目/命令/epoch 范围；
+//! - [`ApprovalConsumptionReceipt`]：把一次已发生的审批消费记录成可校验的一次性回执。
 //!
 //! 它们本身不读取数据库、不写 EventLog、不调用 CapabilityBroker，也不会批准或执行能力。
 //! 常规执行权仍由 `approvals.rs` 中的 ControlPlane 审批流程和 daemon 的审批存储管理。
@@ -40,10 +42,14 @@ use serde_json::{json, Value};
 
 pub const APPROVAL_BINDING_SCHEMA: &str = "kiana.approval-binding.v1";
 pub const HUMAN_INBOX_ITEM_SCHEMA: &str = "kiana.human-inbox-item.v1";
+pub const APPROVER_SCOPE_SCHEMA: &str = "kiana.approver-scope.v1";
+pub const APPROVAL_RECEIPT_SCHEMA: &str = "kiana.approval-consumption-receipt.v1";
 /// 审批绑定与 Inbox 项使用的当前 schema 版本；版本兼容规则由 `SchemaVersion` 实现。
 pub const APPROVAL_BINDING_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 /// 命令/操作名称允许的最大 UTF-8 字节数，用于限制外部字段的大小。
 pub const MAX_APPROVAL_COMMAND_KIND: usize = 256;
+/// 一个审批人 scope 允许声明的最大命令种类数量，用于限制外部字段的大小。
+pub const MAX_APPROVER_SCOPE_COMMANDS: usize = 64;
 
 /// 把服务端上下文中参与授权范围判断的字段压成摘要。
 ///
@@ -490,6 +496,26 @@ impl HumanInboxItem {
         Ok(next)
     }
 
+    /// 在明确的服务端审批人 scope 下做出决定。
+    ///
+    /// 与 [`Self::decide`] 的区别是：调用方必须先提供一个 [`ApproverScope`]，本方法会按该
+    /// scope 重新校验审批人身份、项目边界、命令种类、authority epoch 与 scope 有效期，
+    /// 然后才执行值对象的自批/终态/过期规则。这样“谁能批准这件事”有独立于原请求主体的
+    /// 声明，而不是只比较“审批人不是发起人”。
+    ///
+    /// 任何 scope 校验失败（跨项目、越权命令、scope 过期、自身审批、epoch 漂移）都会在状态
+    /// 转换前返回稳定原因码。此方法仍不持久化、不生成 permit、不调用 Broker；真正确认审批
+    /// 人身份和 scope 来源仍由生产入口/ControlPlane 负责。
+    pub fn decide_with_scope(
+        &self,
+        scope: &ApproverScope,
+        decision: ApprovalDecision,
+        now_unix_ms: u64,
+    ) -> Result<Self, String> {
+        scope.authorize(&self.binding, now_unix_ms)?;
+        self.decide(scope.approver.clone(), decision, now_unix_ms)
+    }
+
     /// 将已批准项转换为 Consumed，表示这份审批机会已被消费一次。
     ///
     /// Pending/Denied/Expired/Cancelled 等状态都会以 `approval_inbox_not_approved` 拒绝。
@@ -513,6 +539,24 @@ impl HumanInboxItem {
         next.item_digest = next.digest();
         next.validate()?;
         Ok(next)
+    }
+
+    /// 消费一次已批准项，同时产出一份不可变的一次性消费回执。
+    ///
+    /// 它先执行 [`Self::consume`]（因此继承 Approved-only、binding expiry 与终态规则），
+    /// 再从新产生的 Consumed 值构造 [`ApprovalConsumptionReceipt`]。回执把 approval/request、
+    /// binding 与 scope 摘要、审批人、消费 revision 和消费时刻绑定成一个可校验的摘要对象，
+    /// 供上层记录“这份审批恰好被消费了一次”。
+    ///
+    /// 失败时不产生任何回执或新状态。重复消费已 Consumed 的项会以 `approval_inbox_not_approved`
+    /// 拒绝；回执仍不是执行 permit，也不替代 ControlPlane/EventLog 的持久化与 CAS。
+    pub fn consume_with_receipt(
+        &self,
+        now_unix_ms: u64,
+    ) -> Result<(Self, ApprovalConsumptionReceipt), String> {
+        let consumed = self.consume(now_unix_ms)?;
+        let receipt = ApprovalConsumptionReceipt::for_consumed(&consumed, now_unix_ms)?;
+        Ok((consumed, receipt))
     }
 
     /// 校验 Inbox 项头部、内嵌绑定、decider 规则和摘要是否自洽。
@@ -558,6 +602,300 @@ impl HumanInboxItem {
             "status": self.status,
             "decided_by": self.decided_by,
             "revision": self.revision,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+/// 一个已认证审批人被允许审批的范围声明。
+///
+/// 它把“谁能批准哪一类事情”从原请求主体中独立出来：包含审批人服务端引用、允许的项目集合、
+/// 允许的命令种类、authority epoch 与 scope 自身有效期。它只描述范围，不携带凭证、不执行
+/// 审批、不写存储；生产入口仍必须从可信来源提供并认证该 scope。
+pub struct ApproverScope {
+    /// 固定 schema 名称。
+    pub schema: String,
+    /// 向前兼容的 DTO 版本。
+    pub version: SchemaVersion,
+    /// 经服务端认证的审批人引用；scope 不替代认证。
+    pub approver: AuthenticatedPrincipalRef,
+    /// 允许审批的项目稳定身份；按 UUID 规范化排序且不得为空。
+    pub project_ids: Vec<ProjectId>,
+    /// 允许审批的命令/操作名称；排序去重且不得为空。
+    pub command_kinds: Vec<String>,
+    /// scope 适用的 authority generation；必须与被审批绑定的 epoch 一致。
+    pub authority_epoch: u64,
+    /// scope 自身的 Unix 毫秒过期时刻；到达即视为失效。
+    pub expires_at_unix_ms: u64,
+    /// 除本字段外上述范围字段的摘要，用于检测 scope 字段被改动。
+    pub scope_digest: String,
+}
+
+impl ApproverScope {
+    /// 构造一份审批人 scope，并对项目/命令集合做规范化排序与去重。
+    ///
+    /// 输入是审批人引用、允许项目集合、允许命令集合、authority epoch 与 scope 过期时刻。
+    /// 成功时返回已计算摘要并通过 [`Self::validate`] 的对象；集合为空、字段无效或摘要不自洽
+    /// 时返回描述性 `String` 错误。排序保证同一 scope 只有一种规范表示。
+    pub fn new(
+        approver: AuthenticatedPrincipalRef,
+        mut project_ids: Vec<ProjectId>,
+        mut command_kinds: Vec<String>,
+        authority_epoch: u64,
+        expires_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        project_ids.sort_by_key(|id| id.as_uuid());
+        project_ids.dedup();
+        command_kinds.sort();
+        command_kinds.dedup();
+        let mut scope = Self {
+            schema: APPROVER_SCOPE_SCHEMA.to_owned(),
+            version: APPROVAL_BINDING_VERSION,
+            approver,
+            project_ids,
+            command_kinds,
+            authority_epoch,
+            expires_at_unix_ms,
+            scope_digest: String::new(),
+        };
+        scope.scope_digest = scope.digest();
+        scope.validate()?;
+        Ok(scope)
+    }
+
+    /// 判定该 scope 是否允许审批给定的绑定，并在不允许时返回稳定原因码。
+    ///
+    /// 拒绝顺序（依此返回）先做 scope 自身有效期，再做自身审批、跨项目、越权命令与 epoch 漂移；
+    /// 只有全部通过才返回 `Ok(())`。它不校验绑定日常有效期（由 [`ApprovalBinding::validate_request`]
+    /// 与 [`HumanInboxItem`] 负责），也不验证 approver 凭证真实性。
+    pub fn authorize(&self, binding: &ApprovalBinding, now_unix_ms: u64) -> Result<(), String> {
+        self.validate()?;
+        binding.validate()?;
+        if now_unix_ms >= self.expires_at_unix_ms {
+            return Err(SecurityReasonCode::PolicyApprovalExpired
+                .as_str()
+                .to_owned());
+        }
+        if self.approver.principal_id == binding.principal.principal_id {
+            return Err(SecurityReasonCode::PolicySelfApprovalForbidden
+                .as_str()
+                .to_owned());
+        }
+        if !self.project_ids.contains(&binding.project_id) {
+            return Err(SecurityReasonCode::AuthProjectMismatch.as_str().to_owned());
+        }
+        if !self.command_kinds.contains(&binding.command_kind) {
+            return Err(SecurityReasonCode::AuthRoleMismatch.as_str().to_owned());
+        }
+        if self.authority_epoch != binding.authority_epoch {
+            return Err(SecurityReasonCode::PolicyAuthorityEpochStale
+                .as_str()
+                .to_owned());
+        }
+        Ok(())
+    }
+
+    /// 从 JSON 解码 scope，并在返回前检查范围与摘要。未知字段映射为
+    /// `approver_scope_decode_failed`；可解码但不自洽时保留 [`Self::validate`] 的错误。
+    pub fn from_json(value: &Value) -> Result<Self, String> {
+        let scope: Self = serde_json::from_value(value.clone())
+            .map_err(|_| "approver_scope_decode_failed".to_owned())?;
+        scope.validate()?;
+        Ok(scope)
+    }
+
+    /// 将 scope 转换为 JSON 值，供调用方传输或持久化；本方法本身不写任何存储。
+    pub fn to_json(&self) -> Result<Value, String> {
+        serde_json::to_value(self).map_err(|_| "approver_scope_encode_failed".to_owned())
+    }
+
+    /// 生成 scope 的规范 JSON 字节表示。失败会向调用者返回错误；此操作不持久化字节。
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_journal_bytes(self)
+    }
+
+    /// 校验 schema、集合规范序、身份引用、authority epoch 和摘要自洽性。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != APPROVER_SCOPE_SCHEMA
+            || !self.version.is_compatible_with(&APPROVAL_BINDING_VERSION)
+            || self.authority_epoch == 0
+            || self.expires_at_unix_ms == 0
+        {
+            return Err("approver_scope_header_invalid".to_owned());
+        }
+        self.approver
+            .validate()
+            .map_err(|_| SecurityReasonCode::AuthPrincipalMissing.as_str().to_owned())?;
+        if self.project_ids.is_empty() {
+            return Err("approver_scope_projects_invalid".to_owned());
+        }
+        let mut prev_project: Option<ProjectId> = None;
+        for project in &self.project_ids {
+            if project.as_uuid().is_nil() {
+                return Err("approver_scope_projects_invalid".to_owned());
+            }
+            if prev_project.is_some_and(|last| *project <= last) {
+                return Err("approver_scope_projects_noncanonical".to_owned());
+            }
+            prev_project = Some(*project);
+        }
+        if self.command_kinds.is_empty() {
+            return Err("approver_scope_commands_invalid".to_owned());
+        }
+        if self.command_kinds.len() > MAX_APPROVER_SCOPE_COMMANDS {
+            return Err("approver_scope_commands_invalid".to_owned());
+        }
+        let mut prev_command: Option<&str> = None;
+        for command in &self.command_kinds {
+            if command.trim().is_empty()
+                || command.len() > MAX_APPROVAL_COMMAND_KIND
+                || command.contains('\0')
+            {
+                return Err("approver_scope_commands_invalid".to_owned());
+            }
+            if prev_command.is_some_and(|last| command.as_str() <= last) {
+                return Err("approver_scope_commands_noncanonical".to_owned());
+            }
+            prev_command = Some(command.as_str());
+        }
+        validate_digest(&self.scope_digest, "approver_scope_digest")?;
+        if self.scope_digest != self.digest() {
+            return Err("approver_scope_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 对除 `scope_digest` 自身外的全部范围字段计算稳定摘要。
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "approver": self.approver,
+            "project_ids": self.project_ids,
+            "command_kinds": self.command_kinds,
+            "authority_epoch": self.authority_epoch,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+/// 一次审批消费产生的不可变回执。
+///
+/// 它把 approval/request、binding/scope 摘要、审批人、消费 revision 与消费时刻绑定为一个可
+/// 校验的值。它是“这份审批被消费过一次”的证据投影，不是执行 permit，也不携带原始请求参数；
+/// 持久化与唯一性仍由上层存储/EventLog 的 CAS 保证。
+pub struct ApprovalConsumptionReceipt {
+    /// 固定 schema 名称。
+    pub schema: String,
+    /// 向前兼容的 DTO 版本。
+    pub version: SchemaVersion,
+    /// 被消费的审批对象 ID。
+    pub approval_id: ApprovalId,
+    /// 被审批请求 ID。
+    pub subject_request_id: RequestId,
+    /// 所消费绑定的摘要，把回执钉在精确审批材料上。
+    pub binding_digest: String,
+    /// 所消费绑定上下文范围摘要，用于检测上下文漂移。
+    pub scope_digest: String,
+    /// 作出批准并因此可被消费的主体。
+    pub approver: AuthenticatedPrincipalRef,
+    /// 消费后 Inbox 项的 revision，供调用方关联投影版本。
+    pub consumed_revision: u64,
+    /// 消费发生的 Unix 毫秒时刻。
+    pub consumed_at_unix_ms: u64,
+    /// 除本字段外上述回执字段的摘要，用于检测回执字段被改动。
+    pub receipt_digest: String,
+}
+
+impl ApprovalConsumptionReceipt {
+    /// 从一份已消费的 Inbox 值构造回执。
+    ///
+    /// 输入必须处于 `Consumed` 状态且带有效 decider，否则分别返回
+    /// `approval_receipt_not_consumed` / `approval_receipt_approver_missing`。成功时回执的
+    /// binding/scope 摘要与 approval/request 直接取自该值；它不生成新状态、不写存储。
+    pub fn for_consumed(item: &HumanInboxItem, now_unix_ms: u64) -> Result<Self, String> {
+        item.validate()?;
+        if item.status != HumanInboxStatus::Consumed {
+            return Err("approval_receipt_not_consumed".to_owned());
+        }
+        let approver = item
+            .decided_by
+            .clone()
+            .ok_or_else(|| "approval_receipt_approver_missing".to_owned())?;
+        let mut receipt = Self {
+            schema: APPROVAL_RECEIPT_SCHEMA.to_owned(),
+            version: APPROVAL_BINDING_VERSION,
+            approval_id: item.item_id,
+            subject_request_id: item.binding.subject_request_id,
+            binding_digest: item.binding.binding_digest.clone(),
+            scope_digest: item.binding.scope_digest.clone(),
+            approver,
+            consumed_revision: item.revision,
+            consumed_at_unix_ms: now_unix_ms,
+            receipt_digest: String::new(),
+        };
+        receipt.receipt_digest = receipt.digest();
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    /// 从 JSON 解码回执，并在返回前检查字段与摘要。未知字段映射为
+    /// `approval_receipt_decode_failed`；可解码但不自洽时保留 [`Self::validate`] 的错误。
+    pub fn from_json(value: &Value) -> Result<Self, String> {
+        let receipt: Self = serde_json::from_value(value.clone())
+            .map_err(|_| "approval_receipt_decode_failed".to_owned())?;
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    /// 将回执转换为 JSON 值，供调用方传输或持久化；本方法本身不写任何存储。
+    pub fn to_json(&self) -> Result<Value, String> {
+        serde_json::to_value(self).map_err(|_| "approval_receipt_encode_failed".to_owned())
+    }
+
+    /// 生成回执的规范 JSON 字节表示。失败会向调用者返回错误；此操作不持久化字节。
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_journal_bytes(self)
+    }
+
+    /// 校验 schema、身份引用、消费字段、摘要格式和摘要自洽性。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != APPROVAL_RECEIPT_SCHEMA
+            || !self.version.is_compatible_with(&APPROVAL_BINDING_VERSION)
+            || self.approval_id.as_uuid().is_nil()
+            || self.subject_request_id.as_uuid().is_nil()
+            || self.consumed_revision == 0
+            || self.consumed_at_unix_ms == 0
+        {
+            return Err("approval_receipt_header_invalid".to_owned());
+        }
+        self.approver
+            .validate()
+            .map_err(|_| SecurityReasonCode::AuthPrincipalMissing.as_str().to_owned())?;
+        validate_digest(&self.binding_digest, "approval_receipt_binding_digest")?;
+        validate_digest(&self.scope_digest, "approval_receipt_scope_digest")?;
+        validate_digest(&self.receipt_digest, "approval_receipt_digest")?;
+        if self.receipt_digest != self.digest() {
+            return Err("approval_receipt_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 对除 `receipt_digest` 自身外的全部回执字段计算稳定摘要。
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "approval_id": self.approval_id,
+            "subject_request_id": self.subject_request_id,
+            "binding_digest": self.binding_digest,
+            "scope_digest": self.scope_digest,
+            "approver": self.approver,
+            "consumed_revision": self.consumed_revision,
+            "consumed_at_unix_ms": self.consumed_at_unix_ms,
         }))
     }
 }

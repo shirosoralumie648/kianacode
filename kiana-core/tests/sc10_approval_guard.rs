@@ -17,6 +17,14 @@ fn approval_binding_is_exact_and_stays_before_broker_dispatch() {
         "HumanInboxItem",
         "consume",
         "SecurityReasonCode::AuthPrincipalMissing",
+        "ApproverScope",
+        "ApprovalConsumptionReceipt",
+        "decide_with_scope",
+        "consume_with_receipt",
+        "pub fn authorize",
+        "AuthProjectMismatch",
+        "AuthRoleMismatch",
+        "PolicyAuthorityEpochStale",
     ] {
         assert!(
             binding.contains(marker),
