@@ -15,6 +15,21 @@ limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Acti
 reviewer: root integration agent；EQ-14 evidence capture/flush boundary 静态复核
 ```
 
+### 2026-10-17 PD-08 翻 ✅（integrity scan 四类状态 + 尾部恢复报告 + daemon 健康门，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 202（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/pd08-integrity-scan-baseline.md（更新：recovered 状态、daemon gate、证据/限制）；kiana-eventlog/src/jsonl.rs（+JournalRecovery + open_with_recovery/open_with_recovery_async，load_delta 记录 repaired_tail/repaired_bytes）；kiana-eventlog/src/integrity.rs（+IntegrityScanStatus::Recovered + IntegrityRecoveryReport + recovery 字段 + 健康门放行 Recovered + scan_jsonl 走 open_with_recovery_async）；kiana-eventlog/src/lib.rs（re-export）；kiana-eventlog/tests/pd08_integrity_scan.rs（重写：empty/ready/recovered/corrupt/unknown + 四类互异）；kiana-daemon/src/integrity_gate.rs（新增只读 StorageIntegrityGate）；kiana-daemon/src/lib.rs（+mod/re-export + DaemonHost::admit_storage_integrity）；kiana-daemon/tests/pd08_integrity_gate.rs（新增）；kiana-core/tests/pd08_integrity_guard.rs（+Recovered/recovery/JournalRecovery/open_with_recovery/daemon gate marker）；.github/workflows/pd08-integrity-scan.yml（新增 daemon target 与 compile 步骤）
+worktree_status: 行 202 🔄 → ✅（CI pending）；只改本 Step 相关源码/测试/夹具/一条 workflow 与共享文档（roadmap 该行/变更日志、PD-08 baseline、CURRENT_STATUS）单点回填；无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环（daemon gate 只读、复用同一 JSONL 加载器与 scan_jsonl）、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与阅读源码/夹具；.github/workflows/pd08-integrity-scan.yml 运行 `cargo test -p kiana-eventlog --test pd08_integrity_scan --locked -- --test-threads=1`、`cargo test -p kiana-daemon --test pd08_integrity_gate --locked -- --test-threads=1`、`cargo test -p kiana-core --test pd08_integrity_guard --locked -- --test-threads=1`、`cargo fmt --all --check` 与 target-scoped `--no-run`
+cwd·environment: worktree /workspace/kianacode-worktrees/PD-08，分支 step/pd-08-20261017-1（基线 master 4c19a1c05ebe）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: eventlog `pd08_integrity_scan` 覆盖五类并断言四类 store 互异——空库→`Empty`（health ok）、完整库→`Ready`、可修复尾部（一条合法旧事件 + 无换行的截断 JSON 尾行）→`Recovered`（`recovery.repaired_tail=true`、`repaired_bytes=torn.len()`、`recovery_action=repair_tail_and_continue`、`source_cursor` 保留、磁盘长度确实减少、health ok）、损坏中段（v2 header + 校验和被篡改的 frame）→`Corrupt`（`quarantine_required`、`source_cursor=0`、incident 含 `corrupt`、health Conflict）、未知格式（`schema/required/writer_version` 记录）→`Unknown`（≠Empty、incident 含 `eventlog_required_record_unsupported`、`pause_and_reconcile`、health Unavailable）；daemon `pd08_integrity_gate` 经 `StorageIntegrityGate` 复核同一四类：empty/ready/recovered `admission=Allowed` 且 `admit_execution` 通过，corrupt `admission=Blocked`/`admit_execution = Conflict(eventlog_integrity_quarantine_required)`/`quarantine_required`，unknown `admission=Blocked`/`admit_execution = Unavailable(eventlog_integrity_unknown)` 且断言 ≠Empty，并断言 corrupt/unknown 文件长度在扫描前后不变（只读、不就地修复）；Core `pd08_integrity_guard` 固定只读/无破坏性修复边界与 daemon admission marker
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: PD-08 卡「先拒绝」（损坏事件被跳过、未知 major 被当空库、health 未 ready 仍可执行均失败）与「成功」（空库/可修复尾部/损坏中段/未知格式四类 fixture 得到不同状态）在源码层与夹具层齐备；新增尾部恢复报告使“可修复尾部”成为独立 `Recovered` 状态，daemon 健康门拒绝 corrupt/unknown 继续执行；行 202 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；scan 为只读，隔离/移动/重建仍是显式运维动作（不做自动 quarantine 移动）；`Recovered` 只表示加载器按既有策略回退了未提交尾部，不证明 fsync 后的物理掉电语义或真实 kill-9；完整中段重建、projector health 集成属 PD-09，故障注入/物理耐久属 PD-30，平台/文件系统矩阵属 PD-32；daemon gate 是只读准入包装，不改变 ControlPlane 授权，未证明在真实入口启动序列中强制生效
+reviewer: root integration agent；PD-08 integrity scan / recovery report / daemon health gate 静态复核
+```
+
 ### 2026-10-17 PD-06 翻 ✅（JSONL v2 checksum/fsync/lock/尾部恢复拒绝与恢复夹具收口，CI-only 口径）
 
 ```text

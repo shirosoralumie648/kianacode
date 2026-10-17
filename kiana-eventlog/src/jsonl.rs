@@ -286,6 +286,23 @@ struct DiskCache {
     modified: Option<SystemTime>,
     /// 最近写入或同步的结果不确定；下一次重放需重新建立同步屏障。
     uncertain_write: bool,
+    /// 本次重放是否把不完整/无换行的日志尾部回退到上一个已提交边界。只用于向调用方报告
+    /// “打开时修复过尾部”这一事实，不改变提交语义，也不能被当作业务成功。
+    repaired_tail: bool,
+    /// 被尾部修复影响的字节数（截断长度或补写的换行）。仅用于恢复报告。
+    repaired_bytes: u64,
+}
+
+/// 一次成功打开对文件尾部所做的恢复动作。
+///
+/// 这是只读诊断数据：它说明加载器为了暴露已提交前缀而回退了不完整的尾记录，或补写了缺失的
+/// 换行。它不是把未确认写入变成事实的凭据，也不能替代更高层的未提交/`result_unknown` 判定。
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct JournalRecovery {
+    /// 打开时是否修复过日志尾部（回退不完整尾记录或补写缺失换行）。
+    pub repaired_tail: bool,
+    /// 上述修复影响的字节数；未修复时为 0。
+    pub repaired_bytes: u64,
 }
 #[derive(Debug)]
 struct Inner {
@@ -327,6 +344,16 @@ impl JsonlEventLog {
     /// ⚠ 该函数会同步等待文件系统操作。异步运行时应使用 `open_async`，避免在异步执行器
     /// 的工作线程上直接做启动 I/O；同步版本保留给现有同步装配调用方。
     pub fn open(path: impl AsRef<Path>) -> Result<Self, PortError> {
+        Ok(Self::open_with_recovery(path)?.0)
+    }
+    /// 打开指定日志文件，并额外返回这次打开对文件尾部做过的恢复动作。
+    ///
+    /// 【与 `open` 的关系】`open` 只保留 adapter；本变体同时把加载器回退不完整尾记录（或补写
+    /// 缺失换行）的事实暴露给调用方，供启动完整性扫描生成恢复报告。它不引入第二条写入或修复
+    /// 路径：尾部处理仍由 `load_delta` 完成，返回的 `JournalRecovery` 只是该结果的只读回执。
+    pub fn open_with_recovery(
+        path: impl AsRef<Path>,
+    ) -> Result<(Self, JournalRecovery), PortError> {
         let path = if path.as_ref().is_absolute() {
             path.as_ref().to_path_buf()
         } else {
@@ -340,7 +367,11 @@ impl JsonlEventLog {
         if let Some(mut file) = files.open_name(&path, false)? {
             load_delta(&files, &mut file, &mut cache)?;
         }
-        Ok(Self {
+        let recovery = JournalRecovery {
+            repaired_tail: cache.repaired_tail,
+            repaired_bytes: cache.repaired_bytes,
+        };
+        let store = Self {
             path,
             inner: Arc::new(Inner {
                 files,
@@ -348,7 +379,8 @@ impl JsonlEventLog {
                 lifecycle: AtomicU8::new(0),
             }),
             workers: Arc::new(Semaphore::new(MAX_STORAGE_WORKERS)),
-        })
+        };
+        Ok((store, recovery))
     }
     /// 将同步打开/重放工作移到 Tokio 的阻塞线程池中执行。
     ///
@@ -358,6 +390,15 @@ impl JsonlEventLog {
     pub async fn open_async(path: impl AsRef<Path>) -> Result<Self, PortError> {
         let path = path.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || Self::open(path))
+            .await
+            .map_err(|_| failed("eventlog_open_worker_failed"))?
+    }
+    /// 把 `open_with_recovery` 移到 Tokio 阻塞线程池执行，供异步完整性扫描使用。
+    pub async fn open_with_recovery_async(
+        path: impl AsRef<Path>,
+    ) -> Result<(Self, JournalRecovery), PortError> {
+        let path = path.as_ref().to_path_buf();
+        tokio::task::spawn_blocking(move || Self::open_with_recovery(path))
             .await
             .map_err(|_| failed("eventlog_open_worker_failed"))?
     }
@@ -904,6 +945,8 @@ fn load_delta(
                 file.sync_all()
                     .map_err(|e| io_error("eventlog_repair_sync_failed", e))?;
                 files.sync_directory()?;
+                cache.repaired_tail = true;
+                cache.repaired_bytes = cache.repaired_bytes.saturating_add(bytes.len() as u64);
                 break;
             }
             Err(_) => return Err(failed(format!("eventlog_corrupt:line={line_number}"))),
@@ -961,6 +1004,8 @@ fn load_delta(
                 .map_err(|e| io_error("eventlog_repair_newline_sync_failed", e))?;
             files.sync_directory()?;
             cache.offset += 1;
+            cache.repaired_tail = true;
+            cache.repaired_bytes = cache.repaired_bytes.saturating_add(1);
             break;
         }
     }
