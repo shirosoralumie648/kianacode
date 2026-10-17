@@ -35,6 +35,7 @@ mod workflow;
 pub use aggregation::{
     evaluate_aggregation, AggregateVerdict, AggregationEvaluator, AggregationInput,
     DimensionAggregate, AGGREGATION_EVALUATOR_ID, AGGREGATION_INPUT_SCHEMA,
+    DIMENSION_AGGREGATE_SCHEMA, MAX_AGGREGATION_DIMENSIONS, MAX_AGGREGATION_TEXT_BYTES,
 };
 pub use assertions::{
     evaluate_assertion, evaluate_assertions, Assertion, AssertionError, AssertionMode,
