@@ -322,3 +322,139 @@ fn consume_rejects_mutable_non_one_shot_and_overlong_leases() {
         "connector_credential_lease_ttl_exceeded"
     );
 }
+
+#[test]
+fn consumed_invocation_cannot_be_replayed_after_serialization() {
+    let active = binding();
+    let request_id = RequestId::new();
+    let reference = secret_ref(&active);
+    let mut invocation = ConnectorCredentialInvocation::issue(
+        &active,
+        "read",
+        request_id,
+        IDEMPOTENCY_KEY,
+        &reference,
+        NOW,
+        500,
+    )
+    .unwrap();
+    invocation
+        .consume_for(&active, "read", request_id, IDEMPOTENCY_KEY, NOW + 1)
+        .unwrap();
+    let encoded = serde_json::to_string(&invocation).unwrap();
+
+    // An honestly serialized consumed envelope keeps its consumed flag and digest, so every
+    // clone of it fails closed.
+    let mut restored: ConnectorCredentialInvocation = serde_json::from_str(&encoded).unwrap();
+    assert!(restored.lease.consumed);
+    assert_eq!(
+        restored
+            .consume_for(&active, "read", request_id, IDEMPOTENCY_KEY, NOW + 2)
+            .unwrap_err(),
+        "credential_lease_replayed"
+    );
+
+    // Resetting the flag without recomputing the digest breaks the lease digest binding.
+    let mut tampered: ConnectorCredentialInvocation = serde_json::from_str(&encoded).unwrap();
+    tampered.lease.consumed = false;
+    assert_eq!(
+        tampered
+            .consume_for(&active, "read", request_id, IDEMPOTENCY_KEY, NOW + 2)
+            .unwrap_err(),
+        "credential_lease_invalid"
+    );
+}
+
+#[test]
+fn event_projection_keeps_digests_and_ref_metadata_only() {
+    let active = binding();
+    let request_id = RequestId::new();
+    let reference = secret_ref(&active);
+    let mut invocation = ConnectorCredentialInvocation::issue(
+        &active,
+        "read",
+        request_id,
+        IDEMPOTENCY_KEY,
+        &reference,
+        NOW,
+        500,
+    )
+    .unwrap();
+    let evidence = invocation
+        .consume_for(&active, "read", request_id, IDEMPOTENCY_KEY, NOW + 1)
+        .unwrap();
+
+    // The projected evidence is a closed field set: adding a raw value, a SecretRef key or a
+    // nested lease object would change this list and fail the fixture.
+    let evidence_value = serde_json::to_value(&evidence).unwrap();
+    let mut keys = evidence_value
+        .as_object()
+        .expect("evidence object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec![
+            "account_id".to_owned(),
+            "binding_digest".to_owned(),
+            "binding_id".to_owned(),
+            "binding_revision".to_owned(),
+            "connector_id".to_owned(),
+            "credential_generation".to_owned(),
+            "effect_target_digest".to_owned(),
+            "idempotency_key_digest".to_owned(),
+            "invocation_id".to_owned(),
+            "lease_digest".to_owned(),
+            "operation".to_owned(),
+            "schema".to_owned(),
+            "secret_ref_digest".to_owned(),
+        ]
+    );
+
+    // The daemon-shaped `connector.invoked` payload must carry that evidence and nothing else
+    // credential-shaped, so the EventLog and every UI projection built from it stay digest-only.
+    let receipt = ProviderReceipt {
+        schema: PROVIDER_RECEIPT_SCHEMA.to_owned(),
+        connector_id: "connector-demo".to_owned(),
+        binding_id: "binding-demo".to_owned(),
+        account_id: "account-demo".to_owned(),
+        operation: "read".to_owned(),
+        idempotency_key: IDEMPOTENCY_KEY.to_owned(),
+        final_payload_sha256: format!("sha256:{}", "c".repeat(64)),
+        provider_receipt_id: "receipt-demo".to_owned(),
+        outcome: ProviderOutcome::Succeeded,
+        source: CONNECTOR_FIXTURE_SOURCE.to_owned(),
+        result: serde_json::json!({"rows": 1}),
+    };
+    receipt.validate().unwrap();
+    let event = RuntimeEvent::new(
+        request_id,
+        1,
+        "connector.invoked",
+        serde_json::json!({
+            "receipt": receipt,
+            "credential_evidence": evidence,
+            "binding_revision": active.revision,
+            "occurred_at_ms": NOW + 1,
+        }),
+    )
+    .unwrap();
+    let encoded = serde_json::to_string(&event).unwrap();
+    assert!(encoded.contains("secret_ref_digest"));
+    assert!(encoded.contains("lease_digest"));
+    assert!(!encoded.contains("INT06_CONNECTOR_SECRET"));
+    assert!(!encoded.contains("INT06_RAW_SECRET_SENTINEL"));
+    for forbidden in [
+        "\"key\"",
+        "\"store\"",
+        "\"secret_value\"",
+        "\"credential_ref\"",
+    ] {
+        assert!(
+            !encoded.contains(forbidden),
+            "event projection must not contain {forbidden}"
+        );
+    }
+}

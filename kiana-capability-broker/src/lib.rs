@@ -47,7 +47,7 @@ use kiana_domain::{
     ExtensionAdapterDescriptor, ExtensionExecutionContract, RequestId,
 };
 use kiana_ports::{CapabilityBrokerPort, PortError};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -179,6 +179,77 @@ pub fn consume_connector_credential_invocation(
             now_unix_ms,
         )
         .map_err(PortError::Failed)
+}
+
+/// Server-owned ledger that keeps a connector credential lease one-shot *across clones* of the
+/// issued invocation.
+///
+/// A mutable `consumed` flag only rejects a replay that mutates the very same value.  Two clones
+/// of the same issued envelope (a retried worker, a deserialized copy, an accidental second
+/// dispatch of one attempt) would each carry their own untouched flag, so the flag alone cannot
+/// prove "consumed once".  The fence records the admitted lease identity and its digest, and
+/// refuses a second admission *before* it touches the caller's copy — the denied copy stays
+/// unconsumed and can be re-admitted only after a fresh server-side issue.
+///
+/// The ledger holds only `lease_id` and `lease_digest` metadata: no secret value, no SecretRef
+/// key, no adapter payload.  It is in-process and therefore not durable evidence; restart and
+/// cross-process fencing remain INT-18/INT-29 work.
+#[derive(Debug, Default)]
+pub struct ConnectorCredentialLeaseFence {
+    consumed: BTreeMap<RequestId, String>,
+}
+
+impl ConnectorCredentialLeaseFence {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Revalidate the server-owned binding and consume this exact lease once.
+    ///
+    /// The first admission delegates to [`consume_connector_credential_invocation`], so every
+    /// binding/operation/idempotency/effect-target/purpose/audience/expiry check still applies.
+    /// A lease identity already admitted by this fence is refused with `credential_lease_replayed`
+    /// and the caller's invocation is left untouched.
+    #[allow(clippy::too_many_arguments)]
+    pub fn consume(
+        &mut self,
+        invocation: &mut ConnectorCredentialInvocation,
+        binding: &ConnectorBindingSnapshot,
+        operation: &str,
+        invocation_id: RequestId,
+        idempotency_key: &str,
+        now_unix_ms: u64,
+    ) -> Result<ConnectorCredentialEvidence, PortError> {
+        let lease_id = invocation.lease.lease_id;
+        if self.consumed.contains_key(&lease_id) {
+            return Err(PortError::Failed("credential_lease_replayed".to_owned()));
+        }
+        let evidence = consume_connector_credential_invocation(
+            invocation,
+            binding,
+            operation,
+            invocation_id,
+            idempotency_key,
+            now_unix_ms,
+        )?;
+        self.consumed
+            .insert(lease_id, evidence.lease_digest.clone());
+        Ok(evidence)
+    }
+
+    /// Whether this fence already admitted the given lease identity.
+    pub fn is_consumed(&self, lease_id: RequestId) -> bool {
+        self.consumed.contains_key(&lease_id)
+    }
+
+    /// Number of one-shot leases admitted by this fence; diagnostic metadata only.
+    pub fn len(&self) -> usize {
+        self.consumed.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.consumed.is_empty()
+    }
 }
 
 #[async_trait]
