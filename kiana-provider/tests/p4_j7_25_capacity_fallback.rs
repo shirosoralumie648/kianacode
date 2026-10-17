@@ -39,6 +39,8 @@ fn admission() -> FallbackAttemptAdmission {
         version: SchemaVersion::new(1, 0),
         run_id: RunId::new(),
         original_attempt_id: AttemptId::new(),
+        original_route_digest: digest('s'),
+        allowlist_digest: digest('t'),
         attempt_id: AttemptId::new(),
         route: route.clone(),
         route_digest: route.digest(),
