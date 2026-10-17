@@ -30,6 +30,21 @@ limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Acti
 reviewer: root integration agent；BQ-07 quota window/group 静态复核
 ```
 
+### 2026-10-17 EQ-13 翻 ✅（初始状态受控 store 与沙箱落盘 manifest，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 185（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap.md §2「当前 238」；docs/roadmap/evaluation-initial-state-baseline.md；kiana-daemon/src/eval_runtime.rs（EvalInitialStateStore +fixture_digests/fixtures()、+EvalInitialStateEntry/EvalInitialStateMaterialization、+EvalRuntimeSandbox::materialize_initial_state、+EVAL_INITIAL_STATE_MATERIALIZATION_SCHEMA）；kiana-daemon/tests/eq13_initial_state.rs；kiana-core/tests/eq13_initial_state_guard.rs
+worktree_status: 行 185 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/baseline 与共享文档（roadmap §1.1 该行、§2 该行、§3 变更日志、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未改五个模型工具面、未新增外部依赖、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/git diff）与手工 rustfmt 风格对齐；.github/workflows/eq13-initial-state.yml 运行 `cargo test -p kiana-daemon --test eq13_initial_state --locked -- --test-threads=1` 与 `cargo test -p kiana-core --test eq13_initial_state_guard --locked -- --test-threads=1`（同一 test target 自动涵盖新用例），统一 ci.yml 的 kiana-daemon 与 kiana-core-s3/6 shard 亦涵盖
+cwd·environment: worktree /workspace/kianacode-worktrees/EQ-13，分支 step/eq-13-20261017-1（基线 master 6391c098ee70）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon `eq13_initial_state` 在既有 digest-binding/scope/path/secret/object 用例之外新增 `initial_state_store_materializes_into_isolated_sandbox`（在 `EvalRuntimeSandbox` 内落盘 6 个 fixture，断言相对路径相对 KIANA_HOME/root、字节长度、fixture digest 一致、workspace 未被写入）与 `initial_state_materialization_rejects_path_escape_and_digest_drift`（`..` 路径、非白名单名、fixture digest 漂移、错误 base、非法 scope 各自拒绝），并补 unknown fixture、错误 schema、oversize 组件拒绝；core `eq13_initial_state_guard` 覆盖 store/materialization 边界并新增 materializer 逃逸 guard（禁止 std::env::var/current_dir/home_dir/reqwest/KianaHarness，要求 self.kiana_home）
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: EQ-13 卡「将 initial state、policy snapshot、role assignment、memory/workflow/artifact fixture 装入受控 store」在源码层覆盖——`EvalInitialStateStore` 作为 `FixtureStore` 按精确 scope + opaque 名提供 digest-bound 字节，新增每 fixture canonical digest 与沙箱内受控 manifest 落盘；先拒绝（scope/path/unknown/secret/oversize/digest drift/改名）与成功回归（digest binding + 落盘）均有 fixture；行 185 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；store 仍是进程内 map + 沙箱本地 manifest，未接 durable EvalStore/CAS、authenticated ProjectTrust/role authority、EventLog/Receipt 投影，也未 launch/fault/restart target（EQ-14+、PD/ER）；materialize 只写沙箱 `KIANA_HOME` 下 `eval-initial-state/<scope>/`，未证明跨进程恢复、fsync/掉电、并发写或外部 effect；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；EQ-13 initial-state store 与沙箱 materialization 静态复核
+```
+
 ### 2026-10-17 CAP-05 翻 ✅（consume CAS 提交→OS spawn 崩溃窗口分类，CI-only 口径）
 
 ```text

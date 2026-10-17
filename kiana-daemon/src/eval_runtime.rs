@@ -297,19 +297,23 @@ impl EvalInitialStateBundle {
 pub struct EvalInitialStateStore {
     scope_digest: String,
     fixtures: BTreeMap<String, Vec<u8>>,
+    fixture_digests: BTreeMap<String, String>,
 }
 
 impl EvalInitialStateStore {
     pub fn from_bundle(bundle: &EvalInitialStateBundle) -> Result<Self, String> {
         bundle.validate()?;
         let mut fixtures = BTreeMap::new();
+        let mut fixture_digests = BTreeMap::new();
         for (name, value) in bundle.fixture_values() {
             let bytes = canonical_journal_bytes(&value)?;
+            fixture_digests.insert(name.clone(), json_digest(&value));
             fixtures.insert(name, bytes);
         }
         Ok(Self {
             scope_digest: bundle.initial_state_digest.clone(),
             fixtures,
+            fixture_digests,
         })
     }
 
@@ -319,6 +323,17 @@ impl EvalInitialStateStore {
 
     pub fn fixture_names(&self) -> Vec<String> {
         self.fixtures.keys().cloned().collect()
+    }
+
+    /// Opaque canonical fixture bytes keyed by allow-listed fixture name.
+    pub fn fixtures(&self) -> &BTreeMap<String, Vec<u8>> {
+        &self.fixtures
+    }
+
+    /// Canonical digest per stored fixture. The sandbox materializer binds written bytes to these
+    /// digests so it never re-parses untrusted input to decide what was stored.
+    pub fn fixture_digests(&self) -> &BTreeMap<String, String> {
+        &self.fixture_digests
     }
 }
 
@@ -342,6 +357,128 @@ impl FixtureStore for EvalInitialStateStore {
             .get(fixture_ref)
             .cloned()
             .ok_or_else(|| PortError::Unavailable("eval_fixture_not_found".to_owned()))
+    }
+}
+
+pub const EVAL_INITIAL_STATE_MATERIALIZATION_SCHEMA: &str =
+    "kiana.eval-initial-state-materialized.v1";
+
+fn valid_sha256_digest(value: &str) -> bool {
+    value.len() == 71
+        && value.starts_with("sha256:")
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// One initial-state fixture written into an isolated evaluation sandbox. The path is always
+/// relative to the sandbox KIANA_HOME; absolute paths and `..` segments are invalid.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalInitialStateEntry {
+    pub name: String,
+    pub relative_path: String,
+    pub byte_len: usize,
+    pub fixture_digest: String,
+}
+
+/// Digest-bound manifest of an initial-state bundle materialized into a sandbox KIANA_HOME. It is a
+/// controlled-store record, not an EventLog fact, policy authority or role grant.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvalInitialStateMaterialization {
+    pub schema: String,
+    pub scope_digest: String,
+    pub base_relative_path: String,
+    pub entries: Vec<EvalInitialStateEntry>,
+    pub manifest_digest: String,
+}
+
+impl EvalInitialStateMaterialization {
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "scope_digest": self.scope_digest,
+            "base_relative_path": self.base_relative_path,
+            "entries": self.entries,
+        }))
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != EVAL_INITIAL_STATE_MATERIALIZATION_SCHEMA
+            || !valid_sha256_digest(&self.scope_digest)
+            || self.entries.is_empty()
+            || self.manifest_digest != self.digest()
+        {
+            return Err("eval_initial_state_materialization_invalid".to_owned());
+        }
+        let expected_base = format!("eval-initial-state/{}", self.scope_digest);
+        if self.base_relative_path != expected_base {
+            return Err("eval_initial_state_materialization_base_invalid".to_owned());
+        }
+        for entry in &self.entries {
+            let expected_path = format!("{}/{}.json", self.base_relative_path, entry.name);
+            if !bounded_label(&entry.name)
+                || entry.relative_path != expected_path
+                || !valid_sha256_digest(&entry.fixture_digest)
+            {
+                return Err("eval_initial_state_materialization_entry_invalid".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
+impl EvalRuntimeSandbox {
+    /// Materialize a digest-bound initial-state bundle into this sandbox KIANA_HOME as a
+    /// controlled, isolated store. Only the sandbox root is written; the operator home, the
+    /// workspace source tree and any path embedded in a fixture name are never touched.
+    pub fn materialize_initial_state(
+        &self,
+        store: &EvalInitialStateStore,
+    ) -> io::Result<EvalInitialStateMaterialization> {
+        if !valid_sha256_digest(store.scope_digest()) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "eval_initial_state_scope_digest_invalid",
+            ));
+        }
+        let scope_digest = store.scope_digest().to_owned();
+        let base_relative_path = format!("eval-initial-state/{scope_digest}");
+        let base = self.kiana_home.join(&base_relative_path);
+        fs::create_dir_all(&base)?;
+        let mut entries = Vec::new();
+        for (name, bytes) in store.fixtures() {
+            if !bounded_label(name) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "eval_initial_state_fixture_name_invalid",
+                ));
+            }
+            let Some(fixture_digest) = store.fixture_digests().get(name).cloned() else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "eval_initial_state_fixture_digest_missing",
+                ));
+            };
+            fs::write(base.join(format!("{name}.json")), bytes)?;
+            entries.push(EvalInitialStateEntry {
+                name: name.clone(),
+                relative_path: format!("{base_relative_path}/{name}.json"),
+                byte_len: bytes.len(),
+                fixture_digest,
+            });
+        }
+        let mut materialization = EvalInitialStateMaterialization {
+            schema: EVAL_INITIAL_STATE_MATERIALIZATION_SCHEMA.to_owned(),
+            scope_digest,
+            base_relative_path,
+            entries,
+            manifest_digest: String::new(),
+        };
+        materialization.manifest_digest = materialization.digest();
+        materialization
+            .validate()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        Ok(materialization)
     }
 }
 
