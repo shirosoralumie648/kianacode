@@ -1,4 +1,4 @@
-name: "INT-12 OAuth PKCE / account lifecycle baseline"
+name: "INT-12 OAuth PKCE / account lifecycle"
 
 on:
   workflow_dispatch:
@@ -8,22 +8,48 @@ permissions:
 
 jobs:
   int12-oauth-account:
-    name: "INT-12 OAuth PKCE / account lifecycle baseline"
+    name: "INT-12 OAuth PKCE / account lifecycle"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: Format gate
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
         run: cargo fmt --all --check
-      - name: Run kiana-core int12_oauth_guard
-        run: cargo test -p kiana-core --test int12_oauth_guard --locked -- --test-threads=1
-      - name: Run kiana-daemon int12_oauth_store
-        run: cargo test -p kiana-daemon --test int12_oauth_store --locked -- --test-threads=1
+
+      # Provider boundary: S256 PKCE, one-time state, exact callback origin/path, code replay
+      # window, scope downgrade, proactive refresh, single-flight leader/waiters, generation CAS
+      # and the in-lock re-read before any refresh outcome is accepted.
+      - name: Run kiana-provider oauth fixtures
+        run: cargo test -p kiana-provider --lib oauth::tests --locked -- --test-threads=1
+      # Domain account record: SecretRef/provider/redirect binding, scope downgrade, generation
+      # fences, reauth/revoke progression and expiry projection.
       - name: Run kiana-domain int12_oauth_account
         run: cargo test -p kiana-domain --test int12_oauth_account --locked -- --test-threads=1
+      # Account store CAS: insert-or-idempotent, non-CAS replacement refusal, rotate/reauth/revoke
+      # generation fencing and stale lifecycle denial.
+      - name: Run kiana-daemon int12_oauth_store
+        run: cargo test -p kiana-daemon --test int12_oauth_store --locked -- --test-threads=1
+      # Redacted query projection: deterministic pages, digest conflicts and expired rows without
+      # token or SecretRef material.
       - name: Run kiana-query int12_oauth_projection
         run: cargo test -p kiana-query --test int12_oauth_projection --locked -- --test-threads=1
+      # Source guard: secret boundary, single-flight ordering, lock re-read, lane/shard wiring.
+      - name: Run kiana-core int12_oauth_guard
+        run: cargo test -p kiana-core --test int12_oauth_guard --locked -- --test-threads=1
+
+      - name: Compile provider oauth fixtures
+        run: cargo test -p kiana-provider --lib oauth::tests --no-run --locked
+      - name: Compile domain int12_oauth_account target
+        run: cargo test -p kiana-domain --test int12_oauth_account --no-run --locked
+      - name: Compile daemon int12_oauth_store target
+        run: cargo test -p kiana-daemon --test int12_oauth_store --no-run --locked
+      - name: Compile query int12_oauth_projection target
+        run: cargo test -p kiana-query --test int12_oauth_projection --no-run --locked
+      - name: Compile core int12_oauth_guard target
+        run: cargo test -p kiana-core --test int12_oauth_guard --no-run --locked
