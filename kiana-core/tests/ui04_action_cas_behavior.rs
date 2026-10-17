@@ -132,6 +132,10 @@ impl EventStorePort for LostAckStore {
         self.inner.read_command(command_id).await
     }
 
+    async fn read_request(&self, request_id: &RequestId) -> Result<Vec<RuntimeEvent>, PortError> {
+        self.inner.read_request(request_id).await
+    }
+
     async fn read_stream(
         &self,
         aggregate_type: &str,
