@@ -19,6 +19,37 @@ pub enum HumanInboxKind {
     Feedback,
 }
 
+impl HumanInboxKind {
+    /// The five kinds that carry a human action.  Every one of them must stay bridged to the
+    /// original authority object (approval/review/acceptance/incident/reconciliation) so the
+    /// notification can never become a second place that owns the task status.
+    pub fn is_actionable(&self) -> bool {
+        matches!(
+            self,
+            Self::Approval
+                | Self::Review
+                | Self::Acceptance
+                | Self::Incident
+                | Self::Reconciliation
+        )
+    }
+
+    /// The `HumanTaskBridge::target_kind` that owns the authoritative status for this kind.
+    ///
+    /// A materialization may not point a review at an approval object (or vice versa): that would
+    /// show a decider an action whose real target is a different authority record.
+    pub fn human_task_target_kind(&self) -> Option<&'static str> {
+        match self {
+            Self::Approval => Some("approval"),
+            Self::Review => Some("review"),
+            Self::Acceptance => Some("acceptance"),
+            Self::Incident => Some("incident"),
+            Self::Reconciliation => Some("reconciliation"),
+            Self::Question | Self::Feedback => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HumanAction {
     pub id: String,
@@ -330,7 +361,19 @@ impl NotificationMaterialization {
         if self.actions.windows(2).any(|pair| pair[0].id >= pair[1].id) {
             return Err("notification_materialization_actions_noncanonical".to_owned());
         }
+        if self.kind.is_actionable() && self.human_task.is_none() {
+            // An actionable fact without the original authority binding has no trustworthy
+            // source/event/evidence/due/decider identity, so it must never become visible.
+            return Err("notification_materialization_human_task_required".to_owned());
+        }
         if let Some(task) = &self.human_task {
+            if let Some(expected) = self.kind.human_task_target_kind() {
+                if task.target_kind != expected {
+                    return Err(
+                        "notification_materialization_human_task_target_kind_mismatch".to_owned(),
+                    );
+                }
+            }
             task.validate()?;
             if task.source_event_id != self.source_event_id
                 || task.source_cursor != self.source_cursor

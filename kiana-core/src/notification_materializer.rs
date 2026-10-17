@@ -8,7 +8,7 @@
 
 use kiana_domain::{
     validate_notification_runtime_event, EventId, HumanInboxItem, HumanInboxKind,
-    NotificationEventSource, NotificationMaterialization, RuntimeEvent,
+    NotificationEventClass, NotificationEventSource, NotificationMaterialization, RuntimeEvent,
 };
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -120,6 +120,12 @@ impl NotificationMaterializer {
                 serde_json::from_value(payload.cloned().unwrap_or(Value::Null))
                     .map_err(|_| "notification_materializer_payload_invalid".to_owned())?;
             materialization.validate()?;
+            // The registered class is the classification authority.  A committed approval fact
+            // cannot materialize a reconciliation task (or the reverse), because that would hand
+            // a decider an action against a different authority object than the event describes.
+            if !registered.is_some_and(|class| class_allows_kind(class, &materialization.kind)) {
+                return Err("notification_materializer_event_class_mismatch".to_owned());
+            }
             if materialization.source_event_id != event.event_id {
                 return Err("notification_materializer_source_event_mismatch".to_owned());
             }
@@ -244,7 +250,7 @@ impl NotificationMaterializer {
                     .human_task
                     .as_ref()
                     .map(|task| task.decider_principal_id == server_recipient_id)
-                    .unwrap_or_else(|| !is_actionable(&materialization.kind))
+                    .unwrap_or_else(|| !materialization.kind.is_actionable())
             })
             .map(NotificationMaterialization::to_human_inbox_item)
             .collect::<Result<Vec<_>, _>>()?;
@@ -269,13 +275,19 @@ impl NotificationMaterializer {
     }
 }
 
-fn is_actionable(kind: &HumanInboxKind) -> bool {
-    matches!(
-        kind,
-        HumanInboxKind::Approval
-            | HumanInboxKind::Review
-            | HumanInboxKind::Acceptance
-            | HumanInboxKind::Incident
-            | HumanInboxKind::Reconciliation
-    )
+/// The registry class restricts which actionable kinds a committed fact may materialize.
+///
+/// `NotificationEventClass::Approval` may only produce an approval task, and
+/// `NotificationEventClass::Incident` may only produce an incident or reconciliation task.  The
+/// remaining classes (run terminal/unknown, handoff, status, evidence, reminder) stay generic so
+/// review/acceptance work derived from a delivered run or evidence keeps its own authority object.
+fn class_allows_kind(class: NotificationEventClass, kind: &HumanInboxKind) -> bool {
+    match class {
+        NotificationEventClass::Approval => matches!(kind, HumanInboxKind::Approval),
+        NotificationEventClass::Incident => matches!(
+            kind,
+            HumanInboxKind::Incident | HumanInboxKind::Reconciliation
+        ),
+        _ => true,
+    }
 }
