@@ -391,7 +391,10 @@ fn worker_refuses_mismatched_subscription_identity_and_scope() {
             .expect_err("foreign subscription id"),
         "notification_outbox_subscription_mismatch"
     );
-    let newer_revision = subscription(SubscriptionStatus::Active, 2);
+    let mut newer_revision = active.clone();
+    newer_revision.revision = 2;
+    newer_revision.subscription_digest = newer_revision.digest();
+    newer_revision.validate().expect("subscription");
     assert_eq!(
         worker
             .plan_with_subscription(&pending, &newer_revision, 150)

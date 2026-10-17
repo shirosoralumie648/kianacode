@@ -372,7 +372,10 @@ impl NotificationDeliveryWorker {
                 }
                 // An in-flight send keeps its receipt path, and a claim owned by another live
                 // worker is never abandoned or dispatched from here.
-                _ => self.plan(record, now_unix_ms),
+                Some(_) => self.plan(record, now_unix_ms),
+                // Identity/revision/scope mismatches are caller errors: refuse without a plan so an
+                // intent is never dispatched against the wrong subscription.
+                None => Err(refusal.code().to_owned()),
             },
         }
     }
@@ -442,7 +445,9 @@ impl NotificationDeliveryWorker {
                     let live = record
                         .lease_expires_at_unix_ms
                         .is_some_and(|expires| expires > now_unix_ms);
-                    if owner.is_some_and(|owner| owner != self.worker_id) {
+                    // Only a *live* foreign claim blocks the drain; an expired one is reclaimable by
+                    // the next worker and is reported untouched instead.
+                    if live && owner.is_some_and(|owner| owner != self.worker_id) {
                         return Err("notification_outbox_drain_foreign_claim".to_owned());
                     }
                     if live && owner.is_some() {
