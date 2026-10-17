@@ -1,0 +1,485 @@
+{
+  "schema": "kiana.ui08-reducer-store-fixture.v1",
+  "step": "UI-08",
+  "entity_kinds": ["run", "connection", "submission", "draft", "inbox", "artifact"],
+  "lifecycles": ["authoritative", "optimistic_pending", "unknown"],
+  "gap_reasons": [
+    "sequence_gap",
+    "feed_gap",
+    "epoch_reset",
+    "snapshot_required",
+    "pending_conflict"
+  ],
+  "budgets": {
+    "max_entities": 4096,
+    "max_events": 8192,
+    "max_unknown": 512
+  },
+  "fixtures": [
+    "reducer_rejects_old_revision_and_keeps_one_entity",
+    "reducer_deduplicates_events_and_requires_snapshot_after_gap",
+    "optimistic_state_rolls_back_and_protected_entries_block_eviction",
+    "accepted_keeps_optimistic_record_until_settled_or_expired",
+    "unknown_and_pending_survive_hydrate_and_dehydrate",
+    "hydrate_rejects_optimistic_previous_from_a_foreign_scope",
+    "tab_scope_isolation_and_reducer_purity_are_explicit",
+    "live_feed_starts_at_the_initial_boundary_and_markers_never_regress",
+    "replayed_terminal_after_the_boundary_is_not_a_second_item",
+    "epoch_reset_drops_authoritative_state_and_keeps_local_pending",
+    "generic_feed_requires_an_explicit_kind_and_refuses_the_draft_namespace",
+    "pending_conflict_never_lets_an_optimistic_value_hide_a_newer_revision",
+    "snapshot_merge_refreshes_the_rollback_baseline_instead_of_a_stale_value",
+    "hydrate_refuses_a_forged_draft_entity",
+    "a_stale_rejection_never_deletes_an_authoritative_entity",
+    "kind_scoped_views_keep_the_six_namespaces_separate",
+    "ui08_reducer_plan_and_trace_replay_deterministically"
+  ],
+  "required": [
+    "ui_feed_entity_kind_missing",
+    "ui_feed_draft_kind_forbidden",
+    "ui_feed_entity_revision_invalid",
+    "ui_store_snapshot_draft_entity",
+    "PendingConflict",
+    "adopt_authority_epoch",
+    "refresh_rollback_baselines",
+    "gap_transition",
+    "entities_of_kind",
+    "replay_at_position",
+    "initial_boundary",
+    "ui_store_optimistic_entity_missing",
+    "ui_store_optimistic_entity_mismatch",
+    "CacheFullProtected",
+    "StaleRevision",
+    "ScopeMismatch"
+  ],
+  "denied": [
+    "旧 revision 覆盖新值",
+    "跨 session/tab 串数据",
+    "重复 event 产生两条 item",
+    "cache eviction 丢 pending/unknown",
+    "乐观成功掩盖服务端拒绝",
+    "缺 entity_kind 的 server 帧被猜成 run 实体",
+    "server 帧或伪造快照写入 draft 命名空间",
+    "gap/epoch reset/pending conflict 后不 hydrate 就继续吃 delta",
+    "store 拥有第二条执行路径（Broker/ControlPlane/模型循环/文件副作用）"
+  ],
+  "limitations": [
+    "store 是进程内一次性展示投影，不落 EventLog、不授权、不执行 capability",
+    "revision 与 feed sequence 只在本 store 内单调；与服务端其它坐标（如 UI-05 页 cursor）不对账",
+    "gap 只能由显式 snapshot hydrate 解除；本轮还没有把 UI-05 页投影成协议 UiSnapshotV1 的生产者",
+    "draft 命名空间属于本地输入层（UI-12/UI-14），store 只拒绝它、不存储它",
+    "terminal 之后的迟到 delta 由 daemon feed 的 terminal_delta_rejections 围栏，store 只把重复终态当 duplicate 拒绝",
+    "proof_level 上限为 source；本地不运行测试，也不声称 durable/live/physical"
+  ],
+  "trace": {
+    "scope": {
+      "workspace": "/workspace",
+      "session_id": "session-1",
+      "tab_id": "tab-1"
+    },
+    "epoch": "epoch-1",
+    "max_entities": 4,
+    "steps": [
+      {
+        "op": "feed_delta",
+        "feed_sequence": 1,
+        "event_id": "trace-early-delta",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 1,
+        "expect": {
+          "error": "ui_store_gap_required"
+        }
+      },
+      {
+        "op": "feed_gap",
+        "feed_sequence": 1,
+        "event_id": "trace-gap-1",
+        "expect": {
+          "change": "snapshot_required",
+          "needs_snapshot": true,
+          "gap_reason": "feed_gap",
+          "feed_sequence": 0,
+          "entity_count": 0
+        }
+      },
+      {
+        "op": "snapshot_boundary",
+        "feed_sequence": 1,
+        "event_id": "trace-boundary-1",
+        "expect": {
+          "change": "snapshot_required",
+          "needs_snapshot": true,
+          "feed_sequence": 1,
+          "entity_count": 0
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 2,
+        "event_id": "trace-delta-blocked",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 1,
+        "expect": {
+          "error": "ui_store_gap_required"
+        }
+      },
+      {
+        "op": "snapshot",
+        "expect": {
+          "change": "snapshot_hydrated",
+          "needs_snapshot": false,
+          "feed_sequence": 0,
+          "entity_count": 0,
+          "pending_count": 0,
+          "epoch": "epoch-1"
+        }
+      },
+      {
+        "op": "snapshot_boundary",
+        "feed_sequence": 0,
+        "event_id": "trace-boundary-0",
+        "expect": {
+          "change": "snapshot_hydrated",
+          "needs_snapshot": false,
+          "feed_sequence": 0,
+          "entity_count": 0
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 1,
+        "event_id": "trace-delta-1",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 1,
+        "expect": {
+          "change": "entity_inserted",
+          "feed_sequence": 1,
+          "entity_count": 1,
+          "entities": [
+            {
+              "kind": "run",
+              "id": "run-1",
+              "revision": 1,
+              "lifecycle": "authoritative"
+            }
+          ]
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 2,
+        "event_id": "trace-delta-2-stale",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 1,
+        "expect": {
+          "error": "ui_store_stale_revision:run-1"
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 1,
+        "event_id": "trace-delta-1",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 2,
+        "expect": {
+          "error": "ui_store_duplicate_event:trace-delta-1"
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 1,
+        "event_id": "trace-delta-behind",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 2,
+        "expect": {
+          "error": "ui_store_duplicate_frame:trace-delta-behind"
+        }
+      },
+      {
+        "op": "heartbeat",
+        "feed_sequence": 1,
+        "event_id": "trace-heartbeat-1",
+        "expect": {
+          "change": "entity_updated",
+          "feed_sequence": 1,
+          "entity_count": 1
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 2,
+        "event_id": "trace-delta-2",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 3,
+        "expect": {
+          "change": "entity_updated",
+          "feed_sequence": 2,
+          "entity_count": 1,
+          "entities": [
+            {
+              "kind": "run",
+              "id": "run-1",
+              "revision": 3,
+              "lifecycle": "authoritative"
+            }
+          ]
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 4,
+        "event_id": "trace-delta-4-skipped",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 4,
+        "expect": {
+          "change": "snapshot_required",
+          "needs_snapshot": true,
+          "gap_reason": "sequence_gap",
+          "feed_sequence": 2,
+          "entity_count": 1
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 4,
+        "event_id": "trace-delta-4-blocked",
+        "entity_kind": "run",
+        "entity_id": "run-1",
+        "revision": 4,
+        "expect": {
+          "error": "ui_store_gap_required"
+        }
+      },
+      {
+        "op": "snapshot",
+        "expect": {
+          "change": "snapshot_hydrated",
+          "needs_snapshot": false,
+          "feed_sequence": 0,
+          "entity_count": 1
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 1,
+        "event_id": "trace-post-1",
+        "entity_kind": "run",
+        "entity_id": "run-2",
+        "revision": 1,
+        "expect": {
+          "change": "entity_inserted",
+          "feed_sequence": 1,
+          "entity_count": 2
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 2,
+        "event_id": "trace-post-2",
+        "entity_kind": "run",
+        "entity_id": "run-3",
+        "revision": 1,
+        "expect": {
+          "change": "entity_inserted",
+          "feed_sequence": 2,
+          "entity_count": 3
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 3,
+        "event_id": "trace-post-3",
+        "entity_kind": "run",
+        "entity_id": "run-4",
+        "revision": 1,
+        "expect": {
+          "change": "entity_inserted",
+          "feed_sequence": 3,
+          "entity_count": 4
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 4,
+        "event_id": "trace-post-4",
+        "entity_kind": "run",
+        "entity_id": "run-5",
+        "revision": 1,
+        "expect": {
+          "change": "entity_inserted",
+          "feed_sequence": 4,
+          "entity_count": 4,
+          "absent": [
+            {
+              "kind": "run",
+              "id": "run-1"
+            }
+          ]
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 5,
+        "event_id": "trace-post-5-no-kind",
+        "entity_id": "run-5",
+        "revision": 2,
+        "expect": {
+          "error": "ui_store_invalid:ui_feed_entity_kind_missing"
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 5,
+        "event_id": "trace-post-5-draft",
+        "entity_kind": "draft",
+        "entity_id": "draft-1",
+        "revision": 1,
+        "expect": {
+          "error": "ui_store_invalid:ui_feed_draft_kind_forbidden"
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 5,
+        "event_id": "trace-post-5-zero-revision",
+        "entity_kind": "run",
+        "entity_id": "run-5",
+        "revision": 0,
+        "expect": {
+          "error": "ui_store_invalid:ui_feed_entity_revision_invalid"
+        }
+      },
+      {
+        "op": "optimistic",
+        "idempotency_key": "trace-command-1",
+        "expires_at_unix_ms": 100,
+        "expect": {
+          "change": "optimistic_pending",
+          "feed_sequence": 4,
+          "entity_count": 4,
+          "pending_count": 1,
+          "absent": [
+            {
+              "kind": "run",
+              "id": "run-2"
+            }
+          ]
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 5,
+        "event_id": "trace-post-5-conflict",
+        "entity_kind": "submission",
+        "entity_id": "trace-command-1",
+        "revision": 9,
+        "expect": {
+          "change": "snapshot_required",
+          "needs_snapshot": true,
+          "gap_reason": "pending_conflict",
+          "feed_sequence": 4,
+          "entity_count": 4,
+          "pending_count": 1,
+          "entities": [
+            {
+              "kind": "submission",
+              "id": "trace-command-1",
+              "revision": 1,
+              "lifecycle": "optimistic_pending"
+            }
+          ]
+        }
+      },
+      {
+        "op": "feed_delta",
+        "feed_sequence": 6,
+        "event_id": "trace-post-6-blocked",
+        "entity_kind": "run",
+        "entity_id": "run-5",
+        "revision": 2,
+        "expect": {
+          "error": "ui_store_gap_required"
+        }
+      },
+      {
+        "op": "snapshot",
+        "expect": {
+          "change": "snapshot_hydrated",
+          "needs_snapshot": false,
+          "feed_sequence": 0,
+          "entity_count": 4,
+          "pending_count": 1
+        }
+      },
+      {
+        "op": "action_result",
+        "idempotency_key": "trace-command-1",
+        "disposition": "rejected",
+        "expect": {
+          "change": "action_rejected",
+          "entity_count": 3,
+          "pending_count": 0,
+          "absent": [
+            {
+              "kind": "submission",
+              "id": "trace-command-1"
+            }
+          ]
+        }
+      },
+      {
+        "op": "optimistic",
+        "idempotency_key": "trace-command-2",
+        "expires_at_unix_ms": 10,
+        "expect": {
+          "change": "optimistic_pending",
+          "entity_count": 4,
+          "pending_count": 1
+        }
+      },
+      {
+        "op": "expire",
+        "now_unix_ms": 10,
+        "expect": {
+          "change": "expired_optimistic",
+          "entity_count": 3,
+          "pending_count": 0,
+          "absent": [
+            {
+              "kind": "submission",
+              "id": "trace-command-2"
+            }
+          ]
+        }
+      },
+      {
+        "op": "expire",
+        "now_unix_ms": 10,
+        "expect": {
+          "change": "entity_updated",
+          "entity_count": 3,
+          "pending_count": 0
+        }
+      },
+      {
+        "op": "observe",
+        "expect": {
+          "feed_sequence": 0,
+          "entity_count": 3,
+          "pending_count": 0,
+          "unknown_count": 0,
+          "needs_snapshot": false,
+          "epoch": "epoch-1"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+name: "UI-08 shared reducer / entity store"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui08-reducer-store:
+    name: "UI-08 shared reducer / entity store"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run kiana-client ui08_reducer_store
+        run: cargo test -p kiana-client --test ui08_reducer_store --locked -- --test-threads=1
+      - name: Run kiana-core ui08_reducer_store_guard
+        run: cargo test -p kiana-core --test ui08_reducer_store_guard --locked -- --test-threads=1
+      - name: Run kiana-entrypoints ui08_store_boundary_guard
+        run: cargo test -p kiana-entrypoints --test ui08_store_boundary_guard --locked -- --test-threads=1
+      - name: Run kiana-daemon ui08_entity_store
+        run: cargo test -p kiana-daemon --test ui08_entity_store --locked -- --test-threads=1
+      - name: Compile the affected targets without running
+        run: cargo test -p kiana-client -p kiana-core -p kiana-entrypoints -p kiana-daemon --no-run --locked
