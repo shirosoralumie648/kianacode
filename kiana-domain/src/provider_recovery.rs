@@ -21,10 +21,12 @@ pub const PROVIDER_HISTORY_FACT_SCHEMA: &str = "kiana.provider-history-fact.v1";
 pub const PROVIDER_HISTORY_PROJECTION_SCHEMA: &str = "kiana.provider-history-projection.v1";
 pub const PROVIDER_IN_FLIGHT_SCHEMA: &str = "kiana.provider-in-flight.v1";
 pub const PROVIDER_RECONCILIATION_SCHEMA: &str = "kiana.provider-reconciliation.v1";
+pub const PROVIDER_ROUND_PLAN_SCHEMA: &str = "kiana.provider-round-plan.v1";
 pub const PROVIDER_RECOVERY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_PROVIDER_HISTORY_FACTS: usize = 4_096;
 pub const MAX_PROVIDER_HISTORY_TEXT_BYTES: usize = 1024 * 1024;
 pub const MAX_PROVIDER_HISTORY_TOOL_CALLS: usize = 256;
+pub const MAX_PROVIDER_ROUND_OBSERVATIONS: usize = 256;
 pub const PROVIDER_RECOVERY_REPLAY_MATERIAL_MISSING: &str =
     "missing_reasoning_material_blocks_resume";
 pub const PROVIDER_RECOVERY_STALE_ROUTE: &str = "stale_route_authority_cannot_resume";
@@ -32,6 +34,16 @@ pub const PROVIDER_RECOVERY_NO_MODEL_RESUBMIT: &str =
     "inflight_model_attempt_is_not_resubmitted_on_restart";
 pub const PROVIDER_RECOVERY_NO_CAPABILITY_RESUBMIT: &str =
     "inflight_capability_is_not_resubmitted_on_restart";
+pub const PROVIDER_RECOVERY_ROUND_SCOPE_MISMATCH: &str = "provider_recovery_round_scope_mismatch";
+pub const PROVIDER_RECOVERY_ROUND_OBSERVATION_CONFLICT: &str =
+    "provider_recovery_round_observation_conflict";
+pub const PROVIDER_RECOVERY_ROUND_INPUT_MISSING: &str = "provider_recovery_round_input_missing";
+pub const PROVIDER_RECOVERY_ROUND_RESUME_BLOCKED: &str =
+    "provider_recovery_round_resume_blocked_by_unknown";
+pub const PROVIDER_RECOVERY_ROUND_ATTEMPT_CONSUMED: &str =
+    "provider_recovery_round_attempt_already_consumed";
+pub const PROVIDER_RECOVERY_ROUND_HISTORY_INCOMPLETE: &str = "model_history_incomplete_batch";
+pub const PROVIDER_RESUME_CHECK_INVALID: &str = "provider_resume_check_invalid";
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
@@ -871,6 +883,307 @@ impl ProviderReconciliationCase {
             "source_observation_digest": self.source_observation_digest,
             "reconciliation_required": self.reconciliation_required,
             "automatic_retry_allowed": self.automatic_retry_allowed,
+        }))
+    }
+}
+
+/// Live, borrowed scope used to re-authorize exactly one resumed provider request. The planner
+/// never persists a route, a prompt or private replay bytes; the caller must supply the values it
+/// observed in this process after the ControlPlane re-admitted the run.
+#[derive(Clone, Copy, Debug)]
+pub struct ProviderResumeCheck<'a> {
+    pub route: &'a ModelRoute,
+    pub prompt_digest: &'a str,
+    pub schema_digest: &'a str,
+    pub tool_catalog_digest: &'a str,
+    pub data_revision: &'a str,
+    pub authority_epoch: u64,
+    pub data_epoch: u64,
+    pub now_unix_ms: u64,
+    pub local_material: Option<&'a ProtectedReplayMaterial>,
+}
+
+impl ProviderResumeCheck<'_> {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.authority_epoch == 0 || self.data_epoch == 0 || self.now_unix_ms == 0 {
+            return Err(PROVIDER_RESUME_CHECK_INVALID.to_owned());
+        }
+        for (value, field) in [
+            (self.prompt_digest, "prompt_digest"),
+            (self.schema_digest, "schema_digest"),
+            (self.tool_catalog_digest, "tool_catalog_digest"),
+        ] {
+            digest(value, field).map_err(|_| PROVIDER_RESUME_CHECK_INVALID.to_owned())?;
+        }
+        required(self.data_revision, "data_revision", 256)
+            .map_err(|_| PROVIDER_RESUME_CHECK_INVALID.to_owned())?;
+        Ok(())
+    }
+}
+
+/// Complete-round recovery decision.
+///
+/// It binds the committed model/tool facts of exactly one run/turn to every committed in-flight
+/// observation of that same round, maps each crash point to a reconciliation case, and refuses to
+/// authorize a resumed provider request while any previous attempt is unknown. A round that
+/// cannot be folded into a complete model-visible history (a capability that completed but whose
+/// result is not committed yet) keeps `history = None` plus a stable reason instead of fabricating
+/// an assistant/tool pair.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderRoundPlan {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub run_id: RunId,
+    pub turn_id: TurnId,
+    pub source_cursor: EventCursor,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history: Option<ProviderHistoryProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_incomplete_reason: Option<String>,
+    pub completed_invocations: Vec<InvocationId>,
+    pub cases: Vec<ProviderReconciliationCase>,
+    pub plan_digest: String,
+}
+
+impl ProviderRoundPlan {
+    /// Fold committed facts and committed observations of one round into a single decision.
+    pub fn plan(
+        facts: Vec<ProviderHistoryFact>,
+        observations: &[ProviderInFlightObservation],
+    ) -> Result<Self, String> {
+        if facts.is_empty() && observations.is_empty() {
+            return Err(PROVIDER_RECOVERY_ROUND_INPUT_MISSING.to_owned());
+        }
+        if facts.len() > MAX_PROVIDER_HISTORY_FACTS
+            || observations.len() > MAX_PROVIDER_ROUND_OBSERVATIONS
+        {
+            return Err("provider_recovery_round_limit_exceeded".to_owned());
+        }
+        for fact in &facts {
+            fact.validate()?;
+        }
+        let (run_id, turn_id) = match facts.first() {
+            Some(fact) => (fact.run_id, fact.turn_id),
+            None => (observations[0].run_id, observations[0].turn_id),
+        };
+        let mut source_cursor = 0;
+        let mut completed = BTreeSet::new();
+        for fact in &facts {
+            if fact.run_id != run_id || fact.turn_id != turn_id {
+                return Err(PROVIDER_RECOVERY_ROUND_SCOPE_MISMATCH.to_owned());
+            }
+            source_cursor = source_cursor.max(fact.source_cursor);
+            if fact.message.role == ModelRole::Tool {
+                if let Some(invocation) = fact.invocation_id {
+                    completed.insert(invocation);
+                }
+            }
+        }
+        let mut cases = Vec::with_capacity(observations.len());
+        let mut observed_attempts = BTreeSet::new();
+        let mut observed_cursors = BTreeSet::new();
+        for observation in observations {
+            observation.validate()?;
+            if observation.run_id != run_id || observation.turn_id != turn_id {
+                return Err(PROVIDER_RECOVERY_ROUND_SCOPE_MISMATCH.to_owned());
+            }
+            if !observed_attempts.insert(observation.model_attempt_id)
+                || !observed_cursors.insert(observation.source_cursor)
+            {
+                return Err(PROVIDER_RECOVERY_ROUND_OBSERVATION_CONFLICT.to_owned());
+            }
+            source_cursor = source_cursor.max(observation.source_cursor);
+            cases.push(ProviderReconciliationCase::from_observation(observation)?);
+        }
+        cases.sort_by_key(|case| case.model_attempt_id.as_uuid());
+        let capability_undelivered = cases
+            .iter()
+            .any(|case| case.phase == ProviderInFlightPhase::CapabilityCompletedBeforeDelivery);
+        // An unmatched trailing tool call is exactly the "capability completed but its result is
+        // not committed yet" crash point, and only that crash point may keep the history open.
+        let (history, history_incomplete_reason) = match ProviderHistoryProjection::rebuild(facts) {
+            Ok(history) => (Some(history), None),
+            Err(code)
+                if code == PROVIDER_RECOVERY_ROUND_HISTORY_INCOMPLETE && capability_undelivered =>
+            {
+                (None, Some(code))
+            }
+            Err(code) => return Err(code),
+        };
+        let completed_invocations = completed.into_iter().collect::<Vec<_>>();
+        if let Some(history) = &history {
+            if history.source_cursor > source_cursor {
+                return Err(PROVIDER_RECOVERY_ROUND_OBSERVATION_CONFLICT.to_owned());
+            }
+        }
+        let mut plan = Self {
+            schema: PROVIDER_ROUND_PLAN_SCHEMA.to_owned(),
+            version: PROVIDER_RECOVERY_VERSION,
+            run_id,
+            turn_id,
+            source_cursor,
+            history,
+            history_incomplete_reason,
+            completed_invocations,
+            cases,
+            plan_digest: String::new(),
+        };
+        plan.plan_digest = plan.digest();
+        plan.validate()?;
+        Ok(plan)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_ROUND_PLAN_SCHEMA
+            || !self.version.is_compatible_with(&PROVIDER_RECOVERY_VERSION)
+            || self.source_cursor == 0
+            || self.cases.len() > MAX_PROVIDER_ROUND_OBSERVATIONS
+            || self
+                .completed_invocations
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+        {
+            return Err("provider_recovery_round_plan_invalid".to_owned());
+        }
+        uuid_present(self.run_id, "provider_recovery_round_run_id")?;
+        uuid_present(self.turn_id, "provider_recovery_round_turn_id")?;
+        for invocation in &self.completed_invocations {
+            uuid_present(*invocation, "provider_recovery_round_invocation_id")?;
+        }
+        match (&self.history, &self.history_incomplete_reason) {
+            (Some(history), None) => {
+                history.validate()?;
+                if history.run_id != self.run_id
+                    || history.turn_id != self.turn_id
+                    || history.source_cursor > self.source_cursor
+                {
+                    return Err(PROVIDER_RECOVERY_ROUND_SCOPE_MISMATCH.to_owned());
+                }
+            }
+            (None, Some(reason))
+                if reason.as_str() == PROVIDER_RECOVERY_ROUND_HISTORY_INCOMPLETE
+                    && self.cases.iter().any(|case| {
+                        case.phase == ProviderInFlightPhase::CapabilityCompletedBeforeDelivery
+                    }) => {}
+            _ => return Err("provider_recovery_round_plan_invalid".to_owned()),
+        }
+        if self
+            .cases
+            .windows(2)
+            .any(|pair| pair[0].model_attempt_id >= pair[1].model_attempt_id)
+        {
+            return Err(PROVIDER_RECOVERY_ROUND_OBSERVATION_CONFLICT.to_owned());
+        }
+        for case in &self.cases {
+            case.validate()?;
+            if case.run_id != self.run_id || case.turn_id != self.turn_id {
+                return Err(PROVIDER_RECOVERY_ROUND_SCOPE_MISMATCH.to_owned());
+            }
+        }
+        digest(&self.plan_digest, "provider_recovery_round_plan_digest")?;
+        if self.plan_digest != self.digest() {
+            return Err("provider_recovery_round_plan_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// The complete model-visible history of the round, or `None` while a capability result is
+    /// still undelivered. Callers must not substitute a transcript when this is `None`.
+    pub fn model_visible_history(&self) -> Option<&ProviderHistoryProjection> {
+        self.history.as_ref()
+    }
+
+    pub fn completed_invocations(&self) -> &[InvocationId] {
+        &self.completed_invocations
+    }
+
+    pub fn reconciliation_cases(&self) -> &[ProviderReconciliationCase] {
+        &self.cases
+    }
+
+    pub fn requires_reconciliation(&self) -> bool {
+        self.cases.iter().any(|case| case.reconciliation_required)
+    }
+
+    pub fn model_unknown_attempts(&self) -> Vec<ModelAttemptId> {
+        self.cases
+            .iter()
+            .filter(|case| {
+                case.kind == ProviderReconciliationKind::ModelAttempt
+                    && case.reconciliation_required
+            })
+            .map(|case| case.model_attempt_id)
+            .collect()
+    }
+
+    pub fn capability_unknown_invocations(&self) -> Vec<InvocationId> {
+        self.cases
+            .iter()
+            .filter(|case| {
+                case.kind == ProviderReconciliationKind::CapabilityInvocation
+                    && case.reconciliation_required
+            })
+            .filter_map(|case| case.invocation_id)
+            .collect()
+    }
+
+    /// Attempts that were prepared before send and therefore may be re-submitted after an explicit
+    /// ControlPlane re-admission. Every other phase must be reconciled first.
+    pub fn prepared_attempts(&self) -> Vec<ModelAttemptId> {
+        self.cases
+            .iter()
+            .filter(|case| case.phase == ProviderInFlightPhase::PreparedBeforeSend)
+            .map(|case| case.model_attempt_id)
+            .collect()
+    }
+
+    /// Authorize one resumed provider request for this round. Unknown in-flight work, a missing
+    /// history, a foreign run/turn or an already consumed attempt all fail closed before the
+    /// resume binding's own hash/TTL/authority checks run.
+    pub fn authorize_resume(
+        &self,
+        binding: &ProviderResumeBinding,
+        check: &ProviderResumeCheck<'_>,
+    ) -> Result<ProviderResumeSource, String> {
+        self.validate()?;
+        check.validate()?;
+        if self.history.is_none() || self.requires_reconciliation() {
+            return Err(PROVIDER_RECOVERY_ROUND_RESUME_BLOCKED.to_owned());
+        }
+        if binding.run_id != self.run_id || binding.turn_id != self.turn_id {
+            return Err(PROVIDER_RECOVERY_ROUND_SCOPE_MISMATCH.to_owned());
+        }
+        if self.cases.iter().any(|case| {
+            case.model_attempt_id == binding.model_attempt_id
+                && case.phase != ProviderInFlightPhase::PreparedBeforeSend
+        }) {
+            return Err(PROVIDER_RECOVERY_ROUND_ATTEMPT_CONSUMED.to_owned());
+        }
+        binding.validate_for_resume(
+            check.route,
+            check.prompt_digest,
+            check.schema_digest,
+            check.tool_catalog_digest,
+            check.data_revision,
+            check.authority_epoch,
+            check.data_epoch,
+            check.now_unix_ms,
+            check.local_material,
+        )
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "run_id": self.run_id,
+            "turn_id": self.turn_id,
+            "source_cursor": self.source_cursor,
+            "history": self.history,
+            "history_incomplete_reason": self.history_incomplete_reason,
+            "completed_invocations": self.completed_invocations,
+            "cases": self.cases,
         }))
     }
 }
