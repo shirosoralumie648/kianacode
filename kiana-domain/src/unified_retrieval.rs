@@ -16,7 +16,8 @@
 //! 排序结果只描述“给定候选中哪些更相关”，不代表调用者有权读取候选。`allowed`、`acl_filtered` 和权限范围
 //! 摘要都来自调用方；Domain 会据此排除标记为不允许的条目并检查摘要一致，但不会从身份或策略系统验证
 //! 这些声明。本文件也不读取索引/数据库、不生成 embedding、不加载模型、不发网络请求、不执行工具或副作用。
-//! 仓库内还保留了旧 Daemon/CLI 检索实现；当前它们是独立兼容路径，并没有在本算法内部复用。
+//! 2026-10-17（CM-12）：Daemon memory tool 经 `UnifiedRetrievalPort`、CLI memory search 直接调用本算法；
+//! 算法本身仍是纯计算，候选来源、授权与降级输入由各自调用者负责。
 
 use crate::{json_digest, memory_tokens, SchemaVersion};
 use serde::{Deserialize, Serialize};
@@ -241,6 +242,26 @@ impl RetrievalRequest {
     }
 }
 
+/// 由调用方已经确定的 scope 标签派生本次检索的 scope 摘要。
+///
+/// 【作用】把一组快照范围标签（例如 project root、layer、collection、session）按字节序排序去重后求规范
+/// JSON 摘要，供 `RetrievalRequest` 与同一批 `RetrievalItem` 绑定到同一次候选快照。相同标签集合总是得到
+/// 相同摘要，标签顺序不同也一样。
+/// 【调用者】在把已筛选候选交给 `rank_retrieval()` 之前准备 scope 摘要的 adapter（memory tool / CLI 等），
+/// 以及需要按同一规则构造 scope 标签的 fixture。
+/// 【输入/输出】任意顺序的标签迭代器；返回 `sha256:` 加 64 位十六进制摘要。
+/// 【边界】这是快照绑定标签，不是授权判断，也不是身份认证：真实 ACL/scope 过滤必须在这之前由可信上游
+/// 完成，摘要本身不证明任何读取权限，也不证明标签来自服务端。
+pub fn retrieval_scope_digest<'a>(labels: impl IntoIterator<Item = &'a str>) -> String {
+    let mut labels = labels.into_iter().collect::<Vec<_>>();
+    labels.sort_unstable();
+    labels.dedup();
+    json_digest(&json!({
+        "schema": "kiana.retrieval-scope.v1",
+        "labels": labels,
+    }))
+}
+
 /// 一个已由检索 adapter 整理好的候选内容。
 ///
 /// 输入通常来自已选定的索引/记忆快照；`allowed` 是上游对该候选能否进入本次结果的决定，`dense_vector`
@@ -441,7 +462,8 @@ impl RetrievalResult {
 /// 【作用】将词项精确命中、BM25 稀疏排名和可选 dense 排名通过 RRF 合并，再用 MMR 逐条挑选兼顾相关性
 /// 与多样性的结果。
 /// 【调用者】`kiana-query::UnifiedRetrievalPort::retrieve()` 与 `rank_unified()` 转发到这里；Domain 的
-/// golden-context 校验也使用该函数重放固定输入。当前产品路径调用搜索未发现生产 adapter 使用该 Query 包装。
+/// golden-context 校验也使用该函数重放固定输入。2026-10-17（CM-12）：Daemon memory tool 经
+/// `UnifiedRetrievalPort` 调用，CLI memory search 直接调用本函数；两者不再各自维护排名公式。
 /// 【输入】经过可信上游构造的 profile/request/candidate slice 和最大命中数 `limit`。候选的 scope 必须与
 /// request 一致；`allowed` 和 `acl_filtered` 应由上游权限筛选流程提供。
 /// 【输出】校验通过的 `RetrievalResult`，携带每个通道名次、分数、匹配词和降级原因。

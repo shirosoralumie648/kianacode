@@ -2,8 +2,12 @@ use crate::local_state::kiana_home_dir;
 use crate::types::{Command, CommandContext, CommandResult, CommandType};
 use anyhow::{anyhow, Context};
 use async_trait::async_trait;
+use kiana_domain::{
+    memory_query_terms, retrieval_scope_digest, RetrievalItem, RetrievalProfile, RetrievalRequest,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -128,12 +132,12 @@ impl Command for MemoryCommand {
                     return Err(anyhow!("memory search requires query"));
                 }
                 let records = read_memory_records(&store_path)?;
-                let hits = search_memory_records(&records, query, 10);
+                let hits = search_memory_records(&records, query, 10)?;
                 let report = json!({
                     "schema": "kiana.memory-search.v1",
                     "store_file": store_path.display().to_string(),
                     "query": query,
-                    "terms": query_terms(query),
+                    "terms": memory_query_terms(query),
                     "limit": 10,
                     "record_count": records.len(),
                     "hits": hits,
@@ -351,53 +355,66 @@ fn kind_counts(records: &[MemoryRecord]) -> serde_json::Map<String, Value> {
         .collect()
 }
 
-fn query_terms(query: &str) -> Vec<String> {
-    query
-        .split_whitespace()
-        .map(|term| term.to_ascii_lowercase())
-        .filter(|term| !term.is_empty())
-        .collect()
-}
-
-fn search_memory_records(records: &[MemoryRecord], query: &str, limit: usize) -> Vec<Value> {
-    let terms = query_terms(query);
-    let mut hits = records
+/// 用统一的 sparse/exact 排名合同对本地记忆记录排序。
+///
+/// 【作用】CLI 不再自带“词项包含计数 + 时间”排序：这里把每条记录投影成 `RetrievalItem`（正文与旧
+/// 实现一致地包含 kind/source/text 作为匹配面，摘要用记录正文的 SHA-256），然后交给
+/// `kiana_domain::rank_retrieval` 用同一 `RetrievalProfile::unified()`（exact/BM25-CJK → RRF60 → MMR）
+/// 排名，最后映射回既有 hit 形状。
+/// 【输入/输出】本地结构化记录、查询文本与上限；成功返回 id/kind/source/score（命中的不同词项数）/
+/// matched_terms/text/redaction_count/created_at_ms。
+/// 【失败】请求或条目畸形（例如手改文件里的空 id）、候选或上限越界时返回错误，不静默降级成部分结果。
+/// 【边界】CLI 检索没有服务端 ACL 与 dense 通道：`scope` 摘要只把同一次本地记录快照绑定到 request/item，
+/// 不是权限判断；本地记录读取由 `kiana memory` 自身范围决定。
+fn search_memory_records(
+    records: &[MemoryRecord],
+    query: &str,
+    limit: usize,
+) -> anyhow::Result<Vec<Value>> {
+    let scope_labels = records
         .iter()
-        .filter_map(|record| {
-            let haystack =
-                format!("{} {} {}", record.kind, record.source, record.text).to_ascii_lowercase();
-            let matched_terms = terms
-                .iter()
-                .filter(|term| haystack.contains(term.as_str()))
-                .cloned()
-                .collect::<Vec<_>>();
-            if matched_terms.is_empty() {
-                return None;
-            }
-            Some(json!({
-                "id": record.id,
-                "kind": record.kind,
-                "source": record.source,
-                "score": matched_terms.len(),
-                "matched_terms": matched_terms,
-                "text": record.text,
-                "redaction_count": record.redaction_count,
-                "created_at_ms": record.created_at_ms,
-            }))
+        .map(|record| record.id.clone())
+        .collect::<Vec<_>>();
+    let permission_scope_digest = retrieval_scope_digest(scope_labels.iter().map(String::as_str));
+    let items = records
+        .iter()
+        .map(|record| RetrievalItem {
+            id: record.id.clone(),
+            text: format!("{} {} {}", record.kind, record.source, record.text),
+            source_digest: format!("sha256:{:x}", Sha256::digest(record.text.as_bytes())),
+            permission_scope_digest: permission_scope_digest.clone(),
+            allowed: true,
+            created_at_ms: u64::try_from(record.created_at_ms).unwrap_or(u64::MAX),
+            dense_vector: None,
         })
         .collect::<Vec<_>>();
-    hits.sort_by(|left, right| {
-        right["score"]
-            .as_u64()
-            .cmp(&left["score"].as_u64())
-            .then_with(|| {
-                right["created_at_ms"]
-                    .as_u64()
-                    .cmp(&left["created_at_ms"].as_u64())
-            })
-    });
-    hits.truncate(limit);
-    hits
+    let request = RetrievalRequest::new(query, permission_scope_digest, None)
+        .map_err(|error| anyhow!("memory retrieval request invalid: {error}"))?;
+    let result =
+        kiana_domain::rank_retrieval(&RetrievalProfile::unified(), &request, &items, limit)
+            .map_err(|error| anyhow!("memory retrieval failed: {error}"))?;
+    let mut by_id = std::collections::BTreeMap::new();
+    for (index, record) in records.iter().enumerate() {
+        by_id.entry(record.id.as_str()).or_insert(index);
+    }
+    let mut hits = Vec::with_capacity(result.hits.len());
+    for hit in &result.hits {
+        let record = by_id
+            .get(hit.id.as_str())
+            .map(|index| &records[*index])
+            .ok_or_else(|| anyhow!("memory retrieval hit without record"))?;
+        hits.push(json!({
+            "id": record.id,
+            "kind": record.kind,
+            "source": record.source,
+            "score": hit.matched_terms.len(),
+            "matched_terms": hit.matched_terms,
+            "text": record.text,
+            "redaction_count": record.redaction_count,
+            "created_at_ms": record.created_at_ms,
+        }));
+    }
+    Ok(hits)
 }
 
 fn render_search_report(report: &Value) -> String {
@@ -445,6 +462,7 @@ mod tests {
     use crate::local_state::env_lock;
     use crate::{Command, CommandContext};
     use serde_json::Value;
+    use sha2::{Digest, Sha256};
     use std::collections::HashMap;
     use std::fs;
     use std::sync::{MutexGuard, PoisonError};
@@ -678,5 +696,87 @@ mod tests {
 
         let _ = fs::remove_dir_all(&root);
         std::env::remove_var("KIANA_HOME");
+    }
+
+    fn parity_record(
+        id: &str,
+        kind: &str,
+        source: &str,
+        text: &str,
+        created_at_ms: u128,
+    ) -> super::MemoryRecord {
+        super::MemoryRecord {
+            schema: "kiana.memory-record.v1".to_string(),
+            id: id.to_string(),
+            kind: kind.to_string(),
+            source: source.to_string(),
+            text: text.to_string(),
+            redaction_count: 0,
+            created_at_ms,
+        }
+    }
+
+    #[test]
+    /// CM-12：CLI 搜索必须与统一算法给出同一顺序，而不是旧的“词项计数 + 时间”排序。
+    /// 两条记录命中相同词项数、但正文长度不同：BM25 长度归一化让短记录排在前面，
+    /// 旧排序会因 created_at 更大而先返回长记录。
+    fn cli_memory_search_matches_the_unified_retrieval_order() {
+        let records = vec![
+            parity_record(
+                "mem-long",
+                "decision",
+                "workflow",
+                "checkout deployment rollback notes",
+                30,
+            ),
+            parity_record("mem-short", "note", "manual", "checkout deployment", 20),
+            parity_record("mem-other", "note", "manual", "界面 颜色 说明", 10),
+        ];
+        let hits =
+            super::search_memory_records(&records, "checkout deployment", 5).expect("CLI ranking");
+        let ids = hits
+            .iter()
+            .map(|hit| hit["id"].as_str().unwrap_or_default().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec!["mem-short", "mem-long"]);
+        for hit in &hits {
+            assert_eq!(hit["score"], 2);
+        }
+
+        // 同一批记录投影到统一算法，CLI 顺序必须与 port/domain 结果一致。
+        let scope_labels = records
+            .iter()
+            .map(|record| record.id.clone())
+            .collect::<Vec<_>>();
+        let scope = super::retrieval_scope_digest(scope_labels.iter().map(String::as_str));
+        let items = records
+            .iter()
+            .map(|record| super::RetrievalItem {
+                id: record.id.clone(),
+                text: format!("{} {} {}", record.kind, record.source, record.text),
+                source_digest: format!("sha256:{:x}", Sha256::digest(record.text.as_bytes())),
+                permission_scope_digest: scope.clone(),
+                allowed: true,
+                created_at_ms: u64::try_from(record.created_at_ms).unwrap_or(u64::MAX),
+                dense_vector: None,
+            })
+            .collect::<Vec<_>>();
+        let request = super::RetrievalRequest::new("checkout deployment", scope, None)
+            .expect("parity request");
+        let expected =
+            kiana_domain::rank_retrieval(&super::RetrievalProfile::unified(), &request, &items, 5)
+                .expect("unified ranking");
+        let expected_ids = expected
+            .hits
+            .iter()
+            .map(|hit| hit.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected_ids);
+        for (hit, expected_hit) in hits.iter().zip(&expected.hits) {
+            assert_eq!(
+                hit["matched_terms"],
+                serde_json::json!(expected_hit.matched_terms)
+            );
+        }
     }
 }

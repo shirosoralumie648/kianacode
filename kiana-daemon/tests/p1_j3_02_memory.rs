@@ -24,7 +24,10 @@ fn memory_hits_respect_knowledge_grants_and_reach_the_receipt() {
         );
     }
     assert!(memory.contains("searchable()"));
-    assert!(retrieval.contains("memory_match_terms"));
+    // CM-12：memory_retrieval 不再自带词项打分公式，改为委托 Domain `rank_retrieval()` 统一排名，
+    // hit 的 matched_terms 由统一结果映射回来。这里只做源码锚点检查，不代表排名质量。
+    assert!(retrieval.contains("rank_retrieval"));
+    assert!(retrieval.contains("hit.matched_terms"));
     assert!(receipts.contains("retrieval_request_id"));
 }
 
