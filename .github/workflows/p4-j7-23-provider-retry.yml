@@ -16,6 +16,10 @@ jobs:
           toolchain: 1.97.1
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
       - name: Run provider Retry-After and typed transport fixtures
         run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
       - name: Run retry, deadline and cancellation behavior fixtures
