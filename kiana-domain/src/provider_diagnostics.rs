@@ -18,12 +18,23 @@ pub const PROVIDER_DIAGNOSTICS_CURSOR_SCHEMA: &str = "kiana.provider-diagnostics
 pub const PROVIDER_CONFIG_CHECK_SCHEMA: &str = "kiana.provider-config-check.v1";
 pub const PROVIDER_CONNECTION_TEST_SCHEMA: &str = "kiana.provider-connection-test.v1";
 pub const PROVIDER_TERMINAL_REPLAY_SCHEMA: &str = "kiana.provider-terminal-replay.v1";
+pub const PROVIDER_SURFACE_PROJECTION_SCHEMA: &str = "kiana.provider-surface-projection.v1";
+pub const PROVIDER_SETTINGS_VIEW_SCHEMA: &str = "kiana.provider-settings-view.v1";
+pub const PROVIDER_CONNECTION_TEST_PLAN_SCHEMA: &str = "kiana.provider-connection-test-plan.v1";
+pub const PROVIDER_UPSTREAM_ADMISSION_SCHEMA: &str = "kiana.provider-upstream-admission.v1";
+pub const PROVIDER_UI_ACTION_SCHEMA: &str = "kiana.provider-ui-action.v1";
+pub const PROVIDER_STREAM_DISPLAY_SCHEMA: &str = "kiana.provider-stream-display.v1";
 pub const PROVIDER_DIAGNOSTICS_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const PROVIDER_DIAGNOSTICS_PROJECTION_STALE: &str = "provider_diagnostics_projection_stale";
 pub const PROVIDER_DIAGNOSTICS_CONNECTION_TEST_EXPLICIT: &str =
     "provider_connection_test_requires_explicit_admission";
 pub const PROVIDER_DIAGNOSTICS_SETTINGS_NO_INFERENCE: &str =
     "provider_settings_view_does_not_trigger_inference";
+pub const PROVIDER_LIVE_EFFECT_ADMISSION_REQUIRED: &str =
+    "provider_live_effect_requires_gateway_admission";
+pub const PROVIDER_UI_ACTION_STALE: &str = "provider_ui_action_stale";
+pub const PROVIDER_UI_ACTION_RUN_MISMATCH: &str = "provider_ui_action_run_mismatch";
+pub const PROVIDER_STREAM_DISPLAY_SEQUENCE_GAP: &str = "provider_stream_display_sequence_gap";
 const MAX_ENTRIES: usize = 4_096;
 const MAX_ERROR_TEXT: usize = 512;
 const MAX_ACTION_TEXT: usize = 256;
@@ -73,6 +84,41 @@ pub enum ProviderDisplayMode {
     Native,
     Synthetic,
     Buffered,
+}
+
+/// The user-facing surfaces that consume the same server-owned diagnostics projection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderSurface {
+    Cli,
+    Workbench,
+    Web,
+    Desktop,
+}
+
+impl ProviderSurface {
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Cli => "cli",
+            Self::Workbench => "workbench",
+            Self::Web => "web",
+            Self::Desktop => "desktop",
+        }
+    }
+
+    /// Desktop embeds the Web projection instead of maintaining a second diagnostics view.
+    pub const fn shares_web_projection(self) -> bool {
+        matches!(self, Self::Web | Self::Desktop)
+    }
+}
+
+/// Upstream effects that may only exist after an explicit gateway admission.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderUpstreamEffect {
+    CatalogRead,
+    ModelSmoke,
+    ConnectionTest,
 }
 
 /// The three explicit configuration/evidence states shown to users.
@@ -343,6 +389,46 @@ impl ProviderConfigCheck {
         }
         Ok(())
     }
+
+    /// Saving configuration is a local state only; it never contacts a provider.
+    pub fn saved(
+        snapshot_digest: impl Into<String>,
+        checked_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        Self::new(
+            ProviderConfigCheckState::Saved,
+            snapshot_digest,
+            checked_at_unix_ms,
+            None,
+        )
+    }
+
+    /// Static validation checks shape/digests only and still leaves live verification explicit.
+    pub fn static_validated(
+        snapshot_digest: impl Into<String>,
+        checked_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        Self::new(
+            ProviderConfigCheckState::StaticValidated,
+            snapshot_digest,
+            checked_at_unix_ms,
+            None,
+        )
+    }
+
+    /// Live verification is only recorded together with the explicit gateway evidence digest.
+    pub fn live_verified(
+        snapshot_digest: impl Into<String>,
+        checked_at_unix_ms: u64,
+        evidence_digest: Option<String>,
+    ) -> Result<Self, String> {
+        Self::new(
+            ProviderConfigCheckState::LiveVerified,
+            snapshot_digest,
+            checked_at_unix_ms,
+            evidence_digest,
+        )
+    }
 }
 
 /// Explicit connection-test admission. Merely opening a settings/catalog view cannot create this
@@ -359,6 +445,11 @@ pub struct ProviderConnectionTestRequest {
     pub gateway_admission_digest: String,
     pub explicit: bool,
     pub allow_inference: bool,
+    /// Epochs default to zero so a legacy client that omits them fails closed.
+    #[serde(default)]
+    pub authority_epoch: u64,
+    #[serde(default)]
+    pub config_epoch: u64,
 }
 
 impl ProviderConnectionTestRequest {
@@ -367,6 +458,8 @@ impl ProviderConnectionTestRequest {
             || self.version != PROVIDER_DIAGNOSTICS_VERSION
             || !self.explicit
             || !self.allow_inference
+            || self.authority_epoch == 0
+            || self.config_epoch == 0
         {
             return Err(PROVIDER_DIAGNOSTICS_CONNECTION_TEST_EXPLICIT.to_owned());
         }
@@ -385,6 +478,126 @@ impl ProviderConnectionTestRequest {
             "provider_connection_test_gateway_admission_digest",
         )
     }
+}
+
+/// A validated, explicit plan to test one configured connection. The plan still does not perform
+/// the request; it proves the caller obtained the same gateway admission reference as model
+/// execution before any upstream effect is allowed to start.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderConnectionTestPlan {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub profile: String,
+    pub model_id: String,
+    pub catalog_digest: String,
+    pub config_digest: String,
+    pub gateway_admission_digest: String,
+    pub authority_epoch: u64,
+    pub config_epoch: u64,
+}
+
+impl ProviderConnectionTestPlan {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_CONNECTION_TEST_PLAN_SCHEMA
+            || self.version != PROVIDER_DIAGNOSTICS_VERSION
+            || self.authority_epoch == 0
+            || self.config_epoch == 0
+        {
+            return Err("provider_connection_test_plan_invalid".to_owned());
+        }
+        required(&self.profile, "provider_connection_test_profile", 128)?;
+        required(&self.model_id, "provider_connection_test_model", 256)?;
+        digest(
+            &self.catalog_digest,
+            "provider_connection_test_catalog_digest",
+        )?;
+        digest(
+            &self.config_digest,
+            "provider_connection_test_config_digest",
+        )?;
+        digest(
+            &self.gateway_admission_digest,
+            "provider_connection_test_gateway_admission_digest",
+        )
+    }
+}
+
+/// A live catalog/smoke/connection test effect that has passed the explicit admission gate.
+/// Offline catalog reads and Fake provider smoke never construct this value.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderUpstreamAdmission {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub effect: ProviderUpstreamEffect,
+    pub profile: String,
+    pub model_id: String,
+    pub catalog_digest: String,
+    pub config_digest: String,
+    pub gateway_admission_digest: String,
+    pub authority_epoch: u64,
+    pub config_epoch: u64,
+}
+
+impl ProviderUpstreamAdmission {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_UPSTREAM_ADMISSION_SCHEMA
+            || self.version != PROVIDER_DIAGNOSTICS_VERSION
+            || self.authority_epoch == 0
+            || self.config_epoch == 0
+        {
+            return Err("provider_upstream_admission_invalid".to_owned());
+        }
+        required(&self.profile, "provider_upstream_admission_profile", 128)?;
+        required(&self.model_id, "provider_upstream_admission_model", 256)?;
+        digest(
+            &self.catalog_digest,
+            "provider_upstream_admission_catalog_digest",
+        )?;
+        digest(
+            &self.config_digest,
+            "provider_upstream_admission_config_digest",
+        )?;
+        digest(
+            &self.gateway_admission_digest,
+            "provider_upstream_admission_gateway_digest",
+        )
+    }
+}
+
+/// Offline catalog/smoke paths return `None`; a live path must present an explicit request that
+/// matches the current authority/config epochs. This is a pure decision helper and never opens a
+/// connection by itself.
+pub fn admit_provider_upstream_effect(
+    effect: ProviderUpstreamEffect,
+    live: bool,
+    request: Option<&ProviderConnectionTestRequest>,
+    authority_epoch: u64,
+    config_epoch: u64,
+) -> Result<Option<ProviderUpstreamAdmission>, String> {
+    if !live {
+        return Ok(None);
+    }
+    let request = request.ok_or_else(|| PROVIDER_LIVE_EFFECT_ADMISSION_REQUIRED.to_owned())?;
+    request.validate()?;
+    if request.authority_epoch != authority_epoch || request.config_epoch != config_epoch {
+        return Err(PROVIDER_DIAGNOSTICS_PROJECTION_STALE.to_owned());
+    }
+    let admission = ProviderUpstreamAdmission {
+        schema: PROVIDER_UPSTREAM_ADMISSION_SCHEMA.to_owned(),
+        version: PROVIDER_DIAGNOSTICS_VERSION,
+        effect,
+        profile: request.profile.clone(),
+        model_id: request.model_id.clone(),
+        catalog_digest: request.catalog_digest.clone(),
+        config_digest: request.config_digest.clone(),
+        gateway_admission_digest: request.gateway_admission_digest.clone(),
+        authority_epoch: request.authority_epoch,
+        config_epoch: request.config_epoch,
+    };
+    admission.validate()?;
+    Ok(Some(admission))
 }
 
 /// Cursor for the provider diagnostic projection. It is scoped by both authority and config
@@ -471,6 +684,301 @@ impl ProviderTerminalReplay {
             "provider_terminal_replay_receipt_digest",
         )?;
         safe_text(&self.outcome, "provider_terminal_replay_outcome", 128)
+    }
+}
+
+/// A settings/catalog view is read-only. It exposes an optional connection-test plan only when the
+/// caller explicitly supplied a validated gateway admission; opening the view never creates one.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderSettingsView {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub snapshot: ProviderDiagnosticsSnapshot,
+    pub connection_test: Option<ProviderConnectionTestPlan>,
+}
+
+impl ProviderSettingsView {
+    pub fn read_only(snapshot: ProviderDiagnosticsSnapshot) -> Result<Self, String> {
+        snapshot.validate()?;
+        Ok(Self {
+            schema: PROVIDER_SETTINGS_VIEW_SCHEMA.to_owned(),
+            version: PROVIDER_DIAGNOSTICS_VERSION,
+            snapshot,
+            connection_test: None,
+        })
+    }
+
+    pub fn with_connection_test(
+        snapshot: ProviderDiagnosticsSnapshot,
+        request: &ProviderConnectionTestRequest,
+        authority_epoch: u64,
+        config_epoch: u64,
+    ) -> Result<Self, String> {
+        let connection_test =
+            snapshot.connection_test_plan(request, authority_epoch, config_epoch)?;
+        Ok(Self {
+            schema: PROVIDER_SETTINGS_VIEW_SCHEMA.to_owned(),
+            version: PROVIDER_DIAGNOSTICS_VERSION,
+            snapshot,
+            connection_test: Some(connection_test),
+        })
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_SETTINGS_VIEW_SCHEMA
+            || self.version != PROVIDER_DIAGNOSTICS_VERSION
+        {
+            return Err("provider_settings_view_invalid".to_owned());
+        }
+        self.snapshot.validate()?;
+        if let Some(plan) = &self.connection_test {
+            plan.validate()?;
+            if plan.authority_epoch != self.snapshot.authority_epoch
+                || plan.config_epoch != self.snapshot.config_epoch
+            {
+                return Err("provider_settings_view_epoch_mismatch".to_owned());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn inference_triggered(&self) -> bool {
+        false
+    }
+}
+
+/// One server-owned projection rendered by CLI, Workbench, Web and Desktop. Only the `surface`
+/// label differs; the snapshot, cursor, actionable errors and terminal replay are identical.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderSurfaceProjection {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub surface: ProviderSurface,
+    pub snapshot: ProviderDiagnosticsSnapshot,
+    pub actionable_errors: Vec<ProviderDiagnosticError>,
+}
+
+impl ProviderSurfaceProjection {
+    pub fn new(
+        surface: ProviderSurface,
+        snapshot: ProviderDiagnosticsSnapshot,
+    ) -> Result<Self, String> {
+        snapshot.validate()?;
+        let actionable_errors = snapshot
+            .entries
+            .iter()
+            .filter_map(|entry| entry.error.clone())
+            .collect();
+        let projection = Self {
+            schema: PROVIDER_SURFACE_PROJECTION_SCHEMA.to_owned(),
+            version: PROVIDER_DIAGNOSTICS_VERSION,
+            surface,
+            snapshot,
+            actionable_errors,
+        };
+        projection.validate()?;
+        Ok(projection)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_SURFACE_PROJECTION_SCHEMA
+            || self.version != PROVIDER_DIAGNOSTICS_VERSION
+        {
+            return Err("provider_surface_projection_invalid".to_owned());
+        }
+        self.snapshot.validate()?;
+        let expected: Vec<_> = self
+            .snapshot
+            .entries
+            .iter()
+            .filter_map(|entry| entry.error.clone())
+            .collect();
+        if self.actionable_errors != expected {
+            return Err("provider_surface_projection_errors_mismatch".to_owned());
+        }
+        for error in &self.actionable_errors {
+            error.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Surface-independent fingerprint used to prove CLI/Workbench/Web/Desktop agree.
+    pub fn shared_digest(&self) -> String {
+        json_digest(&json!({
+            "snapshot": self.snapshot,
+            "actionable_errors": self.actionable_errors,
+        }))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderUiActionKind {
+    RefreshSnapshot,
+    RetryDisplay,
+    Cancel,
+    OpenSettings,
+}
+
+impl ProviderUiActionKind {
+    pub const fn mutates_active_run(self) -> bool {
+        matches!(self, Self::Cancel)
+    }
+}
+
+/// A UI action bound to the epoch and cursor the surface actually displayed. A stale action can
+/// request a fresh snapshot but can never mutate the active run or re-issue model work.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderUiAction {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub action: ProviderUiActionKind,
+    pub run_id: Option<String>,
+    pub authority_epoch: u64,
+    pub config_epoch: u64,
+    pub expected_sequence: u64,
+}
+
+impl ProviderUiAction {
+    pub fn new(
+        action: ProviderUiActionKind,
+        run_id: Option<String>,
+        authority_epoch: u64,
+        config_epoch: u64,
+        expected_sequence: u64,
+    ) -> Result<Self, String> {
+        let value = Self {
+            schema: PROVIDER_UI_ACTION_SCHEMA.to_owned(),
+            version: PROVIDER_DIAGNOSTICS_VERSION,
+            action,
+            run_id,
+            authority_epoch,
+            config_epoch,
+            expected_sequence,
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_UI_ACTION_SCHEMA
+            || self.version != PROVIDER_DIAGNOSTICS_VERSION
+            || self.authority_epoch == 0
+            || self.config_epoch == 0
+            || self.expected_sequence == 0
+        {
+            return Err("provider_ui_action_invalid".to_owned());
+        }
+        if self.action.mutates_active_run() && self.run_id.is_none() {
+            return Err("provider_ui_action_run_required".to_owned());
+        }
+        if let Some(run_id) = &self.run_id {
+            required(run_id, "provider_ui_action_run_id", 128)?;
+        }
+        Ok(())
+    }
+
+    pub fn authorize(
+        &self,
+        active_run_id: Option<&str>,
+        authority_epoch: u64,
+        config_epoch: u64,
+        current_sequence: u64,
+    ) -> Result<ProviderUiActionDisposition, String> {
+        self.validate()?;
+        if self.authority_epoch != authority_epoch
+            || self.config_epoch != config_epoch
+            || self.expected_sequence != current_sequence
+        {
+            return Err(PROVIDER_UI_ACTION_STALE.to_owned());
+        }
+        if self.run_id.is_some() && self.run_id.as_deref() != active_run_id {
+            return Err(PROVIDER_UI_ACTION_RUN_MISMATCH.to_owned());
+        }
+        Ok(ProviderUiActionDisposition {
+            action: self.action,
+            mutates_run: self.action.mutates_active_run(),
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderUiActionDisposition {
+    pub action: ProviderUiActionKind,
+    pub mutates_run: bool,
+}
+
+/// Fold already-observed display events into native/synthetic/buffered state. The type has no
+/// gateway handle and no method that could send a model request, so collecting a stream can never
+/// produce a second upstream attempt.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderStreamDisplay {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub display_mode: ProviderDisplayMode,
+    pub authority_epoch: u64,
+    pub config_epoch: u64,
+    pub sequence: u64,
+    pub request_attempts: u32,
+    pub terminal: Option<ProviderTerminalReplay>,
+    pub closed: bool,
+}
+
+impl ProviderStreamDisplay {
+    pub fn new(
+        display_mode: ProviderDisplayMode,
+        authority_epoch: u64,
+        config_epoch: u64,
+        request_attempts: u32,
+    ) -> Result<Self, String> {
+        if authority_epoch == 0 || config_epoch == 0 || request_attempts > 1 {
+            return Err("provider_stream_display_invalid".to_owned());
+        }
+        Ok(Self {
+            schema: PROVIDER_STREAM_DISPLAY_SCHEMA.to_owned(),
+            version: PROVIDER_DIAGNOSTICS_VERSION,
+            display_mode,
+            authority_epoch,
+            config_epoch,
+            sequence: 0,
+            request_attempts,
+            terminal: None,
+            closed: false,
+        })
+    }
+
+    pub fn observe(
+        &mut self,
+        sequence: u64,
+        terminal: Option<ProviderTerminalReplay>,
+    ) -> Result<(), String> {
+        if self.closed {
+            return Err("provider_stream_display_closed".to_owned());
+        }
+        if sequence == 0 || sequence != self.sequence.saturating_add(1) {
+            return Err(PROVIDER_STREAM_DISPLAY_SEQUENCE_GAP.to_owned());
+        }
+        if let Some(replay) = &terminal {
+            replay.validate()?;
+            if replay.sequence != sequence {
+                return Err("provider_stream_display_terminal_sequence_mismatch".to_owned());
+            }
+        }
+        self.sequence = sequence;
+        if terminal.is_some() {
+            self.terminal = terminal;
+            self.closed = true;
+        }
+        Ok(())
+    }
+
+    pub const fn request_attempts(&self) -> u32 {
+        self.request_attempts
     }
 }
 
@@ -603,6 +1111,51 @@ impl ProviderDiagnosticsSnapshot {
             .terminal
             .as_ref()
             .filter(|terminal| terminal.sequence > sequence))
+    }
+
+    /// Validate an explicit connection-test request against this snapshot. The request must carry
+    /// the same catalog/config digests and the current epochs; a settings view cannot synthesize it.
+    pub fn connection_test_plan(
+        &self,
+        request: &ProviderConnectionTestRequest,
+        authority_epoch: u64,
+        config_epoch: u64,
+    ) -> Result<ProviderConnectionTestPlan, String> {
+        self.validate_for_epoch(authority_epoch, config_epoch)?;
+        request.validate()?;
+        if request.authority_epoch != authority_epoch || request.config_epoch != config_epoch {
+            return Err(PROVIDER_DIAGNOSTICS_PROJECTION_STALE.to_owned());
+        }
+        if request.catalog_digest != self.catalog.catalog_digest {
+            return Err("provider_connection_test_catalog_mismatch".to_owned());
+        }
+        if request.config_digest != self.configuration.snapshot_digest {
+            return Err("provider_connection_test_config_mismatch".to_owned());
+        }
+        let profile = self
+            .configuration
+            .profiles
+            .iter()
+            .find(|profile| profile.profile == request.profile)
+            .ok_or_else(|| "provider_connection_test_profile_unknown".to_owned())?;
+        if profile.route.model_id != request.model_id {
+            return Err("provider_connection_test_model_mismatch".to_owned());
+        }
+        self.catalog
+            .resolve(&request.model_id, Some(&profile.route.connection_id), None)?;
+        let plan = ProviderConnectionTestPlan {
+            schema: PROVIDER_CONNECTION_TEST_PLAN_SCHEMA.to_owned(),
+            version: PROVIDER_DIAGNOSTICS_VERSION,
+            profile: request.profile.clone(),
+            model_id: request.model_id.clone(),
+            catalog_digest: request.catalog_digest.clone(),
+            config_digest: request.config_digest.clone(),
+            gateway_admission_digest: request.gateway_admission_digest.clone(),
+            authority_epoch: request.authority_epoch,
+            config_epoch: request.config_epoch,
+        };
+        plan.validate()?;
+        Ok(plan)
     }
 
     pub fn settings_read_only_marker() -> &'static str {

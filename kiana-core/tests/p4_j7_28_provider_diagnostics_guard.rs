@@ -11,13 +11,29 @@ fn provider_diagnostics_projection_is_server_owned_and_deny_first() {
         "ProviderDiagnosticsSnapshot",
         "ProviderDiagnosticsCursor",
         "ProviderConnectionTestRequest",
+        "ProviderConnectionTestPlan",
         "ProviderConfigCheckState",
         "ProviderDisplayMode",
         "ProviderUsageDiagnostic",
         "ProviderTerminalReplay",
+        "ProviderSurface",
+        "ProviderSurfaceProjection",
+        "ProviderSettingsView",
+        "ProviderUiAction",
+        "ProviderUiActionDisposition",
+        "ProviderStreamDisplay",
+        "ProviderUpstreamEffect",
+        "ProviderUpstreamAdmission",
         "PROVIDER_DIAGNOSTICS_PROJECTION_STALE",
+        "PROVIDER_LIVE_EFFECT_ADMISSION_REQUIRED",
+        "PROVIDER_UI_ACTION_STALE",
+        "PROVIDER_STREAM_DISPLAY_SEQUENCE_GAP",
         "validate_for_epoch",
         "terminal_after",
+        "connection_test_plan",
+        "admit_provider_upstream_effect",
+        "shared_digest",
+        "request_attempts",
         "PROVIDER_DIAGNOSTICS_CONNECTION_TEST_EXPLICIT",
         "ProviderDiagnosticsClientState",
         "project_provider_diagnostics",
@@ -50,12 +66,37 @@ fn provider_diagnostics_projection_is_server_owned_and_deny_first() {
     assert!(domain.contains("settings_read_only_marker"));
     assert!(client.contains("connection_test_request"));
     assert!(entrypoint.contains("render_provider_diagnostics"));
+    assert!(entrypoint.contains("render_provider_surface"));
+    assert!(entrypoint.contains("render_provider_settings"));
+    assert!(entrypoint.contains("render_provider_connection_test"));
+    assert!(entrypoint.contains("render_provider_config_check"));
     assert!(entrypoint.contains("render_provider_terminal_replay"));
     assert!(client.contains("CursorGap"));
     assert!(client.contains("snapshot.cursor.sequence != sequence"));
+    assert!(client.contains("begin_model_attempt"));
+    assert!(client.contains("authorize_ui_action"));
+    assert!(client.contains("settings_view"));
     assert!(domain.contains("self.sequence == 0"));
+    assert!(domain.contains("self.expected_sequence == 0"));
+    assert!(domain.contains("request_attempts > 1"));
     assert!(core.contains("StaleEpoch"));
     assert!(core.contains("terminal"));
+
+    for fixture in [
+        "three_surfaces_show_same_provider_diagnostics",
+        "model_settings_view_does_not_trigger_inference",
+        "stale_provider_ui_action_cannot_mutate_active_run",
+        "late_subscriber_observes_terminal_from_receipt",
+        "no_stream_collects_without_second_model_request",
+        "web_reconnect_never_retries_model_request",
+        "live_provider_effects_require_explicit_gateway_admission",
+        "save_static_validate_and_live_verify_are_distinct_states",
+    ] {
+        assert!(
+            baseline.contains(fixture),
+            "P4-J7-28 baseline must name fixture: {fixture}"
+        );
+    }
 
     for forbidden in [
         "reqwest::Client",

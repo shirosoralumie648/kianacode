@@ -5,7 +5,10 @@
 //! those fields become presence-only values and token-shaped text is redacted before it leaves an
 //! entrypoint.  This is a display boundary, not an authorization decision.
 
-use kiana_protocol::{ProviderDiagnosticsSnapshot, ProviderTerminalReplay};
+use kiana_protocol::{
+    ProviderConfigCheck, ProviderConnectionTestPlan, ProviderDiagnosticsSnapshot,
+    ProviderSettingsView, ProviderSurface, ProviderSurfaceProjection, ProviderTerminalReplay,
+};
 use serde_json::{Map, Value};
 
 const MAX_DIAGNOSTIC_DEPTH: usize = 32;
@@ -65,6 +68,35 @@ pub fn render_provider_diagnostics(
 ) -> Result<Value, String> {
     snapshot.validate()?;
     serde_json::to_value(snapshot).map_err(|_| "provider_diagnostics_encode_failed".to_owned())
+}
+
+/// Render the same diagnostics for any surface. The payload is identical except for the surface
+/// label, so CLI/Workbench/Web/Desktop cannot drift into separate diagnostic vocabularies.
+pub fn render_provider_surface(
+    snapshot: &ProviderDiagnosticsSnapshot,
+    surface: ProviderSurface,
+) -> Result<Value, String> {
+    let projection = ProviderSurfaceProjection::new(surface, snapshot.clone())?;
+    serde_json::to_value(projection).map_err(|_| "provider_surface_encode_failed".to_owned())
+}
+
+/// Render a settings/catalog view. This is a read-only projection and never creates a connection
+/// test or an upstream request.
+pub fn render_provider_settings(snapshot: &ProviderDiagnosticsSnapshot) -> Result<Value, String> {
+    let view = ProviderSettingsView::read_only(snapshot.clone())?;
+    serde_json::to_value(view).map_err(|_| "provider_settings_encode_failed".to_owned())
+}
+
+/// Render an already admitted connection-test plan. Rendering does not send the request.
+pub fn render_provider_connection_test(plan: &ProviderConnectionTestPlan) -> Result<Value, String> {
+    plan.validate()?;
+    serde_json::to_value(plan).map_err(|_| "provider_connection_test_encode_failed".to_owned())
+}
+
+/// Render save/static-validation/live-verification state without reading credential values back.
+pub fn render_provider_config_check(check: &ProviderConfigCheck) -> Result<Value, String> {
+    check.validate()?;
+    serde_json::to_value(check).map_err(|_| "provider_config_check_encode_failed".to_owned())
 }
 
 /// Render a committed terminal replay for a late subscriber without creating another model call.
