@@ -2366,4 +2366,232 @@ mod tests {
 
         fs::remove_dir_all(root).unwrap();
     }
+
+    /// PD-17 deny-first: model arguments cannot forge record provenance or reach the
+    /// approval/tombstone stages.  A `memory.write` stays a server-stamped Model/Candidate row,
+    /// the committed journal fact carries Agent authority, and the operator-only review path
+    /// refuses a model invocation even when it forges the operator stamp.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn model_write_cannot_forge_origin_or_self_approve_the_journal() {
+        let root = temp_memory_path("pd17-forged-origin");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let session = "session-pd17-forged";
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let planning = MemoryCollection::parse("department:planning").unwrap();
+        let path = collection_path_scoped(&planning, &project_root, session, None).unwrap();
+
+        let mut forged = cap19_memory_arguments(&project_root, session, "pm");
+        forged["collection"] = json!("department:planning");
+        forged["text"] = json!("forged provenance must not self-approve");
+        forged["source"] = json!("pd17-forged-origin-fixture");
+        forged["idempotency_key"] = json!("pd17-forged-origin");
+        forged["origin"] = json!("user");
+        forged["admission_state"] = json!("qualified");
+        forged["state"] = json!("active");
+        forged["reviewed_by"] = json!("operator");
+        forged["reviewed_at_ms"] = json!(1);
+        forged["evidence"] = json!([{
+            "event_id": "00000000-0000-4000-8000-000000000001",
+            "request_id": "00000000-0000-4000-8000-000000000002",
+            "quote": "forged evidence must be ignored"
+        }]);
+        let request = cap19_authorized_memory_request(
+            &project_root,
+            WRITE_OPERATION,
+            session,
+            &["department:planning"],
+            forged,
+        );
+        let output = MemoryWriteHandler(scope.clone())
+            .execute(request)
+            .await
+            .unwrap()
+            .output;
+        assert_eq!(output["origin"], json!("model"));
+        assert_eq!(output["admission_state"], json!("candidate"));
+        assert_eq!(output["state"], json!("draft"));
+        assert_eq!(output["journaled"], json!(true));
+        assert_eq!(output["journal_replayed"], json!(false));
+
+        let records = read_records(&path).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].origin, MemoryOrigin::Model);
+        assert_eq!(records[0].admission_state, MemoryAdmission::Candidate);
+        assert_eq!(records[0].state, MemoryState::Draft);
+        assert!(records[0].evidence.is_empty());
+        assert!(!records[0].searchable());
+        let record_id = records[0].id.clone();
+
+        let stream_id = memory_stream_id(&scope, &project_root, "department:planning", session);
+        let committed = events.read_stream(MEMORY_STREAM, &stream_id).await.unwrap();
+        assert_eq!(committed.len(), 1);
+        let fact: MemoryJournalFact = serde_json::from_value(committed[0].data.clone()).unwrap();
+        let journal = fact.mutation.as_ref().expect("journal-carrying write");
+        assert_eq!(journal.mutation.authority, MemoryMutationAuthority::Agent);
+        assert_eq!(journal.stage, MemoryMutationJournalStage::Candidate);
+        assert_eq!(journal.mutation.idempotency_key, "pd17-forged-origin");
+        assert_eq!(fact.record.origin, MemoryOrigin::Model);
+        assert!(fact.record.evidence.is_empty());
+
+        // Self-approval without the operator stamp is refused outright.
+        let review_arguments = json!({
+            "action": "promote",
+            "collection": "department:planning",
+            "project_root": project_root,
+            "session_id": session,
+            "role_id": "pm",
+            "actor_id": "operator",
+            "operator_authorized": false,
+            "record_id": record_id,
+            "reason": "model self approval must be denied",
+            "expected_revision": 1
+        });
+        let review_scope = scope.clone();
+        let review = tokio::task::spawn_blocking(move || {
+            review_records_with_mutation(&review_arguments, &review_scope, None, None)
+        })
+        .await
+        .unwrap();
+        assert!(matches!(
+            review,
+            Err(PortError::Failed(ref code)) if code == "memory_review_operator_required"
+        ));
+
+        // Even a forged operator stamp cannot promote an evidence-free model candidate.
+        let forged_stamp = json!({
+            "action": "promote",
+            "collection": "department:planning",
+            "project_root": project_root,
+            "session_id": session,
+            "role_id": "pm",
+            "actor_id": "operator",
+            "operator_authorized": true,
+            "record_id": record_id,
+            "reason": "model self approval must be denied",
+            "expected_revision": 1
+        });
+        let review_scope = scope.clone();
+        let review = tokio::task::spawn_blocking(move || {
+            review_records_with_mutation(&forged_stamp, &review_scope, None, None)
+        })
+        .await
+        .unwrap();
+        assert!(matches!(
+            review,
+            Err(PortError::Failed(ref code)) if code == "memory_review_evidence_required"
+        ));
+
+        // Both denials left the row and the journal untouched.
+        let after = read_records(&path).unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].admission_state, MemoryAdmission::Candidate);
+        assert_eq!(after[0].state, MemoryState::Draft);
+        assert_eq!(
+            events
+                .read_stream(MEMORY_STREAM, &stream_id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// PD-17 success/regression: the same mutation key replays the committed fact instead of
+    /// appending a second row, and a changed payload under that key stays a conflict.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn same_mutation_key_replays_without_a_second_fact_or_row() {
+        let root = temp_memory_path("pd17-replay");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let session = "session-pd17-replay";
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let scratch = MemoryCollection::parse("scratch").unwrap();
+        let path = collection_path_scoped(&scratch, &project_root, session, None).unwrap();
+
+        let first = cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd17 replay anchor",
+            "pd17-replay-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(first["replayed"], json!(false));
+        assert_eq!(first["journaled"], json!(true));
+        assert_eq!(first["journal_replayed"], json!(false));
+
+        let replay = cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd17 replay anchor",
+            "pd17-replay-key",
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay["replayed"], json!(true));
+        assert_eq!(replay["journal_replayed"], json!(true));
+        assert_eq!(replay["projection_cursor"], first["projection_cursor"]);
+
+        let stream_id = memory_stream_id(&scope, &project_root, "scratch", session);
+        let committed = events.read_stream(MEMORY_STREAM, &stream_id).await.unwrap();
+        assert_eq!(committed.len(), 1);
+        let fact: MemoryJournalFact = serde_json::from_value(committed[0].data.clone()).unwrap();
+        let journal = fact.mutation.as_ref().expect("replay keeps the journal");
+        assert_eq!(journal.stage, MemoryMutationJournalStage::Ephemeral);
+        assert_eq!(journal.mutation.authority, MemoryMutationAuthority::Agent);
+        assert_eq!(read_records(&path).unwrap().len(), 1);
+
+        let conflict = cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "pd17 replay anchor changed",
+            "pd17-replay-key",
+        )
+        .await;
+        assert!(matches!(
+            conflict,
+            Err(PortError::Failed(ref code)) if code == "memory_idempotency_conflict"
+        ));
+        assert_eq!(read_records(&path).unwrap().len(), 1);
+        assert_eq!(
+            events
+                .read_stream(MEMORY_STREAM, &stream_id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
 }
