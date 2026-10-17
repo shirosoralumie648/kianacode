@@ -1,4 +1,5 @@
 use kiana_domain::*;
+use serde_json::json;
 
 fn digest(seed: char) -> String {
     format!("sha256:{}", seed.to_string().repeat(64))
@@ -275,5 +276,355 @@ fn cost_events_replay_latest_measured_without_double_counting_estimate() {
     assert_eq!(
         projection.measured_total.as_ref().map(|money| money.micros),
         Some(29)
+    );
+}
+
+#[test]
+fn estimate_scope_drift_and_invalid_observation_are_refused() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+
+    let mut foreign_provider = card.clone();
+    foreign_provider.provider_id = "provider:other".to_owned();
+    foreign_provider.rate_card_digest = foreign_provider.digest();
+    assert_eq!(
+        CostBreakdown::from_usage(&usage, Some(&foreign_provider), 1, 2_000).unwrap_err(),
+        "cost_rate_card_scope_mismatch"
+    );
+
+    let mut foreign_model = card.clone();
+    foreign_model.model_selector = "model:other".to_owned();
+    foreign_model.rate_card_digest = foreign_model.digest();
+    assert_eq!(
+        CostBreakdown::from_usage(&usage, Some(&foreign_model), 1, 2_000).unwrap_err(),
+        "cost_rate_card_scope_mismatch"
+    );
+
+    // The card is not yet effective at the observation instant.
+    assert_eq!(
+        CostBreakdown::from_usage(&usage, Some(&card), 1, 999).unwrap_err(),
+        "cost_rate_card_scope_mismatch"
+    );
+
+    assert_eq!(
+        CostBreakdown::from_usage(&usage, Some(&card), 0, 2_000).unwrap_err(),
+        "cost_observation_invalid"
+    );
+    assert_eq!(
+        CostBreakdown::from_usage(&usage, Some(&card), 1, 0).unwrap_err(),
+        "cost_observation_invalid"
+    );
+}
+
+#[test]
+fn measured_rejects_negative_amount_and_scope_or_currency_drift() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let receipt = || ProviderReceiptRef::new("provider-receipt-fence").expect("receipt");
+
+    assert_eq!(
+        CostBreakdown::from_provider_receipt(
+            &usage,
+            Some(&card),
+            Money::new("USD", -1).expect("money"),
+            receipt(),
+            2_000,
+        )
+        .unwrap_err(),
+        "cost_measured_amount_negative"
+    );
+    assert_eq!(
+        CostBreakdown::from_provider_receipt(
+            &usage,
+            Some(&card),
+            Money::new("EUR", 19).expect("money"),
+            receipt(),
+            2_000,
+        )
+        .unwrap_err(),
+        "cost_measured_currency_mismatch"
+    );
+    assert_eq!(
+        CostBreakdown::from_provider_receipt(
+            &usage,
+            Some(&card),
+            Money::new("USD", 19).expect("money"),
+            receipt(),
+            999,
+        )
+        .unwrap_err(),
+        "cost_rate_card_scope_mismatch"
+    );
+    assert_eq!(
+        CostBreakdown::from_provider_receipt(
+            &usage,
+            None,
+            Money::new("USD", 19).expect("money"),
+            receipt(),
+            2_000,
+        )
+        .unwrap_err(),
+        "cost_measured_rate_card_missing"
+    );
+}
+
+#[test]
+fn estimate_lines_use_checked_integer_micros() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let breakdown = CostBreakdown::from_usage(&usage, Some(&card), 1, 2_000).expect("estimate");
+    assert_eq!(breakdown.kind.amount().map(|money| money.micros), Some(37));
+    let input_line = breakdown
+        .lines
+        .iter()
+        .find(|line| line.dimension == BillingPriceDimension::InputTokens)
+        .expect("input line");
+    assert_eq!(input_line.units, Some(10));
+    assert_eq!(input_line.unit_price_micros, Some(2));
+    assert_eq!(
+        input_line.amount.as_ref().map(|money| money.micros),
+        Some(20)
+    );
+    let request_line = breakdown
+        .lines
+        .iter()
+        .find(|line| line.dimension == BillingPriceDimension::Requests)
+        .expect("request line");
+    assert_eq!(request_line.units, Some(1));
+    assert_eq!(
+        request_line.amount.as_ref().map(|money| money.micros),
+        Some(5)
+    );
+    breakdown.validate().expect("valid breakdown");
+}
+
+#[test]
+fn measured_zero_is_an_explicit_observation_and_unknown_never_carries_an_amount() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let measured = CostBreakdown::from_provider_receipt(
+        &usage,
+        Some(&card),
+        Money::new("USD", 0).expect("money"),
+        ProviderReceiptRef::new("provider-receipt-zero").expect("receipt"),
+        2_000,
+    )
+    .expect("explicit zero receipt");
+    assert!(measured.is_measured());
+    assert_eq!(measured.kind.amount().map(|money| money.micros), Some(0));
+    assert_eq!(
+        measured.provider_receipt().map(ProviderReceiptRef::as_str),
+        Some("provider-receipt-zero")
+    );
+
+    let unknown = CostBreakdown::from_usage(&usage, None, 1, 2_000).expect("unknown");
+    assert!(unknown.kind.amount().is_none());
+    let encoded = serde_json::to_value(&unknown).expect("encoded");
+    assert!(encoded.get("provider_receipt").is_none());
+    assert!(encoded["kind"]["unknown"].get("amount").is_none());
+    assert_eq!(encoded["kind"]["unknown"]["reason"], "rate_card_missing");
+
+    // A fabricated amount smuggled into the unknown payload cannot be decoded.
+    let mut tampered = encoded;
+    tampered["kind"]["unknown"]["amount"] = json!({
+        "schema": "kiana.money.v1",
+        "currency": "USD",
+        "micros": 0
+    });
+    assert!(serde_json::from_value::<CostBreakdown>(tampered).is_err());
+}
+
+#[test]
+fn receipt_breakdown_requires_unique_attempts_and_rejects_replayed_entries() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let estimate = CostBreakdown::from_usage(&usage, Some(&card), 1, 2_000).expect("estimate");
+    let orphan = CostBreakdown::unknown(
+        estimate.run_id,
+        None,
+        digest('c'),
+        UsageConfidence::Unknown,
+        BillingUnknownReason::Partial,
+    )
+    .expect("orphan unknown");
+    assert_eq!(
+        ReceiptCostBreakdown::from_entries(
+            vec![estimate.clone(), orphan],
+            1,
+            vec![EventId::new(), EventId::new()],
+        )
+        .unwrap_err(),
+        "receipt_cost_attempt_missing"
+    );
+
+    let mut second_usage = usage.clone();
+    second_usage.usage_id = UsageId::new();
+    second_usage.attempt_id = estimate.attempt_id.expect("attempt");
+    second_usage.usage_digest = second_usage.digest();
+    let second =
+        CostBreakdown::from_usage(&second_usage, Some(&card), 1, 2_000).expect("second estimate");
+    assert_eq!(
+        ReceiptCostBreakdown::from_entries(
+            vec![estimate.clone(), second],
+            1,
+            vec![EventId::new(), EventId::new()],
+        )
+        .unwrap_err(),
+        "receipt_cost_attempt_duplicate"
+    );
+
+    assert_eq!(
+        ReceiptCostBreakdown::from_entries(
+            vec![estimate.clone(), estimate],
+            1,
+            vec![EventId::new(), EventId::new()],
+        )
+        .unwrap_err(),
+        "receipt_cost_entry_duplicate"
+    );
+}
+
+#[test]
+fn receipt_breakdown_recomputes_totals_and_rejects_tampered_totals() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let estimate = CostBreakdown::from_usage(&usage, Some(&card), 1, 2_000).expect("estimate");
+    let expected = estimate.kind.amount().expect("amount").clone();
+    let mut receipt = ReceiptCostBreakdown::from_entries(vec![estimate], 1, vec![EventId::new()])
+        .expect("receipt breakdown");
+    assert_eq!(receipt.estimated_total.as_ref(), Some(&expected));
+    assert_eq!(receipt.measured_total, None);
+    assert!(receipt.unknown_reasons.is_empty());
+
+    receipt.estimated_total = Some(Money::new("USD", expected.micros + 1).expect("money"));
+    receipt.breakdown_digest = receipt.digest();
+    assert_eq!(
+        receipt.validate().unwrap_err(),
+        "receipt_cost_breakdown_total_mismatch"
+    );
+}
+
+#[test]
+fn cost_reducer_refuses_duplicate_stream_gaps_kind_drift_and_usage_digest_drift() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let estimate = CostBreakdown::from_usage(&usage, Some(&card), 1, 2_000).expect("estimate");
+    let measured = CostBreakdown::from_provider_receipt(
+        &usage,
+        Some(&card),
+        Money::new("USD", 29).expect("money"),
+        ProviderReceiptRef::new("provider-receipt-reducer").expect("receipt"),
+        2_000,
+    )
+    .expect("measured");
+    let first = estimate
+        .to_runtime_event(RequestId::new(), 1)
+        .expect("event");
+    let second = measured
+        .to_runtime_event(RequestId::new(), 2)
+        .expect("event");
+
+    let mut gapped = second.clone();
+    gapped.stream_version = Some(3);
+    assert_eq!(
+        project_receipt_cost_breakdown(usage.run_id, &[first.clone(), gapped]).unwrap_err(),
+        "receipt_cost_event_revision_gap"
+    );
+
+    let mut duplicate = second.clone();
+    duplicate.sequence = 3;
+    duplicate.event_id = first.event_id;
+    assert_eq!(
+        project_receipt_cost_breakdown(usage.run_id, &[first.clone(), duplicate]).unwrap_err(),
+        "receipt_cost_duplicate_source_event"
+    );
+
+    let mut drifted_kind = second.clone();
+    drifted_kind.kind = COST_EVENT_ESTIMATED.to_owned();
+    assert_eq!(
+        project_receipt_cost_breakdown(usage.run_id, &[first.clone(), drifted_kind]).unwrap_err(),
+        "receipt_cost_event_kind_mismatch"
+    );
+
+    let mut drifted_usage = usage.clone();
+    drifted_usage.usage_id = UsageId::new();
+    drifted_usage.usage_digest = drifted_usage.digest();
+    let drifted_cost = CostBreakdown::from_provider_receipt(
+        &drifted_usage,
+        Some(&card),
+        Money::new("USD", 29).expect("money"),
+        ProviderReceiptRef::new("provider-receipt-drift").expect("receipt"),
+        2_000,
+    )
+    .expect("drifted measured");
+    let drifted_event = drifted_cost
+        .to_runtime_event(RequestId::new(), 2)
+        .expect("event");
+    assert_eq!(
+        project_receipt_cost_breakdown(usage.run_id, &[first.clone(), drifted_event]).unwrap_err(),
+        "receipt_cost_event_transition_invalid"
+    );
+
+    let mut foreign_stream = second;
+    foreign_stream.aggregate_id = Some(AttemptId::new().to_string());
+    assert_eq!(
+        project_receipt_cost_breakdown(usage.run_id, &[first, foreign_stream]).unwrap_err(),
+        "receipt_cost_event_stream_mismatch"
+    );
+}
+
+#[test]
+fn estimate_and_measured_facts_are_registered_billing_attempt_events() {
+    let usage = usage(UsageConfidence::Known);
+    let card = card();
+    let estimate = CostBreakdown::from_usage(&usage, Some(&card), 1, 2_000).expect("estimate");
+    let measured = CostBreakdown::from_provider_receipt(
+        &usage,
+        Some(&card),
+        Money::new("USD", 29).expect("money"),
+        ProviderReceiptRef::new("provider-receipt-event").expect("receipt"),
+        2_000,
+    )
+    .expect("measured");
+    let unknown = CostBreakdown::unknown(
+        usage.run_id,
+        Some(AttemptId::new()),
+        digest('e'),
+        UsageConfidence::Unknown,
+        BillingUnknownReason::ResultUnknown,
+    )
+    .expect("unknown");
+
+    for (fact, event_kind) in [
+        (estimate.clone(), COST_EVENT_ESTIMATED),
+        (measured.clone(), COST_EVENT_MEASURED),
+        (unknown, COST_EVENT_UNKNOWN),
+    ] {
+        let runtime = fact.to_runtime_event(RequestId::new(), 1).expect("event");
+        assert_eq!(runtime.kind, event_kind);
+        assert_eq!(runtime.aggregate_type.as_deref(), Some("billing_attempt"));
+        validate_runtime_event(&runtime).expect("registered cost fact");
+        validate_event_payload(&runtime.kind, &runtime.data).expect("registered cost payload");
+    }
+
+    let estimate_event = estimate
+        .to_runtime_event(RequestId::new(), 1)
+        .expect("event");
+    let mut missing_attempt = estimate_event.clone();
+    missing_attempt
+        .data
+        .as_object_mut()
+        .expect("object")
+        .remove("attempt_id");
+    assert_eq!(
+        validate_event_payload(COST_EVENT_ESTIMATED, &missing_attempt.data).unwrap_err(),
+        "event_required_id_missing:attempt_id"
+    );
+
+    let mut extra_field = estimate_event;
+    extra_field.data["permit_id"] = json!("permit-1");
+    assert_eq!(
+        validate_event_payload(COST_EVENT_ESTIMATED, &extra_field.data).unwrap_err(),
+        "event_payload_unknown_field"
     );
 }

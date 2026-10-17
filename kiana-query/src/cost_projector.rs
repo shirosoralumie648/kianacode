@@ -65,8 +65,9 @@ impl CostReceiptProjection {
     /// 确认外层 Query envelope 与 Domain breakdown 的 Run/来源字段一致，再校验 breakdown 本身。
     ///
     /// 【调用者】`project_cost_receipt()` 返回前调用；消费者也可以在接收对象后再次调用。
-    /// 【拒绝条件】schema/version、Run、非零 cursor、来源 ID 列表非空/长度/内容不一致，或
-    /// breakdown 合同错误时返回 Query 层错误。错误只拒绝结果，不触发重试或写入。
+    /// 【拒绝条件】schema/version、Run、非零 cursor、来源 ID 列表非空/长度/内容不一致、
+    /// envelope cursor 与 breakdown cursor 不相等，或 breakdown 合同错误时返回 Query 层错误。
+    /// 错误只拒绝结果，不触发重试或写入。
     /// 【边界】这里只检查外层字段与 Domain 对象的一致性；金额和 attempt transition 由 Domain validator
     /// 负责，本函数不会访问原始事件重新计算金额。
     pub fn validate(&self) -> Result<(), CostQueryProjectionError> {
@@ -77,6 +78,7 @@ impl CostReceiptProjection {
             || self.run_id.as_uuid().is_nil()
             || self.breakdown.run_id != self.run_id
             || self.source_cursor == 0
+            || self.source_cursor != self.breakdown.source_cursor
             || self.source_event_ids.is_empty()
             || self.source_event_ids.len() != self.breakdown.source_event_ids.len()
             || self.source_event_ids != self.breakdown.source_event_ids

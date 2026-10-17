@@ -110,3 +110,105 @@ fn query_projector_source_guard_is_read_only() {
         );
     }
 }
+
+/// 信封 cursor 必须与 Domain breakdown cursor 相等，漂移的 envelope 一律拒绝。
+#[test]
+fn query_projector_rejects_envelope_cursor_drift() {
+    let usage = usage();
+    let estimate = CostBreakdown::from_usage(&usage, Some(&card()), 1, 2_000).expect("estimate");
+    let event = estimate
+        .to_runtime_event(RequestId::new(), 4)
+        .expect("event");
+    let mut projection = project_cost_receipt(usage.run_id, &[event]).expect("projection");
+    projection.source_cursor += 1;
+    assert_eq!(
+        projection.validate().unwrap_err(),
+        CostQueryProjectionError::Invalid("cost_query_projection_header_invalid".to_owned())
+    );
+
+    let event = estimate
+        .to_runtime_event(RequestId::new(), 4)
+        .expect("event");
+    let mut projection = project_cost_receipt(usage.run_id, &[event]).expect("projection");
+    projection.breakdown.source_cursor += 3;
+    projection.breakdown.breakdown_digest = projection.breakdown.digest();
+    assert_eq!(
+        projection.validate().unwrap_err(),
+        CostQueryProjectionError::Invalid("cost_query_projection_header_invalid".to_owned())
+    );
+}
+
+/// Unknown 显示原因且没有金额；measured 只带 provider receipt 的金额。
+#[test]
+fn query_projector_keeps_unknown_reasons_and_measured_total_separate() {
+    let usage = usage();
+    let unknown = CostBreakdown::unknown(
+        usage.run_id,
+        Some(AttemptId::new()),
+        digest('b'),
+        UsageConfidence::Unknown,
+        BillingUnknownReason::ResultUnknown,
+    )
+    .expect("unknown");
+    let event = unknown
+        .to_runtime_event(RequestId::new(), 2)
+        .expect("event");
+    let projection = project_cost_receipt(usage.run_id, &[event]).expect("projection");
+    assert_eq!(projection.breakdown.estimated_total, None);
+    assert_eq!(projection.breakdown.measured_total, None);
+    assert_eq!(
+        projection.unknown_reasons(),
+        &[BillingUnknownReason::ResultUnknown]
+    );
+
+    let measured = CostBreakdown::from_provider_receipt(
+        &usage,
+        Some(&card()),
+        Money::new("USD", 7).expect("money"),
+        ProviderReceiptRef::new("query-receipt-measured").expect("receipt"),
+        2_000,
+    )
+    .expect("measured");
+    let event = measured
+        .to_runtime_event(RequestId::new(), 3)
+        .expect("event");
+    let projection = project_cost_receipt(usage.run_id, &[event]).expect("projection");
+    assert_eq!(
+        projection
+            .breakdown
+            .measured_total
+            .as_ref()
+            .map(|money| money.micros),
+        Some(7)
+    );
+    assert_eq!(projection.breakdown.estimated_total, None);
+    assert!(projection.unknown_reasons().is_empty());
+}
+
+/// 重复事件与解码失败的 payload 在 Query 层同样 fail-closed。
+#[test]
+fn query_projector_rejects_duplicate_and_malformed_cost_facts() {
+    let usage = usage();
+    let estimate = CostBreakdown::from_usage(&usage, Some(&card()), 1, 2_000).expect("estimate");
+    let event = estimate
+        .to_runtime_event(RequestId::new(), 4)
+        .expect("event");
+    let mut duplicate = event.clone();
+    duplicate.sequence = 5;
+    assert_eq!(
+        project_cost_receipt(usage.run_id, &[event, duplicate]).unwrap_err(),
+        CostQueryProjectionError::Invalid("receipt_cost_duplicate_source_event".to_owned())
+    );
+
+    let malformed = RuntimeEvent::new(
+        RequestId::new(),
+        1,
+        "usage.cost_measured",
+        serde_json::json!({"run_id": usage.run_id.to_string()}),
+    )
+    .expect("event");
+    assert_eq!(
+        project_cost_receipt(usage.run_id, &[malformed]).unwrap_err(),
+        CostQueryProjectionError::Invalid("receipt_cost_event_decode_failed".to_owned())
+    );
+}

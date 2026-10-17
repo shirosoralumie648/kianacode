@@ -280,6 +280,9 @@ impl CostBreakdown {
         rate_card.validate()?;
         validate_card_scope(usage, rate_card, observed_at_unix_ms)?;
         amount.validate()?;
+        if amount.micros < 0 {
+            return Err("cost_measured_amount_negative".to_owned());
+        }
         if amount.currency != rate_card.currency {
             return Err("cost_measured_currency_mismatch".to_owned());
         }
@@ -484,6 +487,15 @@ impl ReceiptCostBreakdown {
         {
             return Err("receipt_cost_entry_duplicate".to_owned());
         }
+        let mut attempts = BTreeSet::new();
+        for entry in &entries {
+            let attempt_id = entry
+                .attempt_id
+                .ok_or_else(|| "receipt_cost_attempt_missing".to_owned())?;
+            if !attempts.insert(attempt_id) {
+                return Err("receipt_cost_attempt_duplicate".to_owned());
+            }
+        }
         let (estimated_total, measured_total, unknown_reasons) = derive_totals(&entries)?;
         let mut result = Self {
             schema: RECEIPT_COST_BREAKDOWN_SCHEMA.to_owned(),
@@ -522,12 +534,22 @@ impl ReceiptCostBreakdown {
             return Err("receipt_cost_breakdown_header_invalid".to_owned());
         }
         let mut seen = BTreeSet::new();
-        if self.entries.iter().any(|entry| {
-            entry.run_id != self.run_id
-                || entry.validate().is_err()
-                || !seen.insert(entry.breakdown_digest.clone())
-        }) {
-            return Err("receipt_cost_breakdown_entries_invalid".to_owned());
+        for entry in &self.entries {
+            if entry.run_id != self.run_id || entry.validate().is_err() {
+                return Err("receipt_cost_breakdown_entries_invalid".to_owned());
+            }
+            if !seen.insert(entry.breakdown_digest.clone()) {
+                return Err("receipt_cost_entry_duplicate".to_owned());
+            }
+        }
+        let mut attempts = BTreeSet::new();
+        for entry in &self.entries {
+            let attempt_id = entry
+                .attempt_id
+                .ok_or_else(|| "receipt_cost_attempt_missing".to_owned())?;
+            if !attempts.insert(attempt_id) {
+                return Err("receipt_cost_attempt_duplicate".to_owned());
+            }
         }
         let (estimated_total, measured_total, unknown_reasons) = derive_totals(&self.entries)?;
         if self.estimated_total != estimated_total
