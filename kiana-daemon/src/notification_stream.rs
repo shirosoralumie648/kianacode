@@ -3,6 +3,11 @@
 //! This is a cursor/disposition adapter, not a second bus. It consumes `UiFeedFrameV1` produced by
 //! the existing `RunStreamBus`, requires snapshot hydration after gaps, and never executes or
 //! retries a notification action.
+//!
+//! Three honesty rules: an already-seen position is reported as `Replayed` instead of being
+//! delivered twice, a replayed terminal still reports the run's terminal fact (terminal
+//! retention), and a frame the surface cannot interpret is reported as `Unknown` with a snapshot
+//! requirement instead of being presented as a delta.
 
 use kiana_domain::RunId;
 use kiana_protocol::{UiFeedFrameKind, UiFeedFrameV1, UiFeedGapReason};
@@ -35,6 +40,10 @@ pub enum NotificationStreamDisposition {
     Replayed,
     Heartbeat,
     Terminal,
+    /// A frame the surface cannot interpret.  It keeps its feed position (the sequence is still
+    /// the server's) but must never be rendered as content, and the caller has to re-hydrate the
+    /// authoritative snapshot before it observes more deltas.
+    Unknown,
     Disposed,
 }
 
@@ -139,6 +148,18 @@ impl NotificationStreamBridge {
                 UiFeedGapReason::ReplayExpired,
             ));
         }
+        // A replayed terminal is still this run's terminal fact: terminal retention has to stay
+        // visible to a reconnecting client even when the frame sits at a position it already saw.
+        // Degrading it to `Replayed` would hide that the run is finished.
+        if frame.terminal {
+            self.cursor.feed_sequence = self.cursor.feed_sequence.max(frame.cursor.feed_sequence);
+            self.cursor.source_cursor = self
+                .cursor
+                .source_cursor
+                .max(frame.cursor.snapshot_cursor.sequence);
+            self.cursor.terminal = true;
+            return Ok(NotificationStreamDisposition::Terminal);
+        }
         if frame.cursor.feed_sequence <= self.cursor.feed_sequence {
             return Ok(NotificationStreamDisposition::Replayed);
         }
@@ -158,9 +179,11 @@ impl NotificationStreamBridge {
             .cursor
             .source_cursor
             .max(frame.cursor.snapshot_cursor.sequence);
-        if frame.terminal {
-            self.cursor.terminal = true;
-            return Ok(NotificationStreamDisposition::Terminal);
+        if frame.kind == UiFeedFrameKind::Unknown {
+            // The position is real, but the payload is not renderable.  Ask for the snapshot
+            // instead of letting the surface present an uninterpreted frame as a delta.
+            self.snapshot_required = true;
+            return Ok(NotificationStreamDisposition::Unknown);
         }
         self.snapshot_required = false;
         Ok(NotificationStreamDisposition::Accepted {

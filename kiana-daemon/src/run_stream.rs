@@ -394,7 +394,15 @@ impl RunStreamBus {
             } else if cursor.authority_epoch != self.epoch {
                 gap_reason = Some(UiFeedGapReason::OldEpoch);
             } else if cursor.feed_sequence > current_sequence {
-                gap_reason = Some(UiFeedGapReason::SequenceAhead);
+                // The instance and epoch already matched, so a cursor ahead of a *fresh* channel
+                // is not a client that skipped ahead: the bounded window (including the retained
+                // terminal) for this run is gone.  Both cases need a snapshot, but the reason has
+                // to stay honest instead of blaming the caller for a server-side retention.
+                gap_reason = Some(if current_sequence == 0 {
+                    UiFeedGapReason::TerminalRetention
+                } else {
+                    UiFeedGapReason::SequenceAhead
+                });
             } else if cursor.feed_sequence < current_sequence {
                 let first = history.first().map(|event| event.sequence);
                 if first.is_none_or(|sequence| sequence > cursor.feed_sequence.saturating_add(1)) {
@@ -1217,6 +1225,109 @@ mod tests {
         assert!(replay.replay);
         assert_eq!(replay.cursor.feed_sequence, cursor.feed_sequence + 1);
         assert!(!resumed.has_pending_gap());
+    }
+
+    #[tokio::test]
+    async fn resumed_feed_replays_nothing_when_the_cursor_is_already_current() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut live = bus.subscribe_feed_after(run_id, None);
+        assert_eq!(
+            live.recv_frame().await.unwrap().kind,
+            UiFeedFrameKind::SnapshotBoundary
+        );
+        bus.publish_delta(run_id, "one".to_owned());
+        let current = live.recv_frame().await.unwrap();
+        assert_eq!(current.kind, UiFeedFrameKind::Delta);
+        assert_eq!(current.cursor.feed_sequence, 1);
+        assert!(!current.replay);
+        drop(live);
+
+        let mut duplicate = bus.subscribe_feed_after(run_id, Some(&current.cursor));
+        // A reconnecting client that already saw this position gets the boundary only: the frame
+        // it already consumed must never be replayed as a second item.
+        assert_eq!(duplicate.frames.len(), 1);
+        assert_eq!(
+            duplicate.recv_frame().await.unwrap().kind,
+            UiFeedFrameKind::SnapshotBoundary
+        );
+        assert!(!duplicate.has_pending_gap());
+        assert!(duplicate.frames.is_empty());
+    }
+
+    #[tokio::test]
+    async fn retired_feed_window_reports_terminal_retention_and_requires_snapshot() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut live = bus.subscribe_feed_after(run_id, None);
+        let boundary = live.recv_frame().await.unwrap();
+        assert_eq!(boundary.kind, UiFeedFrameKind::SnapshotBoundary);
+        bus.publish_delta(run_id, "one".to_owned());
+        let retained = live.recv_frame().await.unwrap();
+        let cursor = retained.cursor.clone();
+        assert_eq!(boundary.cursor.feed_sequence, 0);
+        assert_eq!(cursor.feed_sequence, 1);
+        drop(live);
+
+        // Fill the retained-run table until the bounded bus drops this run's window entirely.
+        for _ in 0..=MAX_RETAINED_RUNS {
+            bus.publish_delta(RunId::new(), "prune".to_owned());
+        }
+
+        let mut resumed = bus.subscribe_feed_after(run_id, Some(&cursor));
+        let gap = resumed.recv_frame().await.unwrap();
+        assert_eq!(gap.kind, UiFeedFrameKind::Gap);
+        let gap = gap.gap.expect("retention gap carries its range");
+        assert_eq!(gap.reason, UiFeedGapReason::TerminalRetention);
+        assert!(gap.snapshot_required);
+        assert_eq!(gap.from.as_ref().map(|from| from.feed_sequence), Some(1));
+
+        // The boundary after the gap is the server's current cursor, never the stale request.
+        let boundary = resumed.recv_frame().await.unwrap();
+        assert_eq!(boundary.kind, UiFeedFrameKind::SnapshotBoundary);
+        assert_eq!(boundary.cursor.feed_sequence, 0);
+        assert_ne!(boundary.cursor.feed_sequence, cursor.feed_sequence);
+    }
+
+    #[tokio::test]
+    async fn stalled_consumer_keeps_the_queue_and_history_bounded() {
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let mut stalled = bus.subscribe_feed_after(run_id, None);
+        assert_eq!(
+            stalled.recv_frame().await.unwrap().kind,
+            UiFeedFrameKind::SnapshotBoundary
+        );
+        for index in 0..(RUN_STREAM_CAPACITY * 2) {
+            bus.publish_checked(
+                run_id,
+                RunStreamEvent::Delta {
+                    run_id,
+                    text: format!("chunk-{index}"),
+                },
+            )
+            .expect("a stalled display consumer must never fail a committed fact");
+        }
+
+        {
+            let state = bus.state.lock().unwrap_or_else(PoisonError::into_inner);
+            let channel = state
+                .channels
+                .get(&run_id)
+                .expect("the run keeps a channel while the window is retained");
+            assert_eq!(channel.history.len(), FEED_REPLAY_WINDOW);
+            assert_eq!(channel.sequence, (RUN_STREAM_CAPACITY * 2) as u64);
+        }
+
+        assert!(matches!(
+            stalled.recv_frame().await,
+            Err(RunStreamFeedError::Gap(gap)) if gap.reason == UiFeedGapReason::Backpressure
+        ));
+        let metrics = bus.feed_metrics();
+        assert_eq!(metrics.queue_capacity, UI_FEED_QUEUE_CAPACITY);
+        assert_eq!(metrics.replay_window, FEED_REPLAY_WINDOW);
+        assert!(metrics.lagged_receives > 0);
+        assert!(metrics.gap_frames > 0);
     }
 
     #[tokio::test]
