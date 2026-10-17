@@ -1,23 +1,80 @@
 {
+  "schema": "kiana.ui12-pty-events.v1",
+  "step": "UI-12",
   "source": "Crossterm decoded PTY event sequences; OS-backed PTY transport is outside this source fixture",
+  "budgets": {
+    "max_input_bytes": 65536,
+    "max_input_chars": 16384,
+    "max_history_entries": 64
+  },
+  "required": [
+    "partial-escape-never-synthesizes-enter",
+    "paste-payload-is-data-not-shell-input",
+    "cancel-cannot-rewrite-a-committed-command",
+    "oversized-input-is-rejected-atomically",
+    "ime-candidate-is-separate-from-the-draft",
+    "non-tty-input-is-inactive",
+    "unicode-and-combining-marks-stay-scalar-safe",
+    "history-is-bounded-and-restores-the-draft",
+    "resize-eof-and-sigint-are-explicit-transitions"
+  ],
+  "fixtures": [
+    "decoded_pty_event_fixture_preserves_unicode_paste_resize_and_commit_boundary",
+    "deny_first_rejects_terminal_controls_and_oversized_paste_without_partial_mutation",
+    "eof_sigint_escape_and_resize_do_not_rewrite_a_committed_command",
+    "pty_chunks_hold_partial_escape_and_utf8_until_complete",
+    "bracketed_paste_start_marker_can_be_split_across_chunks",
+    "chunk_adapter_applies_only_complete_events_and_explicit_enter_commits",
+    "non_tty_mode_rejects_interactive_events_before_any_draft_change",
+    "eof_only_exits_an_empty_editor_and_never_submits_a_partial_draft",
+    "ime_candidate_is_separate_and_ctrl_c_cannot_cancel_a_running_turn",
+    "history_is_bounded_and_restores_the_uncommitted_draft",
+    "whitespace_enter_is_a_noop_and_preserves_the_draft",
+    "partial_escape_sequences_never_synthesize_enter_across_chunks",
+    "a_dangling_escape_across_chunks_is_rejected_and_never_submits_the_draft",
+    "bracketed_paste_payload_controls_stay_data_until_the_closing_marker",
+    "oversized_bracketed_paste_is_rejected_at_the_decoder_boundary_and_clears_pending",
+    "scalar_safe_editing_never_splits_a_character_and_combining_marks_stay_data",
+    "non_tty_mode_rejects_ime_and_resize_before_any_state_change",
+    "ime_rejects_paste_enter_and_oversized_candidates_without_touching_the_draft",
+    "history_navigation_is_bounded_and_editing_resets_the_cursor"
+  ],
+  "denied": [
+    "tty_input_control_character_rejected",
+    "tty_input_limit_exceeded",
+    "tty_input_partial_escape_rejected",
+    "tty_input_ime_active",
+    "tty_input_requires_tty",
+    "tty_input_eof_with_draft"
+  ],
+  "limitations": [
+    "decoder is a deterministic PTY-chunk source fixture, not an OS-backed PTY or terminal emulator",
+    "terminal IME composition is exposed through an adapter API and stays terminal/provider dependent",
+    "cursor editing beyond bounded history and backspace is not claimed",
+    "input state is process-local and not durable",
+    "no ControlPlane authorization, command execution, protocol transport, receipt truth or live/physical effect is claimed"
+  ],
   "streams": [
     {
       "name": "split-unicode-and-multiline-submit",
       "events": [
         { "type": "char", "value": "你" },
         { "type": "char", "value": "好" },
-        { "type": "paste", "value": " é🧪" },
+        { "type": "paste", "value": " é🧪" },
         { "type": "ctrl_j" },
         { "type": "char", "value": "x" },
         { "type": "enter" }
       ],
-      "committed": ["你好 é🧪\nx"]
+      "transitions": ["changed", "changed", "changed", "changed", "changed", "committed"],
+      "draft": "",
+      "committed": ["你好 é🧪\nx"]
     },
     {
       "name": "paste-is-data-until-explicit-enter",
       "events": [
         { "type": "paste", "value": "/quit\nshell should-not-run" }
       ],
+      "transitions": ["changed"],
       "draft": "/quit\nshell should-not-run",
       "committed": []
     },
@@ -27,9 +84,46 @@
         { "type": "paste", "value": "preserve" },
         { "type": "resize", "width": 101, "height": 37 }
       ],
+      "transitions": ["changed", "resized"],
       "draft": "preserve",
       "size": [101, 37],
       "committed": []
+    },
+    {
+      "name": "running-turn-cancel-keeps-the-commit-and-the-draft",
+      "running": true,
+      "events": [
+        { "type": "paste", "value": "已提交命令" },
+        { "type": "enter" },
+        { "type": "paste", "value": "next draft" },
+        { "type": "ctrl_c" }
+      ],
+      "transitions": ["changed", "committed", "changed", "cancel"],
+      "draft": "next draft",
+      "committed": ["已提交命令"]
+    },
+    {
+      "name": "ctrl-d-keeps-a-nonempty-draft",
+      "events": [
+        { "type": "paste", "value": "draft" },
+        { "type": "ctrl_d" }
+      ],
+      "transitions": ["changed", "ignored"],
+      "draft": "draft",
+      "committed": []
+    },
+    {
+      "name": "history-recall-restores-the-uncommitted-draft",
+      "events": [
+        { "type": "paste", "value": "first" },
+        { "type": "enter" },
+        { "type": "paste", "value": "editing" },
+        { "type": "up" },
+        { "type": "down" }
+      ],
+      "transitions": ["changed", "committed", "changed", "changed", "changed"],
+      "draft": "editing",
+      "committed": ["first"]
     }
   ],
   "denials": [
@@ -38,6 +132,30 @@
       "event": { "type": "paste", "value": "safe\u001b[31m" },
       "draft": "",
       "rejection": "tty_input_control_character_rejected"
+    },
+    {
+      "name": "carriage-return-in-paste-is-a-terminal-control-not-a-submit",
+      "event": { "type": "paste", "value": "safe\rsubmit" },
+      "draft": "",
+      "rejection": "tty_input_control_character_rejected"
+    },
+    {
+      "name": "nul-and-del-in-paste-are-rejected-atomically",
+      "event": { "type": "paste", "value": "ok\u0000\u007f" },
+      "draft": "",
+      "rejection": "tty_input_control_character_rejected"
+    },
+    {
+      "name": "oversized-byte-paste-is-rejected-without-partial-mutation",
+      "event": { "type": "paste", "value": "x", "repeat": 65537 },
+      "draft": "",
+      "rejection": "tty_input_limit_exceeded"
+    },
+    {
+      "name": "oversized-scalar-paste-is-rejected-without-partial-mutation",
+      "event": { "type": "paste", "value": "🧪", "repeat": 16385 },
+      "draft": "",
+      "rejection": "tty_input_limit_exceeded"
     }
   ]
 }

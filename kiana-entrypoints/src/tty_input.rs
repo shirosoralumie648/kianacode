@@ -421,7 +421,11 @@ impl TtyInputState {
     }
 
     /// Start an IME composition. Composition text is held separately from the submitted draft.
+    /// A non-TTY editor is inactive, so composition state is refused before it can exist.
     pub fn begin_ime(&mut self) -> InputTransition {
+        if self.mode == InputMode::NonTty {
+            return InputTransition::Rejected("tty_input_requires_tty");
+        }
         if self.composing {
             return InputTransition::Ignored;
         }
@@ -432,6 +436,9 @@ impl TtyInputState {
 
     /// Replace the uncommitted IME candidate without exposing it as a command or key sequence.
     pub fn update_ime(&mut self, text: &str) -> InputTransition {
+        if self.mode == InputMode::NonTty {
+            return InputTransition::Rejected("tty_input_requires_tty");
+        }
         if !self.composing {
             return InputTransition::Rejected("tty_input_ime_not_active");
         }
@@ -458,6 +465,9 @@ impl TtyInputState {
 
     /// Commit the IME candidate into the draft; this still does not submit a command.
     pub fn commit_ime(&mut self) -> InputTransition {
+        if self.mode == InputMode::NonTty {
+            return InputTransition::Rejected("tty_input_requires_tty");
+        }
         if !self.composing {
             return InputTransition::Ignored;
         }
@@ -467,6 +477,9 @@ impl TtyInputState {
     }
 
     pub fn cancel_ime(&mut self) -> InputTransition {
+        if self.mode == InputMode::NonTty {
+            return InputTransition::Rejected("tty_input_requires_tty");
+        }
         if !self.composing {
             return InputTransition::Ignored;
         }
