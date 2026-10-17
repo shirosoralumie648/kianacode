@@ -2023,7 +2023,10 @@ while True:
             .prepare(&context, &cap20_request("cap20-fixture", &root, &context))
             .await
             .expect("discovery prepare pins the executable");
-        assert_eq!(prepared.arguments["mcp_snapshot"]["schema"], "kiana.mcp-snapshot.v1");
+        assert_eq!(
+            prepared.arguments["mcp_snapshot"]["schema"],
+            "kiana.mcp-snapshot.v1"
+        );
         std::fs::write(&script, "#!/bin/sh\nexit 0\n").unwrap();
         let handler = McpHandler {
             registry: registry.clone(),
@@ -2182,5 +2185,1043 @@ while True:
         assert_eq!(stopped["stop_confirmed"], true);
 
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // CAP-21 behavioural fixtures: bounded stdio MCP protocol and stop lifecycle.
+    //
+    // These fixtures drive the production `ConfinedMcpClient` — the same bwrap-confined,
+    // per-invocation stdio transport that `McpHandler` uses — against a stdlib-only Python
+    // fixture server that selects an adversarial behaviour per fixture. They are deny-first: an
+    // unread stdin, a foreign or duplicated response id, an invalid envelope, a repeated
+    // pagination cursor, a notification/byte flood and any unsupported server-initiated request
+    // all fail closed. The regression fixtures then cover bounded notifications, fragmented
+    // frames, paginated tool lists, initialize failure, EOF, child crash, stderr diagnostics and
+    // cancellation, and the handler-level fixture proves that a sent business call without a
+    // response is reported as Unknown instead of being replayed. Every exit path stops the
+    // confined child, and the host proves that no marked descendant survives it. A missing
+    // `bwrap`/`python3` fails the fixture instead of degrading to an unsandboxed call; the
+    // CAP-21 workflow installs and verifies both.
+    // -----------------------------------------------------------------------------------
+
+    #[cfg(target_os = "linux")]
+    use std::time::Duration;
+
+    /// Minimal stdio MCP server used by the CAP-21 fixtures. It speaks single-line JSON-RPC over
+    /// stdin/stdout using only the Python standard library, takes a per-fixture marker as
+    /// `sys.argv[1]` (the host scans for surviving descendants) and selects one adversarial
+    /// behaviour from `sys.argv[2]`. The `cap21-trace.jsonl` journal is written relative to the
+    /// working directory: the read-only boundary rejects it, while the writable fixture scope
+    /// records what the confined server actually received.
+    #[cfg(target_os = "linux")]
+    const CAP21_MCP_SERVER: &str = r##"#!/usr/bin/python3
+import json
+import os
+import sys
+import time
+
+MARKER = sys.argv[1] if len(sys.argv) > 1 else "cap21"
+MODE = sys.argv[2] if len(sys.argv) > 2 else "echo"
+
+ECHO_TOOL = {
+    "name": "echo",
+    "description": "Echo the supplied message",
+    "inputSchema": {
+        "type": "object",
+        "properties": {"message": {"type": "string", "minLength": 1}},
+        "required": ["message"],
+        "additionalProperties": False,
+    },
+}
+
+PAGE_ORDER = ["gamma", "beta", "alpha"]
+PAGE_TOOLS = {
+    name: dict(ECHO_TOOL, name=name, description="Paged tool " + name) for name in PAGE_ORDER
+}
+
+
+def trace(method):
+    try:
+        with open("cap21-trace.jsonl", "a", encoding="utf-8") as handle:
+            handle.write(str(method) + "\n")
+            handle.flush()
+    except OSError:
+        pass
+
+
+def send(payload, chunks=1):
+    text = json.dumps(payload) + "\n"
+    if chunks <= 1:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        return
+    size = max(1, len(text) // chunks)
+    for index in range(0, len(text), size):
+        sys.stdout.write(text[index:index + size])
+        sys.stdout.flush()
+        time.sleep(0.02)
+
+
+def notify():
+    return {
+        "jsonrpc": "2.0",
+        "method": "notifications/message",
+        "params": {"level": "info", "data": MARKER},
+    }
+
+
+def read_message():
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            return None
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            return json.loads(line)
+        except ValueError:
+            continue
+
+
+def initialize(message):
+    if MODE == "initialize_version":
+        send({
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "result": {
+                "protocolVersion": "1999-01-01",
+                "capabilities": {},
+                "serverInfo": {"name": "cap21-fixture", "version": "1.0.0"},
+            },
+        })
+        sys.exit(0)
+    if MODE == "initialize_invalid":
+        send({"jsonrpc": "2.0", "id": message["id"],
+              "result": {"protocolVersion": "2025-06-18"}})
+        sys.exit(0)
+    if MODE == "bad_version":
+        send({
+            "jsonrpc": "1.0",
+            "id": message["id"],
+            "result": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "serverInfo": {"name": "cap21-fixture", "version": "1.0.0"},
+            },
+        })
+        sys.exit(0)
+    if MODE == "bad_envelope":
+        send({
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "error": {"code": -32600, "message": "both result and error"},
+            "result": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "serverInfo": {"name": "cap21-fixture", "version": "1.0.0"},
+            },
+        })
+        sys.exit(0)
+    if MODE == "eof":
+        sys.stdout.close()
+        sys.exit(0)
+    send({
+        "jsonrpc": "2.0",
+        "id": message["id"],
+        "result": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "cap21-fixture", "version": "1.0.0"},
+        },
+    }, chunks=3 if MODE == "fragments" else 1)
+    if MODE == "eof_after_init":
+        # Give the client time to write notifications/initialized into the pipe before closing
+        # stdout, so the failure is a closed stream and not a racing write error.
+        time.sleep(0.15)
+        sys.stdout.close()
+        sys.exit(0)
+
+
+def tools_list(message):
+    if MODE == "foreign_id":
+        send({"jsonrpc": "2.0", "id": message["id"] + 1000, "result": {"tools": [ECHO_TOOL]}})
+    elif MODE == "duplicate_id":
+        response = {"jsonrpc": "2.0", "id": message["id"], "result": {"tools": [ECHO_TOOL]}}
+        send(response)
+        send(response)
+    elif MODE == "cursor_cycle":
+        send({"jsonrpc": "2.0", "id": message["id"],
+              "result": {"tools": [ECHO_TOOL], "nextCursor": "loop"}})
+    elif MODE == "flood":
+        flood = "".join(json.dumps(notify()) + "\n" for _ in range(200))
+        sys.stdout.write(flood)
+        sys.stdout.flush()
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": [ECHO_TOOL]}})
+    elif MODE == "oversized_frame":
+        sys.stdout.write("x" * 600000 + "\n")
+        sys.stdout.flush()
+    elif MODE == "odd_notification":
+        send({"jsonrpc": "2.0", "method": "cap21/unsolicited", "params": {}})
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": [ECHO_TOOL]}})
+    elif MODE == "list_changed":
+        send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": [ECHO_TOOL]}})
+    elif MODE == "paginate":
+        cursor = (message.get("params") or {}).get("cursor")
+        index = 0 if cursor is None else {"p1": 1, "p2": 2}.get(cursor, len(PAGE_ORDER))
+        if index >= len(PAGE_ORDER):
+            send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": []}})
+            return
+        page = {"tools": [PAGE_TOOLS[PAGE_ORDER[index]]]}
+        if index + 1 < len(PAGE_ORDER):
+            page["nextCursor"] = "p1" if index == 0 else "p2"
+        send({"jsonrpc": "2.0", "id": message["id"], "result": page})
+    elif MODE == "page_limit":
+        cursor = (message.get("params") or {}).get("cursor")
+        index = int(cursor) if cursor else 0
+        tool = dict(ECHO_TOOL, name="tool%03d" % (index + 1))
+        send({"jsonrpc": "2.0", "id": message["id"],
+              "result": {"tools": [tool], "nextCursor": str(index + 1)}})
+    elif MODE == "tool_count_limit":
+        tools = [dict(ECHO_TOOL, name="t%04d" % index, description="")
+                 for index in range(1025)]
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": tools}})
+    elif MODE == "fragments":
+        for _ in range(3):
+            send(notify())
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": [ECHO_TOOL]}},
+             chunks=3)
+    else:
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"tools": [ECHO_TOOL]}})
+
+
+def tools_call(message):
+    params = message.get("params") or {}
+    if MODE == "server_requests":
+        answers = {}
+        for request_id, method in ((7, "sampling/createMessage"), (8, "roots/list"),
+                                   (9, "elicitation/create")):
+            send({"jsonrpc": "2.0", "id": request_id, "method": method,
+                  "params": {"cap21_marker": MARKER}})
+            reply = read_message()
+            while reply is not None and reply.get("id") != request_id:
+                reply = read_message()
+            answers[method] = reply
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {
+            "content": [{"type": "text", "text": json.dumps(answers)}]}})
+        return
+    if MODE in ("silent", "read_then_stall"):
+        time.sleep(600)
+        return
+    arguments = params.get("arguments") or {}
+    if params.get("name") == "echo":
+        text = str(arguments.get("message", ""))
+    else:
+        text = str(params.get("name", ""))
+    send({"jsonrpc": "2.0", "id": message["id"],
+          "result": {"content": [{"type": "text", "text": text}]}})
+
+
+def main():
+    if MODE == "stderr":
+        sys.stderr.write("cap21-stderr-" + MARKER + "\n")
+        sys.stderr.flush()
+    while True:
+        message = read_message()
+        if message is None:
+            break
+        method = message.get("method")
+        if MODE == "crash" and method not in ("initialize", "notifications/initialized"):
+            os._exit(3)
+        if method == "initialize":
+            initialize(message)
+        elif method == "notifications/initialized":
+            continue
+        elif method == "tools/list":
+            trace("tools/list")
+            tools_list(message)
+            if MODE == "read_then_stall":
+                time.sleep(600)
+        elif method == "tools/call":
+            trace("tools/call")
+            tools_call(message)
+        elif method is not None:
+            send({"jsonrpc": "2.0", "id": message.get("id"),
+                  "error": {"code": -32601, "message": "unsupported"}})
+
+
+main()
+"##;
+
+    #[cfg(target_os = "linux")]
+    fn cap21_temp_root() -> PathBuf {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("kiana-cap21-mcp-{stamp}"));
+        std::fs::create_dir_all(&root).unwrap();
+        // The handler fixture stages this root through `ExecutionWorkspace`, which compares the
+        // canonical source with the caller-supplied workdir, so the fixture path must already be
+        // canonical.
+        root.canonicalize().unwrap()
+    }
+
+    /// Every confined fixture process carries a unique marker argument, so the host can prove
+    /// that no descendant survives a stop path instead of trusting the child's own report.
+    #[cfg(target_os = "linux")]
+    fn cap21_marker(role: &str) -> String {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        format!("cap21-{role}-{stamp}")
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap21_server(root: &Path) -> PathBuf {
+        let path = root.join("cap21_mcp_server.py");
+        std::fs::write(&path, CAP21_MCP_SERVER).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path.canonicalize().unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn cap21_config(command: &Path, marker: &str, mode: &str) -> McpServerConfig {
+        McpServerConfig {
+            name: "cap21-fixture".to_owned(),
+            transport: TransportType::Stdio,
+            url: None,
+            command: Some(command.to_string_lossy().into_owned()),
+            args: Some(vec![marker.to_owned(), mode.to_owned()]),
+            env: None,
+            headers: None,
+        }
+    }
+
+    /// The confined execution scope. `read-only` keeps the transport as the only observable
+    /// channel; `workspace-write` is used only where the host needs the server's own trace of
+    /// what it received.
+    #[cfg(target_os = "linux")]
+    fn cap21_scope(root: &Path, sandbox: &str, timeout_ms: u64, pin: Value) -> Value {
+        json!({
+            "project_trusted": true,
+            "project_root": root.to_string_lossy(),
+            "sandbox": sandbox,
+            "path_allow": ["."],
+            "timeout_ms": timeout_ms,
+            "mcp_snapshot": pin,
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn cap21_start(
+        config: &McpServerConfig,
+        root: &Path,
+        sandbox: &str,
+        timeout_ms: u64,
+        cancellation: watch::Receiver<bool>,
+    ) -> Result<crate::mcp_stdio::ConfinedMcpClient, PortError> {
+        let pin = config_pin(config, root).expect("fixture configuration pins");
+        let scope = cap21_scope(root, sandbox, timeout_ms, pin);
+        crate::mcp_stdio::ConfinedMcpClient::connect(config, &scope, cancellation).await
+    }
+
+    /// Build a capability request with the scope fields the ControlPlane injects in production.
+    #[cfg(target_os = "linux")]
+    fn cap21_request(
+        operation: &str,
+        root: &Path,
+        context: &RequestContext,
+        arguments: Value,
+    ) -> CapabilityRequest {
+        let mut arguments = arguments;
+        arguments["actor_id"] = json!(context.actor_id);
+        arguments["project_root"] = json!(root.to_string_lossy());
+        arguments["role_id"] = json!(context.role_id);
+        arguments["department_id"] = json!(context.department_id);
+        arguments["project_trusted"] = json!(true);
+        arguments["path_allow"] = json!(["."]);
+        CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Network,
+            operation,
+            arguments,
+        )
+    }
+
+    /// PIDs whose command line still carries the fixture marker. This is a bounded host
+    /// observation of the current namespace, not a claim about unreachable descendants.
+    #[cfg(target_os = "linux")]
+    fn cap21_marker_pids(marker: &str) -> Vec<u32> {
+        let mut pids = Vec::new();
+        let Ok(entries) = std::fs::read_dir("/proc") else {
+            return pids;
+        };
+        for entry in entries.flatten() {
+            let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|name| name.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            let Ok(cmdline) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
+                continue;
+            };
+            if cmdline
+                .split(|byte| *byte == 0)
+                .any(|part| part == marker.as_bytes())
+            {
+                pids.push(pid);
+            }
+        }
+        pids
+    }
+
+    /// Positive control: the survivor check must be able to see a live fixture process, or the
+    /// later "no survivor" assertion would be vacuous.
+    #[cfg(target_os = "linux")]
+    async fn cap21_assert_marker_running(marker: &str) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        while tokio::time::Instant::now() < deadline {
+            if !cap21_marker_pids(marker).is_empty() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("fixture process {marker} was never observed as a live descendant");
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn cap21_assert_no_survivor(marker: &str, context: &str) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            let survivors = cap21_marker_pids(marker);
+            if survivors.is_empty() {
+                return;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("{context}: {marker} descendants survived the stop path: {survivors:?}");
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    }
+
+    /// Stop the confined child and prove it is gone: a transport failure or cancel is only a
+    /// stop *request* until the supervisor confirms that no process from the group remains.
+    #[cfg(target_os = "linux")]
+    async fn cap21_stop(
+        client: &mut crate::mcp_stdio::ConfinedMcpClient,
+        marker: &str,
+        context: &str,
+    ) {
+        let stopped = client
+            .stop()
+            .await
+            .unwrap_or_else(|error| panic!("{context}: stop must be confirmed: {error}"));
+        assert_eq!(stopped["stop_confirmed"], true, "{context}: {stopped}");
+        cap21_assert_no_survivor(marker, context).await;
+    }
+
+    /// The fixture configuration is a legal startup configuration: the behaviour selector stays a
+    /// plain argument, so no fixture-only config shape is being smuggled in through `with_servers`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cap21_fixture_configuration_parses_at_startup() {
+        let selector = McpServerConfig {
+            name: "cap21-fixture".to_owned(),
+            transport: TransportType::Stdio,
+            url: None,
+            command: Some("/bin/sh".to_owned()),
+            args: Some(vec!["cap21-marker".to_owned(), "silent".to_owned()]),
+            env: None,
+            headers: None,
+        };
+        let raw = serde_json::to_string(&vec![selector]).expect("fixture config encodes");
+        let parsed = parse_servers(&raw).expect("the fixture configuration parses at startup");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(
+            parsed[0].args.as_deref().unwrap_or_default().len(),
+            2,
+            "the fixture behaviour selector must stay a plain argument"
+        );
+    }
+
+    /// Deny-first: an unread stdin must not block the transport, and a sent call that never gets
+    /// a response must stay bounded and unreplayed.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_stdin_backpressure_is_bounded() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+
+        // Phase 1: the fixture answers tools/list and then stops reading stdin, so a large
+        // request can only fill the pipe. The write must fail at the transport deadline instead
+        // of blocking the invocation.
+        let stall_marker = cap21_marker("stall");
+        let stall = cap21_config(&script, &stall_marker, "read_then_stall");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&stall, &root, "workspace-write", 1_500, cancellation)
+            .await
+            .expect("the stalling fixture completes the handshake");
+        cap21_assert_marker_running(&stall_marker).await;
+        client
+            .list_tools()
+            .await
+            .expect("tools/list is answered before the stall");
+        let started = std::time::Instant::now();
+        let blocked = client
+            .call_tool("echo", json!({ "message": "x".repeat(200_000) }))
+            .await;
+        let elapsed = started.elapsed();
+        assert!(
+            matches!(&blocked, Err(PortError::Failed(code)) if code == "mcp_write_timeout"),
+            "an unread stdin must fail the write at the deadline: {blocked:?}"
+        );
+        assert!(
+            elapsed < Duration::from_secs(6),
+            "a blocked write must stay bounded by the deadline: {elapsed:?}"
+        );
+        cap21_stop(&mut client, &stall_marker, "unread stdin").await;
+        let stalled_trace =
+            std::fs::read_to_string(root.join("cap21-trace.jsonl")).expect("fixture trace");
+        assert!(
+            !stalled_trace.lines().any(|line| line == "tools/call"),
+            "a write that never completed must not deliver a request: {stalled_trace}"
+        );
+
+        // Phase 2: the fixture reads the call and never answers it. The request fails at the
+        // deadline and the trace proves the sent call was not replayed.
+        let silent_marker = cap21_marker("silent");
+        let silent = cap21_config(&script, &silent_marker, "silent");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&silent, &root, "workspace-write", 1_500, cancellation)
+            .await
+            .expect("the silent fixture completes the handshake");
+        client.list_tools().await.expect("tools/list is answered");
+        let started = std::time::Instant::now();
+        let unanswered = client
+            .call_tool("echo", json!({ "message": "cap21" }))
+            .await;
+        let elapsed = started.elapsed();
+        assert!(
+            matches!(&unanswered, Err(PortError::Failed(code)) if code == "mcp_response_timeout"),
+            "an unanswered call must fail at the deadline: {unanswered:?}"
+        );
+        assert!(
+            elapsed < Duration::from_secs(6),
+            "an unanswered call must stay bounded: {elapsed:?}"
+        );
+        cap21_stop(&mut client, &silent_marker, "unanswered call").await;
+        let trace = std::fs::read_to_string(root.join("cap21-trace.jsonl")).expect("fixture trace");
+        assert_eq!(
+            trace.lines().filter(|line| *line == "tools/call").count(),
+            1,
+            "a sent call must not be replayed: {trace}"
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Deny-first: a foreign, duplicated or malformed response envelope is never accepted as this
+    /// request's result.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_duplicate_or_foreign_response_id_is_rejected() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+
+        let marker = cap21_marker("foreign-id");
+        let config = cap21_config(&script, &marker, "foreign_id");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let foreign = client.list_tools().await;
+        assert!(
+            matches!(&foreign, Err(PortError::Failed(code)) if code == "mcp_response_id_mismatch"),
+            "a foreign response id must be rejected: {foreign:?}"
+        );
+        cap21_stop(&mut client, &marker, "foreign response id").await;
+
+        // A duplicated response is not a second result: the stale copy is rejected when the next
+        // request reads it.
+        let marker = cap21_marker("duplicate-id");
+        let config = cap21_config(&script, &marker, "duplicate_id");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let first = client
+            .list_tools()
+            .await
+            .expect("the first response is accepted");
+        assert_eq!(first.len(), 1);
+        let stale = client
+            .call_tool("echo", json!({ "message": "cap21" }))
+            .await;
+        assert!(
+            matches!(&stale, Err(PortError::Failed(code)) if code == "mcp_response_id_mismatch"),
+            "a duplicated response must not answer a later request: {stale:?}"
+        );
+        cap21_stop(&mut client, &marker, "duplicated response id").await;
+
+        // `result` and `error` are mutually exclusive, and the wire envelope must be JSON-RPC 2.0.
+        let marker = cap21_marker("envelope");
+        let config = cap21_config(&script, &marker, "bad_envelope");
+        let (_sender, cancellation) = watch::channel(false);
+        let envelope = cap21_start(&config, &root, "read-only", 30_000, cancellation).await;
+        assert!(
+            matches!(&envelope, Err(PortError::Failed(code)) if code == "mcp_response_envelope_invalid"),
+            "result and error are mutually exclusive: {envelope:?}"
+        );
+        cap21_assert_no_survivor(&marker, "invalid result/error envelope").await;
+
+        let marker = cap21_marker("version");
+        let config = cap21_config(&script, &marker, "bad_version");
+        let (_sender, cancellation) = watch::channel(false);
+        let version = cap21_start(&config, &root, "read-only", 30_000, cancellation).await;
+        assert!(
+            matches!(&version, Err(PortError::Failed(code)) if code == "mcp_response_version_invalid"),
+            "the wire envelope must be JSON-RPC 2.0: {version:?}"
+        );
+        cap21_assert_no_survivor(&marker, "invalid JSON-RPC version").await;
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Deny-first: unbounded pagination, notification floods and unmetered frames all fail closed,
+    /// and a changed catalog invalidates the rest of the invocation.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_pagination_cycle_and_notification_flood_fail_closed() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+
+        for (mode, marker_role, expected, context) in [
+            (
+                "cursor_cycle",
+                "cursor-cycle",
+                "mcp_cursor_cycle",
+                "a repeated pagination cursor",
+            ),
+            (
+                "flood",
+                "flood",
+                "mcp_notification_budget_exceeded",
+                "a notification flood",
+            ),
+            (
+                "oversized_frame",
+                "oversized-frame",
+                "mcp_response_byte_limit",
+                "an oversized frame",
+            ),
+            (
+                "odd_notification",
+                "odd-notification",
+                "mcp_notification_invalid",
+                "an unsolicited method",
+            ),
+        ] {
+            let marker = cap21_marker(marker_role);
+            let config = cap21_config(&script, &marker, mode);
+            let (_sender, cancellation) = watch::channel(false);
+            let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+                .await
+                .unwrap_or_else(|error| panic!("{context}: handshake failed: {error}"));
+            let denied = client.list_tools().await;
+            assert!(
+                matches!(&denied, Err(PortError::Failed(code)) if code == expected),
+                "{context} must fail closed with {expected}: {denied:?}"
+            );
+            cap21_stop(&mut client, &marker, context).await;
+        }
+
+        let marker = cap21_marker("list-changed");
+        let config = cap21_config(&script, &marker, "list_changed");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let changed = client.list_tools().await;
+        assert!(
+            matches!(&changed, Err(PortError::Failed(code)) if code == "mcp_catalog_changed"),
+            "list_changed must invalidate the catalog: {changed:?}"
+        );
+        let refused = client
+            .call_tool("echo", json!({ "message": "cap21" }))
+            .await;
+        assert!(
+            matches!(&refused, Err(PortError::Failed(code)) if code == "mcp_catalog_changed"),
+            "a changed catalog must refuse further calls: {refused:?}"
+        );
+        cap21_stop(&mut client, &marker, "catalog change").await;
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Deny-first: server-initiated sampling/elicitation/roots requests are refused with a
+    /// JSON-RPC error and never execute against a model or a host path.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_server_requests_cannot_bypass_control_plane() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+        let marker = cap21_marker("server-requests");
+        // The fixture sends the three unsupported server requests while a business call is in
+        // flight and reports back, in band, exactly what the client answered.
+        let config = cap21_config(&script, &marker, "server_requests");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let echoed = client
+            .call_tool("echo", json!({ "message": "cap21" }))
+            .await
+            .expect("a refused server request must not fail the client's own call");
+        let reported = echoed["content"][0]["text"]
+            .as_str()
+            .expect("the fixture reports the answers as text");
+        let answers: Value = serde_json::from_str(reported).expect("answers are JSON");
+        for (id, method) in [
+            (7, "sampling/createMessage"),
+            (8, "roots/list"),
+            (9, "elicitation/create"),
+        ] {
+            let answer = &answers[method];
+            assert_eq!(answer["jsonrpc"], "2.0", "{method}");
+            assert_eq!(answer["id"], id, "{method}: the request id is echoed");
+            assert!(
+                answer.get("result").is_none(),
+                "{method}: no result may be produced"
+            );
+            assert_eq!(answer["error"]["code"], -32601, "{method}");
+            let message = answer["error"]["message"].as_str().unwrap_or_default();
+            assert!(
+                message.contains("disabled"),
+                "{method}: unsupported server requests are refused, not implemented: {message}"
+            );
+        }
+        assert!(
+            !reported.contains(root.to_string_lossy().as_ref()),
+            "a refusal must not leak the project path: {reported}"
+        );
+        assert!(
+            !reported.contains("model"),
+            "a refusal must not fabricate a model answer: {reported}"
+        );
+        cap21_stop(&mut client, &marker, "server-initiated requests").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Regression: bounded notifications are consumed while the response is awaited, and a
+    /// response split across several writes is still one frame.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_bounded_notifications_and_fragmented_frames_are_parsed() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+        let marker = cap21_marker("fragments");
+        let config = cap21_config(&script, &marker, "fragments");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("a fragmented handshake is still a handshake");
+        assert_eq!(client.server_info["protocol_version"], "2025-06-18");
+        let tools = client.list_tools().await.expect("fragmented tools/list");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "echo");
+        let echoed = client
+            .call_tool("echo", json!({ "message": "cap21-fragments" }))
+            .await
+            .expect("tools/call");
+        assert_eq!(echoed["content"][0]["text"], "cap21-fragments");
+        cap21_stop(&mut client, &marker, "fragmented frames").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Regression and bound: three cursored pages become one sorted catalog, while an unlimited
+    /// page count or tool count is refused.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_paginated_tool_list_is_bounded() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+
+        let marker = cap21_marker("paginate");
+        let config = cap21_config(&script, &marker, "paginate");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let tools = client.list_tools().await.expect("paginated tools/list");
+        let names: Vec<&str> = tools
+            .iter()
+            .filter_map(|tool| tool["name"].as_str())
+            .collect();
+        assert_eq!(names, vec!["alpha", "beta", "gamma"]);
+        cap21_stop(&mut client, &marker, "paginated catalog").await;
+
+        let marker = cap21_marker("page-limit");
+        let config = cap21_config(&script, &marker, "page_limit");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let pages = client.list_tools().await;
+        assert!(
+            matches!(&pages, Err(PortError::Failed(code)) if code == "mcp_tool_catalog_page_limit"),
+            "the page count must be bounded: {pages:?}"
+        );
+        cap21_stop(&mut client, &marker, "pagination page limit").await;
+
+        let marker = cap21_marker("tool-count");
+        let config = cap21_config(&script, &marker, "tool_count_limit");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let catalog = client.list_tools().await;
+        assert!(
+            matches!(&catalog, Err(PortError::Failed(code)) if code == "mcp_tool_catalog_limit"),
+            "the tool count must be bounded: {catalog:?}"
+        );
+        cap21_stop(&mut client, &marker, "tool count limit").await;
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Regression: every non-success exit path of the handshake and of an established transport
+    /// still stops the confined child before it returns.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_initialize_failure_eof_and_child_crash_all_clean_up() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+
+        for (mode, marker_role, expected, context) in [
+            (
+                "initialize_version",
+                "init-version",
+                "mcp_protocol_version_unsupported",
+                "an unsupported protocol version",
+            ),
+            (
+                "initialize_invalid",
+                "init-invalid",
+                "mcp_initialize_invalid",
+                "an incomplete initialize result",
+            ),
+            (
+                "eof",
+                "eof",
+                "mcp_stream_closed",
+                "a stream closed during initialize",
+            ),
+        ] {
+            let marker = cap21_marker(marker_role);
+            let config = cap21_config(&script, &marker, mode);
+            let (_sender, cancellation) = watch::channel(false);
+            let failed = cap21_start(&config, &root, "read-only", 30_000, cancellation).await;
+            assert!(
+                matches!(&failed, Err(PortError::Failed(code)) if code == expected),
+                "{context} must fail closed with {expected}: {failed:?}"
+            );
+            cap21_assert_no_survivor(&marker, context).await;
+        }
+
+        for (mode, marker_role, context) in [
+            (
+                "eof_after_init",
+                "eof-after-init",
+                "the child closed stdout after initialize",
+            ),
+            ("crash", "crash", "the child crashed during tools/list"),
+        ] {
+            let marker = cap21_marker(marker_role);
+            let config = cap21_config(&script, &marker, mode);
+            let (_sender, cancellation) = watch::channel(false);
+            let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+                .await
+                .unwrap_or_else(|error| panic!("{context}: handshake failed: {error}"));
+            let lost = client.list_tools().await;
+            assert!(
+                matches!(&lost, Err(PortError::Failed(code)) if code == "mcp_stream_closed"),
+                "{context}: {lost:?}"
+            );
+            cap21_stop(&mut client, &marker, context).await;
+        }
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Regression: stderr is retained only as bounded, digested diagnostics.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_stderr_diagnostics_are_bounded_evidence() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+        let marker = cap21_marker("stderr");
+        let config = cap21_config(&script, &marker, "stderr");
+        let (_sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        client.list_tools().await.expect("tools/list");
+        let stopped = client.stop().await.expect("confirmed stop");
+        assert_eq!(stopped["stop_confirmed"], true);
+        let retained = stopped["stderr_bytes_retained"].as_u64().unwrap_or(0);
+        assert!(
+            retained > 0,
+            "stderr diagnostics must be retained: {stopped}"
+        );
+        assert_eq!(stopped["stderr_truncated"], false);
+        let digest = stopped["stderr_digest"].as_str().unwrap_or_default();
+        assert_eq!(digest.len(), 64, "stderr evidence is a digest: {stopped}");
+        assert!(digest.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert!(
+            !stopped.to_string().contains("cap21-stderr"),
+            "diagnostics must not echo raw stderr: {stopped}"
+        );
+        cap21_assert_no_survivor(&marker, "stderr diagnostics").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Regression: cancellation stops the in-flight request, refuses new business work until the
+    /// transport is stopped, and never leaks the confined child.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_cancelled_request_never_leaves_the_child_running() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+        let marker = cap21_marker("cancel");
+        let config = cap21_config(&script, &marker, "silent");
+        let (sender, cancellation) = watch::channel(false);
+        let mut client = cap21_start(&config, &root, "read-only", 30_000, cancellation)
+            .await
+            .expect("handshake");
+        let trigger = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let _ = sender.send(true);
+        });
+        let cancelled = client
+            .call_tool("echo", json!({ "message": "cap21" }))
+            .await;
+        trigger.await.expect("cancel trigger");
+        assert!(
+            matches!(&cancelled, Err(PortError::Failed(code)) if code == "cancelled:mcp_request_stopped"),
+            "a cancelled request must stop instead of retrying: {cancelled:?}"
+        );
+        let refused = client
+            .call_tool("echo", json!({ "message": "cap21" }))
+            .await;
+        assert!(
+            matches!(&refused, Err(PortError::Failed(code)) if code == "cancelled:mcp_not_sent"),
+            "a cancelled transport must refuse new requests: {refused:?}"
+        );
+        cap21_stop(&mut client, &marker, "cancelled request").await;
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// A sent business call that never gets a response keeps the Unknown classification through
+    /// the real handler, retains its private workspace for reconciliation, and is not re-issued.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn mcp_unanswered_call_stays_unknown_and_is_not_replayed() {
+        let root = cap21_temp_root();
+        let script = cap21_server(&root);
+        let marker = cap21_marker("unanswered");
+        let config = cap21_config(&script, &marker, "silent");
+        let registry = cap20_registry(vec![config]);
+        let context = cap20_context(&root);
+        let handler = McpHandler {
+            registry: registry.clone(),
+        };
+        let (_sender, cancellation) = watch::channel(false);
+
+        let discovery = cap21_request(
+            "mcp.discover",
+            &root,
+            &context,
+            json!({ "server": "cap21-fixture", "operator_authorized": true }),
+        );
+        let prepared = registry
+            .prepare(&context, &discovery)
+            .await
+            .expect("discovery preparation pins the configured server");
+        let discovered = handler
+            .run(cap20_authorized(prepared), cancellation.clone())
+            .await
+            .expect("discovery commits a catalog snapshot");
+        assert!(discovered.success);
+
+        let call = cap21_request(
+            MCP_OPERATION,
+            &root,
+            &context,
+            json!({
+                "server": "cap21-fixture",
+                "tool": "echo",
+                "arguments": { "message": "cap21" },
+                "sandbox": "workspace-write",
+                "timeout_ms": 3_000,
+            }),
+        );
+        let prepared = registry
+            .prepare(&context, &call)
+            .await
+            .expect("call preparation binds the discovery snapshot");
+        let result = handler
+            .run(cap20_authorized(prepared), cancellation)
+            .await
+            .expect("an unanswered call is classified instead of becoming an I/O error");
+        assert!(!result.success);
+        assert_eq!(
+            result.failure_code(),
+            Some(kiana_domain::CapabilityErrorCode::ResultUnknown),
+            "a sent call without a response stays Unknown: {:?}",
+            result.output
+        );
+        assert_eq!(result.output["not_executed"], json!(false));
+        assert_eq!(result.output["stop_confirmed"], json!(true));
+        let envelope = kiana_domain::AdapterResult::from_json(&result.output["adapter_result"])
+            .expect("the adapter envelope is valid");
+        assert_eq!(envelope.adapter, AdapterResultKind::Mcp);
+        assert_eq!(envelope.commit, AdapterCommitState::Unknown);
+        assert_eq!(
+            envelope.effect,
+            kiana_domain::CapabilityEffectState::Unknown
+        );
+        assert!(envelope.reconciliation_required);
+
+        // The private workspace is retained for reconciliation instead of being published.
+        let publication = &result.output["workspace"];
+        assert_eq!(publication["retained"], json!(true));
+        assert_eq!(publication["reason"], json!("mcp_call_unconfirmed"));
+        let staging = PathBuf::from(
+            publication["workspace"]
+                .as_str()
+                .expect("the retained staging root is reported"),
+        );
+        let record = std::fs::read_to_string(staging.join("reconciliation.json"))
+            .expect("reconciliation record");
+        assert!(record.contains("mcp_call_unconfirmed"), "{record}");
+
+        // Exactly one business call reached the server: an unanswered call is never re-issued.
+        let trace = std::fs::read_to_string(staging.join("workspace").join("cap21-trace.jsonl"))
+            .expect("fixture trace");
+        assert_eq!(
+            trace.lines().filter(|line| *line == "tools/call").count(),
+            1,
+            "a sent call must not be replayed: {trace}"
+        );
+
+        cap21_assert_no_survivor(&marker, "unanswered call").await;
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(staging);
     }
 }
