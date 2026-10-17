@@ -153,7 +153,11 @@ fn independent_reads_overlap_but_history_is_source_ordered() {
     assert_eq!(call_ids(&report), ["one", "two", "three"]);
     assert_eq!(ordinals(&report), vec![0, 1, 2]);
     let completion_order = snapshot(&completion);
-    assert_ne!(completion_order, vec![0, 1, 2], "completion order == source");
+    assert_ne!(
+        completion_order,
+        vec![0, 1, 2],
+        "completion order == source"
+    );
 }
 
 /// 独占写调用形成屏障：与前后任何只读调用都不重叠。
@@ -161,7 +165,11 @@ fn independent_reads_overlap_but_history_is_source_ordered() {
 /// 两个读调用用会合点证明它们自身并发；写调用在其执行期间读取活跃读计数，必须恒为 0。
 #[test]
 fn write_barrier_never_overlaps_prior_reads() {
-    let calls = vec![read_call("read-a"), read_call("read-b"), write_call("write")];
+    let calls = vec![
+        read_call("read-a"),
+        read_call("read-b"),
+        write_call("write"),
+    ];
     let plan = plan_tool_batch(&calls).expect("read/read/write plan");
     assert_eq!(plan.groups.len(), 2);
     let scheduler = ToolBatchScheduler::new(plan, cap(4)).expect("validated plan");
@@ -242,7 +250,10 @@ fn revocation_blocks_not_started_parallel_call() {
     assert!(report.halted);
     let revoked = ToolBatchCallState::NotExecuted("authority_revoked".to_owned());
     assert_eq!(report.history[1].state, revoked);
-    assert!(matches!(report.history[2].state, ToolBatchCallState::NotExecuted(_)));
+    assert!(matches!(
+        report.history[2].state,
+        ToolBatchCallState::NotExecuted(_)
+    ));
 }
 
 /// 已提交的后续结果在恢复时被复用，不会重新执行。
@@ -268,7 +279,11 @@ fn crash_with_later_outcome_ready_does_not_rerun_it() {
         },
     );
 
-    assert_eq!(snapshot(&executed), vec![0], "an already committed call reran");
+    assert_eq!(
+        snapshot(&executed),
+        vec![0],
+        "an already committed call reran"
+    );
     assert_eq!(report.reused, 1);
     assert_eq!(report.dispatched, 1);
     assert_eq!(report.history[1].call_id, "second");

@@ -264,6 +264,7 @@ fn join_oldest<'scope>(
     }
     let handle = in_flight.remove(0);
     if let Ok(outcome) = handle.join() {
-        history[outcome.ordinal] = Some(outcome);
+        let ordinal = outcome.ordinal;
+        history[ordinal] = Some(outcome);
     }
 }

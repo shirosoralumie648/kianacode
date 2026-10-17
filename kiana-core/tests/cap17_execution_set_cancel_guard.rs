@@ -126,8 +126,7 @@ fn cancel_waits_for_all_inflight_executions_and_hooks() {
     let mut expected = vec![first, second, hook];
     expected.sort();
     assert_eq!(
-        targets,
-        expected,
+        targets, expected,
         "cancel must broadcast to every inflight execution and hook"
     );
     assert_eq!(set.resolution(), StopSetResolution::Pending);
