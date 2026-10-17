@@ -460,12 +460,14 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-20 — Restart projector 与默认暂停　⏳
+##### ER-20 — Restart projector 与默认暂停　✅
 
 - **落点：** `kiana-core/recovery.rs`、`projection.rs`、`kiana-daemon/lib.rs`；关联 `CP-18/19`、`P2-M5-02`、`H24/H25`。
 - **动作：** 启动时依次 validate journal→load projection→rebuild pending/unknown→fence resources→open read-only recovery state；不自动 invoke runner/provider/broker。
 - **先拒绝：** `restart_never_auto_resumes_pending_run`、`corrupt_journal_does_not_boot_empty`、`rebuild_does_not_issue_permit`。
 - **成功/回归：** drop host/new host、multiple pending approvals、orphan dispatch、projection checkpoint mismatch、valid empty store 的结果可区分。
+- **验收（测试名与卡片名对齐）：** 拒绝与成功/回归路径由树内夹具覆盖，均接入 `.github/workflows/er20-restart-projector.yml`：`kiana-core/tests/er20_restart_projector.rs` 有 `er20_restart_never_auto_resumes_pending_run`、`er20_rebuild_lists_multiple_pending_approvals_and_fences_resources`、`er20_valid_empty_store_is_distinct_from_populated_rebuild`、`er20_projection_checkpoint_mismatch_forces_rebuild`、`er20_orphan_dispatch_is_visible_after_restart`、`er20_restart_rebuild_is_deterministic`；`kiana-daemon/tests/er20_restart_startup.rs` 有 `er20_daemon_restart_reads_journal_without_resuming`、`er20_daemon_refuses_corrupt_journal_before_recovery_state`；`er20_restart_projector_guard` 保留 `restart_never_auto_resumes_pending_run`/`corrupt_journal_does_not_boot_empty`/`rebuild_does_not_issue_permit` 三个 source 断言并新增夹具命名/接线守卫 `er20_behavioural_fixtures_are_wired`。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 source guard 与基线，没有可运行的拒绝/成功夹具。本次补上 core 行为夹具（durable `JsonlEventLog` 重开后只读重建：零 Runner send/restore、零新增事实，`project_run_state` 停在 `AwaitingApproval`；`project_recovery_resources` 列出多条 Active 审批并冻结租约/取消中 Cell；空事实源与非空重建可区分；`ReplayProjection::from_checkpoint` 的 projector/游标不匹配拒绝接续并要求 `ProjectionDriver::rebuild`；orphan dispatch 通过 `project_operational_metrics` 可见）与 daemon 行为夹具（`DaemonHost::startup_health`/`readiness` 只读投影、drop/new-host 复用同一事实仍保持暂停；`admit_storage_integrity` 对损坏中段 journal 先拒绝、对缺失/空库才准入）。proof_level 维持 source；本地未编译未运行，CI 回执未等待；跨进程 projector 持久化、掉电恢复、物理 journal 修复与 ER-21/ER-22 的 resume/cancel 证明仍开放。
 
 <a id="step-er-21"></a>
 
