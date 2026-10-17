@@ -1023,6 +1023,25 @@ pub trait ArtifactStorePort: Send + Sync {
             "artifact_publication_journal_unsupported".to_owned(),
         ))
     }
+
+    /// Return the latest intent per command id, including terminal ones, ordered by command id.
+    /// This is the recovery journal's read model for retention decisions and is never an
+    /// authorization source; a store without a journal reports `Unavailable`.
+    async fn publication_intents(&self) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_publication_journal_unsupported".to_owned(),
+        ))
+    }
+
+    /// Reclaim the bytes of a committed blob that no Company fact will cite. Implementations must
+    /// re-check their own journal and refuse any reference that is still pending or committed, and
+    /// must never touch a blob a fact cites. Returns whether bytes were removed; a store that
+    /// cannot reclaim bytes reports `Unavailable` so the caller denies instead of assuming.
+    async fn remove_orphan_blob(&self, _reference: &ArtifactRef) -> Result<bool, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_orphan_removal_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// Snapshot/verify/restore boundary for a StorageRoot. Backup manifests are opaque values until

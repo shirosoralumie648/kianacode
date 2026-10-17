@@ -3,12 +3,12 @@ use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{ControlPlane, CoreError};
 use kiana_daemon::LocalArtifactStore;
 use kiana_domain::{
-    ApprovalChallenge, ApprovalId, ArtifactId, ArtifactPublicationVerdict,
-    ArtifactWorkspaceDeltaState, CommandIntent, CompanyBudgetPolicy, CompanyCommand,
-    CompanyCommandRequest, CompanyEvent, ExecutionStatus, MetricDirection, Objective,
-    ObjectiveStatus, PendingApproval, PermissionProfile, Project, ProjectBudget, ProjectId,
-    ProjectStatus, Quota, RequestContext, RoleSpec, RuntimeBudget, COMPANY_COMMAND,
-    COMPANY_COMMAND_SCHEMA,
+    ApprovalChallenge, ApprovalId, ArtifactId, ArtifactOrphanRetentionDecision,
+    ArtifactPublicationRetentionPolicy, ArtifactPublicationVerdict, ArtifactWorkspaceDeltaState,
+    CommandIntent, CompanyBudgetPolicy, CompanyCommand, CompanyCommandRequest, CompanyEvent,
+    ExecutionStatus, MetricDirection, Objective, ObjectiveStatus, PendingApproval,
+    PermissionProfile, Project, ProjectBudget, ProjectId, ProjectStatus, Quota, RequestContext,
+    RoleSpec, RuntimeBudget, COMPANY_COMMAND, COMPANY_COMMAND_SCHEMA,
 };
 use kiana_eventlog::JsonlEventLog;
 use kiana_gates::DefaultGateEngine;
@@ -1207,6 +1207,222 @@ async fn artifact_publication_reconciles_orphan_blob_and_recovers_after_restart(
             .await
             .expect("abandoned blob remains reviewable"),
         b"orphan committed bytes\n".as_slice()
+    );
+}
+
+#[tokio::test]
+async fn artifact_orphan_retention_reclaims_only_unreferenced_blobs() {
+    let fixture = Fixture::new();
+    let events = Arc::new(JsonlEventLog::open(&fixture.event_log_path).expect("EventLog"));
+    let store = Arc::new(fixture_artifact_store(&fixture).await);
+    // The first Company fact acknowledgement is lost, so its blob commits with no citing fact.
+    let fault = Arc::new(ArtifactFactFault {
+        inner: events.clone(),
+        armed: std::sync::atomic::AtomicBool::new(true),
+        append_before_failure: false,
+    });
+    let core = company_control_plane(fault, store.clone());
+    let context = fixture.context("builder-session", &RoleSpec::builder());
+    let orphan_id = ArtifactId::new().to_string();
+    fs::write(
+        fixture.root.join("orphan-retention.txt"),
+        b"orphan bytes for retention\n",
+    )
+    .expect("orphan source");
+    assert!(fixture
+        .command(
+            &core,
+            "builder-session",
+            RoleSpec::builder(),
+            0,
+            "orphan-retention-artifact",
+            CompanyCommand::RegisterArtifact {
+                artifact_id: orphan_id.clone(),
+                relative_path: "orphan-retention.txt".to_owned(),
+            },
+        )
+        .await
+        .is_err());
+    assert_eq!(company_fact_count(events.as_ref()).await, 0);
+    let permitting =
+        ArtifactPublicationRetentionPolicy::new(1, 4, true, "co06-orphan-retention").unwrap();
+    let plan_only =
+        ArtifactPublicationRetentionPolicy::new(1, 4, false, "co06-orphan-retention").unwrap();
+
+    // An open window is not an orphan: it is reported as pending and excluded from both the plan
+    // and an apply run, because only reconciliation may prove the window is fact-free.
+    let before = core
+        .plan_artifact_publication_retention(&context, &permitting)
+        .await
+        .expect("retention plan over an open window");
+    assert!(before.journal_available);
+    assert_eq!(before.pending_count, 1, "{before:?}");
+    assert!(before.orphans.is_empty(), "{before:?}");
+    let applied_open = core
+        .apply_artifact_publication_retention(&context, &permitting)
+        .await
+        .expect("retention apply over an open window");
+    assert_eq!(applied_open.removed_count, 0, "{applied_open:?}");
+    assert_eq!(applied_open.pending_count, 1, "{applied_open:?}");
+
+    // A referenced artifact registers normally; the fault fired once and disarmed.
+    let referenced_id = ArtifactId::new().to_string();
+    fs::write(
+        fixture.root.join("referenced.txt"),
+        b"referenced bytes stay reviewable\n",
+    )
+    .expect("referenced source");
+    let registered = fixture
+        .register_artifact(
+            &core,
+            0,
+            "referenced-artifact",
+            &referenced_id,
+            "referenced.txt",
+        )
+        .await;
+    assert_eq!(
+        registered.status,
+        ExecutionStatus::Completed,
+        "{registered:?}"
+    );
+    assert_eq!(company_fact_count(events.as_ref()).await, 1);
+    let referenced_reference = registered_company_event(events.as_ref())
+        .await
+        .proof
+        .artifact_version
+        .expect("persisted version in Company fact")
+        .as_ref();
+
+    // Reconciliation turns the open window into a terminal, fact-free orphan without touching it.
+    let report = core
+        .reconcile_artifact_publications()
+        .await
+        .expect("orphan reconciliation");
+    assert_eq!(report.len(), 1, "{report:?}");
+    assert_eq!(
+        report[0].verdict,
+        ArtifactPublicationVerdict::Unpublished,
+        "{report:?}"
+    );
+    let orphan_reference = report[0].artifact.clone();
+    let orphan_bytes = ArtifactContentPort::read_artifact(store.as_ref(), &orphan_reference)
+        .await
+        .expect("orphan blob before retention");
+
+    // Age past the declared window so eligibility is decided by the policy, not by the clock.
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+    // A read-only plan selects the window but removes nothing.
+    let planned = core
+        .plan_artifact_publication_retention(&context, &permitting)
+        .await
+        .expect("retention plan");
+    assert_eq!(planned.orphans.len(), 1, "{planned:?}");
+    assert_eq!(
+        planned.orphans[0].decision,
+        ArtifactOrphanRetentionDecision::Eligible,
+        "{planned:?}"
+    );
+    assert_eq!(
+        (planned.eligible_count, planned.removed_count),
+        (1, 0),
+        "{planned:?}"
+    );
+    assert!(planned.is_plan_only());
+    assert_eq!(
+        fs::read(fixture.artifact_blob_path()).expect("orphan blob after planning"),
+        orphan_bytes,
+    );
+
+    // A policy that does not explicitly permit removal can never reclaim bytes.
+    let denied = core
+        .apply_artifact_publication_retention(&context, &plan_only)
+        .await
+        .expect("denied retention apply");
+    assert_eq!(denied.removed_count, 0, "{denied:?}");
+    assert_eq!(
+        denied.orphans[0].decision,
+        ArtifactOrphanRetentionDecision::Denied,
+        "{denied:?}"
+    );
+    assert_eq!(denied.orphans[0].reason, "orphan_blob_removal_not_permitted");
+    assert_eq!(
+        ArtifactContentPort::read_artifact(store.as_ref(), &orphan_reference)
+            .await
+            .expect("orphan blob survives a denied apply"),
+        orphan_bytes.as_slice(),
+    );
+
+    // Applying under the permitting policy reclaims exactly the fact-free blob and nothing else.
+    let applied = core
+        .apply_artifact_publication_retention(&context, &permitting)
+        .await
+        .expect("retention apply");
+    assert_eq!(applied.removed_count, 1, "{applied:?}");
+    assert_eq!(
+        applied.orphans[0].decision,
+        ArtifactOrphanRetentionDecision::Removed,
+        "{applied:?}"
+    );
+    assert_eq!(company_fact_count(events.as_ref()).await, 1);
+    assert!(
+        ArtifactContentPort::read_artifact(store.as_ref(), &orphan_reference)
+            .await
+            .is_err(),
+        "a reclaimed orphan blob must no longer read as a committed version"
+    );
+    assert_eq!(
+        ArtifactContentPort::read_artifact(store.as_ref(), &referenced_reference)
+            .await
+            .expect("a referenced blob is never reclaimed"),
+        b"referenced bytes stay reviewable\n".as_slice(),
+    );
+
+    // Re-running is idempotent: the window stays abandoned with nothing left to reclaim.
+    let repeated = core
+        .apply_artifact_publication_retention(&context, &permitting)
+        .await
+        .expect("repeated retention apply");
+    assert_eq!(repeated.removed_count, 0, "{repeated:?}");
+    assert_eq!(
+        repeated.orphans[0].decision,
+        ArtifactOrphanRetentionDecision::Retained,
+        "{repeated:?}"
+    );
+
+    // The adapter re-derives the precondition from its own journal: a committed reference and a
+    // never-recorded reference are both refused directly, without touching their bytes.
+    assert!(matches!(
+        store.remove_orphan_blob(&referenced_reference).await,
+        Err(PortError::Conflict(reason)) if reason == "artifact_orphan_retention_denied"
+    ));
+    let unrecorded = kiana_domain::ArtifactVersion::new(
+        ArtifactId::new(),
+        1,
+        "kiana.test-artifact.v1",
+        b"never published",
+        kiana_domain::json_digest(&json!({"scope": "co06-unrecorded"})),
+        kiana_domain::ArtifactProvenance {
+            producer_kind: "fixture".to_owned(),
+            producer_id: "co06".to_owned(),
+            source_event_id: None,
+            source_run_id: None,
+            recorded_by: "fixture".to_owned(),
+        },
+        100,
+    )
+    .expect("unrecorded reference")
+    .as_ref();
+    assert!(matches!(
+        store.remove_orphan_blob(&unrecorded).await,
+        Err(PortError::Conflict(reason)) if reason == "artifact_orphan_retention_unrecorded"
+    ));
+    assert_eq!(
+        ArtifactContentPort::read_artifact(store.as_ref(), &referenced_reference)
+            .await
+            .expect("referenced blob after direct retention denials"),
+        b"referenced bytes stay reviewable\n".as_slice(),
     );
 }
 

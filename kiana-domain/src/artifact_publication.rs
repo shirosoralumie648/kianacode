@@ -12,10 +12,16 @@
 
 use crate::{json_digest, ArtifactRef, EventId, MAX_ARTIFACT_BYTES};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::path::{Component, Path};
 
 pub const ARTIFACT_PUBLICATION_SCHEMA: &str = "kiana.artifact-publication.v1";
 pub const ARTIFACT_WORKSPACE_DELTA_SCHEMA: &str = "kiana.artifact-workspace-delta.v1";
+pub const ARTIFACT_ORPHAN_RETENTION_SCHEMA: &str = "kiana.artifact-publication-retention.v1";
+/// Longest retention window an operator may declare before an orphan blob becomes reclaimable.
+pub const MAX_ARTIFACT_ORPHAN_AGE_MS: u64 = 365 * 24 * 60 * 60 * 1000;
+/// Largest number of orphans one reclamation run may reclaim.
+pub const MAX_ARTIFACT_ORPHAN_COUNT: u32 = 4096;
 const MAX_IDENTITY_BYTES: usize = 512;
 const MAX_REASON_BYTES: usize = 256;
 const MAX_LIMITATION_BYTES: usize = 512;
@@ -394,5 +400,245 @@ impl ArtifactWorkspaceDelta {
             }
         }
         Ok(())
+    }
+}
+
+/// Explicit operator policy for reclaiming committed blobs that no Company fact cites.
+///
+/// Reclamation is opt-in and bounded: `allow_blob_removal` must be set explicitly, and both a
+/// minimum age and a per-run cap are required so a repeated or rushed call cannot silently widen
+/// deletion. The policy is a declaration of intent, not an authorization token; the caller still
+/// passes the Company write context and the store re-checks its own journal.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactPublicationRetentionPolicy {
+    pub schema: String,
+    pub max_orphan_age_ms: u64,
+    pub max_orphan_count: u32,
+    pub allow_blob_removal: bool,
+    pub reason: String,
+}
+
+impl ArtifactPublicationRetentionPolicy {
+    pub fn new(
+        max_orphan_age_ms: u64,
+        max_orphan_count: u32,
+        allow_blob_removal: bool,
+        reason: impl Into<String>,
+    ) -> Result<Self, String> {
+        let policy = Self {
+            schema: ARTIFACT_ORPHAN_RETENTION_SCHEMA.to_owned(),
+            max_orphan_age_ms,
+            max_orphan_count,
+            allow_blob_removal,
+            reason: reason.into(),
+        };
+        policy.validate()?;
+        Ok(policy)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ARTIFACT_ORPHAN_RETENTION_SCHEMA {
+            return Err("artifact_orphan_retention_policy_invalid".to_owned());
+        }
+        if self.max_orphan_age_ms == 0 || self.max_orphan_age_ms > MAX_ARTIFACT_ORPHAN_AGE_MS {
+            return Err("artifact_orphan_retention_window_invalid".to_owned());
+        }
+        if self.max_orphan_count == 0 || self.max_orphan_count > MAX_ARTIFACT_ORPHAN_COUNT {
+            return Err("artifact_orphan_retention_count_invalid".to_owned());
+        }
+        bounded(
+            &self.reason,
+            "artifact_orphan_retention_reason",
+            MAX_REASON_BYTES,
+        )
+    }
+}
+
+/// What a retention plan decided for one orphan publication window.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactOrphanRetentionDecision {
+    /// Still inside the retention window, or nothing left to reclaim at the recorded reference.
+    Retained,
+    /// Past the window and selected, but this run was plan-only and removed nothing.
+    Eligible,
+    /// Bytes were reclaimed in this run.
+    Removed,
+    /// Past the window but refused: over the cap, or removal was not permitted, unsupported or
+    /// failed. A denial never deletes bytes.
+    Denied,
+}
+
+/// One orphan publication window considered by a retention plan.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactOrphanRetention {
+    pub command_id: String,
+    pub artifact: ArtifactRef,
+    pub intent_state: ArtifactPublicationState,
+    pub age_ms: u64,
+    pub decision: ArtifactOrphanRetentionDecision,
+    pub reason: String,
+}
+
+impl ArtifactOrphanRetention {
+    pub fn new(
+        command_id: impl Into<String>,
+        artifact: ArtifactRef,
+        intent_state: ArtifactPublicationState,
+        age_ms: u64,
+        decision: ArtifactOrphanRetentionDecision,
+        reason: impl Into<String>,
+    ) -> Result<Self, String> {
+        let retention = Self {
+            command_id: command_id.into(),
+            artifact,
+            intent_state,
+            age_ms,
+            decision,
+            reason: reason.into(),
+        };
+        retention.validate()?;
+        Ok(retention)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        bounded(
+            &self.command_id,
+            "artifact_orphan_retention_command_id",
+            MAX_IDENTITY_BYTES,
+        )?;
+        self.artifact.validate()?;
+        bounded(
+            &self.reason,
+            "artifact_orphan_retention_reason",
+            MAX_REASON_BYTES,
+        )?;
+        // Only a window that reconciliation already proved fact-free may be reclaimed. A pending or
+        // committed intent is never an orphan, regardless of what a caller claims.
+        if matches!(
+            self.decision,
+            ArtifactOrphanRetentionDecision::Eligible | ArtifactOrphanRetentionDecision::Removed
+        ) && self.intent_state != ArtifactPublicationState::Abandoned
+        {
+            return Err("artifact_orphan_retention_not_abandoned".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// Deterministic, self-checking retention plan for one reclamation attempt.
+///
+/// The plan carries its own policy so a reader can re-verify every decision without trusting the
+/// producing process. `journal_available` is false when the store exposes no publication journal;
+/// such a plan is empty by construction and never authorizes removal.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactPublicationRetentionPlan {
+    pub schema: String,
+    pub journal_available: bool,
+    pub policy: ArtifactPublicationRetentionPolicy,
+    pub generated_at_unix_ms: u64,
+    /// Open (unreconciled) publication windows are reported so an operator can see they were
+    /// excluded from reclamation rather than silently ignored.
+    pub pending_count: u32,
+    pub orphans: Vec<ArtifactOrphanRetention>,
+    pub eligible_count: u32,
+    pub removed_count: u32,
+    pub retained_count: u32,
+    pub denied_count: u32,
+}
+
+impl ArtifactPublicationRetentionPlan {
+    pub fn new(
+        policy: ArtifactPublicationRetentionPolicy,
+        journal_available: bool,
+        pending_count: u32,
+        orphans: Vec<ArtifactOrphanRetention>,
+        generated_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let eligible_count = orphans
+            .iter()
+            .filter(|orphan| orphan.decision == ArtifactOrphanRetentionDecision::Eligible)
+            .count() as u32;
+        let removed_count = orphans
+            .iter()
+            .filter(|orphan| orphan.decision == ArtifactOrphanRetentionDecision::Removed)
+            .count() as u32;
+        let retained_count = orphans
+            .iter()
+            .filter(|orphan| orphan.decision == ArtifactOrphanRetentionDecision::Retained)
+            .count() as u32;
+        let denied_count = orphans
+            .iter()
+            .filter(|orphan| orphan.decision == ArtifactOrphanRetentionDecision::Denied)
+            .count() as u32;
+        let plan = Self {
+            schema: ARTIFACT_ORPHAN_RETENTION_SCHEMA.to_owned(),
+            journal_available,
+            policy,
+            generated_at_unix_ms,
+            pending_count,
+            orphans,
+            eligible_count,
+            removed_count,
+            retained_count,
+            denied_count,
+        };
+        plan.validate()?;
+        Ok(plan)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ARTIFACT_ORPHAN_RETENTION_SCHEMA || self.generated_at_unix_ms == 0 {
+            return Err("artifact_orphan_retention_plan_invalid".to_owned());
+        }
+        self.policy.validate()?;
+        if !self.journal_available && (!self.orphans.is_empty() || self.pending_count != 0) {
+            return Err("artifact_orphan_retention_plan_unbacked".to_owned());
+        }
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        let (mut eligible, mut removed, mut retained, mut denied) = (0u32, 0u32, 0u32, 0u32);
+        for orphan in &self.orphans {
+            orphan.validate()?;
+            if !seen.insert(orphan.command_id.as_str()) {
+                return Err("artifact_orphan_retention_duplicate".to_owned());
+            }
+            match orphan.decision {
+                ArtifactOrphanRetentionDecision::Retained => retained += 1,
+                ArtifactOrphanRetentionDecision::Eligible => {
+                    if orphan.age_ms < self.policy.max_orphan_age_ms {
+                        return Err("artifact_orphan_retention_window_not_elapsed".to_owned());
+                    }
+                    eligible += 1;
+                }
+                ArtifactOrphanRetentionDecision::Removed => {
+                    if orphan.age_ms < self.policy.max_orphan_age_ms {
+                        return Err("artifact_orphan_retention_window_not_elapsed".to_owned());
+                    }
+                    if !self.policy.allow_blob_removal {
+                        return Err("artifact_orphan_retention_removal_not_permitted".to_owned());
+                    }
+                    removed += 1;
+                }
+                ArtifactOrphanRetentionDecision::Denied => denied += 1,
+            }
+        }
+        if eligible.saturating_add(removed) > self.policy.max_orphan_count {
+            return Err("artifact_orphan_retention_capacity_exceeded".to_owned());
+        }
+        if self.eligible_count != eligible
+            || self.removed_count != removed
+            || self.retained_count != retained
+            || self.denied_count != denied
+        {
+            return Err("artifact_orphan_retention_counts_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn is_plan_only(&self) -> bool {
+        self.removed_count == 0
     }
 }

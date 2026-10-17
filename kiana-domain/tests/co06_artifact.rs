@@ -1,8 +1,10 @@
 use kiana_domain::{
-    json_digest, ArtifactProvenance, ArtifactPublicationIntent, ArtifactPublicationReconciliation,
-    ArtifactPublicationState, ArtifactPublicationVerdict, ArtifactVersion, ArtifactWorkspaceDelta,
+    json_digest, ArtifactOrphanRetention, ArtifactOrphanRetentionDecision, ArtifactProvenance,
+    ArtifactPublicationIntent, ArtifactPublicationReconciliation,
+    ArtifactPublicationRetentionPlan, ArtifactPublicationRetentionPolicy, ArtifactPublicationState,
+    ArtifactPublicationVerdict, ArtifactVersion, ArtifactWorkspaceDelta,
     ArtifactWorkspaceDeltaState, Criterion, CriterionId, EventId, EvidenceId, EvidenceRef,
-    InvocationId, ProjectId, RunId,
+    InvocationId, ProjectId, RunId, MAX_ARTIFACT_ORPHAN_COUNT,
 };
 use uuid::Uuid;
 
@@ -485,4 +487,220 @@ fn artifact_workspace_delta_denies_inconsistent_or_escaping_states() {
         Vec::new(),
     )
     .is_err());
+}
+
+#[test]
+fn artifact_orphan_retention_needs_a_bounded_policy_and_an_abandoned_window() {
+    // Retention is opt-in and bounded: a zero or unbounded window/cap, or an empty reason, is not
+    // a declared policy and must never authorize reclamation.
+    assert!(ArtifactPublicationRetentionPolicy::new(0, 4, false, "co06-retention").is_err());
+    assert!(ArtifactPublicationRetentionPolicy::new(
+        kiana_domain::MAX_ARTIFACT_ORPHAN_AGE_MS + 1,
+        4,
+        false,
+        "co06-retention",
+    )
+    .is_err());
+    assert!(ArtifactPublicationRetentionPolicy::new(1, 0, false, "co06-retention").is_err());
+    assert!(ArtifactPublicationRetentionPolicy::new(
+        1,
+        MAX_ARTIFACT_ORPHAN_COUNT + 1,
+        false,
+        "co06-retention",
+    )
+    .is_err());
+    assert!(ArtifactPublicationRetentionPolicy::new(1, 4, false, "").is_err());
+    let plan_only =
+        ArtifactPublicationRetentionPolicy::new(1_000, 4, false, "co06-retention").unwrap();
+    let permitting =
+        ArtifactPublicationRetentionPolicy::new(1_000, 4, true, "co06-retention").unwrap();
+    let mut unknown = serde_json::to_value(&plan_only).unwrap();
+    unknown["unknown_field"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<ArtifactPublicationRetentionPolicy>(unknown).is_err());
+
+    let reference = evidence_reference(b"orphan bytes");
+    // Only a window reconciliation already proved fact-free may be reclaimed, whatever a caller
+    // claims about it.
+    assert_eq!(
+        ArtifactOrphanRetention::new(
+            "command-pending",
+            reference.clone(),
+            ArtifactPublicationState::Pending,
+            10_000,
+            ArtifactOrphanRetentionDecision::Removed,
+            "orphan_blob_reclaimed",
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_not_abandoned"
+    );
+    assert_eq!(
+        ArtifactOrphanRetention::new(
+            "command-committed",
+            reference.clone(),
+            ArtifactPublicationState::Committed,
+            10_000,
+            ArtifactOrphanRetentionDecision::Eligible,
+            "orphan_eligible_for_retention",
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_not_abandoned"
+    );
+
+    let abandoned = ArtifactOrphanRetention::new(
+        "command-1",
+        reference.clone(),
+        ArtifactPublicationState::Abandoned,
+        10_000,
+        ArtifactOrphanRetentionDecision::Removed,
+        "orphan_blob_reclaimed",
+    )
+    .expect("abandoned window");
+    // A plan may not report removal under a policy that never permitted it.
+    assert_eq!(
+        ArtifactPublicationRetentionPlan::new(
+            plan_only.clone(),
+            true,
+            0,
+            vec![abandoned.clone()],
+            20_000,
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_removal_not_permitted"
+    );
+    // Nor may it select a window that has not aged past the declared retention window.
+    let too_young = ArtifactOrphanRetention::new(
+        "command-1",
+        reference.clone(),
+        ArtifactPublicationState::Abandoned,
+        10,
+        ArtifactOrphanRetentionDecision::Eligible,
+        "orphan_eligible_for_retention",
+    )
+    .unwrap();
+    assert_eq!(
+        ArtifactPublicationRetentionPlan::new(plan_only.clone(), true, 0, vec![too_young], 20_000)
+            .unwrap_err(),
+        "artifact_orphan_retention_window_not_elapsed"
+    );
+    // The same window cannot be counted twice, and a per-run cap cannot be widened by listing
+    // more reclaimable windows than the policy allows.
+    let eligible = |command_id: &str| {
+        ArtifactOrphanRetention::new(
+            command_id,
+            evidence_reference(b"orphan bytes"),
+            ArtifactPublicationState::Abandoned,
+            10_000,
+            ArtifactOrphanRetentionDecision::Eligible,
+            "orphan_eligible_for_retention",
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        ArtifactPublicationRetentionPlan::new(
+            plan_only.clone(),
+            true,
+            0,
+            vec![eligible("command-2"), eligible("command-2")],
+            20_000,
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_duplicate"
+    );
+    let capped =
+        ArtifactPublicationRetentionPolicy::new(1_000, 1, true, "co06-retention").unwrap();
+    assert_eq!(
+        ArtifactPublicationRetentionPlan::new(
+            capped,
+            true,
+            0,
+            vec![eligible("command-2"), eligible("command-3")],
+            20_000,
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_capacity_exceeded"
+    );
+
+    let mixed = ArtifactPublicationRetentionPlan::new(
+        permitting.clone(),
+        true,
+        2,
+        vec![
+            abandoned,
+            ArtifactOrphanRetention::new(
+                "command-retained",
+                reference.clone(),
+                ArtifactPublicationState::Abandoned,
+                10,
+                ArtifactOrphanRetentionDecision::Retained,
+                "orphan_age_below_retention_window",
+            )
+            .unwrap(),
+            ArtifactOrphanRetention::new(
+                "command-denied",
+                reference.clone(),
+                ArtifactPublicationState::Abandoned,
+                10_000,
+                ArtifactOrphanRetentionDecision::Denied,
+                "orphan_retention_capacity_exceeded",
+            )
+            .unwrap(),
+        ],
+        20_000,
+    )
+    .expect("mixed retention plan");
+    assert_eq!(
+        (
+            mixed.eligible_count,
+            mixed.removed_count,
+            mixed.retained_count,
+            mixed.denied_count,
+        ),
+        (0, 1, 1, 1)
+    );
+    assert_eq!(mixed.pending_count, 2);
+    assert!(!mixed.is_plan_only());
+
+    // A plan that misreports its own counts, or that carries orphans without a journal to back
+    // them, is rejected by re-verification rather than trusted.
+    let mut tampered = mixed.clone();
+    tampered.removed_count = 0;
+    assert_eq!(
+        tampered.validate().unwrap_err(),
+        "artifact_orphan_retention_counts_mismatch"
+    );
+    assert_eq!(
+        ArtifactPublicationRetentionPlan::new(
+            permitting.clone(),
+            false,
+            0,
+            vec![eligible("command-2")],
+            20_000,
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_plan_unbacked"
+    );
+    assert_eq!(
+        ArtifactPublicationRetentionPlan::new(
+            permitting.clone(),
+            false,
+            0,
+            Vec::new(),
+            0,
+        )
+        .unwrap_err(),
+        "artifact_orphan_retention_plan_invalid"
+    );
+    let plan_only_plan = ArtifactPublicationRetentionPlan::new(
+        plan_only,
+        true,
+        1,
+        vec![eligible("command-2")],
+        20_000,
+    )
+    .expect("plan-only retention plan");
+    assert!(plan_only_plan.is_plan_only());
+    assert_eq!(plan_only_plan.eligible_count, 1);
+    let mut unknown = serde_json::to_value(&plan_only_plan).unwrap();
+    unknown["unknown_field"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<ArtifactPublicationRetentionPlan>(unknown).is_err());
 }

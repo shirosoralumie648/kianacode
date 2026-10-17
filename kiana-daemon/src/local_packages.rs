@@ -233,6 +233,36 @@ mod unix {
             Ok(unsafe { File::from_raw_fd(fd) })
         }
 
+        /// Open an existing regular file by name and keep the descriptor pinned, so a caller can
+        /// verify bytes and then remove exactly that inode. Symlinks, directories and files with
+        /// extra hard links are denied before any action; an absent entry returns `None`.
+        pub(crate) fn open_regular_file(&self, name: &str) -> Result<Option<File>, PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let name = cstring(name.as_ref())?;
+            let fd = unsafe {
+                libc::openat(
+                    self.0.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK,
+                )
+            };
+            if fd < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    return Ok(None);
+                }
+                return Err(failed(format!("package_file_open_failed:{error}")));
+            }
+            let file = unsafe { File::from_raw_fd(fd) };
+            let metadata = file.metadata().map_err(|e| failed(e.to_string()))?;
+            if !metadata.is_file() || metadata.nlink() != 1 {
+                return Err(failed("package_file_type_denied"));
+            }
+            Ok(Some(file))
+        }
+
         pub(crate) fn remove_owned_file(&self, name: &str, owned: &File) -> Result<(), PortError> {
             if name.contains('/') || !kiana_domain::valid_extension_path(name) {
                 return Err(failed("package_path_invalid"));
@@ -469,6 +499,9 @@ impl LocalDir {
     }
     pub(crate) fn create_new_file(&self, _: &str) -> std::io::Result<File> {
         Err(std::io::ErrorKind::Unsupported.into())
+    }
+    pub(crate) fn open_regular_file(&self, _: &str) -> Result<Option<File>, PortError> {
+        Err(failed("local_package_platform_unsupported"))
     }
     pub(crate) fn remove_owned_file(&self, _: &str, _: &File) -> Result<(), PortError> {
         Err(failed("local_package_platform_unsupported"))
