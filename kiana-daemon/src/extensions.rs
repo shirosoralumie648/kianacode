@@ -1820,8 +1820,9 @@ mod tests {
 
     /// EXT-25 behavioral fixture: the host folds a signed, enabled fixture package, then the
     /// broker and the daemon admission recheck the live registry immediately before dispatch.
-    /// Deny-first: role drift, stale generation, disabled and revoked states must fail with
-    /// stable reason codes and zero handler calls before the passing control case runs.
+    /// Deny-first: role drift, expired windows, forged scope digests, stale generation, disabled,
+    /// revoked and post-upgrade package-hash drift must fail with stable reason codes and zero
+    /// handler calls before the passing control case runs; the enabled control dispatches once.
     #[tokio::test]
     async fn extension_admission_rechecks_live_registry_before_dispatch() {
         let package = fixture_package();
@@ -1863,7 +1864,57 @@ mod tests {
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
 
-        // (b) stale registry generation: disabling advances the registry to generation 2, so the
+        // (b) expired window: the signed issue/expiry window is part of the server scope, so a
+        // scope that outlived its window must fail closed at both admission layers.
+        let expired_scope = ExtensionExecutionScope::new(
+            &package.manifest,
+            package.package_sha256.clone(),
+            1,
+            "builder",
+            issued_scope.issued_at_unix_ms.saturating_sub(2_000),
+            issued_scope.issued_at_unix_ms.saturating_sub(1_000),
+        )
+        .expect("expired fixture scope");
+        let expired = extension_request(&project_root, "builder", &expired_scope);
+        assert_eq!(
+            registry
+                .check(&expired, &expired_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("expired scope must fail closed"),
+            PortError::Failed("extension_scope_expired".to_owned())
+        );
+        assert_eq!(
+            broker
+                .execute(expired)
+                .await
+                .expect_err("expired scope must not dispatch"),
+            PortError::Failed("extension_scope_expired".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // (c) forged scope digest: a client or model cannot mint `_extension_scopes`; a
+        // well-formed scope whose digest does not cover its own fields is refused before any
+        // handler runs. The Broker rejects the wire shape, the admission recomputes the digest.
+        let mut forged_scope = issued_scope.clone();
+        forged_scope.scope_digest = format!("sha256:{}", "0".repeat(64));
+        let forged = extension_request(&project_root, "builder", &forged_scope);
+        assert_eq!(
+            registry
+                .check(&forged, &forged_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("forged scope digest must fail closed"),
+            PortError::Failed("extension_scope_digest_mismatch".to_owned())
+        );
+        assert_eq!(
+            broker
+                .execute(forged)
+                .await
+                .expect_err("forged scope must not dispatch"),
+            PortError::Failed("extension_scope_invalid".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // (d) stale registry generation: disabling advances the registry to generation 2, so the
         // scope captured at generation 1 must fail closed even though role and package match.
         append_registry_state(
             &events,
@@ -1889,7 +1940,7 @@ mod tests {
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
 
-        // (c) disabled package: even a scope recomputed at the current generation must not
+        // (e) disabled package: even a scope recomputed at the current generation must not
         // authorize execution while the live registry state is not enabled.
         let disabled_scope = ExtensionExecutionScope::new(
             &package.manifest,
@@ -1920,7 +1971,7 @@ mod tests {
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
 
-        // (d) revoked package: the next generation keeps failing closed with the same code.
+        // (f) revoked package: the next generation keeps failing closed with the same code.
         append_registry_state(&events, &scope_id, 3, &installed_state(&package, "revoked")).await;
         let revoked_scope = ExtensionExecutionScope::new(
             &package.manifest,
@@ -1977,6 +2028,53 @@ mod tests {
             .await
             .expect("control dispatch");
         assert_eq!(result.output["fixture"], json!("extension-admission"));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        // (g) upgrade package-hash drift: a new enabled generation carrying a different package
+        // hash invalidates the pre-upgrade scope, and even a self-consistent scope re-issued at
+        // the new generation with the old package hash fails the live snapshot comparison.
+        let mut upgraded = installed_state(&package, "enabled");
+        upgraded.package_sha256 = "e".repeat(64);
+        append_registry_state(&control_events, &control_scope_id, 2, &upgraded).await;
+
+        let stale_upgraded = extension_request(&control_project, "builder", &control_scope);
+        assert_eq!(
+            control_registry
+                .check(
+                    &stale_upgraded,
+                    &control_scope.contract(ExtensionEffect::ReadOnly)
+                )
+                .await
+                .expect_err("pre-upgrade scope must fail closed"),
+            PortError::Failed("extension_scope_generation_stale".to_owned())
+        );
+        assert_eq!(
+            control_broker
+                .execute(stale_upgraded)
+                .await
+                .expect_err("pre-upgrade scope must not dispatch"),
+            PortError::Failed("extension_scope_generation_stale".to_owned())
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let mut drifted_scope = control_scope.clone();
+        drifted_scope.registry_generation = 2;
+        drifted_scope.scope_digest = drifted_scope.digest();
+        let drifted = extension_request(&control_project, "builder", &drifted_scope);
+        assert_eq!(
+            control_registry
+                .check(&drifted, &drifted_scope.contract(ExtensionEffect::ReadOnly))
+                .await
+                .expect_err("old package hash must fail closed"),
+            PortError::Failed("extension_execution_snapshot_inactive".to_owned())
+        );
+        assert_eq!(
+            control_broker
+                .execute(drifted)
+                .await
+                .expect_err("old package hash must not dispatch"),
+            PortError::Failed("extension_execution_snapshot_inactive".to_owned())
+        );
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }
