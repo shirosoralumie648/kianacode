@@ -47,6 +47,64 @@ pub enum ToolSchedulingMode {
     Exclusive,
 }
 
+/// 并行额度上限的三个来源：run、部署（deployment）与角色（role）。
+///
+/// H16 要求“并行额度取 run、部署与角色上限的交集”。这里只承载三个来源的声明值，
+/// 由 `effective()` 求交集；它不读取任何真实配额账本，也不授予执行权。任何来源为 0
+/// 表示该来源“不允许并发”，交集的保守结果是退化为串行（宽度 1），而不是拒绝整批。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolBatchParallelismCap {
+    /// run 级并发上限。
+    pub run: u32,
+    /// 部署级并发上限。
+    pub deployment: u32,
+    /// 角色级并发上限。
+    pub role: u32,
+}
+
+impl ToolBatchParallelismCap {
+    /// 记录三个来源的上限；不做裁剪，交集在 `effective()` 中计算。
+    pub fn new(run: u32, deployment: u32, role: u32) -> Self {
+        Self {
+            run,
+            deployment,
+            role,
+        }
+    }
+
+    /// 生效并行度 = 三个来源逐项取最小，再与全局上限取最小；结果至少为 1。
+    ///
+    /// 【调用者】`ToolBatchGroup::dispatch_width()` 用它把“组自身上限”和“环境上限”取交集。
+    /// 【为什么下限是 1】额度为 0 表示该来源不允许额外并发，但批次仍要串行推进；把它当成
+    /// “不许派发”会让整批停滞，混淆“额度收窄”和“拒绝执行”。
+    pub fn effective(&self) -> u32 {
+        self.run
+            .min(self.deployment)
+            .min(self.role)
+            .min(TOOL_BATCH_MAX_PARALLELISM)
+            .max(1)
+    }
+}
+
+/// 计划中按源顺序展开的单个待派发调用。
+///
+/// H16 的历史必须“按 ordinal 形成模型历史”，因此这里给每个调用一个从 0 开始、与
+/// assistant 输出顺序一致的 `ordinal`，并保留它所属的组和调度模式。它是描述数据，
+/// 不是已授权请求。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolBatchDispatchUnit {
+    /// 从 0 开始的源序号（assistant 输出顺序）；模型历史按它排序，与完成顺序无关。
+    pub ordinal: usize,
+    /// 该调用所属的组号，与 `ToolBatchGroup::group_id` 对应。
+    pub group_id: u32,
+    /// 该调用所属组的调度模式（只读候选并行组或独占屏障）。
+    pub mode: ToolSchedulingMode,
+    /// provider 调用 ID；组内/组间都保持源顺序。
+    pub call_id: String,
+}
+
 /// 计划中的连续调用组，以及该组允许的调度属性。
 ///
 /// 这是用于 Runner/Core 交接的描述数据，不包含已授权请求或执行结果。Serde 负责结构与外部
@@ -118,6 +176,16 @@ impl ToolBatchGroup {
         }
         Ok(())
     }
+
+    /// 该组在给定额度下的实际派发宽度：取组自身上限与生效额度较小值，至少为 1。
+    ///
+    /// 【调用者】Runner 侧的有界并行执行器在展开一个只读组时用它决定同时可派发的调用数。
+    /// 【为什么独占组也是 1】`exclusive` 组的 `max_parallelism` 恒为 1，所以无论环境额度多大，
+    /// 独占调用都单独执行，前后自然形成屏障。
+    /// 【边界】它只把两个数字取交集，不检查授权、不启动线程，也不是资源锁。
+    pub fn dispatch_width(&self, cap: ToolBatchParallelismCap) -> u32 {
+        self.max_parallelism.min(cap.effective()).max(1)
+    }
 }
 
 /// 一次 assistant 工具调用批次（tool-call batch）的有序分组结果。
@@ -175,6 +243,29 @@ impl ToolBatchPlan {
         self.groups
             .iter()
             .filter(|group| group.mode == ToolSchedulingMode::ParallelRead)
+    }
+
+    /// 按组顺序把计划展开为逐调用派发单元，`ordinal` 保持源顺序（0 起）。
+    ///
+    /// 【调用者】有界并行执行器用它在派发前把“组级计划”与“源序号”绑定，结果再按 ordinal
+    /// 回填模型历史。独占屏障不会打断 ordinal 的连续性：屏障前后的调用仍按声明顺序编号。
+    /// 【失败情况】先校验整个计划；不满足合同（空组、组号断裂、call ID 重复等）时返回稳定
+    /// 错误，且不做部分展开。
+    /// 【副作用】只读内存并构造新向量，不执行工具、不访问文件/网络。
+    pub fn dispatch_units(&self) -> Result<Vec<ToolBatchDispatchUnit>, String> {
+        self.validate()?;
+        let mut units = Vec::new();
+        for group in &self.groups {
+            for call_id in &group.call_ids {
+                units.push(ToolBatchDispatchUnit {
+                    ordinal: units.len(),
+                    group_id: group.group_id,
+                    mode: group.mode,
+                    call_id: call_id.clone(),
+                });
+            }
+        }
+        Ok(units)
     }
 }
 
