@@ -1388,6 +1388,11 @@ impl DaemonHost {
         store
             .bind_server_recipient(&self.principal.identity.principal_id)
             .map_err(|error| PortError::Failed(error.to_string()))?;
+        // The clock is the server's, not the caller's: due state, the presentation window and the
+        // mutation fence all come from this reading.
+        store
+            .bind_server_clock(authn::LocalAuthnAdapter::now_unix_ms())
+            .map_err(|error| PortError::Failed(error.to_string()))?;
         store
             .apply_committed(&events, source_cursor)
             .map_err(|error| PortError::Failed(error.to_string()))?;
