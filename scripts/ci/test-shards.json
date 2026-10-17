@@ -255,6 +255,7 @@
    "cp13_dispatch_guard",
    "cp14_result_guard",
    "cp15_cancellation_guard",
+   "cp15_cancellation_race",
    "cp16_handler_stop_guard",
    "cp17_revoke_cleanup_guard",
    "cp18_run_snapshot_guard",
