@@ -152,11 +152,11 @@ fn write_private(path: &Path, contents: &[u8]) {
 async fn er20_daemon_restart_reads_journal_without_resuming() {
     let store = paused_store().await;
     let (runner, sends, restores) = zero_runner();
-    let host = host(store.clone(), runner);
+    let initial = host(store.clone(), runner);
     let before = store.read_all().await.unwrap().len();
 
-    host.startup_health().await.expect("startup health");
-    host.readiness().await.expect("readiness");
+    initial.startup_health().await.expect("startup health");
+    initial.readiness().await.expect("readiness");
 
     assert_eq!(sends.load(Ordering::SeqCst), 0);
     assert_eq!(restores.load(Ordering::SeqCst), 0);

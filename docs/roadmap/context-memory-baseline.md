@@ -22,6 +22,8 @@
 > 2026-10-17（PD-18 合入 master）重新钉扎：删除索引与保留治理落地后，
 > `data_governance.rs` 与 `harness_memory.rs` 重钉两行 SHA-256，并与验收测试期望同步；
 > 下表其余哈希未变。
+> 2026-10-17（CI 修复）重新钉扎：修复 `role_label` 的 E0507（`message.role` 只能移动一次）
+> 后只重钉 `compact.rs` 一行 SHA-256，并与验收测试期望同步；下表其余哈希未变。
 
 ## 1. 快照
 
@@ -43,7 +45,7 @@
 | memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `06dfbbab7f45cc94826279876e3d97a008fb42b00f154855e8bd2b0ff68a36f9` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |
-| 上下文压缩 | `kiana-runner/src/compact.rs` | `595f2385fe1602c0300ce14c60311532166774af4776fdce76eac107bcc293db` |
+| 上下文压缩 | `kiana-runner/src/compact.rs` | `a021e4011c77d1b338b6c641b55376ac510bb83a713ab23cf8d3bc5dd5bd90b2` |
 | 数据治理 | `kiana-daemon/src/data_governance.rs` | `fa9a03f688b445c2120589ce51d183d1fcec4266b864f1ddf8cfa5e58fdfca35` |
 
 reference inventory：72 个非隐藏项目目录 + 隐藏 `.claude-flow` + 4 个顶层文件（`agentdb.rvf`、`agentdb.rvf.lock`、`ruvector.db`、`COMPANYOS-REFERENCES.md`，只登记不计入）。与专项 §24.3 一致；完整清单编在验收测试里。

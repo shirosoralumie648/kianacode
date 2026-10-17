@@ -548,7 +548,7 @@ fn render_for_summary(message: &ModelMessage, max_tokens: usize) -> String {
         .as_ref()
         .map(|id| format!(" tool_call_id={id}"))
         .unwrap_or_default();
-    format!("[{}]{id}{tools} {text}", role_label(message.role))
+    format!("[{}]{id}{tools} {text}", role_label(message.role.clone()))
 }
 
 /// 渲染摘要模型请求：一条系统指令加折叠区/旧摘要正文，整体有界。
