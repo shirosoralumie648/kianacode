@@ -352,6 +352,8 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 将 `ExtensionRegistry::skill_context` 生成的 scope 变成 ControlPlane 可验证引用：每个引用绑定 package hash、registry generation、role、effect、capability diff、network/secret policy、expiry。`KianaHarness` 可把它作为 request metadata 传递，但 Broker 必须从 registry snapshot 重新查证，客户端和模型不能伪造 `_extension_scopes`。包升级、撤销、角色变化和新 approval 都触发 recheck。
 
+验收（2026-10-17，CI-only）：`kiana-daemon/src/extensions.rs` 的 runtime fixture `extension_admission_rechecks_live_registry_before_dispatch` 先折叠签名 enabled 包，再经真实 `ExtensionRegistry::check` 与 `CapabilityBroker::execute`（`admit_extensions` → `ExtensionAdmission::check`）拒绝 role drift、expired、伪造 scope digest、stale generation、disabled、revoked 与升级后 package-hash drift（稳定码、零 handler 调用），最后让 enabled control 恰好 dispatch 一次（升级路径后仍恰好一次）；手动 lane `.github/workflows/ext25-signed-skill.yml` 串行跑 domain `ext25_signed_skill_scope`、Core `ext25_signed_skill_scope_guard`、`p4_l5_01_skill_allowed_tools` 与 daemon runtime fixture，统一 `ci.yml` 的 `kiana-daemon` 整 crate 分片亦涵盖 lib fixture。durable scope store、跨进程签发/恢复与 live/physical 证据仍开放。
+
 <a id="step-ext-26"></a>
 
 

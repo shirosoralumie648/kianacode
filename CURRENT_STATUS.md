@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 EXT-25 翻 ✅（签名 Skill 服务端绑定：runtime admission 拒绝矩阵扩展，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 360（🔄 → ✅，CI pending）与 §3 变更日志（2026-10-17 `EXT-25` 行）；kiana-daemon/src/extensions.rs（runtime fixture `extension_admission_rechecks_live_registry_before_dispatch` 新增 expired / 伪造 scope digest / 升级 package-hash drift 拒绝，既有 role drift/stale generation/disabled/revoked 与 control 恰好一次保留并重编号注释）；.github/workflows/ext25-signed-skill.yml（新增 kiana-core `ext25_signed_skill_scope_guard` 与 kiana-domain `p4_l5_01_skill_allowed_tools` 步骤）；docs/roadmap/ext25-signed-skill-binding-baseline.md（新增 2026-10-17 runtime admission closeout 段与证据块）；docs/roadmap/skills-plugins-hooks.md（EXT-25 卡新增验收段）
+worktree_status: 行 360 🔄 → ✅（CI pending）；只改本 Step 相关 fixture/workflow/baseline 并单点回填共享文档；无 Cargo.toml/Cargo.lock/package.json 变化、无新依赖或 test target、无第二条执行循环、五个模型可见工具面不变、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/run、make、npm、smoke 或验收脚本（本会话权限门拒绝 `cargo fmt --all`，仅放行 `cargo fmt --all -- --check` 与 standalone `rustfmt`）；`cargo fmt --all -- --check` 仅报继承的 `kiana-entrypoints/src/workbench_chat.rs:1014` 基线漂移（本步未触碰，未修改），`rustfmt --edition 2021 --check kiana-daemon/src/extensions.rs` exit 0；静态核对用 rg/cat/sed/git status/git diff；`python3 scripts/roadmap-goal.py` 正常列出活动前沿，`bash scripts/ci/validate-workflows.sh` 因本环境无 ruby 未运行
+cwd·environment: worktree /workspace/kianacode-worktrees/EXT-25，分支 step/ext-25-20261017-1（基线 master 99009d3e65aa）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: 先拒绝（`extension_admission_rechecks_live_registry_before_dispatch`，签名 enabled 包折叠后经真实 `ExtensionRegistry::check` 与 `CapabilityBroker::execute`（`admit_extensions` → `ExtensionAdmission::check`），全部零 handler 调用）：role drift=`extension_scope_role_mismatch`（两层）、过期窗口=`extension_scope_expired`（两层）、伪造 `_extension_scopes` digest（Broker 线形=`extension_scope_invalid`；服务端重算=`extension_scope_digest_mismatch`）、disable 后旧代 scope=`extension_scope_generation_stale`、disabled/revoked=`extension_execution_snapshot_inactive`、升级 package-hash drift（旧代 scope=`extension_scope_generation_stale`；自洽重签新代旧 hash=`extension_execution_snapshot_inactive`）；成功：enabled control 经两段准入恰好 dispatch 一次（calls==1），升级路径后仍恰一次；domain `ext25_signed_skill_scope`、Core `ext25_signed_skill_scope_guard`、`p4_l5_01_skill_allowed_tools` 与 daemon runtime fixture 由 `.github/workflows/ext25-signed-skill.yml` 串行执行，统一 `ci.yml` 的 `kiana-daemon` 整 crate 分片（targets=null）自动涵盖 lib fixture
+exit_code: 本地未运行；CI 回执未等待
+status_change: 行 360 由 🔄 提升 ✅（CI pending）/ feature_status=implemented（源码层退出条件：scope 服务端绑定、Broker/Admission 双段重查与拒绝矩阵均在树内且有 CI 接线）；detail-card ✅ 与行状态漂移消除
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical（夹具编译与运行正确性依赖 GitHub Actions）
+limitations: durable scope store、跨进程签发/恢复与 live/physical 证据仍开放（归 EXT-29/EXT-30 及后续）；scope digest 是无密钥完整性指纹，不是数字签名或独立授权凭证；夹具驱动 daemon 内 `ExtensionRegistry` 与内存 EventLog，未证明生产 DaemonHost 装配路径与真实包缓存落盘；本地 `cargo fmt --all` 被会话权限门拒绝、`validate-workflows.sh` 因无 ruby 未运行，均由 `cargo fmt --all -- --check`/standalone rustfmt 与静态核对替代；继承的 workbench_chat.rs 格式漂移不在本步范围；CI 回执未等待
+reviewer: root integration agent；EXT-25 卡片逐条静态复核（先拒绝/成功路径、workflow 接线、无第二执行路径）
+```
+
 ### 2026-10-17 PD-10 翻 ✅（Run/Invocation/Attempt/Receipt 读模型：attempt 投影、typed 证据与新鲜进程重建验收，CI-only 口径）
 
 ```text
