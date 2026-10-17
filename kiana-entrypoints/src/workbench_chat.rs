@@ -431,6 +431,28 @@ impl WorkbenchView {
         self.finish_completed_response(response);
     }
 
+    /// 展示 steer/inject 这类「运行中排队输入」的回执，且**不**结束本地 running 状态。
+    ///
+    /// 这类响应不是 turn 终态：`Completed` 只表示 ControlPlane 已接受并把输入排入指定
+    /// 目标，当前 run 仍在继续。所以这里刻意不复用 [`apply_response`](Self::apply_response)
+    /// ——后者会把 `running` 置回 false，并把排队回执误读成 run 的最终结果。
+    pub fn apply_input_response(&mut self, response: &ResponseEnvelope) {
+        // 只有服务端明确回报 queued=true 才展示排队成功；其它形状按拒绝处理，避免误报。
+        if response.status == ExecutionStatus::Completed
+            && response.output["queued"].as_bool() == Some(true)
+        {
+            let input_id = response.output["input_id"].as_str().unwrap_or("unknown");
+            let target = response.output["target"].as_str().unwrap_or("next-step");
+            self.push_system(format!("input queued ({target}): {input_id}"));
+        } else {
+            self.push_system(format!(
+                "input not queued ({}): {}",
+                response.status.as_str(),
+                response.error.as_deref().unwrap_or("kiana_input_rejected")
+            ));
+        }
+    }
+
     fn finish_non_completed_response(&mut self, response: &ResponseEnvelope) {
         self.stream_turn = None;
         match response.status {
@@ -635,6 +657,10 @@ pub async fn run(
     let (tx, mut rx) = mpsc::unbounded_channel::<Result<kiana_protocol::ResponseEnvelope>>();
     let (stream_tx, mut stream_rx) =
         mpsc::unbounded_channel::<std::result::Result<RunStreamEnvelope, String>>();
+    // 运行中排队的 steer/inject 回执走独立通道：它不是 turn 终态，主通道的
+    // 终态处理（apply_response）会把 running 置回 false，不能混用。
+    let (input_tx, mut input_rx) =
+        mpsc::unbounded_channel::<Result<kiana_protocol::ResponseEnvelope>>();
     let mut started = false;
     let mut last_run_id: Option<RunId> = None;
 
@@ -669,6 +695,14 @@ pub async fn run(
                         view.push_system(error.to_string());
                     }
                     None => view.running = false,
+                }
+            }
+            input_result = input_rx.recv() => {
+                match input_result {
+                    // 排队回执只更新展示，不触碰 running/终态投影。
+                    Some(Ok(response)) => view.apply_input_response(&response),
+                    Some(Err(error)) => view.push_system(format!("input not queued: {error}")),
+                    None => {}
                 }
             }
             stream_event = stream_rx.recv() => {
@@ -719,6 +753,7 @@ pub async fn run(
                             started,
                             last_run_id.clone(),
                             &tx,
+                            &input_tx,
                             &stream_tx,
                         )
                         .await?
@@ -757,6 +792,7 @@ async fn handle_action(
     started: bool,
     last_run_id: Option<RunId>,
     tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
+    input_tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
     stream_tx: &mpsc::UnboundedSender<std::result::Result<RunStreamEnvelope, String>>,
 ) -> Result<LoopControl> {
     match action {
@@ -977,7 +1013,8 @@ async fn handle_action(
         }
         ChatAction::Submit(prompt) => {
             if view.running {
-                view.push_system("turn is running; Esc or /cancel first");
+                // 运行中继续输入的文本走 next-turn 注入排队，不再要求先取消当前 turn。
+                queue_running_input(view, host, session_id, options, last_run_id, prompt, input_tx);
                 return Ok(LoopControl::Continue);
             }
             submit_turn(
@@ -1014,6 +1051,47 @@ fn spawn_cancel(
             harness_run::cancel_envelope_on_host(host, session_id, last_run_id, "user", &options)
                 .await;
         let _ = tx.send(result);
+    });
+}
+
+/// 把运行中提交的文本作为 `next-turn` 注入排队，而不是另起一个 run。
+///
+/// 该路径不改变权限、不中断当前 turn，也不提前消费输入：文本会留在 inbox，由 Runner 在
+/// 下一个安全边界并入模型消息。回执走独立的 `input_tx` 通道，避免被当成本轮终态。
+fn queue_running_input(
+    view: &mut WorkbenchView,
+    host: &Arc<DaemonHost>,
+    session_id: &str,
+    options: &HashMap<String, Value>,
+    last_run_id: Option<RunId>,
+    prompt: String,
+    input_tx: &mpsc::UnboundedSender<Result<kiana_protocol::ResponseEnvelope>>,
+) {
+    // 没有 run id 时（首个响应尚未返回）无法定位排队目标，保留原来的保守提示。
+    let Some(run_id) = last_run_id else {
+        view.push_system("turn is running; Esc or /cancel first");
+        return;
+    };
+    view.push_user(prompt.clone());
+    let (host, session_id, options, input_tx) = (
+        Arc::clone(host),
+        session_id.to_owned(),
+        options.clone(),
+        input_tx.clone(),
+    );
+    tokio::spawn(async move {
+        let result = harness_run::inject_envelope_on_host(
+            host,
+            session_id,
+            run_id,
+            "next-turn",
+            "tty",
+            prompt,
+            None,
+            &options,
+        )
+        .await;
+        let _ = input_tx.send(result);
     });
 }
 
@@ -1282,6 +1360,43 @@ mod tests {
             .iter()
             .any(|message| message.role == ChatRole::Changed
                 && message.text.contains("GOLDEN_PATH.txt")));
+    }
+
+    #[test]
+    fn input_receipt_does_not_end_the_local_turn() {
+        let mut view = running_view();
+        let response = response_with_run_id(
+            ExecutionStatus::Completed,
+            RunId::new(),
+            serde_json::json!({
+                "input_id": "input-1",
+                "target": "next-turn",
+                "queued": true
+            }),
+        );
+        view.apply_input_response(&response);
+        assert!(view.running, "queued input receipt must not end the turn");
+        assert!(view.last_status.is_none());
+        assert!(view.messages.iter().any(|message| {
+            message.role == ChatRole::System
+                && message.text.contains("input queued (next-turn): input-1")
+        }));
+    }
+
+    #[test]
+    fn rejected_input_receipt_keeps_running_and_reports_error() {
+        let mut view = running_view();
+        let mut response = response_with_run_id(
+            ExecutionStatus::Blocked,
+            RunId::new(),
+            serde_json::json!({"queued": false}),
+        );
+        response.error = Some("stale_turn_steer".to_owned());
+        view.apply_input_response(&response);
+        assert!(view.running, "rejected input must not end the turn");
+        assert!(view.messages.iter().any(|message| {
+            message.role == ChatRole::System && message.text.contains("stale_turn_steer")
+        }));
     }
 
     #[test]

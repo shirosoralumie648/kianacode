@@ -24,6 +24,9 @@ jobs:
           - name: core-route-guard
             package: kiana-core
             target: h19_steer_inject_guard
+          - name: entrypoint-wiring
+            package: kiana-entrypoints
+            target: h19_steer_inject_wiring
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
