@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 ER-18 翻 ✅（workspace checkpoint identity/hash/size 捕获与 restore evidence 行为夹具，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 227（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/event-receipt-recovery.md（ER-18 卡 2026-10-17 收口段）；docs/roadmap/er18-workspace-checkpoint-baseline.md（+Capture contract 段）；kiana-domain/src/platform.rs（WorkspaceFileEdit +size_bytes/+sha256）；kiana-daemon/src/apply_patch.rs（capture_checkpoint_files 绑定 journal_sha256/size + 九个 #[cfg(test)] 行为夹具）；kiana-core/tests/er18_workspace_checkpoint_guard.rs（+size_bytes/sha256 contract marker、+er18_daemon_checkpoint_fixtures_cover_card_exit_conditions）；.github/workflows/er18-workspace-checkpoint.yml（+daemon lib checkpoint 测试与 lib --no-run）
+worktree_status: 行 227 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具/baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/git diff）与手工 rustfmt 风格对齐；.github/workflows/er18-workspace-checkpoint.yml 运行既有 `cargo test -p kiana-core --test p2_k4_01_checkpoint`/`cp18_run_snapshot_guard`/`er18_workspace_checkpoint_guard` 三个 core target，新增 `cargo test --locked -p kiana-daemon --lib checkpoint -- --test-threads=1` 与 `cargo test --locked -p kiana-daemon --lib --no-run`，外加 `cargo fmt --all --check`
+cwd·environment: worktree /workspace/kianacode-worktrees/ER-18，分支 step/er-18-20261017-1（基线 master 550862a6539a）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon lib（`--lib checkpoint` 过滤）行为夹具——`checkpoint_capture_records_hash_size_and_mode`（`plain.txt` 内容 `hello\n` → size 6/`journal_sha256("hello\n")`/不可执行，缺失路径 → contents None/size 0/空摘要）、`checkpoint_capture_records_executable_mode`（`0o755` → executable true）、`checkpoint_capture_denies_out_of_scope_and_protected_paths`（`../escape.txt` → `checkpoint_path_invalid`、`.git/config` → `checkpoint_protected_path`）、`checkpoint_capture_denies_symlink_targets`（`O_NOFOLLOW` → `apply_patch_io:` 拒绝且不经由链接改写外部文件）、`checkpoint_preview_reports_changes_without_writing`（`writes_performed=false`、current/target revision 正确、文件未变）、`checkpoint_restore_applies_target_and_verifies_revision`（restore 后复核 revision 等于 checkpoint）、`checkpoint_restore_revision_conflict_does_not_write`（捕获后外部 writer 改写 → `checkpoint_revision_conflict` 且不覆盖）、`checkpoint_restore_deletes_missing_and_adds_new_files`（删除 + 新增空/新文件后 revision 复算一致）、`checkpoint_restore_rollback_keeps_prior_content_after_failure`（只读目录写入失败 → 有界 `apply_patch_io:` 且先前更新已回滚为原内容）；core `er18_workspace_checkpoint_guard` 增补 contract/夹具命名守卫并继续要求 `kiana-core` 无 `ModelClient`/`CapabilityBroker`；既有 P2-K4/CP-18 source guard 不变
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: ER-18 卡「捕获 identity/hash/mode/size；restore 前可回滚 transaction；提交与回滚都留 evidence；外部 writer 变化使 restore 停止」在源码层齐备，本次补齐捕获 DTO 的显式 `sha256`/`size_bytes` 绑定与树内行为夹具（含 `restore_symlink_or_out_of_scope_path_is_denied`/`workspace_revision_changed_during_restore_is_denied`/`rollback_failure_is_unknown` 三条拒绝路径与 empty/new file、rename 等价、concurrent writer 等成功/回归）；行 227 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；行为夹具在调用方提供的 bounded 文本路径上运行，未覆盖真实 disk-full（仅以受限目录 io 失败近似）、物理掉电/crash-at-fsync、跨主机/跨进程文件锁竞争与 ArtifactStore 持久化；`er18-daemon` 夹具依赖非 root 运行（只读目录必须拒绝写入）；`rollback_failure_is_unknown` 的执行路径（回滚自身失败 → `result_unknown:apply_patch_rollback_failed`）仍只有 source marker，未构造可复现的行为夹具；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；ER-18 workspace checkpoint identity/hash/size 捕获、restore transaction/rollback 与 restore evidence 静态复核
+```
+
 ### 2026-10-17 EQ-16 翻 ✅（scrubbed boundary evidence 与 fail-closed 不变量，CI-only 口径）
 
 ```text

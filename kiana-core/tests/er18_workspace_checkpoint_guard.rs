@@ -30,6 +30,8 @@ fn er_restore_symlink_or_out_of_scope_path_is_denied() {
             "path_allow",
             "workspace_revision",
             "data_epoch",
+            "size_bytes",
+            "sha256",
             "files",
         ],
         "checkpoint contract",
@@ -177,4 +179,44 @@ fn er_rollback_failure_is_unknown() {
         assert!(!source.contains("rollback_failure_is_success"));
         assert!(!source.contains("ignore_restore_error"));
     }
+}
+
+#[test]
+fn er18_daemon_checkpoint_fixtures_cover_card_exit_conditions() {
+    let patch = include_str!("../../kiana-daemon/src/apply_patch.rs");
+    let domain = include_str!("../../kiana-domain/src/platform.rs");
+
+    // The capture contract must pin identity/hash/mode/size, not just text.
+    require(
+        domain,
+        &["WorkspaceFileEdit", "size_bytes", "sha256", "executable"],
+        "capture contract",
+    );
+    require(
+        patch,
+        &[
+            "kiana_domain::journal_sha256(&bytes)",
+            "let size_bytes = before.len()",
+            "checkpoint_relative_path",
+            "checkpoint_protected_path",
+            "checkpoint_file_mode_changed",
+        ],
+        "capture binding",
+    );
+    // Success/regression scenarios from the ER-18 card must exist as behavioural fixtures.
+    require(
+        patch,
+        &[
+            "checkpoint_capture_records_hash_size_and_mode",
+            "checkpoint_capture_records_executable_mode",
+            "checkpoint_capture_denies_out_of_scope_and_protected_paths",
+            "checkpoint_capture_denies_symlink_targets",
+            "checkpoint_preview_reports_changes_without_writing",
+            "checkpoint_restore_applies_target_and_verifies_revision",
+            "checkpoint_restore_revision_conflict_does_not_write",
+            "checkpoint_restore_deletes_missing_and_adds_new_files",
+            "checkpoint_restore_rollback_keeps_prior_content_after_failure",
+        ],
+        "daemon checkpoint fixtures",
+    );
 }

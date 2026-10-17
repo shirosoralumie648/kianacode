@@ -575,11 +575,21 @@ pub struct FeedbackCandidate {
 /// Immutable, bounded text edits only. It does not claim to snapshot arbitrary shell effects.
 /// Distinct from `kiana_domain::WorkspaceFileSnapshot`, which records file identity, trust and
 /// read disposition for index invalidation rather than edited content.
+///
+/// Each entry pins the captured file identity: `path` (relative to the project root), the bounded
+/// `contents`, the executable `mode` bit, the observed `size_bytes` and the content `sha256`
+/// digest. `size_bytes`/`sha256` are captured from the exact bytes that were read and default to
+/// `0`/empty for a path that was missing at capture time, so an old checkpoint without them stays
+/// deserializable while a fresh capture is verifiable byte-for-byte.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceFileEdit {
     pub path: String,
     pub contents: Option<String>,
     pub executable: bool,
+    #[serde(default)]
+    pub size_bytes: u64,
+    #[serde(default)]
+    pub sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
