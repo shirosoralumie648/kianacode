@@ -2202,11 +2202,12 @@ impl KianaHarness {
                         .prefix_cache
                         .lock()
                         .map_err(|_| "harness_lock_poisoned".to_owned())?;
-                    let decision = cache
-                        .get(&run.run_id)
-                        .map(|previous| previous.reuse_for(&stable_prefix));
+                    let decision = crate::step_context::decide_stable_prefix_reuse(
+                        cache.get(&run.run_id),
+                        &stable_prefix,
+                    );
                     cache.insert(run.run_id, stable_prefix.clone());
-                    decision.map(crate::step_context::StablePrefixReuse::from_decision)
+                    decision
                 };
                 Some(
                     crate::step_context::StepContextExplanation::from_resolved(&resolved)
