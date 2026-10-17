@@ -7,25 +7,37 @@ permissions:
   contents: read
 
 jobs:
-  focused-tests:
-    name: H20 ${{ matrix.name }}
+  context-plan:
+    name: H20 immutable step context fixtures
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: domain-context-plan
-            package: kiana-domain
-            target: h20_context_plan
-          - name: runner-context-guard
-            package: kiana-runner
-            target: h20_context_guard
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
-      - name: Run focused H20 target
-        run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1
+      - name: Check formatting
+        run: cargo fmt -p kiana-domain -p kiana-runner --check
+      - name: Run domain ContextPlan fixtures
+        run: cargo test -p kiana-domain --test h20_context_plan --locked -- --test-threads=1
+      - name: Run runner context guard
+        run: cargo test -p kiana-runner --test h20_context_guard --locked -- --test-threads=1
+      - name: Run runner context behavior fixtures
+        run: cargo test -p kiana-runner --test h20_context_behavior --locked -- --test-threads=1
+      - name: Run named H20 behavior fixtures
+        run: |
+          for fixture in \
+            h20_untrusted_project_instruction_never_enters_privileged_section \
+            h20_route_change_between_estimate_and_send_is_fenced \
+            h20_same_step_snapshot_renders_same_request_and_provenance; do
+            cargo test -p kiana-runner --test h20_context_behavior "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Compile domain ContextPlan target
+        run: cargo test -p kiana-domain --test h20_context_plan --no-run --locked
+      - name: Compile runner context guard target
+        run: cargo test -p kiana-runner --test h20_context_guard --no-run --locked
+      - name: Compile runner context behavior target
+        run: cargo test -p kiana-runner --test h20_context_behavior --no-run --locked

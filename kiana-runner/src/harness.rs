@@ -137,8 +137,8 @@ use crate::compact::{
 };
 use crate::inbox::{Inbox, InboxMessage, InboxTarget};
 use crate::model::{
-    ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelToolCall, ScriptedModel,
-    UnavailableModel,
+    ModelClient, ModelDelta, ModelMessage, ModelOutput, ModelRequest, ModelRole, ModelToolCall,
+    ScriptedModel, UnavailableModel,
 };
 use crate::progress::ProgressTracker;
 use crate::state_driver::{DriverInput, DriverTerminal, RunDriver};
@@ -149,8 +149,8 @@ use kiana_domain::{
     derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
     CapabilityResult, InputId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
     QuotaReservationId, RequestId, RetryAttemptReservation, RunId, SecretScanChannel, StepId,
-    StepIdentity, StreamingRedactionSink, StreamingRedactor, ToolObservation,
-    ToolObservationStatus, TurnId,
+    StepIdentity, StreamingRedactionSink, StreamingRedactor, TokenAccounting, ToolObservation,
+    ToolObservationStatus, TurnId, WireBudget,
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
@@ -447,6 +447,11 @@ struct ActiveRun {
     /// prompt 的来源出处（provenance），来自 `PromptBundle`。
     /// 原样写进 `ModelTurn` 事件，用于事后追查「这段上下文是谁给的」。
     prompt_sources: Vec<serde_json::Value>,
+    /// 解码后的结构化 PromptBundle；只有 bundle 路径（instructions 是 JSON 编码的
+    /// `PromptBundle`）才有。每个模型步用它编译一次不可变的 `ContextPlan` /
+    /// `ResolvedStepContext`，使估算、发送与证据解释复用同一个对象；legacy 纯文本
+    /// instructions 没有 bundle，runner 侧不编译上下文（见 `step_context` 模块文档）。
+    prompt_bundle: Option<PromptBundle>,
     /// 控制面下发的模型分配（model assignment）：角色、配额、模型路由权限。
     ///
     /// **由 `bind_model_assignment` 在 run 启动前单独写入**，
@@ -1227,6 +1232,7 @@ impl KianaHarness {
             inbox: Inbox::default(),
             messages: Vec::new(),
             prompt_sources: Vec::new(),
+            prompt_bundle: None,
             model_route: None,
             model_assignment: self
                 .assignments
@@ -1260,6 +1266,7 @@ impl KianaHarness {
                 let bundle =
                     PromptBundle::decode(&instructions).map_err(KianaHarnessError::Failed)?;
                 run.prompt_sources = bundle.provenance();
+                run.prompt_bundle = Some(bundle.clone());
                 let system = bundle.system_prompt();
                 if !system.is_empty() {
                     run.messages
@@ -2147,6 +2154,59 @@ impl KianaHarness {
                 .model
                 .prepare_call(request.clone(), spec)
                 .map_err(|error| error.to_string())?;
+            let prepared_route_digest = prepared.route.digest();
+            // bundle 路径：用同一步身份、消息快照和 wire 预算编译不可变上下文，然后对照
+            // 本 attempt 实际 route/catalog/workspace/data 复核。路由摘要取已钉住的 route
+            // （首次即本 attempt 的 route）；不一致时在预留预算和发送之前拒绝，避免 route
+            // 变化后仍把旧计划当作同一快照发出去。legacy/纯文本路径保持既有行为。
+            let step_context_explanation = if let Some(bundle) = run.prompt_bundle.as_ref() {
+                let wire_bytes = serde_json::to_vec(&prepared.wire_body)
+                    .map_err(|_| "step_context_wire_invalid".to_owned())?
+                    .len() as u64;
+                let wire_budget = WireBudget::from_final_wire(
+                    wire_bytes,
+                    prepared.budget.reserved_output,
+                    prepared.budget.limit,
+                    prepared.budget.limit,
+                    TokenAccounting::ConservativeUtf8 {
+                        bytes_per_token: 1,
+                        safety_margin_tokens: 1,
+                    },
+                )
+                .map_err(|error| format!("step_context_wire_budget:{error}"))?;
+                let resolved = crate::step_context::compile_step_context(
+                    crate::step_context::StepContextInputs {
+                        bundle,
+                        messages: &prepared.request.messages,
+                        sandbox: &prepared.request.sandbox,
+                        step_identity: step_identity.clone(),
+                        model_profile: bundle.model_profile.clone(),
+                        route_digest: run
+                            .model_route
+                            .as_ref()
+                            .map(|route| route.digest())
+                            .unwrap_or_else(|| prepared_route_digest.clone()),
+                        catalog_digest: prepared.tool_catalog_hash.clone(),
+                        wire_budget,
+                    },
+                )
+                .map_err(|error| format!("step_context_compile:{error}"))?;
+                crate::step_context::recheck_step_context_bindings(
+                    &resolved,
+                    &prepared_route_digest,
+                    &prepared.tool_catalog_hash,
+                    &prepared.request.messages,
+                    &prepared.request.sandbox,
+                )?;
+                Some(
+                    serde_json::to_value(
+                        crate::step_context::StepContextExplanation::from_resolved(&resolved),
+                    )
+                    .map_err(|_| "step_context_explanation_invalid".to_owned())?,
+                )
+            } else {
+                None
+            };
             if run
                 .model_route
                 .as_ref()
@@ -2349,6 +2409,7 @@ impl KianaHarness {
                 "provider_response_id_status":if result.as_ref().ok().and_then(|reply|reply.provider_response_id.as_ref()).is_some() {"known"} else {"unknown"},
                 "streaming":route.streaming,"budget":budget,"reserved_tokens":budget.total,"prompt_sources":run.prompt_sources,
                 "retry_reservation":retry_reservation,
+                "step_context":step_context_explanation,
                 "harness_budget":harness_budget,
                 "usage":usage,"usage_complete":usage.is_some(),"attempted":true,"purpose":purpose,
                 "elapsed_ms":started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
@@ -2915,6 +2976,7 @@ impl RunnerPort for KianaHarness {
         let started = Instant::now()
             .checked_sub(elapsed)
             .ok_or_else(|| PortError::Failed("runner_checkpoint_clock_invalid".to_owned()))?;
+        let prompt_bundle = decode_prompt_bundle_from_messages(&checkpoint.messages);
         runs.insert(
             run_id,
             ActiveRun {
@@ -2929,6 +2991,7 @@ impl RunnerPort for KianaHarness {
                 inbox: checkpoint.inbox,
                 messages: checkpoint.messages,
                 prompt_sources: checkpoint.prompt_sources,
+                prompt_bundle,
                 model_assignment: checkpoint.model_assignment,
                 model_route: checkpoint.model_route,
                 pending_tools: checkpoint.pending_tools,
@@ -3009,6 +3072,19 @@ fn normalize_sandbox(sandbox: &str) -> Result<&str, KianaHarnessError> {
             "sandbox_unsupported:{other}"
         ))),
     }
+}
+
+/// 从恢复的消息历史里重新解码 PromptBundle（只有 bundle 路径的 run 才有）。
+///
+/// 只信任消息本身携带的规范化系统消息：解码失败（legacy 纯文本产品提示、被篡改的 JSON）
+/// 一律返回 `None`，不发明 bundle、也不从快照的其它字段推断上下文。
+fn decode_prompt_bundle_from_messages(messages: &[ModelMessage]) -> Option<PromptBundle> {
+    messages.iter().find_map(|message| {
+        if message.role != ModelRole::System {
+            return None;
+        }
+        PromptBundle::decode(&message.text).ok()
+    })
 }
 
 /// 为模型输出中的一个工具调用构造可重复得到的 request id。
