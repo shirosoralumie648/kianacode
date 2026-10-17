@@ -1,0 +1,88 @@
+name: "INT-10 stdio MCP connector handshake baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int10-stdio-mcp:
+    name: "INT-10 stdio MCP connector handshake baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+      RUST_MIN_STACK: "33554432"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bubblewrap and verify the fixture runtime
+        run: |
+          # The daemon fixtures start a real, bwrap-confined stdio MCP child; a missing
+          # bwrap/python3 fails the fixture instead of degrading to an unsandboxed call.
+          sudo apt-get update -qq || true
+          sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          python3 --version
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Domain contract: handshake bounds, server scope is never authority, the binding-scope
+      # intersection decides availability, a terminal session reclaims unreachable capabilities
+      # and the audited evidence stays session-free and digest-bound.
+      - name: Run domain handshake fixtures
+        run: cargo test -p kiana-domain --test int10_stdio_mcp --locked -- --test-threads=1
+      - name: Run core handshake source guard
+        run: cargo test -p kiana-core --test int10_stdio_mcp_guard --locked -- --test-threads=1
+      - name: Run daemon handshake source guard
+        run: cargo test -p kiana-daemon --test int10_stdio_mcp_guard --locked -- --test-threads=1
+
+      # Deny-first daemon fixtures. Every one of them starts a real bwrap-confined child (or is
+      # refused before one exists) and observes it through /proc marker arguments, so "reclaimed"
+      # is a host observation instead of the child's own report.
+      - name: Run daemon handshake module fixtures
+        run: cargo test -p kiana-daemon --lib mcp_connector::tests --locked -- --test-threads=1
+      - name: Run remote and foreign refusal fixture
+        run: >-
+          cargo test -p kiana-daemon --lib
+          mcp_connector::tests::mcp_remote_transport_and_foreign_handshakes_are_refused_before_a_child_starts
+          --locked -- --exact --test-threads=1
+      - name: Run refused scope advertisement fixture
+        run: >-
+          cargo test -p kiana-daemon --lib
+          mcp_connector::tests::mcp_scope_advertisement_is_refused_and_the_child_is_reclaimed
+          --locked -- --exact --test-threads=1
+      - name: Run trusted pinned executable precondition fixture
+        run: >-
+          cargo test -p kiana-daemon --lib
+          mcp_connector::tests::mcp_handshake_requires_a_trusted_pinned_executable_and_scope
+          --locked -- --exact --test-threads=1
+      - name: Run startup timeout, disconnect and success fixture
+        run: >-
+          cargo test -p kiana-daemon --lib
+          mcp_connector::tests::mcp_startup_timeout_disconnect_and_success_are_bounded_reclaimed_and_audited
+          --locked -- --exact --test-threads=1
+      - name: Run audited handshake end-to-end fixture
+        run: >-
+          cargo test -p kiana-daemon --test int10_stdio_mcp
+          handshake_is_deny_first_audited_and_reclaims_the_scope_free_session
+          --locked -- --exact --test-threads=1
+
+      - name: Compile domain handshake target
+        run: cargo test -p kiana-domain --test int10_stdio_mcp --no-run --locked
+      - name: Compile core handshake guard target
+        run: cargo test -p kiana-core --test int10_stdio_mcp_guard --no-run --locked
+      - name: Compile daemon handshake guard target
+        run: cargo test -p kiana-daemon --test int10_stdio_mcp_guard --no-run --locked
+      - name: Compile daemon handshake library fixtures
+        run: cargo test -p kiana-daemon --lib --no-run --locked
+      - name: Compile daemon handshake integration target
+        run: cargo test -p kiana-daemon --test int10_stdio_mcp --no-run --locked
