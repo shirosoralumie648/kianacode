@@ -560,13 +560,15 @@ The boot path must distinguish an empty store, unsupported read, corrupt store, 
 
 
 
-##### ER-28 — CompanyOS / Workflow / Artifact 业务引用　🔄
+##### ER-28 — CompanyOS / Workflow / Artifact 业务引用　✅
 
 - **落点：** `kiana-workflow/durable.rs`、`kiana-core/company*.rs`、`artifacts.rs`；关联 `P2-J5`、`P3-I-03..06`、`CO-24..42`。
 - **动作：** Company command、Workflow node、Review、Delivery、ClosingReceipt 只引用运行时 Receipt/EvidenceBundle；业务验收和 runtime terminal 分开，workflow node 的 Unknown 升级 Incident。
 - **先拒绝：** `company_success_cannot_be_inferred_from_run_completed`、`workflow_replay_does_not_execute_effect`、`closing_without_evidence_is_denied`。
 - **成功/回归：** Builder→Review→Acceptance→Delivery→Close 的每个跨边界引用可从事件和 artifact 重建。
+- **验收（测试名与卡片名对齐）：** 三条拒绝路径与成功列由树内行为夹具覆盖并接入统一 `ci.yml` 分片（无独立 lane）：`kiana-domain/tests/er28_runtime_evidence.rs` 新增 `company_success_cannot_be_inferred_from_run_completed`（runtime receipt `Completed` 且绑定 event refs/artifact 时，无显式 acceptance 的 `Close(Success)` 仍 `business_closing_required_acceptance_missing` 且零 closing receipt；同一 runtime 的显式 `Close(Failure)` 成功）、`closing_without_evidence_is_denied`（legacy bundle → `business_closing_runtime_evidence_missing`、空/未登记 evidence refs → `business_evidence_unverified`、未决 runtime → `business_closing_unresolved_effects`）与 `er28_builder_review_acceptance_delivery_close_refs_rebuild_from_events_and_artifacts`（每条跨边界引用逐条回解到事件与注册 artifact，closing receipt 携带 run/acceptance/delivery/evidence refs）；`kiana-workflow/tests/er28_workflow_observation.rs` 新增 `workflow_replay_does_not_execute_effect`（Dispatch 只是 intent、节点保持 Reserved、重放确定性且重复 Advance `workflow_execution_in_flight`、planner 无执行面）；`kiana-core/tests/er28_company_workflow_artifact_guard.rs` 保留 source guard 并新增夹具命名/接线守卫 `er28_behavioural_fixtures_are_wired_into_the_ci_shards`。
 - **ER-28 baseline：** [`er28-company-workflow-artifact-baseline.md`](er28-company-workflow-artifact-baseline.md)；本切片只声明 `feature_status=implemented`、`proof_level=source`，receipt/evidence/incident 由 ControlPlane 派生并绑定 EventLog，GitHub CI 运行拒绝夹具，不等待 CI 结果。
+- **2026-10-17 收口（CI-only）：** 在此之前本卡只有 runtime receipt/evidence 合同、Company EvidenceBundle 绑定、workflow unknown incident 与 source guard，三条卡片命名的拒绝路径与「跨边界引用可重建」成功列没有可运行夹具。本次在既有 ER-28 测试文件内补齐先拒绝与回归行为（`kiana-domain`/`kiana-core` 目标早已在 `scripts/ci/test-shards.json` 在册，`kiana-workflow` 为 `targets: null` 整 crate 自动发现；无新 test target、无 manifest/lockfile 变化），proof_level 维持 source；本地未编译未运行，CI 回执未等待；跨进程 projection、独立 incident inbox、artifact 内容持久化与外部 provider delivery reconciliation 仍开放。
 
 <a id="step-er-29"></a>
 
