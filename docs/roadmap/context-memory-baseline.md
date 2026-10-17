@@ -6,6 +6,8 @@
 > 2026-10-16 重新钉扎：WIP merge 后按下表当前工作树的 SHA-256 重新钉扎，并与验收测试的期望值同步；
 > 原 source snapshot 提交仅作历史参照。CI checkout 不含 `reference/` 时 inventory 测试会跳过目录比对，
 > 但仍校验固定清单长度；`reference/` 存在时照常做完整比对。
+> 2026-10-17 重新钉扎：CAP-19 server-owned memory scope 落地后只重钉 `harness_memory.rs` 一行 SHA-256，
+> 并与验收测试期望同步；下表其余哈希未变。
 
 ## 1. 快照
 
@@ -23,7 +25,7 @@
 | repo map | `kiana-query/src/repo_map.rs` | `25e3fe3130ca30ab5e73567c4f0903a24210af1f0a774b1bfb597ff59260fa14` |
 | context 命令（core） | `kiana-core/src/context_query.rs` | `e4865d44418b195f5fabe8a24d1d9f846f356b87acd2a5bbcdd0215c911282e9` |
 | context handler（daemon） | `kiana-daemon/src/context_query.rs` | `f862a66b00ef8db99ac4c010c65bbc42cbc689944a5e546f87da67fe7025b6f7` |
-| memory handler | `kiana-daemon/src/harness_memory.rs` | `e8b99bb7c6ad7bf447e861f5e368b4cbf2abc0226067d498601c2f2590d27e15` |
+| memory handler | `kiana-daemon/src/harness_memory.rs` | `278b50288a6cf6e1e65b94ebff7171eea2508f0d077828ae10a556905d9d7ee0` |
 | memory 检索 | `kiana-daemon/src/memory_retrieval.rs` | `adaae8cce7e226e27910edc27036ed83bb4d711cdd9a0e595984ea638e74c03f` |
 | 记忆提案 | `kiana-core/src/memory_proposals.rs` | `5f0a041c09235c80c29f097c5afbe6200d00615e8706020a425478cbb648daa7` |
 | 记忆蒸馏 | `kiana-core/src/memory_distillation.rs` | `1e201441f411e96a978b12338ecdb8459553bd4ced6e7d6e32930d17cf11768d` |

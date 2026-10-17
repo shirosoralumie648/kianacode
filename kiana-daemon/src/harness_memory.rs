@@ -59,11 +59,48 @@ impl MemoryScope {
     }
 }
 
+/// Server-owned facts for one memory request.
+///
+/// The collection ACL, session, project and epoch fences come from the authorized
+/// `ExecutionScope` that Core built; the store root was captured once at registration.  Model
+/// arguments may repeat those values, never replace them: a contradicting session, project or
+/// storage snapshot is denied instead of being interpreted, an explicit collection must already be
+/// inside the ACL, and a search without an explicit collection may only use role grants that the
+/// ACL still covers.
+struct ServerMemoryScope {
+    acl: DomainMemoryScope,
+    project_root: String,
+    session_id: String,
+    policy_epoch: u64,
+    data_epoch: u64,
+}
+
+/// Compare a model-supplied project root with the server-owned project identity.
+///
+/// Core records both the display root and its canonical form, so either shape is accepted; the
+/// comparison never admits a different directory.  When canonicalization is impossible (a missing
+/// path or a platform without it) only the exact strings can match.
+fn project_root_matches_execution_scope(
+    project: &kiana_domain::ProjectIdentity,
+    candidate: &str,
+) -> bool {
+    if project.root == candidate || project.canonical_root == candidate {
+        return true;
+    }
+    let canonical = fs::canonicalize(candidate);
+    let Ok(canonical) = canonical else {
+        return false;
+    };
+    [&project.root, &project.canonical_root]
+        .into_iter()
+        .any(|allowed| fs::canonicalize(allowed).map(|path| path == canonical).unwrap_or(false))
+}
+
 fn server_memory_scope(
     request: &AuthorizedCapabilityRequest,
     arguments: &Value,
     allow_write: bool,
-) -> Result<DomainMemoryScope, PortError> {
+) -> Result<ServerMemoryScope, PortError> {
     let execution = request
         .request
         .execution_scope
@@ -79,6 +116,21 @@ fn server_memory_scope(
     };
     let scope =
         DomainMemoryScope::from_execution_scope(execution, purpose, allow_write).map_err(failed)?;
+    // Session and project identity are fixed before the ACL decision: the arguments may repeat the
+    // server values (Core stamps them) but can never move the store cursor or the resolved root.
+    let session_id = execution.session_id.as_str().to_owned();
+    if let Some(requested) = optional_string(arguments, "session_id") {
+        if requested != session_id {
+            return Err(failed("memory_session_scope_mismatch"));
+        }
+    }
+    if let Some(requested) = optional_string(arguments, "project_root") {
+        if !project_root_matches_execution_scope(&execution.project, &requested) {
+            return Err(failed("memory_project_scope_mismatch"));
+        }
+    }
+    let role = RoleSpec::lookup(&optional_string(arguments, "role_id").unwrap_or_default())
+        .ok_or_else(|| failed("role_unknown"))?;
     if let Some(raw) = optional_string(arguments, "collection") {
         let requested = MemoryCollection::parse(&raw)
             .ok_or_else(|| failed("memory_scope_collection_unknown"))?;
@@ -87,8 +139,22 @@ fn server_memory_scope(
         }
     } else if allow_write {
         return Err(failed("memory_scope_collection_required"));
+    } else {
+        // A default read set may only be used while every role grant is still inside the
+        // server-derived ACL; a role named by the request cannot widen the effective collections.
+        for grant in role.granted_collections() {
+            if !scope.allows_collection(&grant) {
+                return Err(failed("memory_scope_role_denied"));
+            }
+        }
     }
-    Ok(scope)
+    Ok(ServerMemoryScope {
+        acl: scope,
+        project_root: execution.project.root.clone(),
+        session_id,
+        policy_epoch: execution.authority_epoch,
+        data_epoch: execution.data_epoch,
+    })
 }
 
 fn memory_stream_id(
@@ -302,24 +368,10 @@ impl CapabilityHandler for MemoryWriteHandler {
         let request_id = request.request.request_id;
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
-        let mutation_scope = server_memory_scope(&request, &arguments, true)?;
-        let execution_scope = request
-            .request
-            .execution_scope
-            .as_ref()
-            .ok_or_else(|| failed("memory_scope_required"))?;
-        let policy_epoch = execution_scope.authority_epoch;
-        let data_epoch = execution_scope.data_epoch;
+        let request_scope = server_memory_scope(&request, &arguments, true)?;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || {
-            write_record_with_mutation(
-                &arguments,
-                &scope,
-                Some(request_id),
-                Some(&mutation_scope),
-                policy_epoch,
-                data_epoch,
-            )
+            write_record_with_mutation(&arguments, &scope, Some(request_id), Some(&request_scope))
         })
         .await
         .map_err(|error| PortError::Failed(format!("memory_write_join_failed:{error}")))??;
@@ -346,25 +398,11 @@ impl CapabilityHandler for MemoryReviewHandler {
         let request_id = request.request.request_id;
         let arguments = request.request.arguments.clone();
         self.0.check(&arguments)?;
-        let mutation_scope = server_memory_scope(&request, &arguments, true)?;
+        let request_scope = server_memory_scope(&request, &arguments, true)?;
         ensure_memory_projection(&self.0, &arguments).await?;
-        let execution_scope = request
-            .request
-            .execution_scope
-            .as_ref()
-            .ok_or_else(|| failed("memory_scope_required"))?;
-        let policy_epoch = execution_scope.authority_epoch;
-        let data_epoch = execution_scope.data_epoch;
         let scope = self.0.clone();
         let output = tokio::task::spawn_blocking(move || {
-            review_records_with_mutation(
-                &arguments,
-                &scope,
-                Some(request_id),
-                Some(&mutation_scope),
-                policy_epoch,
-                data_epoch,
-            )
+            review_records_with_mutation(&arguments, &scope, Some(request_id), Some(&request_scope))
         })
         .await
         .map_err(|error| failed(format!("memory_review_join_failed:{error}")))??;
@@ -454,16 +492,14 @@ fn write_record_scoped(
     scope: &MemoryScope,
     request_id: Option<kiana_domain::RequestId>,
 ) -> Result<Value, PortError> {
-    write_record_with_mutation(arguments, scope, request_id, None, 1, 1)
+    write_record_with_mutation(arguments, scope, request_id, None)
 }
 
 fn write_record_with_mutation(
     arguments: &Value,
     scope: &MemoryScope,
     request_id: Option<kiana_domain::RequestId>,
-    mutation_scope: Option<&DomainMemoryScope>,
-    policy_epoch: u64,
-    data_epoch: u64,
+    request_scope: Option<&ServerMemoryScope>,
 ) -> Result<Value, PortError> {
     let collection = required_collection(arguments)?;
     if collection.collection == "user-private" {
@@ -479,8 +515,20 @@ fn write_record_with_mutation(
     if !role.allows_memory_write(&collection.collection) {
         return Err(failed("role_memory_write_denied"));
     }
-    let session_id = required_string(arguments, "session_id", "memory_session_required")?;
-    let project_root = optional_string(arguments, "project_root").unwrap_or_default();
+    // The server scope owns session, project and epochs; arguments are only a fallback for the
+    // scoped test entry points that have no authorized request behind them.
+    let session_id = match request_scope {
+        Some(server) => server.session_id.clone(),
+        None => required_string(arguments, "session_id", "memory_session_required")?,
+    };
+    let project_root = match request_scope {
+        Some(server) => server.project_root.clone(),
+        None => optional_string(arguments, "project_root").unwrap_or_default(),
+    };
+    let mutation_scope = request_scope.map(|server| &server.acl);
+    let (policy_epoch, data_epoch) = request_scope
+        .map(|server| (server.policy_epoch, server.data_epoch))
+        .unwrap_or((1, 1));
     let scratch = collection.layer == MEMORY_LAYER_INSTANCE_SCRATCH;
     let mutation_key = optional_string(arguments, "idempotency_key").unwrap_or_else(|| {
         format!(
@@ -664,16 +712,14 @@ fn review_records(arguments: &Value) -> Result<Value, PortError> {
     review_records_scoped(arguments, &MemoryScope::capture(None))
 }
 fn review_records_scoped(arguments: &Value, scope: &MemoryScope) -> Result<Value, PortError> {
-    review_records_with_mutation(arguments, scope, None, None, 1, 1)
+    review_records_with_mutation(arguments, scope, None, None)
 }
 
 fn review_records_with_mutation(
     arguments: &Value,
     scope: &MemoryScope,
     request_id: Option<kiana_domain::RequestId>,
-    mutation_scope: Option<&DomainMemoryScope>,
-    policy_epoch: u64,
-    data_epoch: u64,
+    request_scope: Option<&ServerMemoryScope>,
 ) -> Result<Value, PortError> {
     if arguments
         .get("operator_authorized")
@@ -693,8 +739,20 @@ fn review_records_with_mutation(
     if !role.allows_knowledge(&collection.collection) {
         return Err(failed("role_knowledge_denied"));
     }
-    let project = optional_string(arguments, "project_root").unwrap_or_default();
-    let session = optional_string(arguments, "session_id").unwrap_or_default();
+    let project = match request_scope {
+        Some(server) => server.project_root.clone(),
+        None => optional_string(arguments, "project_root").unwrap_or_default(),
+    };
+    let session = match request_scope {
+        Some(server) => server.session_id.clone(),
+        None => optional_string(arguments, "session_id").unwrap_or_default(),
+    };
+    // The server scope owns the collection ACL and the epochs; arguments are only a fallback for
+    // the scoped test entry points that have no authorized request behind them.
+    let mutation_scope = request_scope.map(|server| &server.acl);
+    let (policy_epoch, data_epoch) = request_scope
+        .map(|server| (server.policy_epoch, server.data_epoch))
+        .unwrap_or((1, 1));
     let path = collection_path_scoped(&collection, &project, &session, scope.home.as_deref())?;
     if action == "accept_proposal" {
         if scope.events.is_some() {
@@ -1593,8 +1651,6 @@ mod tests {
                     &scope,
                     Some(kiana_domain::RequestId::new()),
                     None,
-                    1,
-                    1,
                 )
             })
             .await
@@ -1659,6 +1715,632 @@ mod tests {
         let error = append_record(&linked, &record).unwrap_err();
         assert!(error.to_string().contains("memory_write_failed"));
         assert_eq!(fs::read_to_string(&outside).unwrap(), original);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Server-owned execution scope used by the CAP-19 memory fixtures.  Core stamps the same
+    /// project/session/role into the arguments, so a contradicting argument is a denial and the
+    /// ACL the adapter derives here is the only one a write or query may use.
+    #[cfg(unix)]
+    fn cap19_execution_scope(
+        request: &kiana_domain::CapabilityRequest,
+        project_root: &str,
+        session: &str,
+        memory_scopes: &[&str],
+    ) -> kiana_domain::ExecutionScope {
+        let permission_scope = kiana_domain::ScopeSet::new(
+            kiana_domain::ScopeDimension::Restricted(vec![
+                "memory.search".to_owned(),
+                "memory.write".to_owned(),
+            ]),
+            kiana_domain::ScopeDimension::NotApplicable,
+            kiana_domain::ScopeDimension::NotApplicable,
+            kiana_domain::ScopeDimension::NotApplicable,
+            kiana_domain::ScopeLimit::NotApplicable,
+            kiana_domain::ScopeLimit::NotApplicable,
+        )
+        .unwrap();
+        let mut scope = kiana_domain::ExecutionScope {
+            schema: kiana_domain::EXECUTION_SCOPE_SCHEMA.to_owned(),
+            version: kiana_domain::EXECUTION_SCOPE_SCHEMA_VERSION,
+            principal: kiana_domain::AuthenticatedPrincipalRef::local(),
+            project: kiana_domain::ProjectIdentity::new(
+                project_root.to_owned(),
+                project_root.to_owned(),
+                None,
+                None,
+                "cap19-memory-scope",
+            )
+            .unwrap(),
+            session_id: kiana_domain::SessionId::new(session),
+            run_id: None,
+            turn_id: None,
+            cell_id: None,
+            grant_refs: Vec::new(),
+            budget_lease_id: None,
+            work_packet_id: None,
+            environment_id: "kiana-local".to_owned(),
+            workspace_revision: None,
+            permission_scope: permission_scope.clone(),
+            read_roots: vec![project_root.to_owned()],
+            write_roots: vec![project_root.to_owned()],
+            read_denies: Vec::new(),
+            write_denies: Vec::new(),
+            memory_scopes: memory_scopes.iter().map(|value| (*value).to_owned()).collect(),
+            server_scopes: Vec::new(),
+            network_policy: Vec::new(),
+            authority_epoch: 1,
+            trust_revision: kiana_domain::json_digest(&json!({"trusted": true})),
+            data_epoch: 1,
+            cancellation_epoch: 1,
+            deadline_unix_ms: u64::MAX,
+            fencing_token: 1,
+            catalog_digest: kiana_domain::capability_action_catalog_digest(),
+            action_digest: String::new(),
+            permission_scope_digest: permission_scope.digest(),
+            scope_digest: String::new(),
+        };
+        let mut without_scope = request.clone();
+        without_scope.execution_scope = None;
+        scope.action_digest = kiana_domain::capability_action_digest(&without_scope);
+        scope.scope_digest = scope.digest();
+        scope.validate().unwrap();
+        scope
+    }
+
+    /// Core-stamped memory arguments: the store snapshot is captured at registration, so a fixture
+    /// `MemoryScope { home: None }` only matches a null snapshot.
+    #[cfg(unix)]
+    fn cap19_memory_arguments(project_root: &str, session: &str, role_id: &str) -> Value {
+        json!({
+            "session_id": session,
+            "project_root": project_root,
+            "role_id": role_id,
+            "memory_snapshot": {"schema": "kiana.memory-storage.v1", "home": null},
+        })
+    }
+
+    #[cfg(unix)]
+    fn cap19_authorized_memory_request(
+        project_root: &str,
+        operation: &str,
+        session: &str,
+        memory_scopes: &[&str],
+        arguments: Value,
+    ) -> AuthorizedCapabilityRequest {
+        let capability = if operation == SEARCH_OPERATION {
+            CapabilityKind::Query
+        } else {
+            CapabilityKind::Filesystem
+        };
+        let mut request = kiana_domain::CapabilityRequest::new(
+            kiana_domain::RequestId::new(),
+            capability,
+            operation,
+            arguments,
+        );
+        request.execution_scope = Some(cap19_execution_scope(
+            &request,
+            project_root,
+            session,
+            memory_scopes,
+        ));
+        AuthorizedCapabilityRequest::new("policy:cap19-memory-scope", request).unwrap()
+    }
+
+    #[cfg(unix)]
+    async fn cap19_write(
+        scope: MemoryScope,
+        project_root: &str,
+        session: &str,
+        role_id: &str,
+        collection: &str,
+        text: &str,
+        key: &str,
+    ) -> Result<Value, PortError> {
+        let mut arguments = cap19_memory_arguments(project_root, session, role_id);
+        arguments["collection"] = json!(collection);
+        arguments["text"] = json!(text);
+        arguments["source"] = json!("cap19-success-fixture");
+        arguments["idempotency_key"] = json!(key);
+        let request = cap19_authorized_memory_request(
+            project_root,
+            WRITE_OPERATION,
+            session,
+            &[collection],
+            arguments,
+        );
+        let result = MemoryWriteHandler(scope).execute(request).await?;
+        Ok(result.output)
+    }
+
+    #[cfg(unix)]
+    async fn cap19_search(
+        scope: MemoryScope,
+        project_root: &str,
+        session: &str,
+        role_id: &str,
+        collection: &str,
+        query: &str,
+    ) -> Result<Value, PortError> {
+        let mut arguments = cap19_memory_arguments(project_root, session, role_id);
+        arguments["collection"] = json!(collection);
+        arguments["query"] = json!(query);
+        let request = cap19_authorized_memory_request(
+            project_root,
+            SEARCH_OPERATION,
+            session,
+            &[collection],
+            arguments,
+        );
+        let result = MemorySearchHandler(scope).execute(request).await?;
+        Ok(result.output)
+    }
+
+    /// Event store that holds the first `read_stream` open until the test releases it, so the
+    /// cancel fixture can prove the writer is still inside the commit boundary.
+    #[cfg(unix)]
+    struct CommitGateEventLog {
+        inner: kiana_eventlog::MemoryEventLog,
+        entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+        release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    #[cfg(unix)]
+    #[async_trait::async_trait]
+    impl EventStorePort for CommitGateEventLog {
+        async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
+            self.inner.append(event).await
+        }
+
+        async fn append_idempotent_expected(
+            &self,
+            event: RuntimeEvent,
+            expected: Option<u64>,
+        ) -> Result<kiana_ports::EventAppendResult, PortError> {
+            self.inner.append_idempotent_expected(event, expected).await
+        }
+
+        async fn read_request(
+            &self,
+            request_id: &kiana_domain::RequestId,
+        ) -> Result<Vec<RuntimeEvent>, PortError> {
+            self.inner.read_request(request_id).await
+        }
+
+        async fn read_all(&self) -> Result<Vec<RuntimeEvent>, PortError> {
+            self.inner.read_all().await
+        }
+
+        async fn read_stream(
+            &self,
+            aggregate_type: &str,
+            aggregate_id: &str,
+        ) -> Result<Vec<RuntimeEvent>, PortError> {
+            let entered = self.entered.lock().unwrap().take();
+            if let Some(entered) = entered {
+                let _ = entered.send(());
+                let release = self.release.lock().unwrap();
+                let _ = release.recv();
+            }
+            self.inner.read_stream(aggregate_type, aggregate_id).await
+        }
+    }
+
+    /// CAP-19 deny-first: session, project, storage snapshot, explicit collection and default role
+    /// grants all come from the server-owned execution scope; model arguments cannot replace them.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn memory_scope_cannot_be_replaced_by_model_arguments() {
+        let root = temp_memory_path("cap19-scope-deny");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let session = "session-cap19-deny";
+        let foreign_root = format!("{project_root}-foreign");
+
+        let mut forged_session =
+            cap19_memory_arguments(&project_root, "session-cap19-forged", "builder");
+        forged_session["collection"] = json!("scratch");
+        forged_session["text"] = json!("forged session must not write");
+        forged_session["source"] = json!("cap19-fixture");
+
+        let mut forged_project = cap19_memory_arguments(&foreign_root, session, "builder");
+        forged_project["collection"] = json!("scratch");
+        forged_project["text"] = json!("forged project must not write");
+        forged_project["source"] = json!("cap19-fixture");
+
+        let mut foreign_collection = cap19_memory_arguments(&project_root, session, "builder");
+        foreign_collection["collection"] = json!("company");
+        foreign_collection["query"] = json!("cap19 company memory");
+
+        let mut forged_snapshot = cap19_memory_arguments(&project_root, session, "builder");
+        forged_snapshot["collection"] = json!("scratch");
+        forged_snapshot["text"] = json!("forged root must not write");
+        forged_snapshot["source"] = json!("cap19-fixture");
+        forged_snapshot["memory_snapshot"] = json!({
+            "schema": "kiana.memory-storage.v1",
+            "home": "/tmp/cap19-forged-home"
+        });
+
+        let uncovered_grants = cap19_memory_arguments(&project_root, session, "builder");
+
+        let cases = [
+            (
+                "forged-session",
+                WRITE_OPERATION,
+                vec!["scratch"],
+                forged_session,
+                "memory_session_scope_mismatch",
+            ),
+            (
+                "forged-project",
+                WRITE_OPERATION,
+                vec!["scratch"],
+                forged_project,
+                "memory_project_scope_mismatch",
+            ),
+            (
+                "collection-outside-acl",
+                SEARCH_OPERATION,
+                vec!["scratch"],
+                foreign_collection,
+                "memory_scope_collection_denied",
+            ),
+            (
+                "forged-storage-snapshot",
+                WRITE_OPERATION,
+                vec!["scratch"],
+                forged_snapshot,
+                "memory_storage_scope_changed",
+            ),
+            (
+                "role-grants-outside-acl",
+                SEARCH_OPERATION,
+                vec!["company", "project"],
+                uncovered_grants,
+                "memory_scope_role_denied",
+            ),
+        ];
+        for (label, operation, memory_scopes, arguments, expected) in cases {
+            let request = cap19_authorized_memory_request(
+                &project_root,
+                operation,
+                session,
+                &memory_scopes,
+                arguments,
+            );
+            let result = if operation == WRITE_OPERATION {
+                MemoryWriteHandler(scope.clone()).execute(request).await
+            } else {
+                MemorySearchHandler(scope.clone()).execute(request).await
+            };
+            match result {
+                Err(PortError::Failed(code)) => assert_eq!(code, expected, "{label}"),
+                other => panic!("{label}: expected {expected}, got {other:?}"),
+            }
+        }
+        assert!(events.read_all().await.unwrap().is_empty());
+        assert!(
+            !root.join(".kiana").exists(),
+            "denied memory requests must not create store paths"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// CAP-19 deny-first: a store file that resolves through a symlink is refused without touching
+    /// the target, and a scope session that tries to escape the instance namespace is refused
+    /// before any path is opened.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn memory_store_symlink_or_namespace_escape_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_memory_path("cap19-symlink");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let session = "session-cap19-symlink";
+        let collection = MemoryCollection::parse("scratch").unwrap();
+        let path = collection_path_scoped(&collection, &project_root, session, None).unwrap();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let outside = root.join("outside.jsonl");
+        fs::write(&outside, "outside-memory\n").unwrap();
+        symlink(&outside, &path).unwrap();
+
+        let mut arguments = cap19_memory_arguments(&project_root, session, "builder");
+        arguments["collection"] = json!("scratch");
+        arguments["text"] = json!("must not follow the store link");
+        arguments["source"] = json!("cap19-fixture");
+        let request = cap19_authorized_memory_request(
+            &project_root,
+            WRITE_OPERATION,
+            session,
+            &["scratch"],
+            arguments,
+        );
+        let result = MemoryWriteHandler(scope.clone()).execute(request).await;
+        assert!(matches!(
+            result,
+            Err(PortError::Failed(ref code)) if code.starts_with("memory_write_failed")
+        ));
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside-memory\n");
+
+        let escape_session = "../cap19-escape";
+        let mut arguments = cap19_memory_arguments(&project_root, escape_session, "builder");
+        arguments["collection"] = json!("scratch");
+        arguments["text"] = json!("must not escape the instance namespace");
+        arguments["source"] = json!("cap19-fixture");
+        let request = cap19_authorized_memory_request(
+            &project_root,
+            WRITE_OPERATION,
+            escape_session,
+            &["scratch"],
+            arguments,
+        );
+        let result = MemoryWriteHandler(scope.clone()).execute(request).await;
+        assert!(matches!(
+            result,
+            Err(PortError::Failed(ref code)) if code == "memory_session_invalid"
+        ));
+        assert!(!root
+            .join(".kiana")
+            .join("memory")
+            .join("cap19-escape.jsonl")
+            .exists());
+        assert!(events.read_all().await.unwrap().is_empty());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// CAP-19 deny-first: a pre-cancelled write never claims execution, and a write that is already
+    /// inside the commit boundary is only reported as completed-before-cancel after the writer
+    /// stops, with the projection on disk.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn memory_cancel_does_not_report_success_before_writer_stops() {
+        let root = temp_memory_path("cap19-cancel");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let session = "session-cap19-cancel";
+        let collection = MemoryCollection::parse("scratch").unwrap();
+        let path = collection_path_scoped(&collection, &project_root, session, None).unwrap();
+
+        // Cancelled before start: no execution and no store side effect.
+        let plain_events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let plain_scope = MemoryScope {
+            home: None,
+            events: Some(plain_events),
+        };
+        let (_cancel_before, cancelled_before) = tokio::sync::watch::channel(true);
+        let mut arguments = cap19_memory_arguments(&project_root, session, "builder");
+        arguments["collection"] = json!("scratch");
+        arguments["text"] = json!("cancelled before start");
+        arguments["source"] = json!("cap19-fixture");
+        let request = cap19_authorized_memory_request(
+            &project_root,
+            WRITE_OPERATION,
+            session,
+            &["scratch"],
+            arguments,
+        );
+        let result = MemoryWriteHandler(plain_scope)
+            .execute_cancellable(request, cancelled_before)
+            .await
+            .unwrap();
+        assert!(result.success);
+        assert_eq!(result.output["not_executed"], json!(true));
+        assert_eq!(result.output["cancelled"], json!(true));
+        assert_eq!(result.output["stop_confirmed"], json!(true));
+        assert!(!path.exists());
+
+        // Cancelled while the journal commit is in flight: the handler keeps waiting for the
+        // blocked writer and only reports completion after it stops.
+        let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let gate = std::sync::Arc::new(CommitGateEventLog {
+            inner: kiana_eventlog::MemoryEventLog::new(),
+            entered: std::sync::Mutex::new(Some(entered_tx)),
+            release: std::sync::Mutex::new(release_rx),
+        });
+        let gated_events: std::sync::Arc<dyn EventStorePort> = gate.clone();
+        let gated_scope = MemoryScope {
+            home: None,
+            events: Some(gated_events),
+        };
+        let (cancel_tx, cancelled) = tokio::sync::watch::channel(false);
+        let mut arguments = cap19_memory_arguments(&project_root, session, "builder");
+        arguments["collection"] = json!("scratch");
+        arguments["text"] = json!("cancelled after the writer entered the commit path");
+        arguments["source"] = json!("cap19-fixture");
+        arguments["idempotency_key"] = json!("cap19-cancel-write");
+        let request = cap19_authorized_memory_request(
+            &project_root,
+            WRITE_OPERATION,
+            session,
+            &["scratch"],
+            arguments,
+        );
+        let mut task = tokio::spawn(async move {
+            MemoryWriteHandler(gated_scope)
+                .execute_cancellable(request, cancelled)
+                .await
+        });
+        entered_rx.await.unwrap();
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(200), &mut task)
+                .await
+                .is_err(),
+            "handler must keep waiting for the blocked writer"
+        );
+        cancel_tx.send(true).unwrap();
+        release_tx.send(()).unwrap();
+        let result = task.await.unwrap().unwrap();
+        assert!(result.success);
+        assert_eq!(result.output["completed_before_cancel"], json!(true));
+        assert_eq!(result.output["cancelled"], json!(true));
+        assert_eq!(result.output["stop_confirmed"], json!(true));
+        assert!(result.output.get("not_executed").is_none());
+        assert_eq!(read_records(&path).unwrap().len(), 1);
+        assert_eq!(gate.inner.read_all().await.unwrap().len(), 1);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// CAP-19 success/regression: legal scratch and candidate writes stay inside the server scope
+    /// with journal-before-projection commit, a duplicate request replays against the committed
+    /// story, and the projection fence is checked before a query reads the store.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn legal_memory_write_and_search_commit_inside_the_server_scope() {
+        let root = temp_memory_path("cap19-success");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let session = "session-cap19-success";
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let scratch = MemoryCollection::parse("scratch").unwrap();
+        let scratch_path = collection_path_scoped(&scratch, &project_root, session, None).unwrap();
+        let planning = MemoryCollection::parse("department:planning").unwrap();
+        let planning_path =
+            collection_path_scoped(&planning, &project_root, session, None).unwrap();
+
+        let first = cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "cap19 rail anchor keeps the session pinned",
+            "cap19-success-scratch",
+        )
+        .await
+        .unwrap();
+        assert_eq!(first["replayed"], json!(false));
+        assert_eq!(first["journaled"], json!(true));
+        assert_eq!(first["effect_committed"], json!(true));
+        assert_eq!(first["stop_confirmed"], json!(true));
+
+        let duplicate = cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "cap19 rail anchor keeps the session pinned",
+            "cap19-success-scratch",
+        )
+        .await
+        .unwrap();
+        assert_eq!(duplicate["replayed"], json!(true));
+        assert_eq!(read_records(&scratch_path).unwrap().len(), 1);
+
+        let candidate = cap19_write(
+            scope.clone(),
+            &project_root,
+            session,
+            "pm",
+            "department:planning",
+            "cap19 planning candidate waits for review",
+            "cap19-success-candidate",
+        )
+        .await
+        .unwrap();
+        assert_eq!(candidate["replayed"], json!(false));
+        assert_eq!(candidate["admission_state"], json!("candidate"));
+        assert_eq!(candidate["state"], json!("draft"));
+        let candidates = read_records(&planning_path).unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].admission_state, MemoryAdmission::Candidate);
+        assert_eq!(candidates[0].state, MemoryState::Draft);
+
+        let search = cap19_search(
+            scope.clone(),
+            &project_root,
+            session,
+            "builder",
+            "scratch",
+            "cap19 rail anchor",
+        )
+        .await
+        .unwrap();
+        let hits = search["hits"].as_array().unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            hits[0]["id"],
+            json!(stable_memory_record_id("cap19-success-scratch"))
+        );
+        assert_eq!(hits[0]["collection"], json!("scratch"));
+        assert_eq!(hits[0]["retrieval_session_id"], json!(session));
+        assert_eq!(search["data_epoch"], json!(1));
+        assert_eq!(events.read_all().await.unwrap().len(), 2);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// CAP-19 success/regression: after the project data policy revokes a source, new writes that
+    /// reference it stop, and nothing reaches the file or the journal.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn revoked_source_stops_new_writes_inside_the_server_scope() {
+        let root = temp_memory_path("cap19-revoked");
+        fs::create_dir_all(&root).unwrap();
+        let project_root = fs::canonicalize(&root).unwrap().to_string_lossy().into_owned();
+        let session = "session-cap19-revoked";
+        fs::create_dir_all(root.join(".kiana")).unwrap();
+        fs::write(
+            root.join(".kiana").join("data-policy.json"),
+            "{\"revision\":1,\"data_epoch\":2,\"grants\":{},\"revoked_sources\":[\"cap19-revoked\"]}\n",
+        )
+        .unwrap();
+        let events: std::sync::Arc<dyn EventStorePort> =
+            std::sync::Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let scope = MemoryScope {
+            home: None,
+            events: Some(events.clone()),
+        };
+        let scratch = MemoryCollection::parse("scratch").unwrap();
+        let path = collection_path_scoped(&scratch, &project_root, session, None).unwrap();
+
+        let mut arguments = cap19_memory_arguments(&project_root, session, "builder");
+        arguments["collection"] = json!("scratch");
+        arguments["text"] = json!("revoked source must not be written");
+        arguments["source"] = json!("cap19-revoked-source");
+        let request = cap19_authorized_memory_request(
+            &project_root,
+            WRITE_OPERATION,
+            session,
+            &["scratch"],
+            arguments,
+        );
+        let result = MemoryWriteHandler(scope).execute(request).await;
+        assert!(matches!(
+            result,
+            Err(PortError::Failed(ref code)) if code == "data_source_revoked"
+        ));
+        let persisted = if path.exists() {
+            fs::read_to_string(&path).unwrap()
+        } else {
+            String::new()
+        };
+        assert!(persisted.is_empty(), "revoked source must not be persisted");
+        assert!(events.read_all().await.unwrap().is_empty());
 
         fs::remove_dir_all(root).unwrap();
     }

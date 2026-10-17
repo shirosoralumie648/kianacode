@@ -25,11 +25,25 @@ jobs:
         run: cargo test -p kiana-core --test cm03_scope_guard --locked -- --test-threads=1
       - run: cargo test -p kiana-core --test cm05_memory_eventstore --locked -- --test-threads=1
       - run: cargo test -p kiana-daemon --test p1_j3_02_memory --locked -- --test-threads=1
+      - name: Run CAP-19 in-module memory fixtures
+        run: >-
+          cargo test -p kiana-daemon --lib harness_memory::tests:: --locked -- --test-threads=1
+      - name: Run CAP-19 deny-first behavioural fixtures
+        run: |
+          for fixture in \
+            memory_scope_cannot_be_replaced_by_model_arguments \
+            memory_store_symlink_or_namespace_escape_is_rejected \
+            memory_cancel_does_not_report_success_before_writer_stops \
+            legal_memory_write_and_search_commit_inside_the_server_scope \
+            revoked_source_stops_new_writes_inside_the_server_scope; do
+            cargo test -p kiana-daemon --lib "harness_memory::tests::$fixture" --locked -- --exact --test-threads=1
+          done
       - name: Run CAP-19 source guard
         run: cargo test -p kiana-core --test cap19_memory_scope_commit_guard --locked -- --test-threads=1
       - name: Compile selected Core targets
         run: cargo test -p kiana-core --test cm03_scope_guard --no-run --locked
       - run: cargo test -p kiana-core --test cm05_memory_eventstore --no-run --locked
       - run: cargo test -p kiana-core --test cap19_memory_scope_commit_guard --no-run --locked
-      - name: Compile daemon memory target
+      - name: Compile daemon memory targets
         run: cargo test -p kiana-daemon --test p1_j3_02_memory --no-run --locked
+      - run: cargo test -p kiana-daemon --lib --no-run --locked
