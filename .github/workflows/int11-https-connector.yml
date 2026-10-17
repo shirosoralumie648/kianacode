@@ -10,18 +10,35 @@ jobs:
   int11-https-connector:
     name: "INT-11 HTTPS connector endpoint baseline"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: Format gate
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
         run: cargo fmt --all --check
+
+      # Domain endpoint contract: userinfo/scheme/query/fragment/origin deny matrix, policy
+      # bounds and unknown fields, sorted/deduplicated DNS observations, SSRF/metadata/egress
+      # allowlists, literal-IP matching, redirect/proxy pinning and stable redaction-safe error
+      # classification.
+      - name: Run kiana-domain int11_https_connector fixtures
+        run: cargo test -p kiana-domain --test int11_https_connector --locked -- --test-threads=1
+      # Ports wrapper: default capabilities/send deny, missing-security-capability denial, the
+      # request deny matrix, same-origin redirects, explicit proxy support and receipt binding,
+      # each proving the fake transport dispatch count stays zero for rejected requests.
+      - name: Run kiana-ports int11_https_connector fixtures
+        run: cargo test -p kiana-ports --test int11_https_connector --locked -- --test-threads=1
       - name: Run kiana-core int11_https_connector_guard
         run: cargo test -p kiana-core --test int11_https_connector_guard --locked -- --test-threads=1
-      - name: Run kiana-domain int11_https_connector
-        run: cargo test -p kiana-domain --test int11_https_connector --locked -- --test-threads=1
-      - name: Run kiana-ports int11_https_connector
-        run: cargo test -p kiana-ports --test int11_https_connector --locked -- --test-threads=1
+
+      - name: Compile domain int11_https_connector target
+        run: cargo test -p kiana-domain --test int11_https_connector --no-run --locked
+      - name: Compile ports int11_https_connector target
+        run: cargo test -p kiana-ports --test int11_https_connector --no-run --locked
+      - name: Compile core int11_https_connector_guard target
+        run: cargo test -p kiana-core --test int11_https_connector_guard --no-run --locked

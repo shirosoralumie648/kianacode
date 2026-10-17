@@ -64,3 +64,34 @@ regression passes 4/4, and the Core `int11_https_connector_guard` passes 2/2. Ma
 463692 KiB, 292700 KiB and 131388 KiB respectively; all runs reported zero swaps. This is
 bounded local behavior for exact metadata binding only; effect-time expiry, cross-clone replay and
 durable/restart lease fences remain open.
+
+## 2026-10-17 completion slice (CI-only)
+
+The existing source slice is closed out with deny-first fixtures rather than new behaviour:
+
+- `kiana-domain/tests/int11_https_connector.rs` (11 fixtures) pins the policy origin/allowlist
+  bounds and unknown fields, sorted/deduplicated/digest-bound DNS observations, every SSRF address
+  class (loopback, private, link-local, multicast, CGNAT, documentation, benchmark/reserved,
+  metadata and the IPv6 equivalents), literal-IP endpoint matching, the exact host allowlist
+  (subdomain/suffix/port drift denied), same-origin bounded redirects, explicit proxy origins and
+  the stable redaction-safe `ConnectorHttpsErrorCode` vocabulary.
+- `kiana-ports/tests/int11_https_connector.rs` (10 fixtures) adds default-deny capabilities and
+  `send`, capability-claim denial before the implementation runs, an 11-row request deny matrix
+  (schema, policy digest, payload digest, binding revision, lease expiry/audience, endpoint digest,
+  DNS observation, proxy, cross-origin redirect, redirect limit) with a zero dispatch count for
+  every row, a bounded same-origin redirect success path, explicit proxy support checks and
+  post-dispatch receipt binding, plus strict unknown-field / absent-proxy serialization.
+- `kiana-core/tests/int11_https_connector_guard.rs` binds the fixture obligations, the single
+  `self.send(` dispatch site (capability/request validation before, receipt binding after), the
+  purity and ambient-proxy negative assertions, the daemon/core no-transport-selection assertions
+  and the manual lane commands.
+- `.github/workflows/int11-https-connector.yml` (still `workflow_dispatch`-only,
+  `permissions: contents: read`) now runs `cargo fetch --locked`, `cargo fmt --all --check`, the
+  domain/ports/guard targets with `--locked --test-threads=1` and three `--no-run` compile steps.
+
+Automatic coverage stays with the unified `ci.yml` shards (`kiana-domain-s3/4` →
+`int11_https_connector`, `kiana-core-s4/6` → `int11_https_connector_guard`, `kiana-ports`
+whole-crate shard). No manifest/lockfile change, no new dependency or test target and no second
+execution loop. Local builds/tests were not run (CI-only) and CI receipts are not awaited, so the
+proof level stays `source`; the fake transport still proves only that the checked wrapper calls an
+adapter after source-level validation.
