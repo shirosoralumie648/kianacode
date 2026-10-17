@@ -33,6 +33,7 @@ fn patch_preview_and_commit_share_parser_overlay_preconditions_and_digest() {
             "hunk_count",
             "MAX_PATCH_BYTES",
             "MAX_PATCH_HUNKS",
+            "patch_affected_paths",
             "read_only",
         ],
         "shared patch plan",
@@ -44,6 +45,7 @@ fn patch_preview_and_commit_share_parser_overlay_preconditions_and_digest() {
             "ApplyPatchPreviewHandler",
             "prepare_patch_request",
             "preview_codex_patch",
+            "patch_affected_paths",
             "AdapterCommitState::NotStarted",
         ],
         "preview capability",
@@ -68,4 +70,30 @@ fn patch_plan_never_turns_preview_into_a_write_path() {
     assert!(projection.contains("read_only"));
     assert!(!preview.contains("ProjectPatchLock::acquire"));
     assert!(!preview.contains("commit_planned"));
+}
+
+#[test]
+fn patch_scope_validation_reuses_the_typed_parse_instead_of_rescanning_lines() {
+    let patch = include_str!("../../kiana-daemon/src/apply_patch.rs");
+    let harness = include_str!("../../kiana-daemon/src/harness_capabilities.rs");
+
+    // 唯一 parser 产出 typed 受影响路径；move 目标必须一并返回，scope 层不能只信源路径。
+    let targets = source_guard::item_source(patch, "pub(crate) fn patch_affected_paths(");
+    assert!(targets.contains("parse_patch(patch)?"));
+    assert!(targets.contains("Hunk::UpdateFile"));
+    assert!(targets.contains("move_path"));
+    assert!(targets.contains("Hunk::AddFile"));
+    assert!(targets.contains("Hunk::DeleteFile"));
+
+    // 请求校验必须消费同一份 typed 路径，而不是自己逐行扫描 patch 文本。
+    let prepare = source_guard::item_source(harness, "fn prepare_patch_request(");
+    assert!(prepare.contains("crate::apply_patch::patch_affected_paths"));
+    assert!(
+        !prepare.contains("patch.lines()"),
+        "CAP-15 scope validation must consume the shared typed parser, not rescan patch lines"
+    );
+    assert!(
+        !prepare.contains("*** Add File: "),
+        "CAP-15 scope validation must not re-declare patch header prefixes"
+    );
 }

@@ -839,6 +839,40 @@ fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {
     Ok(hunks)
 }
 
+/// 一次解析得到的受影响路径，供 policy/scope 校验与审批预览共用同一 AST。
+///
+/// 由 [`parse_patch`] 的 typed `Hunk` 派生，而不是让调用方再逐行扫描 patch 文本。
+/// move 操作的源与目标两端都会返回；每个 path 都必须由调用方独立校验写权限。
+pub(crate) fn patch_affected_paths(patch: &str) -> Result<Vec<String>, PortError> {
+    let hunks = parse_patch(patch)?;
+    if hunks.is_empty() {
+        return Err(failed("apply_patch_empty"));
+    }
+    let mut targets = Vec::with_capacity(hunks.len());
+    for hunk in hunks {
+        match hunk {
+            Hunk::AddFile { path, .. } | Hunk::DeleteFile { path } => {
+                targets.push(declared_path(&path)?);
+            }
+            Hunk::UpdateFile { path, move_path, .. } => {
+                targets.push(declared_path(&path)?);
+                if let Some(moved) = move_path {
+                    // move 的目标同样落在写集内，不能只授权源路径。
+                    targets.push(declared_path(&moved)?);
+                }
+            }
+        }
+    }
+    Ok(targets)
+}
+
+/// patch 内声明的项目相对路径原文；不做 canonicalize，交由 scope 校验再标准化。
+fn declared_path(path: &Path) -> Result<String, PortError> {
+    path.to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| failed("apply_patch_path_invalid"))
+}
+
 fn plan_hunks(project_root: &Path, hunks: Vec<Hunk>) -> Result<PlannedPatch, PortError> {
     let mut overlay = HashMap::new();
     let mut operations = Vec::new();
@@ -1926,6 +1960,116 @@ mod tests {
             "after\n"
         );
         assert_eq!(fs::read_to_string(root.join("new.txt")).unwrap(), "new\n");
+    }
+
+    /// 预览与提交必须来自同一次 typed plan，move 的两端都要出现在 target set 中。
+    #[test]
+    fn patch_preview_and_commit_use_identical_target_set() {
+        let root = temp_root();
+        fs::write(root.join("source.txt"), "alpha\nbeta\n").unwrap();
+        fs::write(root.join("removed.txt"), "bye\n").unwrap();
+        let patch = "*** Begin Patch\n*** Update File: source.txt\n*** Move to: moved.txt\n@@\n-alpha\n+ALPHA\n*** Add File: added.txt\n+added\n*** Delete File: removed.txt\n*** End Patch\n";
+
+        let preview = preview_codex_patch(&root, patch).unwrap();
+        // 预览是只读预检：不落任何工作区写入，也不产生 move 目标。
+        assert_eq!(
+            fs::read_to_string(root.join("source.txt")).unwrap(),
+            "alpha\nbeta\n"
+        );
+        assert!(!root.join("moved.txt").exists());
+        assert!(!root.join("added.txt").exists());
+        assert!(root.join("removed.txt").exists());
+
+        let committed = apply_codex_patch(&root, patch).unwrap();
+        assert_eq!(preview["patch_digest"], committed["patch_digest"]);
+        assert_eq!(preview["before_hashes"], committed["before_hashes"]);
+        assert_eq!(preview["hunk_count"], committed["hunk_count"]);
+        assert_eq!(affected_target_set(&preview), affected_target_set(&committed));
+        let expected = vec![
+            "added.txt".to_owned(),
+            "moved.txt".to_owned(),
+            "removed.txt".to_owned(),
+            "source.txt".to_owned(),
+        ];
+        assert_eq!(affected_target_set(&preview), expected);
+        assert!(!root.join("source.txt").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("moved.txt")).unwrap(),
+            "ALPHA\nbeta\n"
+        );
+    }
+
+    /// 后半段 hunk 畸形时，整份 patch 在写入前被拒绝，早先文件保持原样。
+    #[test]
+    fn malformed_late_hunk_makes_no_earlier_change() {
+        let root = temp_root();
+        fs::write(root.join("early.txt"), "early\n").unwrap();
+        // 第一段是合法 update，第二段没有 +/-/空格前缀，必须整体拒绝而不是部分应用。
+        let patch = "*** Begin Patch\n*** Update File: early.txt\n@@\n-early\n+EARLY\n*** Update File: broken.txt\n@@\nmalformed-line\n*** End Patch\n";
+
+        let invalid = failed("apply_patch_update_line_invalid");
+        let error = patch_affected_paths(patch).unwrap_err();
+        assert_eq!(error, invalid);
+        let error = preview_codex_patch(&root, patch).unwrap_err();
+        assert_eq!(error, invalid);
+        let error = apply_codex_patch(&root, patch).unwrap_err();
+        assert_eq!(error, invalid);
+        assert_eq!(
+            fs::read_to_string(root.join("early.txt")).unwrap(),
+            "early\n"
+        );
+        assert!(!root.join("broken.txt").exists());
+    }
+
+    /// patch bytes/hunk 数上限在解析阶段生效，超限输入不产生任何工作区写入。
+    #[test]
+    fn oversized_patch_and_hunk_overflow_are_rejected_before_any_write() {
+        let root = temp_root();
+        let oversized = format!(
+            "*** Begin Patch\n*** Add File: big.txt\n+{}\n*** End Patch\n",
+            "x".repeat(MAX_PATCH_BYTES)
+        );
+        let error = patch_affected_paths(&oversized).unwrap_err();
+        assert_eq!(error, failed("apply_patch_size_invalid"));
+        let error = preview_codex_patch(&root, &oversized).unwrap_err();
+        assert_eq!(error, failed("apply_patch_size_invalid"));
+        assert!(!root.join("big.txt").exists());
+
+        let mut many = String::from("*** Begin Patch\n");
+        for index in 0..=MAX_PATCH_HUNKS {
+            many.push_str(&format!("*** Add File: f{index}.txt\n+x\n"));
+        }
+        many.push_str("*** End Patch\n");
+        let error = patch_affected_paths(&many).unwrap_err();
+        assert_eq!(error, failed("apply_patch_hunk_limit"));
+        let error = preview_codex_patch(&root, &many).unwrap_err();
+        assert_eq!(error, failed("apply_patch_hunk_limit"));
+        assert!(!root.join("f0.txt").exists());
+    }
+
+    /// typed 受影响路径必须同时覆盖 add/update/delete 与 move 的源和目标两端。
+    #[test]
+    fn patch_affected_paths_cover_move_source_and_destination() {
+        let targets = patch_affected_paths(
+            "*** Begin Patch\n*** Update File: source.txt\n*** Move to: destination.txt\n@@\n-before\n+after\n*** End Patch\n",
+        )
+        .unwrap();
+        let expected = vec!["source.txt".to_owned(), "destination.txt".to_owned()];
+        assert_eq!(targets, expected);
+    }
+
+    /// 展平 preview 的 affected_paths 视图，move 的 source/destination 也算受影响路径。
+    fn affected_target_set(preview: &serde_json::Value) -> Vec<String> {
+        let mut targets = Vec::new();
+        for entry in preview["affected_paths"].as_array().unwrap() {
+            for key in ["path", "source", "destination"] {
+                if let Some(path) = entry.get(key).and_then(serde_json::Value::as_str) {
+                    targets.push(path.to_owned());
+                }
+            }
+        }
+        targets.sort();
+        targets
     }
 
     #[test]

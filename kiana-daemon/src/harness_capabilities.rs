@@ -284,34 +284,25 @@ fn prepare_patch_request(
         })
         .unwrap_or_default();
     let data_policy = crate::data_governance::read_policy(&project_root)?;
-    for line in patch.lines() {
-        // 只检查 Codex patch 的文件操作头；上下文行和增删内容不是目标路径。
-        let target = [
-            "*** Add File: ",
-            "*** Update File: ",
-            "*** Delete File: ",
-            "*** Move to: ",
-        ]
-        .iter()
-        .find_map(|prefix| line.strip_prefix(prefix));
-        if let Some(target) = target {
-            // 标准化拒绝绝对路径、parent traversal 等非项目相对目标。
-            let target = kiana_domain::normalize_role_path(target)
-                .ok_or_else(|| PortError::Failed("apply_patch_path_invalid".to_owned()))?;
-            if target == ".git"
-                || target.starts_with(".git/")
-                || target == ".kiana"
-                || target.starts_with(".kiana/")
-            {
-                // Git 状态与项目本地控制配置不允许由模型 patch 直接改写。
-                return Err(PortError::Failed("apply_patch_protected_path".to_owned()));
-            }
-            // 写范围必须包含该目标，且被撤销数据源不能由 patch 绕过治理规则重新写入。
-            if kiana_domain::enforce_path_containment(&paths, &target).is_err()
-                || data_policy.revoked_sources.contains(&target)
-            {
-                return Err(PortError::Failed("apply_patch_scope_denied".to_owned()));
-            }
+    // 与 preview/commit 共用同一 parser 产出的 typed 受影响路径；不再逐行重新提取。
+    // move 的源与目标两端都在返回集合里，因此两端都会被独立校验。
+    for target in crate::apply_patch::patch_affected_paths(&patch)? {
+        // 标准化拒绝绝对路径、parent traversal 等非项目相对目标。
+        let target = kiana_domain::normalize_role_path(&target)
+            .ok_or_else(|| PortError::Failed("apply_patch_path_invalid".to_owned()))?;
+        if target == ".git"
+            || target.starts_with(".git/")
+            || target == ".kiana"
+            || target.starts_with(".kiana/")
+        {
+            // Git 状态与项目本地控制配置不允许由模型 patch 直接改写。
+            return Err(PortError::Failed("apply_patch_protected_path".to_owned()));
+        }
+        // 写范围必须包含该目标，且被撤销数据源不能由 patch 绕过治理规则重新写入。
+        if kiana_domain::enforce_path_containment(&paths, &target).is_err()
+            || data_policy.revoked_sources.contains(&target)
+        {
+            return Err(PortError::Failed("apply_patch_scope_denied".to_owned()));
         }
     }
     Ok((project_root, patch))
@@ -811,6 +802,33 @@ mod tests {
             fs::read_to_string(root.join("created.txt")).unwrap(),
             "from-harness\n"
         );
+    }
+
+    /// move 的源与目标都是写目标：只授权一端时必须在派发前拒绝，两端都授权才通过。
+    #[test]
+    fn move_source_and_target_both_require_authority() {
+        let root = temp_root();
+        let patch = "*** Begin Patch\n*** Update File: source.txt\n*** Move to: destination.txt\n@@\n-before\n+after\n*** End Patch\n";
+        let request = |allow: Value| {
+            json!({
+                "patch": patch,
+                "project_root": root.to_string_lossy(),
+                "sandbox": "workspace-write",
+                "path_allow": allow,
+            })
+        };
+        // 只授权 move 的源路径时，目标仍在写集外，必须拒绝。
+        let source_only = request(json!(["source.txt"]));
+        let error = prepare_patch_request(&source_only, APPLY_PATCH_OPERATION).unwrap_err();
+        assert_eq!(error, PortError::Failed("apply_patch_scope_denied".to_owned()));
+        // 反过来只授权目标、未覆盖源路径时同样拒绝。
+        let target_only = request(json!(["destination.txt"]));
+        let error = prepare_patch_request(&target_only, APPLY_PATCH_OPERATION).unwrap_err();
+        assert_eq!(error, PortError::Failed("apply_patch_scope_denied".to_owned()));
+        // 两端都在授权范围内才进入真正的解析与执行。
+        let both = request(json!(["source.txt", "destination.txt"]));
+        let (_, accepted) = prepare_patch_request(&both, APPLY_PATCH_OPERATION).unwrap();
+        assert_eq!(accepted, patch);
     }
 
     /// 已确认停止的命令失败必须保留完整 typed 失败证据，不能伪装成成功或 zero-effect。
