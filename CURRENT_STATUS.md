@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 CO-06 可恢复发布窗口、orphan 对账与 workspace delta
+
+```text
+source_snapshot: kiana-domain/src/artifact_publication.rs（新，schemas kiana.artifact-publication.v1 / kiana.artifact-workspace-delta.v1）、kiana-domain/src/lib.rs（+2 行模块导出）、kiana-ports/src/lib.rs（ArtifactStorePort +3 默认 Unavailable 方法）、kiana-daemon/src/local_packages.rs（LocalDir::append）、kiana-daemon/src/local_artifacts.rs（publications.log 读写/resolve）、kiana-core/src/company.rs（intent record/resolve + reconcile_artifact_publications + artifact_workspace_delta）、kiana-core/src/artifacts.rs（bounded_line_delta/project_artifact_exists）与四处 fixture
+worktree_status: row 065 保持 🔄 / feature_status=partial / proof_level=source；新增发布窗口与投影切片；无 manifest/lockfile 变化，未改 scripts/ci/test-shards.json（沿用既有 shard）
+command_argv: CI-only；本地未运行 cargo/test/smoke；用 rustfmt 1.10.0-stable (58cf8f9c35, edition 2021，dist 校验 sha256) 对全部改动 .rs 执行 `rustfmt --edition 2021 --check`（clean）；静态核对端口默认方法/错误码映射/guard 锚点
+cwd·environment: 仓库根 Linux/bash；GitHub Actions ubuntu-latest 为运行时测试权威（回执未等待）
+fixture·cassette: domain `co06_artifact` +3（intent 绑定与终态规则、reconciliation 分类 + 无 fact 不计 event_id、delta 拒绝矩阵）；ports `co06_artifact_port` +1（JournallessStore 继承 fail-closed `artifact_publication_journal_unsupported`）；core `co06_company_artifact_wiring_guard` +3（intent 在 fact 前/后顺序、reconcile 不追加公司事实、delta 只读）；daemon `co06_company_artifact_history` +2（append_before_failure=false 留 blob 无 fact，重开后恰好 1 个 pending intent，reconcile=Unpublished、不写事实、blob 字节不变；workspace delta Unchanged/Changed/Missing/未知 id 拒绝）
+exit_code: 本地 rustfmt --check 0；无本地运行时退出码；CI 回执未等待
+status_change: 跨 store 窗口从"不可恢复"变为"显式记录 + 可对账/跨重开恢复"，并新增 server 端原件 vs 当前工作区投影；整卡仍 partial，row 065 保持 🔄
+proof-level_change: 维持 source；无 local_behavior/durable/live/physical 提升
+limitations: 非真正单事务跨 store 提交（崩溃/掉电语义未证明，仅可恢复 outbox 协议）；无 orphan retention/deletion/GC；journal 为有界 append-only sidecar、无压缩；行摘要为有界多重集统计而非 patch；产品 UI 渲染属 UI-22；跨进程与 durable 保证未证明
+reviewer: root integration agent；CO-06 发布窗口/对账/只读投影静态复核
+```
+
 ### 2026-10-16/17 第二波 step 切片（P0-A-01b/EQ-11 翻 ✅；ER-13/BQ-07/AUT-07/EXT-25/DEP-03 切片）
 
 ```text
