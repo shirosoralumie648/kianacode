@@ -491,7 +491,7 @@ pub(crate) fn capture_checkpoint_files(
     let mut total = 0;
     for path in normalized {
         let file = open_checkpoint_file(&root, Path::new(&path))?;
-        let (contents, executable) = if let Some(mut file) = file {
+        let (contents, executable, size_bytes, sha256) = if let Some(mut file) = file {
             let before = file.metadata().map_err(io_failed)?;
             if !before.is_file() || before.len() > 128 * 1024 {
                 return Err(failed("checkpoint_file_limit_or_not_regular"));
@@ -513,6 +513,11 @@ pub(crate) fn capture_checkpoint_files(
             if bytes.len() > 128 * 1024 || total > 2 * 1024 * 1024 {
                 return Err(failed("checkpoint_bytes_limit"));
             }
+            // Bind the captured identity to the exact bytes that were read before they are moved
+            // into the text form. `before.len()` is the observed file size and stays stable
+            // because the fingerprint is re-checked above.
+            let sha256 = kiana_domain::journal_sha256(&bytes);
+            let size_bytes = before.len();
             let text = String::from_utf8(bytes)
                 .map_err(|_| failed("checkpoint_binary_file_unsupported"))?;
             if kiana_domain::redact_text(&text) != text {
@@ -525,14 +530,16 @@ pub(crate) fn capture_checkpoint_files(
             };
             #[cfg(not(unix))]
             let executable = false;
-            (Some(text), executable)
+            (Some(text), executable, size_bytes, sha256)
         } else {
-            (None, false)
+            (None, false, 0, String::new())
         };
         snapshots.push(kiana_domain::WorkspaceFileEdit {
             path,
             contents,
             executable,
+            size_bytes,
+            sha256,
         });
     }
     Ok(snapshots)
@@ -2334,5 +2341,238 @@ mod tests {
             .collect();
         assert!(leftovers.is_empty());
         assert_eq!(fs::read_to_string(root.join("file.txt")).unwrap(), "new\n");
+    }
+
+    // ---- ER-18 workspace checkpoint transaction / restore evidence ----
+
+    fn checkpoint_file(
+        path: &str,
+        contents: Option<&str>,
+        executable: bool,
+    ) -> kiana_domain::WorkspaceFileEdit {
+        let (size_bytes, sha256) = match contents {
+            Some(text) => (
+                text.len() as u64,
+                kiana_domain::journal_sha256(text.as_bytes()),
+            ),
+            None => (0, String::new()),
+        };
+        kiana_domain::WorkspaceFileEdit {
+            path: path.to_owned(),
+            contents: contents.map(|text| text.to_owned()),
+            executable,
+            size_bytes,
+            sha256,
+        }
+    }
+
+    fn checkpoint_snapshot(
+        root: &Path,
+        files: Vec<kiana_domain::WorkspaceFileEdit>,
+    ) -> kiana_domain::WorkspaceCheckpoint {
+        let workspace_revision = kiana_domain::json_digest(&serde_json::to_value(&files).unwrap());
+        kiana_domain::WorkspaceCheckpoint {
+            schema: "kiana.workspace-checkpoint.v1".to_owned(),
+            checkpoint_id: "checkpoint-er18".to_owned(),
+            project_root: root.to_string_lossy().into_owned(),
+            actor_id: "actor-er18".to_owned(),
+            session_id: kiana_domain::SessionId::new("session-er18"),
+            role_id: "Engineer".to_owned(),
+            work_packet_id: None,
+            path_allow: Vec::new(),
+            run_id: None,
+            transcript_offset: 0,
+            invocation_id: None,
+            reason: "er18-test".to_owned(),
+            workspace_revision,
+            data_epoch: None,
+            files,
+        }
+    }
+
+    fn current_revision(root: &Path, paths: &[&str]) -> String {
+        let paths = paths.iter().map(|path| (*path).to_owned()).collect::<Vec<_>>();
+        let current = capture_checkpoint_files(root, &paths).unwrap();
+        kiana_domain::json_digest(&serde_json::json!(current))
+    }
+
+    #[test]
+    fn checkpoint_capture_records_hash_size_and_mode() {
+        let root = temp_root();
+        fs::write(root.join("plain.txt"), "hello\n").unwrap();
+        let captured = capture_checkpoint_files(&root, &["plain.txt".to_owned()]).unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].path, "plain.txt");
+        assert_eq!(captured[0].contents.as_deref(), Some("hello\n"));
+        assert_eq!(captured[0].size_bytes, 6);
+        assert_eq!(captured[0].sha256, kiana_domain::journal_sha256(b"hello\n"));
+        assert!(!captured[0].executable);
+
+        let missing = capture_checkpoint_files(&root, &["missing.txt".to_owned()]).unwrap();
+        assert_eq!(missing.len(), 1);
+        assert_eq!(missing[0].contents, None);
+        assert_eq!(missing[0].size_bytes, 0);
+        assert!(missing[0].sha256.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checkpoint_capture_records_executable_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = temp_root();
+        let path = root.join("run.sh");
+        fs::write(&path, "echo hi\n").unwrap();
+        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&path, permissions).unwrap();
+        let captured = capture_checkpoint_files(&root, &["run.sh".to_owned()]).unwrap();
+        assert!(captured[0].executable);
+        assert_eq!(captured[0].size_bytes, 8);
+    }
+
+    #[test]
+    fn checkpoint_capture_denies_out_of_scope_and_protected_paths() {
+        let root = temp_root();
+        assert_eq!(
+            capture_checkpoint_files(&root, &["../escape.txt".to_owned()]).unwrap_err(),
+            failed("checkpoint_path_invalid")
+        );
+        assert_eq!(
+            capture_checkpoint_files(&root, &[".git/config".to_owned()]).unwrap_err(),
+            failed("checkpoint_protected_path")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checkpoint_capture_denies_symlink_targets() {
+        use std::os::unix::fs::symlink;
+        let root = temp_root();
+        let outside = temp_root();
+        fs::write(outside.join("outside.txt"), "outside\n").unwrap();
+        symlink(outside.join("outside.txt"), root.join("linked.txt")).unwrap();
+        match capture_checkpoint_files(&root, &["linked.txt".to_owned()]).unwrap_err() {
+            PortError::Failed(message) => assert!(
+                message.starts_with("apply_patch_io:"),
+                "no-follow capture must fail closed, got {message}"
+            ),
+            other => panic!("no-follow capture must fail closed, got {other:?}"),
+        }
+        assert_eq!(
+            fs::read_to_string(outside.join("outside.txt")).unwrap(),
+            "outside\n"
+        );
+    }
+
+    #[test]
+    fn checkpoint_preview_reports_changes_without_writing() {
+        let root = temp_root();
+        fs::write(root.join("file.txt"), "current\n").unwrap();
+        let target = checkpoint_snapshot(
+            &root,
+            vec![checkpoint_file("file.txt", Some("target\n"), false)],
+        );
+        let preview = preview_checkpoint(&target).unwrap();
+        assert_eq!(preview.writes_performed, false);
+        assert_eq!(preview.changes.len(), 1);
+        assert_eq!(preview.current_revision, current_revision(&root, &["file.txt"]));
+        assert_eq!(preview.target_revision, target.workspace_revision);
+        assert_eq!(
+            fs::read_to_string(root.join("file.txt")).unwrap(),
+            "current\n"
+        );
+    }
+
+    #[test]
+    fn checkpoint_restore_applies_target_and_verifies_revision() {
+        let root = temp_root();
+        fs::write(root.join("file.txt"), "current\n").unwrap();
+        let target = checkpoint_snapshot(
+            &root,
+            vec![checkpoint_file("file.txt", Some("restored\n"), false)],
+        );
+        let expected = current_revision(&root, &["file.txt"]);
+        let output = restore_checkpoint(&target, &expected).unwrap();
+        assert_eq!(output["restored"], true);
+        assert_eq!(output["workspace_revision"], target.workspace_revision);
+        assert_eq!(
+            fs::read_to_string(root.join("file.txt")).unwrap(),
+            "restored\n"
+        );
+        let captured = capture_checkpoint_files(&root, &["file.txt".to_owned()]).unwrap();
+        assert_eq!(
+            kiana_domain::json_digest(&serde_json::json!(captured)),
+            target.workspace_revision
+        );
+    }
+
+    #[test]
+    fn checkpoint_restore_revision_conflict_does_not_write() {
+        let root = temp_root();
+        fs::write(root.join("file.txt"), "current\n").unwrap();
+        let target = checkpoint_snapshot(
+            &root,
+            vec![checkpoint_file("file.txt", Some("restored\n"), false)],
+        );
+        let expected = current_revision(&root, &["file.txt"]);
+        // A concurrent external writer changes the file after capture: restore must stop.
+        fs::write(root.join("file.txt"), "external-writer\n").unwrap();
+        assert_eq!(
+            restore_checkpoint(&target, &expected).unwrap_err(),
+            failed("checkpoint_revision_conflict")
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("file.txt")).unwrap(),
+            "external-writer\n"
+        );
+    }
+
+    #[test]
+    fn checkpoint_restore_deletes_missing_and_adds_new_files() {
+        let root = temp_root();
+        fs::write(root.join("gone.txt"), "delete-me\n").unwrap();
+        let target = checkpoint_snapshot(
+            &root,
+            vec![
+                checkpoint_file("gone.txt", None, false),
+                checkpoint_file("new.txt", Some("added\n"), false),
+            ],
+        );
+        let expected = current_revision(&root, &["gone.txt", "new.txt"]);
+        let output = restore_checkpoint(&target, &expected).unwrap();
+        assert_eq!(output["restored"], true);
+        assert_eq!(output["workspace_revision"], target.workspace_revision);
+        assert!(!root.join("gone.txt").exists());
+        assert_eq!(fs::read_to_string(root.join("new.txt")).unwrap(), "added\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checkpoint_restore_rollback_keeps_prior_content_after_failure() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = temp_root();
+        fs::write(root.join("a.txt"), "before\n").unwrap();
+        let readonly = root.join("readonly");
+        fs::create_dir(&readonly).unwrap();
+        let mut permissions = fs::metadata(&readonly).unwrap().permissions();
+        permissions.set_mode(0o555);
+        fs::set_permissions(&readonly, permissions).unwrap();
+        let target = checkpoint_snapshot(
+            &root,
+            vec![
+                checkpoint_file("a.txt", Some("after\n"), false),
+                checkpoint_file("readonly/new.txt", Some("new\n"), false),
+            ],
+        );
+        let expected = current_revision(&root, &["a.txt", "readonly/new.txt"]);
+        match restore_checkpoint(&target, &expected).unwrap_err() {
+            PortError::Failed(ref message) => assert!(
+                message.starts_with("apply_patch_io:"),
+                "expected a bounded io failure, got {message}"
+            ),
+            other => panic!("expected a bounded io failure, got {other:?}"),
+        }
+        assert_eq!(fs::read_to_string(root.join("a.txt")).unwrap(), "before\n");
+        assert!(!readonly.join("new.txt").exists());
     }
 }

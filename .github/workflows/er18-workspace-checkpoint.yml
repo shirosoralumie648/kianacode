@@ -32,3 +32,7 @@ jobs:
       - run: cargo test -p kiana-core --test cp18_run_snapshot_guard --no-run --locked
       - name: Compile ER-18 source guard target
         run: cargo test -p kiana-core --test er18_workspace_checkpoint_guard --no-run --locked
+      - name: Run ER-18 daemon checkpoint fixtures
+        run: cargo test --locked -p kiana-daemon --lib checkpoint -- --test-threads=1
+      - name: Compile ER-18 daemon lib target
+        run: cargo test --locked -p kiana-daemon --lib --no-run
