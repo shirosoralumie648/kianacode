@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 CP-15 翻 ✅（cancel↔approval/dispatch 竞态与排队 invocation 终态，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 215（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/control-plane-cancellation-baseline.md §2 fixture catalog（+2 行）；kiana-core/tests/cp15_cancellation_race.rs（新增：cp_cancel_approval_dispatch_race_has_one_legal_outcome、cp_every_queued_invocation_gets_a_terminal_result）；.github/workflows/cp15-cancellation.yml（新增 race target 的运行与 --no-run 编译步）；既有 kiana-domain/src/cancellation.rs、kiana-domain/tests/cp15_cancellation.rs、kiana-core/tests/cp15_cancellation_guard.rs、kiana-runner/tests/p0_j1_02_cancellation.rs、kiana-core/src/{lifecycle.rs,sessions.rs,events.rs,approvals.rs,capabilities.rs,dispatch.rs} 本次未改
+worktree_status: 行 215 🔄 → ✅（CI pending）；只新增本 Step 的 core 测试目标并单点回填 baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）；无 Cargo.toml/Cargo.lock/package.json 变化、无第二执行循环、未改五个模型可见工具面、未新增外部依赖、未触碰冻结项；测试复用唯一执行脊柱（ControlPlane::start_run → approval gate → cancel_run/decide_approval）与既有 MemoryEventLog/内存 approval store/scripted Runner
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/ls/git diff）与手工 rustfmt 风格对齐；.github/workflows/cp15-cancellation.yml 运行 `cargo test -p kiana-domain --test cp15_cancellation --locked -- --test-threads=1`、`cargo test -p kiana-core --test cp15_cancellation_guard --locked -- --test-threads=1`、`cargo test -p kiana-core --test cp15_cancellation_race --locked -- --test-threads=1`、`cargo fmt --all --check` 与三个 target-scoped `--no-run`
+cwd·environment: worktree /workspace/kianacode-worktrees/CP-15，分支 step/cp-15-20261017-1（基线 master b24941cf6732）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: core `cp15_cancellation_race` 两个命名夹具。`cp_cancel_approval_dispatch_race_has_one_legal_outcome` 在同一 run 上以两种确定性提交顺序断言「只有一个合法结果」：cancel 先赢——`cancel_run` 返回 Cancelled、broker 零调用、`run` 流含 `run.cancelling`、唯一终态为 `run.cancelled`、pending invocation 只有一条 `not_executed`（call `c1`），随后 `decide_approval(Approve)` 返回 Blocked（`approval_already_consumed`）；dispatch 先赢——`decide_approval(Approve)` 使 broker 恰好执行一次、run 达到唯一非取消终态（`RunOutcome::Completed`）、无 `run.cancelling`、无 `not_executed`，随后 `cancel_run` 退化为幂等终态读取（`already_terminal=true`、broker 仍为 1、事件流逐条不变）。`cp_every_queued_invocation_gets_a_terminal_result` 让一个 model step 排队三个 apply_patch 写（`c1`/`c2`/`c3`），首个交给 approval gate、其余留在 Runner 队列，`cancel_run` 后 broker 零调用、每个 invocation 各得到一条 `not_executed` 终态 `run.tool_result`（无 `capability.completed`）、run 只有唯一 `run.cancelled` 终态
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CP-15 卡「可持久化 CancelRequested 与进程内 signal 分离、命令先提交、目标为明确 Run/Invocation 集合」（Step 1）、「与 dispatch/approval consume/terminal 同一 read-set/CAS、取消先赢无新派发、派发先赢进停止流程、已终态 cancel 幂等」（Step 2）、「排队工具/输入逐个补 NotExecuted 结果与终态、每个 execution 独立 stop slot、清理有界且不被原 token 中断」（Step 3）在源码层与夹具层齐备；本切片补齐卡片两条命名验收（竞态唯一合法结果、每个排队 invocation 的终态）并接入 CI lane；行 215 由 🔄 提升 ✅（CI pending）/ feature_status=implemented；mid-stream 无晚到 delta/错误 completed 的既有断言未改
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；竞态的两个提交顺序由 await 顺序确定性给出（等价于赢家先提交），不是真实并发压力下的多轮随机交错；`await_capability_stop` 仍是进程内有界 watch，不构成 handler/子进程/文件/远端 effect 已停止的证明（typed StopReport 与进程组收割属 CP-16），撤销传播/重启恢复/Unknown 对账属 CP-17/19/20，durable/external/live/physical 未宣称；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；CP-15 cancellation race/queued-terminal 夹具与既有 cancel→signal 顺序静态复核
+```
+
 ### 2026-10-17 EQ-16 翻 ✅（scrubbed boundary evidence 与 fail-closed 不变量，CI-only 口径）
 
 ```text
