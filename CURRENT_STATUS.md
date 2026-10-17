@@ -90,6 +90,23 @@ limitations: 本地未编译未运行，编译与行为正确性依赖 GitHub Ac
 reviewer: root integration agent；对 containment 三态语义、账本生命周期与保守计费断言、delta 拒绝路径、provider 端包含关系与适配器一致性、Core 守卫 marker/负断言、lane YAML 与分片覆盖、roadmap/baseline/CURRENT_STATUS 回填的静态复核（无本地 runtime 测试复核）
 ```
 
+### 2026-10-17 EXT-27 补完成切片（动态可见性投影：`search` 只读分类修复、四入口同一 snapshot 运行时夹具、daemon 拒绝路径夹具，CI-only 口径，卡保持 🔄）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 418（🔄 保持，补交付说明）与 §3 变更日志（2026-10-17 `EXT-27` 行）；docs/roadmap/skills-plugins-hooks.md 卡 EXT-27（标题维持 🔄，追加「完成切片」段）；docs/roadmap/ext27-extension-visibility-baseline.md（新增 Completion slice 段与 2026-10-17 证据块）；kiana-core/src/commands.rs（`normalize_extension_command`：`matches!(action.as_str(), "list" | "inspect" | "search")` → `RiskLevel::ReadOnly`，含说明注释；白名单/query 上界/服务端字段注入与生命周期绑定不变）；kiana-entrypoints/tests/ext27_extension_visibility.rs（新 target，自动发现：`KIANA_HOME` 隔离守卫 + 文件内 `ENV_LOCK`；`unknown_trust_project_has_no_projection_and_the_refusal_leaks_nothing` 走 `harness_run::client_on_host` + `KianaClient::command` 原始信封断言 `Blocked`/`project_untrusted`/`output: null` 且无素材回显，四入口 adapter 同拒；`four_surfaces_read_one_redacted_snapshot_and_stale_caches_are_fenced` 覆盖三类隐藏 query 0 命中、命中只回 1 条脱敏描述、四入口 `snapshot_id`/`generation`/`snapshot_digest`/entries 全等、素材变化后 `require_generation` 双向 `extension_visibility_snapshot_stale`、越权标签 `extension_visibility_action_denied`/`extension_visibility_not_found`）；kiana-daemon/src/extensions.rs 测试模块（`ext27_visibility_projection_is_redacted_bounded_and_role_scoped`、`ext27_visibility_projection_identity_fences_stale_surface_caches`，复用 ext22/ext25 的 `fixture_*`/`manage_request`/`server_owned_arguments` helpers，无 `KIANA_HOME` 写入）；kiana-core/tests/ext27_visibility_guard.rs（新 `search_is_read_only_and_the_runtime_fixtures_stay_wired_to_the_lane` 绑定分类、两个 daemon 夹具、两个入口夹具、四入口 `EntryPointKind`、四个拒绝码与 lane 命令）；.github/workflows/ext27-extension-visibility.yml（恢复 `workflow_dispatch`-only manual lane：fmt 门、domain/core target、daemon `--lib --no-run` 与 `--lib ext27_visibility`、entrypoints `--test ext27_extension_visibility`）；Cargo.toml/Cargo.lock/package.json 未改，无新依赖、无新 test target 分片（`kiana-daemon`/`kiana-entrypoints` 为整 crate shard，自动覆盖）
+worktree_status: worktree /workspace/kianacode-worktrees/EXT-27、分支 step/ext-27-20261017-1（基于 master 824885bd7a61）本提交前 git clean；仅改动本 Step 相关源码/夹具/守卫/lane/baseline 与单点回填的共享文档（roadmap 该卡行、§1.1 行 418、§3 变更日志、CURRENT_STATUS 本块）
+command_argv: cargo fmt --all（提交前要求，退出码 0）；bash scripts/ci/validate-doc-references.sh（733 文档全部解析）；git diff --check。本地未运行任何 cargo build/test/check/clippy/run、rustc、make、npm、smoke 或验收脚本
+cwd·environment: /workspace/kianacode-worktrees/EXT-27；Linux；仅有 rustfmt 与静态检查脚本；CI lane 为 GitHub Actions（未等待回执）
+fixture·cassette: GitHub-only .github/workflows/ext27-extension-visibility.yml（`workflow_dispatch`）依次跑 `cargo fmt --all --check`、`cargo test -p kiana-domain --test ext27_visibility`、`cargo test -p kiana-core --test ext27_visibility_guard`、`cargo test -p kiana-daemon --lib --locked --no-run`、`cargo test -p kiana-daemon --lib ext27_visibility`、`cargo test -p kiana-entrypoints --test ext27_extension_visibility`（daemon/control-plane 串行 `--test-threads=1`）；daemon 夹具复用既有 `MemoryEventLog` + `fixture_registry`（自带签名 fixture 包与 trusted keys），入口夹具自建临时项目/KIANA_HOME 并在 Drop 还原
+exit_code: fmt 与文档引用校验 0；cargo 测试命令未在本地执行，无本地退出码；远端 CI 结果刻意未观察、未等待
+status change: `search` 从「被当变更、缺 `extension_mutation_fields_required` 拒绝」修正为与 `list`/`inspect` 同为只读可见性动作；EXT-27 增加 Entry-projection 门要求的拒绝/成功行为夹具与 manual lane；卡与总图维持 🔄（CI pending），不因 source 证据翻 ✅
+proof-level change: 维持 source（新增夹具为 CI 待跑的执行路径，尚未取得 local_behavior 回执）；不声称 durable/live/physical，也不声称四入口一致在真实多进程 UI 上已验证
+limitations: UI 侧缓存持久化、跨进程 registry 重建、approval/UX 流程、包签名/吊销与真实 Hook/provider 副作用仍归后续 EXT/UI 卡；入口一致性夹具覆盖单进程内一次信任/未信任项目对，未覆盖跨进程或真实浏览器/桌面进程；daemon 夹具在未知信任（无 KIANA_HOME 写入）下运行，受信路径的 registry 行为由入口夹具覆盖；本地未编译，任何编译期错误会先由 CI 暴露
+reviewer: Codex source review；无本地运行测试的 reviewer；CI 回执待补
+```
+
+本块的 `source_snapshot` 只描述本提交的源码快照；EXT-27 的 2026-09-24 源切片证据（`f1cce824`，domain DTO 夹具 + core source guard + 原 GitHub-only workflow）仍是历史回执，不被本块改写。按 `docs/roadmap.md` §0 状态口径，卡保持 🔄 且 proof_level 维持 source，直到 EXT-27 lane 与统一 `ci.yml` 分片返回可引用回执（含本夹具）后再评估是否收口。
+
 ### 2026-10-17 P4-J7-23 翻 ✅（单层重试：typed 分类与退避/deadline、admission 队列取消、每次重试重新准入、预留结算与模型结束/取消竞争的单终态，CI-only 口径）
 
 ```text

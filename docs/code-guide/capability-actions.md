@@ -48,6 +48,7 @@ Its fields are private and it only implements serialization, not deserialization
 - `SandboxMode` treats `workspace-write` as `LocalWrite`, `read-only` or missing sandbox as `ReadOnly`, and rejects other values.
 - `WorkspaceTransactionAction` allows `list`/`inspect` at `ReadOnly`, requires `Critical` for `recover`/`rollback`, and rejects other action names.
 - `ListOrInspectExternal` keeps `list`/`inspect` read-only and classifies other actions as external effects.
+- `ExtensionVisibilityAction` (`extension.manage`) keeps `list`/`search`/`inspect` read-only — the three actions read one server-owned, trust-filtered visibility projection — and classifies every state-changing action as an external effect.
 - `ListExternal` keeps only `list` read-only; every other action is classified as an external effect.
 - `ConnectorInvocation` delegates argument-specific classification to the connector risk helper.
 

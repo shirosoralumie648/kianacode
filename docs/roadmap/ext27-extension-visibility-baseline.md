@@ -28,7 +28,64 @@ stale UI actions; the final registry, trust and approval checks remain server-si
 - `kiana-domain/tests/ext27_visibility.rs` and `kiana-core/tests/ext27_visibility_guard.rs`:
   redaction, trust, identity/generation and cross-surface source guards.
 
-## Evidence
+## Completion slice (2026-10-17, CI-only)
+
+The first slice shipped a DTO-level fixture and a source guard. This slice adds the behaviour
+fixtures the Entry-projection gate asks for — one shared runtime projection, deny-first — plus the
+missing read-only classification that made `search` unusable on the product path.
+
+- `kiana-core/src/commands.rs`: `normalize_extension_command` classifies `list`, `search` and
+  `inspect` as `RiskLevel::ReadOnly`. `search` was previously a mutation, so a bounded query was
+  rejected with `extension_mutation_fields_required` (or forced a meaningless lifecycle binding).
+  The daemon's `visibility_snapshot` query bound and the injected server-owned fields are unchanged.
+- `kiana-entrypoints/tests/ext27_extension_visibility.rs` (new): drives the shared adapter
+  `extension_visibility_on_host` against a real `DaemonHost`. Deny first: an unknown-trust project
+  gets no projection — the raw envelope is `Blocked`/`project_untrusted` with `output: null`, and
+  neither the envelope nor any adapter error echoes the Skill name, body token, locator or secret.
+  Then a trusted project ships a Skill whose body carries body-token/locator/secret markers: bounded
+  `search` returns zero entries for each marker, the matching search returns exactly one redacted
+  descriptor, and the encoded projection contains none of the body/path/secret/`SKILL.md`/`.claude`
+  markers. CLI, Workbench, Web and Desktop then read the identical `snapshot_id`, `generation`,
+  `snapshot_digest` and entries; after the material changes, `require_generation` refuses the cached
+  identity (`extension_visibility_snapshot_stale`) in both directions.
+- `kiana-daemon/src/extensions.rs` (test module): `ext27_visibility_projection_is_redacted_bounded_and_role_scoped`
+  proves the registry-side deny paths — an unknown-trust project's Skill is not loaded, the registry row
+  is a `stale` diagnostic with `Unknown` trust and no `Activate` label (`ext27_visibility_action_denied`),
+  an unlisted id has no intent (`extension_visibility_not_found`), bodies/locators/secrets are not
+  searchable, an oversized query is `extension_visibility_query_invalid`, and role drift removes the row.
+  `ext27_visibility_projection_identity_fences_stale_surface_caches` folds one more CAS generation and
+  proves the cached id/generation pair is refused while the live pair still passes.
+- `kiana-core/tests/ext27_visibility_guard.rs`: new `search_is_read_only_and_the_runtime_fixtures_stay_wired_to_the_lane`
+  binds the read-only classification, both runtime fixtures, all four `EntryPointKind` labels, the four
+  deny markers and the manual lane.
+- `.github/workflows/ext27-extension-visibility.yml` (new, `workflow_dispatch`-only): fmt gate plus
+  the domain fixture, the core guard, the daemon `--no-run` compile, the daemon `ext27_` library
+  fixtures and the entrypoints cross-surface target.
+
+Local tests/builds are not run in this session, so the proof level stays `source` and EXT-27 remains
+🔄 until the lane returns a receipt with the Entry-projection gate covered.
+
+## Evidence (2026-10-17 completion slice)
+
+```text
+source_snapshot: branch step/ext-27-20261017-1 on master 824885bd7a61 + this commit
+worktree_status: isolated worktree /workspace/kianacode-worktrees/EXT-27; unrelated worktrees untouched
+command_argv: cargo fmt --all (pre-commit); bash scripts/ci/validate-doc-references.sh; git diff --check.
+              No local cargo build/test/check/clippy/run, rustc, make, npm, smoke or acceptance script was run.
+cwd·environment: /workspace/kianacode-worktrees/EXT-27; Linux; rustfmt only
+fixture·cassette: GitHub-only .github/workflows/ext27-extension-visibility.yml runs the domain fixture,
+              the core guard, the daemon ext27_ library fixtures and the entrypoints cross-surface target
+exit_code: fmt/validator exit codes only; remote CI result intentionally unobserved, not awaited
+status change: search reclassified read-only; runtime deny/parity fixtures added for daemon and
+              entrypoints; manual lane restored; roadmap card and index stay 🔄 (CI-only)
+proof-level change: source only — no local_behavior, durable, live or physical claim
+limitations: UI cache persistence, cross-process registry recovery, approval/UX flows, package
+              signing/revocation and real Hook/provider effects remain later EXT/UI steps; the
+              four-surface parity fixture covers one process and one trusted/untrusted project pair
+reviewer: Codex source review; no local runtime test reviewer; CI receipt pending
+```
+
+## Evidence (2026-09-24 source slice)
 
 ```text
 source_snapshot: f1cce824 + EXT-27 source slice (rebased onto origin/master before commit)

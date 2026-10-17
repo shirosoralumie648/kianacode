@@ -2862,4 +2862,270 @@ mod tests {
         let (version, _) = folded_registry(&registry, &project_root).await;
         assert_eq!(version, 4);
     }
+
+    // ---- EXT-27: one redacted, trust-filtered visibility projection for every surface ----
+
+    /// Body/path/secret markers a public projection must never carry.
+    const EXT27_HIDDEN_BODY: &str = "ext27-hidden-body-token-3f9a";
+    const EXT27_HIDDEN_PATH: &str = "/opt/ext27/private/skills/secret-source.pem";
+    const EXT27_HIDDEN_SECRET: &str = "ext27-hidden-secret-8811";
+
+    /// Write a project Skill whose body carries material a naive projection would leak.
+    fn ext27_project_skill(root: &Path) {
+        let dir = root
+            .join("project")
+            .join(".claude")
+            .join("skills")
+            .join("ext27-hidden-skill");
+        std::fs::create_dir_all(&dir).expect("ext27 fixture skill dir");
+        std::fs::write(
+            dir.join("SKILL.md"),
+            format!(
+                "---\ndescription: EXT-27 fixture skill api_key={EXT27_HIDDEN_SECRET}\n---\n{EXT27_HIDDEN_BODY}\n{EXT27_HIDDEN_PATH}\n"
+            ),
+        )
+        .expect("ext27 fixture skill body");
+    }
+
+    /// Ask for the projection through the same `extension.manage` read path a surface uses.
+    async fn ext27_visibility(
+        registry: &Arc<ExtensionRegistry>,
+        project_root: &str,
+        role_id: &str,
+        action: &str,
+        query: Option<&str>,
+    ) -> Result<Value, PortError> {
+        let mut arguments = json!({"action": action});
+        if let Some(query) = query {
+            arguments["query"] = json!(query);
+        }
+        server_owned_arguments(&mut arguments, project_root);
+        arguments["role_id"] = json!(role_id);
+        registry
+            .manage(&manage_request(
+                project_root,
+                RiskLevel::ReadOnly,
+                arguments,
+            ))
+            .await
+    }
+
+    async fn ext27_snapshot(
+        registry: &Arc<ExtensionRegistry>,
+        project_root: &str,
+        role_id: &str,
+        action: &str,
+        query: Option<&str>,
+    ) -> kiana_domain::ExtensionVisibilitySnapshot {
+        let output = ext27_visibility(registry, project_root, role_id, action, query)
+            .await
+            .expect("ext27 visibility projection");
+        serde_json::from_value(output["snapshot"].clone()).expect("ext27 visibility snapshot")
+    }
+
+    /// EXT-27 deny-first daemon fixture: the registry mints exactly one redacted projection per
+    /// (project, role, material) and every surface reads it. An unknown-trust project exposes no
+    /// project material, the registry row is downgraded to a diagnostic without an activation
+    /// label, role drift removes the row, the query stays bounded and labels stay intents.
+    #[tokio::test]
+    async fn ext27_visibility_projection_is_redacted_bounded_and_role_scoped() {
+        let package = fixture_package();
+        let root = fixture_root("ext27-visibility");
+        let (project_root, scope_id) = project_scope(&root);
+        ext27_project_skill(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        append_registry_state(&events, &scope_id, 1, &installed_state(&package, "enabled")).await;
+
+        // (a) unknown trust: an untrusted project's Skill is not even loaded, and the refusal to
+        // activate is decided by the server, not by the label the caller happens to see.
+        let snapshot = ext27_snapshot(&registry, &project_root, "builder", "list", None).await;
+        assert!(
+            snapshot
+                .inspect("ext27-hidden-skill")
+                .expect("inspect hidden skill id")
+                .is_none(),
+            "an untrusted project's Skill must not enter the projection"
+        );
+        let encoded = serde_json::to_string(&snapshot).expect("ext27 encoded snapshot");
+        for marker in [
+            EXT27_HIDDEN_BODY,
+            EXT27_HIDDEN_PATH,
+            EXT27_HIDDEN_SECRET,
+            "SKILL.md",
+            ".claude",
+        ] {
+            assert!(
+                !encoded.contains(marker),
+                "project material leaked into the projection: {marker}"
+            );
+        }
+        let entry = snapshot
+            .inspect("review-skill")
+            .expect("inspect fixture extension")
+            .expect("the registry row is projected as a diagnostic");
+        assert_eq!(entry.kind, kiana_domain::ExtensionVisibilityKind::Skill);
+        assert_eq!(entry.risk, kiana_domain::ExtensionVisibilityRisk::ReadOnly);
+        assert_eq!(
+            entry.source.trust,
+            kiana_domain::ExtensionVisibilityTrust::Unknown
+        );
+        assert_eq!(
+            entry.status,
+            kiana_domain::ExtensionVisibilityStatus::Stale,
+            "an untrusted source is a stale diagnostic, never an installable row"
+        );
+        assert!(
+            !entry
+                .actions
+                .contains(&kiana_domain::ExtensionVisibilityActionKind::Activate),
+            "an untrusted source must not offer an activation label"
+        );
+        assert!(
+            entry
+                .actions
+                .contains(&kiana_domain::ExtensionVisibilityActionKind::Inspect),
+            "read-only labels stay available for diagnostics"
+        );
+        assert_eq!(
+            snapshot
+                .action(
+                    "review-skill",
+                    kiana_domain::ExtensionVisibilityActionKind::Activate,
+                    "EXT-27 activation probe",
+                )
+                .expect_err("an untrusted source must not mint an activation intent"),
+            "extension_visibility_action_denied"
+        );
+        assert_eq!(
+            snapshot
+                .action(
+                    "ext27-hidden-skill",
+                    kiana_domain::ExtensionVisibilityActionKind::Inspect,
+                    "EXT-27 hidden probe",
+                )
+                .expect_err("an unlisted extension has no intent"),
+            "extension_visibility_not_found"
+        );
+
+        // (b) bounded query: bodies and locators are not searchable, and an oversized query is
+        // refused before it can reach the catalog.
+        for query in [EXT27_HIDDEN_BODY, EXT27_HIDDEN_PATH, EXT27_HIDDEN_SECRET] {
+            let searched =
+                ext27_snapshot(&registry, &project_root, "builder", "search", Some(query)).await;
+            assert!(
+                searched.entries.is_empty(),
+                "hidden body/path/secret material must not be searchable: {query}"
+            );
+        }
+        let too_long = "x".repeat(kiana_domain::MAX_EXTENSION_VISIBILITY_QUERY_BYTES + 1);
+        assert_eq!(
+            ext27_visibility(
+                &registry,
+                &project_root,
+                "builder",
+                "search",
+                Some(&too_long)
+            )
+            .await
+            .expect_err("oversized query must fail closed"),
+            PortError::Failed("extension_visibility_query_invalid".to_owned())
+        );
+
+        // (c) role drift: a role the manifest was not signed for never sees the row.
+        let drifted = ext27_snapshot(&registry, &project_root, "architect", "list", None).await;
+        assert!(
+            drifted
+                .inspect("review-skill")
+                .expect("inspect under role drift")
+                .is_none(),
+            "role drift must not project another role's extension"
+        );
+
+        // (d) an inspect for an extension that is not in the projection is a stable not-found.
+        let mut arguments = json!({"action": "inspect", "extension_id": "ext27-absent-skill"});
+        server_owned_arguments(&mut arguments, &project_root);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ReadOnly,
+                    arguments,
+                ))
+                .await
+                .expect_err("unknown extension id"),
+            PortError::Failed("extension_visibility_not_found".to_owned())
+        );
+    }
+
+    /// EXT-27 deny-first fixture: a cached projection is bound to one material identity, so a
+    /// registry generation advance refuses the old id/generation pair instead of letting a stale
+    /// surface reuse it as an authority. Read-only labels stay intents bound to that identity.
+    #[tokio::test]
+    async fn ext27_visibility_projection_identity_fences_stale_surface_caches() {
+        let package = fixture_package();
+        let root = fixture_root("ext27-generation");
+        let (project_root, scope_id) = project_scope(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        append_registry_state(&events, &scope_id, 1, &installed_state(&package, "enabled")).await;
+
+        // The projection a surface cached: id, generation and digest travel together.
+        let cached = ext27_snapshot(&registry, &project_root, "builder", "list", None).await;
+        let cached_intent = cached
+            .action(
+                "review-skill",
+                kiana_domain::ExtensionVisibilityActionKind::Inspect,
+                "EXT-27 cached read-only intent",
+            )
+            .expect("a read-only label mints an intent");
+        assert_eq!(cached_intent.snapshot_id, cached.snapshot_id);
+        assert_eq!(cached_intent.snapshot_digest, cached.snapshot_digest);
+        cached_intent
+            .validate()
+            .expect("intent stays self-consistent");
+        cached
+            .require_generation(cached_intent.snapshot_id, cached_intent.generation)
+            .expect("a fresh cache passes its own fence");
+
+        // The registry advances one CAS generation: the same project folds to a different
+        // material digest, so the cached identity is refused instead of being reused.
+        append_registry_state(
+            &events,
+            &scope_id,
+            2,
+            &installed_state(&package, "disabled"),
+        )
+        .await;
+        let fresh = ext27_snapshot(&registry, &project_root, "builder", "list", None).await;
+        assert_ne!(
+            cached.snapshot_id, fresh.snapshot_id,
+            "a registry advance must change the projection identity"
+        );
+        assert_ne!(cached.snapshot_digest, fresh.snapshot_digest);
+        assert_eq!(
+            fresh
+                .require_generation(cached_intent.snapshot_id, cached_intent.generation)
+                .expect_err("a stale cache must be refused"),
+            "extension_visibility_snapshot_stale"
+        );
+        assert_eq!(
+            cached
+                .require_generation(fresh.snapshot_id, fresh.generation)
+                .expect_err("a newer projection is not a valid precondition"),
+            "extension_visibility_snapshot_stale"
+        );
+        assert_eq!(
+            fresh
+                .require_generation(fresh.snapshot_id, fresh.generation.saturating_add(1))
+                .expect_err("generation drift alone is stale"),
+            "extension_visibility_snapshot_stale"
+        );
+        fresh
+            .require_generation(fresh.snapshot_id, fresh.generation)
+            .expect("the live pair passes");
+
+        // The label remains an intent: it carries the snapshot identity, never an authorization.
+        assert_ne!(fresh.snapshot_digest, cached_intent.snapshot_digest);
+    }
 }

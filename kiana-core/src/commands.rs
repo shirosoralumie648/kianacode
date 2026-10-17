@@ -1121,7 +1121,12 @@ fn normalize_extension_command(
     ) {
         return Err("extension_action_invalid".to_owned());
     }
-    let risk = if matches!(action.as_str(), "list" | "inspect") {
+    // EXT-27: `list`, `search` and `inspect` are the read-only visibility actions of the same
+    // server-owned projection. `search` was previously classified as a mutation, so a bounded
+    // query was rejected with `extension_mutation_fields_required` (or forced callers to mint a
+    // meaningless lifecycle binding). It reads the same trust-filtered snapshot as `list`, so it
+    // must not require the mutation binding fields.
+    let risk = if matches!(action.as_str(), "list" | "inspect" | "search") {
         RiskLevel::ReadOnly
     } else {
         RiskLevel::ExternalSideEffect
