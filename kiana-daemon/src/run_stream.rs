@@ -764,6 +764,12 @@ impl EventStorePort for StreamEventStore {
         self.inner.read_from(cursor, limit).await
     }
 
+    /// Forward the committed cursor snapshot so audit queries see the real adapter boundary
+    /// instead of degrading to `event_store_cursor_snapshot_unsupported`.
+    async fn cursor_snapshot(&self) -> Result<kiana_domain::EventLogCursorSnapshot, PortError> {
+        self.inner.cursor_snapshot().await
+    }
+
     async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {
         self.inner.append(event.clone()).await?;
         self.bus.project_committed(&event);

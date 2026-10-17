@@ -110,6 +110,15 @@ impl EventStorePort for MemoryEventLog {
         self.state.read().await.page(cursor, limit)
     }
 
+    /// 返回当前内存索引在已提交边界上的只读游标快照。
+    ///
+    /// 内存 adapter 没有持久化屏障，因此把 `last_durable_cursor` 报告为 0，而不是把进程内
+    /// 提交谎称为 durable。读锁让快照与同一索引状态一致，且不触发任何写入或 Broker 调用。
+    async fn cursor_snapshot(&self) -> Result<EventLogCursorSnapshot, PortError> {
+        let state = self.state.read().await;
+        state.cursor_snapshot(0)
+    }
+
     /// 兼容地追加一条事件，不按幂等键识别历史重放。
     ///
     /// 调用仍会经过事件身份、顺序、契约和密钥校验；重复 ID 或 stream version 冲突会报错。

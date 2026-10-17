@@ -1675,6 +1675,12 @@ pub struct AuditQueryResponse {
     pub next_cursor: Option<AuditQueryCursor>,
     pub source_cursor: kiana_domain::EventCursor,
     pub projection_version: u64,
+    /// 服务端在本次查询时读取的 EventLog 已提交游标快照；不支持快照的 adapter 为 `None`。
+    #[serde(default)]
+    pub snapshot: Option<kiana_domain::EventLogCursorSnapshot>,
+    /// 本次查询的有界扫描统计；它是只读元数据，不改变页内容。
+    #[serde(default)]
+    pub scan: Option<kiana_domain::AuditQueryScan>,
     #[serde(default)]
     pub limitations: Vec<String>,
 }

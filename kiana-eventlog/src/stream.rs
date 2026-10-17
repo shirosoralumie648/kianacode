@@ -33,7 +33,10 @@
 //! 不参与授权，也不能经此 trait 调用 Broker 执行副作用。
 
 use async_trait::async_trait;
-use kiana_domain::{CommitOutcome, EventStoreCapabilities, JournalPage, RequestId, RuntimeEvent};
+use kiana_domain::{
+    CommitOutcome, EventLogCursorSnapshot, EventStoreCapabilities, JournalPage, RequestId,
+    RuntimeEvent,
+};
 use kiana_ports::{
     CommitObserverFailure, CommittedTransition, EventAppendResult, EventStoreCommitObserver,
     EventStorePort, PortError,
@@ -324,6 +327,11 @@ impl EventStorePort for StreamEventStore {
         limit: usize,
     ) -> Result<JournalPage, PortError> {
         self.inner.read_from(cursor, limit).await
+    }
+
+    /// 转发底层 adapter 的已提交游标快照；本装饰器不自行推断边界或持久性。
+    async fn cursor_snapshot(&self) -> Result<EventLogCursorSnapshot, PortError> {
+        self.inner.cursor_snapshot().await
     }
 
     async fn append(&self, event: RuntimeEvent) -> Result<(), PortError> {

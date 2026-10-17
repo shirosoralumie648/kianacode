@@ -512,6 +512,19 @@ impl EventStorePort for JsonlEventLog {
         })
         .await
     }
+    // 返回当前已重放日志在提交边界上的只读游标快照。
+    //
+    // 与 `health()` 相同，进入 with_store 时会先追平磁盘尾部；这里不额外强制一次 fsync，
+    // 因此 `last_durable_cursor` 沿用本 adapter 既有的写入屏障声明，而不是本次读取新产生的
+    // 持久化证据。查询方必须把这两个字段当成 adapter 声明，不能据此升级证明等级。
+    async fn cursor_snapshot(&self) -> Result<EventLogCursorSnapshot, PortError> {
+        self.with_store(|_, cache| {
+            cache
+                .journal
+                .cursor_snapshot(cache.journal.committed_cursor())
+        })
+        .await
+    }
     // 先执行 flush，再返回已确认的逻辑事件游标。
     // 游标表示日志中已重放的逻辑事件数量，不是文件字节偏移。同步失败会作为 PortError
     // 返回，而不会给调用者一个无法确认是否落盘的游标。
