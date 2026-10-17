@@ -102,6 +102,7 @@ pub fn evaluate_runtime_correctness(
     let mut unknown_scopes = BTreeSet::new();
     let mut cancelling_runs = BTreeSet::new();
     let mut cancelled_runs = BTreeSet::new();
+    let mut run_terminals: BTreeMap<String, String> = BTreeMap::new();
 
     for (index, event) in trace.events.iter().enumerate() {
         let cursor = event.source_cursor;
@@ -200,43 +201,52 @@ pub fn evaluate_runtime_correctness(
         if terminal {
             observed_terminal_indexes.push(index);
         }
-        if let Some(stream_key) = stream_key(value, data, kind) {
-            if terminal {
-                if let Some(previous) = terminal_streams.get(&stream_key) {
+        let lifecycle_keys = lifecycle_scope_keys(value, data, kind);
+        if terminal {
+            let previous = lifecycle_keys
+                .iter()
+                .filter_map(|key| terminal_streams.get(key))
+                .next()
+                .cloned();
+            if let Some(previous) = previous {
+                emit(
+                    &mut findings,
+                    "runtime.terminal_duplicate",
+                    Value::String("one_terminal_per_lifecycle".to_owned()),
+                    Value::String(kind.to_owned()),
+                    evidence_cursor,
+                )?;
+                if previous.kind != kind {
                     emit(
                         &mut findings,
-                        "runtime.terminal_duplicate",
-                        Value::String("one_terminal_per_stream".to_owned()),
+                        "runtime.terminal_conflict",
+                        Value::String(previous.kind.clone()),
                         Value::String(kind.to_owned()),
                         evidence_cursor,
                     )?;
-                    if previous.kind != kind {
-                        emit(
-                            &mut findings,
-                            "runtime.terminal_conflict",
-                            Value::String(previous.kind.clone()),
-                            Value::String(kind.to_owned()),
-                            evidence_cursor,
-                        )?;
-                    }
-                } else {
+                }
+            } else {
+                for key in &lifecycle_keys {
                     terminal_streams.insert(
-                        stream_key.clone(),
+                        key.clone(),
                         TerminalObservation {
                             kind: kind.to_owned(),
                             cursor,
                         },
                     );
                 }
-            } else if terminal_streams.contains_key(&stream_key) {
-                emit(
-                    &mut findings,
-                    "runtime.event_after_terminal",
-                    Value::String("no_events_after_terminal".to_owned()),
-                    Value::String(kind.to_owned()),
-                    evidence_cursor,
-                )?;
             }
+        } else if lifecycle_keys
+            .iter()
+            .any(|key| terminal_streams.contains_key(key))
+        {
+            emit(
+                &mut findings,
+                "runtime.event_after_terminal",
+                Value::String("no_events_after_terminal".to_owned()),
+                Value::String(kind.to_owned()),
+                evidence_cursor,
+            )?;
         }
 
         let unknown = is_unknown_kind(kind);
@@ -337,6 +347,9 @@ pub fn evaluate_runtime_correctness(
                         Value::String(kind.to_owned()),
                         evidence_cursor,
                     )?;
+                    // The terminal itself is the first observed event of this attempt; a later
+                    // terminal is a duplicate, not another unmatched result.
+                    state.seen = true;
                 }
                 if state.terminal {
                     emit(
@@ -410,6 +423,18 @@ pub fn evaluate_runtime_correctness(
                         evidence_cursor,
                     )?;
                 }
+                if next_attempt <= ordinal {
+                    emit(
+                        &mut findings,
+                        "runtime.retry_metadata_invalid",
+                        Value::String("next_attempt_after_retry_ordinal".to_owned()),
+                        serde_json::json!({
+                            "retry_ordinal": ordinal,
+                            "next_attempt": next_attempt,
+                        }),
+                        evidence_cursor,
+                    )?;
+                }
                 if unknown_scopes.contains(&key) {
                     emit(
                         &mut findings,
@@ -445,24 +470,46 @@ pub fn evaluate_runtime_correctness(
                     )?;
                 }
             }
-            if let Some(key) = retry_key(value, data) {
+            for key in unknown_scope_keys(value, data, kind) {
                 unknown_scopes.insert(key);
             }
-        } else if is_retry_after_unknown(kind) {
-            if let Some(key) = lifecycle_key(value, data, kind) {
-                if unknown_scopes.contains(&key) {
-                    emit(
-                        &mut findings,
-                        "runtime.unknown_retry_forbidden",
-                        Value::String("reconcile_before_new_attempt".to_owned()),
-                        Value::String(kind.to_owned()),
-                        evidence_cursor,
-                    )?;
-                }
-            }
+        } else if is_retry_after_unknown(kind)
+            && unknown_scope_keys(value, data, kind)
+                .iter()
+                .any(|key| unknown_scopes.contains(key))
+        {
+            emit(
+                &mut findings,
+                "runtime.unknown_retry_forbidden",
+                Value::String("reconcile_before_new_attempt".to_owned()),
+                Value::String(kind.to_owned()),
+                evidence_cursor,
+            )?;
         }
 
         let run_identity = run_key(value, data);
+        if is_run_terminal(kind) {
+            if let Some(key) = run_identity.clone() {
+                run_terminals.insert(key, kind.to_owned());
+            }
+        } else if is_invocation_related(kind)
+            && run_identity
+                .as_deref()
+                .and_then(|key| run_terminals.get(key))
+                .is_some_and(|terminal| terminal.as_str() != "run.result_unknown")
+        {
+            // An invocation attempt that starts after the run already completed, failed or was
+            // cancelled is either a late result or a second execution loop.  `run.result_unknown`
+            // is excluded because its own reconciliation findings are reported above.
+            emit(
+                &mut findings,
+                "runtime.event_after_terminal",
+                Value::String("no_invocation_events_after_run_terminal".to_owned()),
+                Value::String(kind.to_owned()),
+                evidence_cursor,
+            )?;
+        }
+
         if kind == "run.cancelling" {
             if let Some(key) = run_identity.clone() {
                 cancelling_runs.insert(key);
@@ -503,8 +550,6 @@ pub fn evaluate_runtime_correctness(
         if findings.len() > MAX_FINDINGS {
             return Err(EvaluatorError::FindingLimitExceeded);
         }
-
-        let _ = index;
     }
 
     if trace.source_cursor_start != trace.events[0].source_cursor {
@@ -712,6 +757,10 @@ fn invocation_aliases_for(
 }
 
 fn retry_key(value: &Map<String, Value>, data: Option<&Map<String, Value>>) -> Option<String> {
+    retry_key_aliases(value, data).into_iter().next()
+}
+
+fn retry_key_aliases(value: &Map<String, Value>, data: Option<&Map<String, Value>>) -> Vec<String> {
     [
         "model_call_id",
         "model_attempt_id",
@@ -720,7 +769,99 @@ fn retry_key(value: &Map<String, Value>, data: Option<&Map<String, Value>>) -> O
         "run_id",
     ]
     .into_iter()
-    .find_map(|field| identifier(value, data, field).map(|id| format!("{field}:{id}")))
+    .filter_map(|field| identifier(value, data, field).map(|id| format!("{field}:{id}")))
+    .collect()
+}
+
+/// Stable lifecycle identities used to scope terminal uniqueness and post-terminal checks.
+///
+/// Projection and checkpoint facts (`run.receipt`, `run.snapshot`, `cell.*`) are deliberately not
+/// part of any lifecycle: the execution spine writes them after a terminal event to expose
+/// evidence, and treating them as lifecycle members would fail every successful run. Capability,
+/// invocation, execution and model facts are scoped by their attempt identity so one run may
+/// contain several attempts without a false duplicate; approval facts are scoped per approval.
+fn lifecycle_scope_keys(
+    value: &Map<String, Value>,
+    data: Option<&Map<String, Value>>,
+    kind: &str,
+) -> Vec<String> {
+    if is_post_terminal_projection(kind) {
+        return Vec::new();
+    }
+    if kind == "run.awaiting_approval" || kind.starts_with("approval.") {
+        return identifier(value, data, "approval_id")
+            .map(|approval| vec![format!("approval:{approval}")])
+            .unwrap_or_default();
+    }
+    if is_invocation_related(kind) {
+        let keys = invocation_aliases_for(value, data)
+            .into_iter()
+            .map(|alias| format!("invocation:{alias}"))
+            .collect::<Vec<_>>();
+        if !keys.is_empty() {
+            return keys;
+        }
+    }
+    if kind.starts_with("model.") {
+        // Only attempt-level identities scope a model call: one run legitimately contains many
+        // model calls, so `run_id` must not merge their terminals.
+        let keys = [
+            "model_call_id",
+            "model_attempt_id",
+            "attempt_id",
+            "reservation_id",
+        ]
+        .into_iter()
+        .filter_map(|field| identifier(value, data, field).map(|id| format!("model:{field}:{id}")))
+        .collect::<Vec<_>>();
+        if !keys.is_empty() {
+            return keys;
+        }
+    }
+    if kind.starts_with("run.") {
+        if let Some(run) = run_key(value, data) {
+            return vec![format!("run:{run}")];
+        }
+    }
+    stream_key(value, data, kind).into_iter().collect()
+}
+
+/// Projection and checkpoint facts the execution spine intentionally writes after a terminal
+/// event. They report on a lifecycle instead of continuing it.
+fn is_post_terminal_projection(kind: &str) -> bool {
+    matches!(kind, "run.receipt" | "run.snapshot")
+        || kind.starts_with("cell.")
+        || kind.starts_with("receipt.")
+}
+
+fn is_run_terminal(kind: &str) -> bool {
+    matches!(
+        kind,
+        "run.completed" | "run.failed" | "run.cancelled" | "run.result_unknown"
+    )
+}
+
+/// Every identity an `Unknown` outcome binds so a later attempt can be checked against it even
+/// when the two events carry different alias subsets.
+fn unknown_scope_keys(
+    value: &Map<String, Value>,
+    data: Option<&Map<String, Value>>,
+    kind: &str,
+) -> Vec<String> {
+    let mut keys = Vec::new();
+    if let Some(key) = lifecycle_key(value, data, kind) {
+        keys.push(key);
+    }
+    if let Some(key) = retry_key(value, data) {
+        keys.push(key);
+    }
+    if let Some(key) = run_key(value, data) {
+        keys.push(format!("run:{key}"));
+    }
+    for alias in invocation_aliases_for(value, data) {
+        keys.push(format!("invocation:{alias}"));
+    }
+    keys
 }
 
 fn is_invocation_related(kind: &str) -> bool {
