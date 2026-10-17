@@ -466,7 +466,7 @@ cancel/timeout/crash
 
 | ID | 代码落点 | 依赖 | 先证明的拒绝路径 | 交付与成功证据 |
 |---|---|---|---|---|
-| <a id="step-sc-25"></a>SC-25 | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | SC-04,SC-07 | 未信任目录的 skill/plugin/hook/MCP 被加载；路径伪造 trust | trust scope、来源优先级、deny reason 和加载前审计 |
+| <a id="step-sc-25"></a>SC-25 | kiana-policy ProjectTrust、user/KIANA_HOME/project trust roots | SC-04,SC-07 | 未信任目录的 skill/plugin/hook/MCP 被加载；路径伪造 trust | trust scope、来源优先级、deny reason 和加载前审计：`ProjectTrustPlan` 逐层求值（整体结论只取请求层）、`ProjectTrustLoadAudit` 加载前审计（Allow/Deny 都产出）、生产 `StoredProjectTrustAuthority` 把 v2 信任记录映射成 policy 判定并接入 `DaemonHost` 门禁（`project_trust_root_missing`/`project_trust_untrusted`/`project_trust_policy_unavailable`）；`kiana-policy` 行为+守卫夹具与 `kiana-daemon` 接线夹具，接入 `sc25-project-trust.yml`（CI pending） |
 | <a id="step-sc-26"></a>SC-26 | kiana-domain ExtensionManifest/CapabilityCatalog | SC-02,SC-09,SC-25 | manifest 的 allowed-tools 产生授权；摘要/能力/版本漂移仍运行 | manifest digest、capability intersection、read-only/write negative tests |
 | <a id="step-sc-27"></a>SC-27 | kiana-daemon hook/skill/plugin lifecycle、sandbox | SC-14,SC-16,SC-26 | 安装脚本任意 shell/网络/secret；hook 直接改事实或开第二循环 | lifecycle phase、sandbox profile、permit-only callback、卸载/撤销 |
 | <a id="step-sc-28"></a>SC-28 | scripts、CI SBOM、dependency/license/advisory scanner | SC-02,SC-25 | 未锁定依赖、许可证未知、已知高危漏洞仍发布、lockfile drift | lockfile digest、SPDX/CycloneDX manifest、阈值和 quarantine |
