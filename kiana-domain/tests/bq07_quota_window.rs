@@ -102,3 +102,84 @@ fn quota_budget_check_at_rejects_untrusted_and_pre_window_clock() {
         "quota_clock_rollback"
     );
 }
+
+#[test]
+fn quota_window_rolls_on_exact_boundaries_without_partial_second_drift() {
+    // 毫秒整数运算不存在亚秒漂移：结束前一毫秒的 retry-after 恰为 1，起始和翻转时刻恰为整窗。
+    let before = QuotaWindow::from_clock(&clock(119_999), 60_000).unwrap();
+    assert_eq!((before.start_unix_ms, before.end_unix_ms), (60_000, 120_000));
+    assert_eq!(before.retry_after_ms(119_999).unwrap(), 1);
+    assert_eq!(before.until_next_window_ms(119_999).unwrap(), 1);
+
+    let start = QuotaWindow::from_clock(&clock(120_000), 60_000).unwrap();
+    assert_eq!((start.start_unix_ms, start.end_unix_ms), (120_000, 180_000));
+    assert_eq!(start.retry_after_ms(120_000).unwrap(), 60_000);
+
+    // 窗口结束的精确毫秒同时开启下一个对齐窗口；旧窗口重试延迟精确归零。
+    let rolled = QuotaWindow::from_clock(&clock(180_000), 60_000).unwrap();
+    assert_eq!((rolled.start_unix_ms, rolled.end_unix_ms), (180_000, 240_000));
+    assert_eq!(start.until_next_window_ms(180_000).unwrap(), 0);
+    assert_eq!(start.retry_after_ms(180_000).unwrap(), 0);
+}
+
+#[test]
+fn quota_check_at_reports_exact_retry_after_at_window_boundaries() {
+    let group = QuotaGroupKey::new("provider", "credential", None, None).unwrap();
+    let window = QuotaWindow::from_clock(&clock(120_000), 60_000).unwrap();
+    let mut budget = QuotaWindowBudget {
+        schema: "kiana.quota-window-budget.v1".to_owned(),
+        version: kiana_domain::QUOTA_SCHEMA_VERSION,
+        group,
+        window,
+        max_requests: 1,
+        max_tokens: 100,
+        max_concurrency: 1,
+        used_requests: 1,
+        used_tokens: 0,
+        active_concurrency: 0,
+        budget_digest: String::new(),
+    };
+    budget.budget_digest = budget.digest();
+    budget.validate().unwrap();
+
+    assert_eq!(
+        budget.check_at(&clock(120_000), 1, 0, 0).unwrap_err(),
+        "quota_exhausted:retry_after_ms=60000"
+    );
+    assert_eq!(
+        budget.check_at(&clock(179_999), 1, 0, 0).unwrap_err(),
+        "quota_exhausted:retry_after_ms=1"
+    );
+    // 到期精确时刻：本窗口已结束，retry-after 精确为 0（下一窗口从该毫秒开始）。
+    assert_eq!(
+        budget.check_at(&clock(180_000), 1, 0, 0).unwrap_err(),
+        "quota_exhausted:retry_after_ms=0"
+    );
+}
+
+#[test]
+fn misaligned_window_and_empty_group_scope_fail_closed() {
+    assert_eq!(
+        QuotaWindow::from_clock(&clock(125_000), 0).unwrap_err(),
+        "quota_window_duration_invalid"
+    );
+    assert_eq!(
+        QuotaWindow::from_clock(&clock(125_000), 604_800_001).unwrap_err(),
+        "quota_window_duration_invalid"
+    );
+
+    // 窗口错位：端到端时长与声明 duration 不一致时，即使重算摘要也拒绝。
+    let mut misaligned = QuotaWindow::from_clock(&clock(125_000), 60_000).unwrap();
+    misaligned.end_unix_ms += 1;
+    misaligned.window_digest = misaligned.digest();
+    assert_eq!(misaligned.validate().unwrap_err(), "quota_window_invalid");
+
+    assert_eq!(
+        QuotaGroupKey::new("provider", "", None, None).unwrap_err(),
+        "quota_group_invalid"
+    );
+    assert_eq!(
+        QuotaGroupKey::new("provider", "credential", Some(String::new()), None).unwrap_err(),
+        "quota_group_invalid"
+    );
+}
