@@ -241,6 +241,14 @@ pub async fn run_workbench(mut launch: WorkbenchLaunch) -> Result<()> {
     }
 
     let host = Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?);
+    // Workbench resolves its storage root through the same daemon-owned resolver as CLI and Web.
+    // Resolution is metadata-only and fail closed; it never authorizes a command or opens a
+    // second execution path.
+    let (storage_root, storage_binding) = host
+        .resolve_surface_storage_root(kiana_daemon::StorageSurface::Workbench, &workdir)
+        .map_err(anyhow::Error::msg)?;
+    // Reported on stderr so one-shot `--json` output on stdout stays machine-parseable.
+    eprintln!("storage root: {} ({})", storage_root.canonical_path, storage_binding.root_id);
     let session_id = uuid::Uuid::new_v4().to_string();
     let plain = launch.json || std::env::var_os("KIANA_WORKBENCH_PLAIN").is_some();
     if interactive && !plain {

@@ -412,12 +412,17 @@ async fn architecture_main(args: &[String]) -> Result<()> {
         .context("failed to resolve current directory")?
         .to_string_lossy()
         .into_owned();
+    let host = Arc::new(DaemonHost::local()?);
+    // The CLI resolves its storage root through the same daemon-owned resolver that Web and
+    // Workbench use, so all three surfaces observe the same store. Resolution is metadata-only
+    // and fail closed; it never authorizes a command or opens a second execution path.
+    let (storage_root, storage_binding) = host
+        .resolve_surface_storage_root(kiana_daemon::StorageSurface::Cli, &project_root)
+        .map_err(anyhow::Error::msg)?;
     let mut metadata = ControlPlaneMetadata::local("architecture-status", project_root);
     metadata.project_trusted = true;
     metadata.actor_id = Some("local-user".to_owned());
-    let client = KianaClient::new(LocalDaemonTransport {
-        host: Arc::new(DaemonHost::local()?),
-    });
+    let client = KianaClient::new(LocalDaemonTransport { host });
     let response = client
         .command(metadata, "system.architecture", Value::Null)
         .await
@@ -429,7 +434,26 @@ async fn architecture_main(args: &[String]) -> Result<()> {
         ));
     }
     if json_output {
-        println!("{}", serde_json::to_string_pretty(&response.output)?);
+        let mut output = response.output.clone();
+        if let Some(object) = output.as_object_mut() {
+            object.insert(
+                "storage_surface".to_owned(),
+                Value::String(storage_binding.surface.as_str().to_owned()),
+            );
+            object.insert(
+                "storage_root".to_owned(),
+                Value::String(storage_root.canonical_path.clone()),
+            );
+            object.insert(
+                "storage_root_id".to_owned(),
+                Value::String(storage_binding.root_id.to_string()),
+            );
+            object.insert(
+                "storage_binding_digest".to_owned(),
+                Value::String(storage_binding.binding_digest.clone()),
+            );
+        }
+        println!("{}", serde_json::to_string_pretty(&output)?);
     } else {
         println!(
             "Control plane: {}",
@@ -459,6 +483,7 @@ async fn architecture_main(args: &[String]) -> Result<()> {
                 .as_str()
                 .unwrap_or("unknown")
         );
+        println!("Storage root: {} ({})", storage_root.canonical_path, storage_binding.root_id);
     }
     Ok(())
 }
@@ -804,6 +829,19 @@ async fn run_main(args: &[String]) -> Result<()> {
         }
         return Err(anyhow!("prompt_required"));
     }
+
+    // `kiana run` resolves the shared local storage root before it starts, using the same
+    // daemon-owned resolver as Web and Workbench and the authenticated local principal as owner.
+    // Resolution is metadata-only and fail closed; it never authorizes a command or opens a second
+    // execution path. The binding is dropped because `run` keeps no storage handle in this step.
+    let storage_project_root =
+        std::env::current_dir().context("failed to resolve current directory")?;
+    let _cli_storage = kiana_daemon::resolve_surface_storage_root(
+        kiana_daemon::StorageSurface::Cli,
+        &storage_project_root,
+        kiana_domain::AuthenticatedPrincipalRef::local().principal_id,
+    )
+    .map_err(anyhow::Error::msg)?;
 
     let mut options = HashMap::new();
     if let Some(sandbox) = sandbox {

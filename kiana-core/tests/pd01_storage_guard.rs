@@ -40,6 +40,13 @@ fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() 
         "store-identity.json",
         "create_new_file",
         "/proc/mounts",
+        "StorageSurface",
+        "resolve_surface_storage_root",
+        "acquire_surface_storage",
+        "StorageSurfaceBinding",
+        "LOCAL_STORAGE_INSTANCE_ID",
+        "LOCAL_STORAGE_AUTHORITY_EPOCH",
+        "storage_surface_binding_scope_invalid",
     ] {
         assert!(
             daemon.contains(marker),
@@ -74,5 +81,42 @@ fn storage_root_is_resolved_once_and_lock_adapter_stays_outside_control_plane() 
         assert!(!code.contains("ControlPlane"));
         assert!(!code.contains("CapabilityBroker"));
         assert!(!code.contains("dispatch_capability"));
+    }
+    assert!(host.contains("pub fn resolve_surface_storage_root"));
+    assert!(host.contains("pub fn acquire_surface_storage"));
+}
+
+#[test]
+fn product_surfaces_share_one_storage_resolver_without_a_second_root() {
+    let cli = include_str!("../../kiana-entrypoints/src/cli.rs");
+    let web = include_str!("../../kiana-entrypoints/src/web.rs");
+    let workbench = include_str!("../../kiana-entrypoints/src/workbench.rs");
+    for (label, surface, source) in [
+        ("cli", "kiana_daemon::StorageSurface::Cli", cli),
+        ("web", "kiana_daemon::StorageSurface::Web", web),
+        (
+            "workbench",
+            "kiana_daemon::StorageSurface::Workbench",
+            workbench,
+        ),
+    ] {
+        assert!(
+            source.contains("resolve_surface_storage_root"),
+            "{label} surface must resolve the shared storage root"
+        );
+        assert!(
+            source.contains(surface),
+            "{label} surface must bind the {surface} storage surface"
+        );
+        // Surfaces may not construct a second StorageRoot/owner scope of their own; that would be
+        // a second resolver and could silently diverge from the daemon-owned root.
+        assert!(
+            !source.contains("StorageRoot::new("),
+            "{label} surface must not construct its own StorageRoot"
+        );
+        assert!(
+            !source.contains("StorageOwnerScope::new("),
+            "{label} surface must not construct its own StorageOwnerScope"
+        );
     }
 }

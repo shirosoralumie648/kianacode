@@ -839,6 +839,12 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
         .local_addr()
         .context("failed to read bind address")?;
     let host = Arc::new(DaemonHost::local().map_err(anyhow::Error::msg)?);
+    // Every product surface resolves its storage root through the same daemon-owned resolver, so
+    // Web observes the same store as CLI and Workbench. Resolution is metadata-only and fail
+    // closed; it never authorizes a command or opens a second execution path.
+    let (storage_root, storage_binding) = host
+        .resolve_surface_storage_root(kiana_daemon::StorageSurface::Web, &workdir)
+        .map_err(anyhow::Error::msg)?;
     let url = format!("http://{addr}");
     // Desktop launch opts into the workspace lease.  The lease is discovery metadata only;
     // requests still enter this DaemonHost and ControlPlane path.
@@ -864,6 +870,7 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
     println!("folder: {}", workdir.display());
     println!("trusted: {}", if trusted { "yes" } else { "no" });
     println!("sandbox: {}", launch.sandbox);
+    println!("storage root: {} ({})", storage_root.canonical_path, storage_binding.root_id);
     println!("loopback only. SSE display stream; receipts remain authoritative.");
     if let Some(ready_nonce) = desktop_nonce {
         let record = instance_lease
@@ -883,6 +890,9 @@ pub async fn run_web(launch: WebLaunch) -> Result<()> {
             "workspace_digest": record.workspace_digest,
             "endpoint_digest": record.endpoint_digest,
             "record_digest": record.record_digest,
+            "storage_surface": storage_binding.surface.as_str(),
+            "storage_root_id": storage_binding.root_id.to_string(),
+            "storage_binding_digest": storage_binding.binding_digest.clone(),
             "url": url,
             "nonce": ready_nonce,
         });
