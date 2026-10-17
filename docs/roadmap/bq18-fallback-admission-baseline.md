@@ -65,3 +65,42 @@ proof-level_change: allowlist/provider connection identity source → local_beha
 limitations: `ModelRoute::digest()` remains unchanged for persisted compatibility; old fallback entries lacking `connection_id` are rejected and require trusted regeneration; provider validator is still exported without a production call site, and protected replay/route attestation are regression-only boundaries
 reviewer: root integration agent with CI-08/BQ-18 fallback audit; focused connection-identity reviewer
 ```
+
+## 2026-10-17 completion slice (CI-only)
+
+The card's refusal surface — capability downgrade, cross data-boundary fallback, missing
+credential/budget/price, stale authority, allowlist tamper and reuse of the primary
+permit/reservation — and the success column (every fallback attempt owns its route, usage,
+pinned rate card and receipt) are now executable fixtures instead of prose:
+
+- `FallbackAdmissionCandidate` splits the price refusal into a typed `fallback_rate_card_expired`
+  (window closed at `now_unix_ms`) and `fallback_rate_card_scope_mismatch` (provider/model
+  selector drift), so an expired card can no longer be reported as a scope problem.
+- `FallbackAttemptAdmission` records `original_route_digest` and `allowlist_digest`, which makes the
+  "white-listed fallback" claim auditable per attempt: the admission must link a different route
+  than the primary one, and it pins the exact allowlist revision that admitted it. Both digests
+  participate in `admission_digest`.
+- `FallbackAttemptReceipt` copies the admitted route's `provider_id`/`connection_id`/`model_id` and
+  requires the normalized usage to match all three, the receipt's cost breakdown to carry the same
+  `usage_digest` and `usage_confidence`, and the cost identity to be this attempt. A receipt whose
+  usage came from another route, another attempt or another observation is refused before it can be
+  stored in `FallbackReceiptLedger`.
+- Fixtures: domain 6 → 15 deny-first tests (`kiana-domain/tests/bq18_fallback_admission.rs`),
+  provider boundary 2 source guards plus one real behaviour test that builds an admission through
+  the domain helper and asserts every route/credential/permit drift code
+  (`kiana-provider/tests/bq18_fallback_admission.rs`), core source guard plus ControlPlane facade
+  behaviour fixtures (`kiana-core/tests/bq18_fallback_admission_guard.rs`).
+- CI wiring: manual `.github/workflows/bq18-fallback-admission.yml`
+  (`workflow_dispatch`-only, `permissions: contents: read`, `cargo fetch --locked`, fmt gate, six
+  serial targets, six `--no-run` compile steps). Automatic coverage stays with the unified `ci.yml`
+  shards `kiana-domain-s1/4` (`bq18_fallback_admission`), `kiana-core-s1/6`
+  (`bq18_fallback_admission_guard`) and the whole-crate `kiana-provider` shard; `scripts/ci/test-shards.json`
+  and the Cargo manifests are unchanged.
+
+Known limits: the allowlist, admission and ledger remain in-process value contracts. There is no
+durable cross-process authority/CAS or allowlist snapshot store, no EventLog append/flush of
+fallback admissions, no provider credential validity check, no invoice reconciliation, and no
+live/physical fallback evidence. The provider validator is still exported without a production call
+site, and `ControlPlane::re_admit_model_fallback` is a pure wrapper. Local Cargo tests, builds,
+checks, clippy and smoke commands were intentionally not run in this session; the CI receipt is not
+awaited and the proof level stays at `source`.
