@@ -954,4 +954,475 @@ mod tests {
 
         let _ = fs::remove_dir_all(root);
     }
+
+    // -----------------------------------------------------------------------------------
+    // CAP-11 ambient authority / default-deny behavioural fixtures.
+    //
+    // These fixtures plan and spawn the real bubblewrap boundary — the same
+    // `bwrap_plan_scoped` + `sandbox_env` pair the shell and stdio-MCP adapters use — and
+    // then observe the child. They are deny-first: a missing primitive, a missing
+    // `bwrap`/`python3`, or any leaked ambient authority fails the fixture instead of
+    // degrading to unsandboxed execution. The CAP-11 workflow installs and verifies both
+    // host tools before running them.
+    // -----------------------------------------------------------------------------------
+
+    /// In-namespace probe. Prints one `name=value` line for the requested check.
+    ///
+    /// It only uses the Python standard library, because the sandbox view exposes `/usr`,
+    /// `/bin`, `/lib` and the read-only project root and nothing else.
+    #[cfg(target_os = "linux")]
+    const CAP11_PROBE: &str = r##"import os
+import socket
+import sys
+
+mode = sys.argv[1]
+
+
+def report(name, value):
+    print("%s=%s" % (name, value))
+
+
+def connect_tcp(family, host, port):
+    try:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+    except OSError:
+        return "unsupported"
+    sock.settimeout(3)
+    try:
+        sock.connect((host, port))
+        return "connected"
+    except OSError:
+        return "denied"
+    finally:
+        sock.close()
+
+
+if mode == "tcp4":
+    report("ipv4", connect_tcp(socket.AF_INET, "127.0.0.1", int(sys.argv[2])))
+elif mode == "tcp6":
+    report("ipv6", connect_tcp(socket.AF_INET6, "::1", int(sys.argv[2])))
+elif mode == "dns":
+    try:
+        socket.getaddrinfo(sys.argv[2], 80, proto=socket.IPPROTO_TCP)
+        report("dns", "resolved")
+    except OSError:
+        report("dns", "denied")
+elif mode == "unix-visible":
+    try:
+        os.stat(sys.argv[2])
+        report("host-socket", "visible")
+    except OSError:
+        report("host-socket", "absent")
+elif mode == "unix":
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        sock.connect(sys.argv[2])
+        report("unix", "connected")
+    except OSError:
+        report("unix", "denied")
+    finally:
+        if sock is not None:
+            sock.close()
+elif mode == "ipc":
+    path = "/tmp/kiana-cap11-ipc.sock"
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(path)
+    server.listen(1)
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.connect(path)
+    conn, _ = server.accept()
+    client.sendall(b"cap11-ipc")
+    report("ipc", conn.recv(64).decode())
+    conn.close()
+    client.close()
+    server.close()
+elif mode == "net-interfaces":
+    names = []
+    try:
+        names = os.listdir("/sys/class/net")
+    except OSError:
+        names = []
+    if not names:
+        with open("/proc/net/dev") as handle:
+            for line in handle.read().splitlines()[2:]:
+                names.append(line.split(":")[0].strip())
+    report("interfaces", ",".join(names))
+elif mode == "mount":
+    with open(sys.argv[2], "rb") as handle:
+        report("mount", handle.read(64).decode().strip())
+else:
+    report("mode", "unknown")
+"##;
+
+    /// Ambient-authority fixture body: what the child can still observe about host env and
+    /// inherited descriptors. `__INHERITED_FD__` is replaced with a real parent descriptor.
+    #[cfg(target_os = "linux")]
+    const CAP11_ENV_SCRIPT: &str = r##"for name in KIANA_CAP11_SECRET_TOKEN SSH_AUTH_SOCK SSH_AGENT_PID LD_PRELOAD BASH_ENV HTTPS_PROXY; do
+  value=$(printenv "$name" || true)
+  printf '%s=%s\n' "$name" "${value:-absent}"
+done
+leaked=$(cat /proc/self/fd/__INHERITED_FD__ 2>/dev/null || true)
+if [ "$leaked" = "cap11-host-secret" ]; then
+  echo inherited-fd=present
+else
+  echo inherited-fd=absent
+fi
+env -i /bin/sh -c 'value=$(printenv KIANA_CAP11_SECRET_TOKEN || true); printf "env-i-secret=%s\n" "${value:-absent}"'"##;
+
+    /// Namespace fixture body: every namespace the child joined plus its interface inventory.
+    #[cfg(target_os = "linux")]
+    const CAP11_NAMESPACE_SCRIPT: &str = r##"for ns in ipc mnt net pid uts; do
+  printf 'namespace-%s=%s\n' "$ns" "$(readlink /proc/self/ns/$ns)"
+done
+python3 '__PROBE__' net-interfaces"##;
+
+    /// Success fixture body: a local shell, a project read and tool-owned IPC still work.
+    #[cfg(target_os = "linux")]
+    const CAP11_LOCAL_SCRIPT: &str = r##"printf 'shell=%s\n' local-shell-ok
+printf 'project-read=%s\n' "$(cat '__ROOT__/readable.txt')"
+printf 'network-disabled=%s\n' "$(printenv KIANA_SANDBOX_NETWORK_DISABLED || true)"
+python3 '__PROBE__' ipc"##;
+
+    #[cfg(target_os = "linux")]
+    fn write_probe(root: &Path) -> PathBuf {
+        let path = root.join("cap11_probe.py");
+        fs::write(&path, CAP11_PROBE).expect("write CAP-11 probe");
+        path
+    }
+
+    /// Build the production sandbox command for a fixture: same plan, same cleared host
+    /// environment plus the `sandbox_env` allowlist that `harness_capabilities` installs.
+    #[cfg(target_os = "linux")]
+    fn sandbox_command(root: &Path, sandbox: &str) -> tokio::process::Command {
+        let plan = bwrap_plan_scoped(root, root, sandbox, &[".".to_owned()]).expect("sandbox plan");
+        let mut command = tokio::process::Command::new(&plan.program);
+        plan.configure_command(&mut command);
+        command.env_clear();
+        command.kill_on_drop(true);
+        for (key, value) in sandbox_env(std::env::vars(), sandbox) {
+            command.env(key, value);
+        }
+        command
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn run_sandboxed(root: &Path, script: &str) -> std::process::Output {
+        let mut command = sandbox_command(root, "read-only");
+        command.arg("/bin/sh").arg("-c").arg(script);
+        let deadline = std::time::Duration::from_secs(60);
+        tokio::time::timeout(deadline, command.output())
+            .await
+            .expect("CAP-11 fixture must not hang")
+            .expect("spawn sandboxed command")
+    }
+
+    #[cfg(target_os = "linux")]
+    fn namespace_inode(line: &str) -> u64 {
+        let open = line.find('[').expect("namespace inode marker");
+        let close = line.find(']').expect("namespace inode terminator");
+        line[open + 1..close].parse().expect("namespace inode")
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn secret_env_and_inherited_fds_are_unavailable() {
+        let root = temp_root();
+        let secret_path = root.join("host-secret.txt");
+        fs::write(&secret_path, "cap11-host-secret").unwrap();
+        let secret_handle = File::open(&secret_path).unwrap();
+        let secret_fd = secret_handle.as_raw_fd();
+        assert!(secret_fd >= 3, "fixture needs an inherited descriptor");
+        let _env = EnvOverride::capture(&[
+            "KIANA_CAP11_SECRET_TOKEN",
+            "SSH_AUTH_SOCK",
+            "SSH_AGENT_PID",
+            "LD_PRELOAD",
+            "BASH_ENV",
+            "HTTPS_PROXY",
+        ]);
+        std::env::set_var("KIANA_CAP11_SECRET_TOKEN", "cap11-host-secret");
+        std::env::set_var("SSH_AUTH_SOCK", "/tmp/cap11-host-agent.sock");
+        std::env::set_var("SSH_AGENT_PID", "4242");
+        std::env::set_var("LD_PRELOAD", "/tmp/cap11-host-loader.so");
+        std::env::set_var("BASH_ENV", "/tmp/cap11-host-startup.sh");
+        std::env::set_var("HTTPS_PROXY", "http://cap11-host-proxy.invalid:3128");
+
+        let script = CAP11_ENV_SCRIPT.replace("__INHERITED_FD__", &secret_fd.to_string());
+        let output = run_sandboxed(&root, &script).await;
+        assert!(
+            output.status.success(),
+            "sandboxed environment fixture failed: {output:?}"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        for expected in [
+            "KIANA_CAP11_SECRET_TOKEN=absent",
+            "SSH_AUTH_SOCK=absent",
+            "SSH_AGENT_PID=absent",
+            "LD_PRELOAD=absent",
+            "BASH_ENV=absent",
+            "HTTPS_PROXY=absent",
+            "inherited-fd=absent",
+            "env-i-secret=absent",
+        ] {
+            assert!(
+                stdout.contains(expected),
+                "CAP-11 ambient authority leak: {expected} missing from {stdout}"
+            );
+        }
+        assert!(
+            !stdout.contains("cap11-host-secret"),
+            "host secret reached the sandbox: {stdout}"
+        );
+
+        drop(secret_handle);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn direct_ipv4_ipv6_dns_and_host_unix_sockets_are_denied() {
+        let root = temp_root();
+        let probe = write_probe(&root);
+        let probe_arg = probe.display().to_string();
+        let host_ipv4 = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("host ipv4 listener");
+        let host_port = host_ipv4.local_addr().unwrap().port();
+        let _host_ipv6 = std::net::TcpListener::bind(("::1", 0)).ok();
+        let host_socket_dir = std::env::temp_dir().join("kiana-cap11-host-socket");
+        fs::create_dir_all(&host_socket_dir).unwrap();
+        let host_socket = host_socket_dir.join("agent.sock");
+        let _host_unix =
+            std::os::unix::net::UnixListener::bind(&host_socket).expect("host unix listener");
+        let socket_arg = host_socket.display().to_string();
+
+        let ipv4_script = format!("python3 '{probe_arg}' tcp4 {host_port}");
+        let ipv4 = run_sandboxed(&root, &ipv4_script).await;
+        assert!(ipv4.status.success(), "ipv4 probe failed: {ipv4:?}");
+        let ipv4_stdout = String::from_utf8_lossy(&ipv4.stdout).into_owned();
+        assert_eq!(
+            ipv4_stdout.trim(),
+            "ipv4=denied",
+            "the host ipv4 listener must be unreachable: {ipv4_stdout}"
+        );
+
+        let ipv6_script = format!("python3 '{probe_arg}' tcp6 {host_port}");
+        let ipv6 = run_sandboxed(&root, &ipv6_script).await;
+        assert!(ipv6.status.success(), "ipv6 probe failed: {ipv6:?}");
+        let ipv6_stdout = String::from_utf8_lossy(&ipv6.stdout).into_owned();
+        assert_ne!(
+            ipv6_stdout.trim(),
+            "ipv6=connected",
+            "the host ipv6 listener must be unreachable: {ipv6_stdout}"
+        );
+
+        let dns_script = format!("python3 '{probe_arg}' dns cap11-probe.invalid");
+        let dns = run_sandboxed(&root, &dns_script).await;
+        assert!(dns.status.success(), "dns probe failed: {dns:?}");
+        let dns_stdout = String::from_utf8_lossy(&dns.stdout).into_owned();
+        assert_eq!(dns_stdout.trim(), "dns=denied", "{dns_stdout}");
+
+        let unix_template = r##"python3 '__PROBE__' unix-visible '__SOCKET__'
+python3 '__PROBE__' unix '__SOCKET__'"##;
+        let unix_script = unix_template.replace("__PROBE__", &probe_arg);
+        let unix_script = unix_script.replace("__SOCKET__", &socket_arg);
+        let unix = run_sandboxed(&root, &unix_script).await;
+        assert!(unix.status.success(), "unix probe failed: {unix:?}");
+        let unix_stdout = String::from_utf8_lossy(&unix.stdout).into_owned();
+        assert!(
+            unix_stdout.contains("host-socket=absent"),
+            "host socket file must not be visible: {unix_stdout}"
+        );
+        assert!(
+            unix_stdout.contains("unix=denied"),
+            "connecting to a host unix socket must be denied: {unix_stdout}"
+        );
+
+        // A tool may set its own proxy variables, but an explicit override still cannot reach
+        // the host listener: the variable carries no egress authority of its own.
+        let mut proxied = sandbox_command(&root, "read-only");
+        proxied.env("HTTPS_PROXY", "http://cap11-override.invalid:3128");
+        proxied.env("ALL_PROXY", "http://cap11-override.invalid:3128");
+        let proxy_template = r##"printf 'proxy=%s\n' "$(printenv HTTPS_PROXY || true)"
+python3 '__PROBE__' tcp4 __PORT__'"##;
+        let proxy_script = proxy_template.replace("__PROBE__", &probe_arg);
+        let proxy_script = proxy_script.replace("__PORT__", &host_port.to_string());
+        proxied.arg("/bin/sh").arg("-c").arg(proxy_script);
+        let deadline = std::time::Duration::from_secs(60);
+        let override_output = tokio::time::timeout(deadline, proxied.output())
+            .await
+            .expect("proxy override fixture must not hang")
+            .expect("spawn proxy override fixture");
+        assert!(
+            override_output.status.success(),
+            "proxy override fixture failed: {override_output:?}"
+        );
+        let override_stdout = String::from_utf8_lossy(&override_output.stdout).into_owned();
+        assert!(
+            override_stdout.contains("proxy=http://cap11-override.invalid:3128"),
+            "the tool's own proxy setting must be visible to itself: {override_stdout}"
+        );
+        assert!(
+            override_stdout.contains("ipv4=denied"),
+            "a proxy variable override must not restore egress: {override_stdout}"
+        );
+
+        let _ = fs::remove_dir_all(&host_socket_dir);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn sandbox_cannot_rejoin_host_namespace() {
+        let root = temp_root();
+        let host = [
+            ("ipc", "/proc/self/ns/ipc"),
+            ("mnt", "/proc/self/ns/mnt"),
+            ("net", "/proc/self/ns/net"),
+            ("pid", "/proc/self/ns/pid"),
+            ("uts", "/proc/self/ns/uts"),
+        ]
+        .map(|(namespace, path)| {
+            use std::os::unix::fs::MetadataExt;
+            let inode = std::fs::metadata(path)
+                .unwrap_or_else(|error| panic!("host {namespace} namespace: {error}"))
+                .ino();
+            (namespace, inode)
+        });
+        let probe = write_probe(&root);
+        let probe_arg = probe.display().to_string();
+        let script = CAP11_NAMESPACE_SCRIPT.replace("__PROBE__", &probe_arg);
+
+        let output = run_sandboxed(&root, &script).await;
+        assert!(
+            output.status.success(),
+            "namespace fixture failed: {output:?}"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        for (namespace, host_inode) in host {
+            let prefix = format!("namespace-{namespace}=");
+            let line = stdout
+                .lines()
+                .find(|line| line.starts_with(&prefix))
+                .unwrap_or_else(|| panic!("missing {prefix} in {stdout}"));
+            let observed = namespace_inode(line);
+            assert_ne!(
+                observed, host_inode,
+                "sandbox still shares the host {namespace} namespace"
+            );
+        }
+        let interfaces = stdout
+            .lines()
+            .find(|line| line.starts_with("interfaces="))
+            .unwrap_or_else(|| panic!("missing interface inventory in {stdout}"));
+        assert_eq!(
+            interfaces, "interfaces=lo",
+            "only the namespace-local loopback may exist: {stdout}"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn offline_local_shell_and_private_ipc_run_without_egress() {
+        let root = temp_root();
+        let probe = write_probe(&root);
+        let probe_arg = probe.display().to_string();
+        fs::write(root.join("readable.txt"), "cap11-local-read").unwrap();
+        let root_arg = root.display().to_string();
+
+        let script = CAP11_LOCAL_SCRIPT.replace("__ROOT__", &root_arg);
+        let script = script.replace("__PROBE__", &probe_arg);
+        let output = run_sandboxed(&root, &script).await;
+        assert!(
+            output.status.success(),
+            "offline local fixture failed: {output:?}"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        for expected in [
+            "shell=local-shell-ok",
+            "project-read=cap11-local-read",
+            "network-disabled=1",
+            "ipc=cap11-ipc",
+        ] {
+            assert!(
+                stdout.contains(expected),
+                "CAP-11 local behaviour was wrongly fenced: {expected} missing from {stdout}"
+            );
+        }
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn offline_stdio_mcp_boundary_keeps_pinned_mount_and_no_egress() {
+        let root = temp_root();
+        let probe = write_probe(&root);
+        let probe_arg = probe.display().to_string();
+        let payload = root.join("mcp-fixture.bin");
+        fs::write(&payload, "cap11-mcp-payload").unwrap();
+        let pinned = Arc::new(File::open(&payload).unwrap());
+        let pinned_fd = pinned.as_raw_fd();
+
+        // Mirrors `mcp_stdio::ConfinedMcpClient::connect`: the same bwrap plan plus one
+        // descriptor-pinned mount inserted before the `--` boundary, so the stdio-MCP
+        // boundary keeps its own mount while everything else stays default-deny.
+        let mut plan = bwrap_plan_scoped(&root, &root, "read-only", &[".".to_owned()]).unwrap();
+        plan.retain_mount_fd(Arc::clone(&pinned));
+        let extra = [
+            OsString::from("--ro-bind-fd"),
+            OsString::from(pinned_fd.to_string()),
+            OsString::from("/tmp/kiana-mcp-fixture"),
+        ];
+        let boundary = plan
+            .args
+            .iter()
+            .rposition(|argument| argument == "--")
+            .expect("planned bwrap boundary");
+        plan.args.splice(boundary..boundary, extra);
+
+        let mut command = tokio::process::Command::new(&plan.program);
+        plan.configure_command(&mut command);
+        command.env_clear();
+        command.kill_on_drop(true);
+        for (key, value) in sandbox_env(std::env::vars(), "read-only") {
+            command.env(key, value);
+        }
+        let script_template = r##"printf 'mcp-mount=%s\n' "$(cat /tmp/kiana-mcp-fixture)"
+python3 '__PROBE__' mount /tmp/kiana-mcp-fixture
+python3 '__PROBE__' tcp4 9"##;
+        let script = script_template.replace("__PROBE__", &probe_arg);
+        command.arg("/bin/sh").arg("-c").arg(script);
+
+        let deadline = std::time::Duration::from_secs(60);
+        let output = tokio::time::timeout(deadline, command.output())
+            .await
+            .expect("MCP boundary fixture must not hang")
+            .expect("spawn MCP boundary fixture");
+        assert!(
+            output.status.success(),
+            "MCP boundary fixture failed: {output:?}"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        assert!(
+            stdout.contains("mcp-mount=cap11-mcp-payload"),
+            "descriptor-pinned MCP mount must survive the FD fence: {stdout}"
+        );
+        assert!(
+            stdout.contains("mount=cap11-mcp-payload"),
+            "the pinned MCP mount must be readable by the tool: {stdout}"
+        );
+        assert!(
+            stdout.contains("ipv4=denied"),
+            "the stdio-MCP boundary must keep egress denied: {stdout}"
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
 }
