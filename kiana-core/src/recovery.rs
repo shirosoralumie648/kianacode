@@ -1054,3 +1054,10 @@ impl ControlPlane {
         Ok(derived)
     }
 }
+
+// CAP-24 行为夹具必须驱动本文件里的内部恢复路径（`resume_run` 的私有续体重建、`checkpoint_run`
+// 与 `rebuild_pending_invocation`），integration test 触达不到，因此按 `dispatch_delivery_tests`
+// 的既有约定内联到生产模块，而不是新增 test target 或第二套执行路径。
+#[cfg(test)]
+#[path = "recovery_invocation_tests.rs"]
+mod invocation_tests;
