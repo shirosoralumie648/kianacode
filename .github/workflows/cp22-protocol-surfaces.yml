@@ -37,6 +37,14 @@ jobs:
         run: cargo test -p kiana-entrypoints --test cli_workbench --locked -- --test-threads=1
       - name: Run CLI resume fixture
         run: cargo test -p kiana-entrypoints --test cli_resume --locked -- --test-threads=1
+      - name: Run disconnect/reconnect recovery fixture
+        run: cargo test -p kiana-client --test ui33_recovery --locked -- --test-threads=1
+      - name: Run four-surface protocol parity fixture
+        run: cargo test -p kiana-client --test sc36_protocol_parity --locked -- --test-threads=1
+      - name: Run four-surface trace parity fixture
+        run: cargo test -p kiana-client --test p4_j7_30_surface_parity --locked -- --test-threads=1
+      - name: Run typed action resend fixture
+        run: cargo test -p kiana-client --test ui07_typed_clients --locked -- --test-threads=1
       - name: Run CP-22 source guard
         run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
       - name: Compile protocol and client targets
@@ -49,6 +57,10 @@ jobs:
       - run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --no-run --locked
       - run: cargo test -p kiana-entrypoints --test cli_workbench --no-run --locked
       - run: cargo test -p kiana-entrypoints --test cli_resume --no-run --locked
+      - run: cargo test -p kiana-client --test ui33_recovery --no-run --locked
+      - run: cargo test -p kiana-client --test sc36_protocol_parity --no-run --locked
+      - run: cargo test -p kiana-client --test p4_j7_30_surface_parity --no-run --locked
+      - run: cargo test -p kiana-client --test ui07_typed_clients --no-run --locked
       - run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --no-run --locked
       - name: Check desktop surface fixtures
         run: node --test contrib/desktop/tests/*.js
