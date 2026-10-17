@@ -6,7 +6,7 @@
 | 项目 | 记录 |
 |---|---|
 | roadmap card | [`CAP-05`](capability.md#step-cap-05) |
-| feature_status | `partial`（permit verifier read-set recheck + single-consume fence；pre-handler execution facts 已并入 consume CAS，等待远端复核） |
+| feature_status | `implemented`（Broker permit verifier read-set recheck + single-consume fence + commit→spawn 崩溃分类；CI pending，见 §8） |
 | proof_level | `source`；本地不运行测试，`.github/workflows/cap05-permit.yml` 负责 fixtures 与 workspace test-target compile |
 | authority | `JournalPermitVerifier` + EventStore `execution.prepared`/`invocation.dispatching`/`invocation.executing` CAS |
 | this step does | non-empty opaque `permit:` identity、strict permit/request/project/expiry validation、authority dependency epoch recheck、single consumption and handler-after-commit ordering |
@@ -111,4 +111,25 @@ status_change: selected prepared-event owner binding moves source → local_beha
 proof-level_change: local pre-handler owner denial only; no durable/live/physical promotion
 limitations: no full ControlPlane prepare/approval/budget/lease transaction, crash/power-loss or cross-process recovery, external exactly-once, provider/connector effect, or physical/live proof
 reviewer: root integration agent with CAP-05 read-only permit audit; focused Broker/permit reviewer
+```
+
+## 8. Commit-to-spawn crash window (2026-10-17)
+
+The permit-consumption CAS can reach the durable log and commit while its acknowledgement is lost
+before the handler is entered. The card's completion product requires recovery to classify that
+window as uncertain instead of "nothing happened". The cap05 lane now models it with
+`CommitFault::CommittedAckLost`, which performs the real `commit_transition` for the
+`invocation.dispatching`/`invocation.executing` batch and then returns `CommitOutcome::Unknown`.
+
+```text
+source_snapshot: current dirty worktree; kiana-core/tests/cap05_permit.rs (CommitFault::CommittedAckLost + 2 fixtures + guard markers)
+worktree_status: CAP-05 roadmap row 143 🔄 → ✅（CI pending）/ feature_status=implemented / proof_level=source; only the CAP-05 test fixture and the step's own guard changed; no manifest/lockfile edit, no second execution path, no model-visible tool change
+command_argv: CI-only; no local cargo build/test/check/clippy/fmt, make, npm, smoke or acceptance script; static review with rg/cat/sed/git diff only; `.github/workflows/cap05-permit.yml` runs `cargo test -p kiana-core --test cap05_permit --locked -- --test-threads=1` and covers the new fixtures without a new step
+cwd·environment: worktree /workspace/kianacode-worktrees/CAP-05, branch step/cap-05-20261017-1 (base master 1fcc03dfbac3); GitHub Actions ubuntu-latest is the runtime; receipt not awaited
+fixture·cassette: `consumed_permit_with_lost_commit_ack_is_classified_effect_possibly_started` asserts Broker error `result_unknown:control_commit_unconfirmed`, one commit reaching the log, zero handler calls, stream kinds [execution.prepared, invocation.dispatching, invocation.executing], `classify_dispatch_stream` = `DispatchCrashClass::EffectPossiblyStarted` with `handler_may_have_started()` and `!is_terminal()`/`!requires_unknown_terminal()`, and a durable consume command receipt; `replayed_dispatch_after_lost_commit_ack_never_enters_handler_again` asserts the replay is refused with `execution_permit_already_consumed`, zero further handler calls, one commit, and an unchanged stream/classification; guard `cap05_dispatch_has_no_authorization_or_epoch_bypass` pins `DispatchCrashClass`/`classify_dispatch_stream`/`handler_may_have_started`/`classify_dispatch_execution`
+exit_code: local not run; CI receipt not awaited
+status_change: CAP-05's broker-side deny/success fixtures plus the commit→spawn crash classification are source-covered and CI-connected; row 143 moved to ✅（CI pending）/ feature_status=implemented, with the whole-card proof ceiling kept at source
+proof-level_change: source only; no local compile/run, no local_behavior/durable/live/physical promotion
+limitations: no local compile/run, so build and runtime correctness rest on GitHub Actions; the lost-ack fixture is an in-process MemoryEventLog decorator, so it does not prove JSONL power-loss, fsync ordering, cross-process contention or durable recovery; no ControlPlane prepare/approval/budget/lease unified transaction, no environment-plan or OS effect spawn proof, and no external/provider exactly-once; the crash classification describes the commit boundary, not the real effect state
+reviewer: root integration agent; CAP-05 Broker permit/crash-window static review
 ```
