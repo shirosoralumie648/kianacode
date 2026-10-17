@@ -17,6 +17,8 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
       - name: Run kiana-core sc31_audit_record_guard
@@ -25,3 +27,11 @@ jobs:
         run: cargo test -p kiana-domain --test sc31_audit_record --locked -- --test-threads=1
       - name: Run kiana-eventlog sc31_audit_event
         run: cargo test -p kiana-eventlog --test sc31_audit_event --locked -- --test-threads=1
+      - name: Run kiana-protocol sc31_audit_record_wire
+        run: cargo test -p kiana-protocol --test sc31_audit_record_wire --locked -- --test-threads=1
+      - name: Compile the SC-31 targets without running them
+        run: |
+          cargo test -p kiana-core --test sc31_audit_record_guard --locked --no-run
+          cargo test -p kiana-domain --test sc31_audit_record --locked --no-run
+          cargo test -p kiana-eventlog --test sc31_audit_event --locked --no-run
+          cargo test -p kiana-protocol --test sc31_audit_record_wire --locked --no-run

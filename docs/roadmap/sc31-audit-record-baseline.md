@@ -27,6 +27,52 @@ the schema registry records `kiana.audit-event.v1` as a strict RuntimeEvent cont
 - `.github/workflows/sc31-audit-record.yml` runs formatting, the three fixtures and workspace
   test-target compilation. Local tests/build/check/clippy/smoke are intentionally not executed.
 
+## 2026-10-17 completion slice (CI-only)
+
+The card's refusal paths (an audit fact missing actor/decision/reason/source cursor, and raw
+secret/prompt material entering a record) are now pinned as executable fixtures instead of
+relying on generic serde errors.
+
+- `AuditRecordEvent::from_wire_value` is the strict wire decode for the only appended audit
+  fact shape: missing (or `null`) required keys are reported by name as
+  `audit_wire_required_field_missing:<field>` (`record.actor_ref`, `record.decision`,
+  `record.reason`, `record.source_cursor`, `record.source_event_ids`, envelope
+  `source_cursor`/`source_event_ids`/`record`), smuggled keys such as `prompt`, `transcript`,
+  `messages` or `content` as `audit_wire_unknown_field:<field>`, any remaining shape error as
+  `audit_wire_payload_invalid`, and the decoded value is re-validated before it is returned.
+  `AUDIT_EVENT_WIRE_FIELDS`/`AUDIT_RECORD_WIRE_FIELDS` (plus the explicitly required subsets)
+  are the single whitelist the decode uses; `payload_recoverable`, `redaction_profile` and
+  `attributes` must be stated explicitly on the wire instead of falling back to serde defaults.
+- `kiana-eventlog/src/audit_contract.rs` now decodes through that entry point and maps a
+  missing required key to `eventlog_audit_field_missing:<field>`, keeping
+  `eventlog_audit_payload_invalid` for unknown/smuggled keys and
+  `eventlog_audit_envelope:<reason>` for envelope invariants (including
+  `audit_reason_unredacted` and `audit_event_schema_version_incompatible`).
+- Redacted-field contract: every audit text field (actor, target kind/ref, retention class,
+  reason, reason_code, correlation/causation refs, attribute keys and values) refuses raw
+  secret-shaped text with its own stable code (`audit_<field>_unredacted`).
+- Versioned event tests: the registered `kiana.audit-event.v1` contract is checked
+  (`RuntimeEvent` layer, `kiana-domain` owner, `BackwardCompatible`, unknown fields refused),
+  a minor bump re-signed by the producer stays valid and appendable, and a major bump or schema
+  name drift is refused both by `validate()` and by the wire decode.
+- Fixtures: `kiana-domain/tests/sc31_audit_record.rs` (6 tests),
+  `kiana-eventlog/tests/sc31_audit_event.rs` (4 tests, deny-first before the accepted append)
+  and `kiana-protocol/tests/sc31_audit_record_wire.rs` (3 tests). The core guard
+  `kiana-core/tests/sc31_audit_record_guard.rs` binds the fixture names, refusal-code matrix,
+  single-authority negatives (no `audit.record` payload contract in the generic domain event
+  registry, no update/delete audit operation) and the shard/lane wiring.
+- `.github/workflows/sc31-audit-record.yml` is still `workflow_dispatch`-only with
+  `permissions: contents: read`; it now fetches locked dependencies, runs the format gate, all
+  four targets with `--test-threads=1` and a `--no-run` compile pass. Automatic coverage stays
+  with the unified `ci.yml` shards (not changed): `kiana-domain-s4/4` (`sc31_audit_record`),
+  `kiana-core-s6/6` (`sc31_audit_record_guard`) and the whole-crate `kiana-eventlog` /
+  `kiana-protocol` shards (`targets: null`).
+
+Not claimed: no `audit` row is written by this slice, the reducer's server-side normalization of
+a missing reason (`reason_unspecified`) is unchanged, and there is no change to the audit query
+projector (SC-32), export, retention or incident workflows. Local tests were not run
+(CI-only session).
+
 ## Evidence boundary
 
 ```text
