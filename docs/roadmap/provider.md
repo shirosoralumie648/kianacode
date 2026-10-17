@@ -73,7 +73,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 | `P4-J7-21` | 结构化输出 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19` | 输出 schema 有独立结果校验；refusal/length/非法 JSON 不伪装合格 | ✅ |
 | `P4-J7-22` | 图片输入与数据准入 | `P4-J7-15`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P2-K7-01`、`P4-J7-16`、`CP-25` | 已授权 Artifact 才能发送；MIME/大小/hash/模型能力均校验 | ✅ |
 | `P4-J7-23` | 重试、时限与取消 | `P4-J7-11`、`P4-J7-13`、`P4-J7-14`、`P0-J1-04`、`P0-J1-05a`、`P0-J1-05b`、`CP-15` | 唯一重试层；Retry-After/取消/未知响应不造成隐式重复请求 | 🔄 |
-| `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ⏳ |
+| `P4-J7-24` | Usage、成本与预算结算 | `P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14` | 分 attempt 记已知/未知用量，累计不重算，价格钉版，预算不超分配 | ✅ |
 | `P4-J7-25` | 配额、熔断与受控 fallback | `P4-J7-23`、`P4-J7-24` | 有界公平队列，许可释放，fallback 重验能力/数据/预算 | ⏳ |
 | `P4-J7-26` | 事件、脱敏与关联链 | `P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26` | ModelCall→attempt→provider→Invocation→Receipt 可追溯且不泄密 | 🔄 |
 | `P4-J7-27` | 持久 history 与恢复 | `P4-J7-20`、`P4-J7-26`、`P0-G-03`、`P0-F-03`、`P2-K6-01`、`CP-18`、`CP-19`、`CP-20` | 新进程显式恢复不重发已完成工具；缺 replay 材料拒绝 | 🔄 |
@@ -374,7 +374,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-24 Provider 用量、价格快照与预算结算　🔄
+#### P4-J7-24 Provider 用量、价格快照与预算结算　✅
 
 - **依赖**：`P4-J7-15`、`P4-J7-16`、`P4-J7-17`、`P4-J7-18`、`P4-J7-19`、`P4-J7-23`、`P1-K5-01`、`CP-11`、`CP-14`。
 - **改动位置**：现有 domain/usage、core 预算/receipt、provider usage 归一化与 RateCard 加载。
@@ -383,7 +383,9 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`cumulative_cache_and_reasoning_usage_is_not_double_counted`、`failed_attempt_usage_is_retained`、`replayed_usage_is_settled_once`。
 - **退出 / 证据**：重试增加成本可解释；Receipt 显示未知项；不把本机 GPU 调用的外部费用默认为零，也不宣称模型 token 统计等于账单。
 
-- **已实现切片（CI 待跑）**：`ProviderUsageSettlement` 绑定 server-owned provider/model/route、attempt/run、最终 `NormalizedUsage`、idempotency digest 与 observed timestamp；提供显式 server-owned `ExecutionId` 构造入口并拒绝 nil identity。`SettlementCost` 明确区分 unknown、RateCard version-bound estimated 和 provider receipt-bound measured；attempt-local ledger 对相同 digest 幂等、对冲突结算拒绝。Provider adapter 将已准入的 `ModelReply` 归一化为缺失保留 unknown 的 provider observation，不能自行授权预算或写 EventLog。ExecutionId 目前仅有 domain value seam，尚不声称生产 ControlPlane/EventStore 调用已接通。实现与限制见 [baseline](p4-j7-24-usage-settlement-baseline.md)。
+- **本次实现（CI 待跑）**：新增 `ProviderUsageContainment`（按 `ModelProtocol` 逐维三态声明：`Some(true)` 已含、`Some(false)` 独立、`None` 未声明）、`PricedUnits`/`ChargeableUsage`（同一 token 只计一次，checked 求和；声明与实际矛盾报 `provider_usage_containment_violated:<field>`、无法证明报 `provider_usage_containment_unprovable:<field>`）、`RateCardSnapshot`（来源/币种/有效期/版本/摘要）、`ProviderUsageCorrection`（迟到用量带 `replaces_settlement_digest` 追加，不重写原事实）与 `ProviderUsageAttemptLedger`（`reserve`/`dispatch`/`settle`/`release`/`correct`）。`from_usage` 保持原保守守则，只有 `from_usage_with_protocol` 才消费包含关系表；`estimate_with_containment` 把未声明重叠的守卫收窄而不解除，contained 且卡未定价的维度留在容器内、独立且未定价的维度让估价保持 Unknown。账本上限用 checked 求和守住（超限 `provider_usage_budget_exceeded`、回绕 `provider_usage_overflow`），charge 超预留先落账再报 `provider_usage_charge_exceeds_reservation`，未知用量按预留上限保守计费，只有 Reserved 可 release、未 dispatch 不可 settle、同 attempt 重放幂等而冲突拒绝，迟到用量只走 correction；增量（`UsageObservation::Delta`）观测先经 accumulator 累加，不允许直接结算（`provider_usage_delta_observation_not_settleable`）。Ollama 等自托管路由的零价卡只给 `Unknown{Unsupported}`，远程协议的显式零价卡仍是明确估价。
+- **拒绝与回归 fixture（CI 待跑）**：`kiana-domain/tests/p4_j7_24_usage_settlement.rs` 覆盖卡片先拒绝/再成功六条（`missing_usage_and_price_remain_unknown`、`usage_overflow_is_rejected`、`concurrent_model_calls_cannot_overspend_reserved_budget`、`cumulative_cache_and_reasoning_usage_is_not_double_counted`、`failed_attempt_usage_is_retained`、`replayed_usage_is_settled_once`），并补身份/执行 ID/run/release/价卡作用域 fail-closed、预留价卡与结算价卡不一致、超预留先落账、`delta_observation_is_not_settled_as_cumulative`、自托管零价卡不免费；`kiana-provider/tests/p4_j7_24_usage_containment.rs` 把每个协议的原始回包经 `normalize_provider_usage` 归一化后与包含关系表逐字段对照（OpenAI chat/responses 的 cache/reasoning 已含、Gemini 缓存已含但 thinking token 单独加、Anthropic 缓存在外可加、Legacy/Ollama 未声明），并证明“有 token 数但没有价目表时不产生金额”；`kiana-core/tests/p4_j7_24_usage_settlement_guard.rs` 绑定新类型/错误码 marker 与 `billing_pricing.rs`，并断言结算模块无授权/写事件/回绕算术。
+- **CI / 状态**：卡片退出条件在源码层全部覆盖并接入 CI，`docs/roadmap.md` §1.1 行 401 记 ✅（CI pending）；专属 `.github/workflows/p4-j7-24-usage-settlement.yml`（`workflow_dispatch`-only、`permissions: contents: read`）跑 `cargo fetch --locked`、`cargo fmt --all --check` 与 domain/provider/core 三个夹具（均 `--locked --test-threads=1`）；自动 lane 是统一 `ci.yml` 的 `kiana-domain-s3/4`（已列出 `p4_j7_24_usage_settlement`）、`kiana-provider`（targets=null 整 crate，自动涵盖新夹具）与 `kiana-core-s5/6`（已列出 `p4_j7_24_usage_settlement_guard`）。本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt --all`），CI 回执未等待，proof 上限 `source`；ExecutionId 与生产 ControlPlane/EventLog 预算账本的接线、Receipt 投影、durable 预留/CAS、provider 发票对账与 live/physical 计费证据仍开放。实现与限制见 [baseline](p4-j7-24-usage-settlement-baseline.md)。
 
 <a id="step-p4-j7-25"></a>
 
