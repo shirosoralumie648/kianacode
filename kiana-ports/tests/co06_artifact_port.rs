@@ -1,5 +1,16 @@
-use kiana_domain::{ArtifactProvenance, ArtifactVersion, ProjectId};
-use kiana_ports::{ArtifactContentPort, InMemoryArtifactContentStore, PortError};
+use kiana_domain::{
+    ArtifactProvenance, ArtifactPublicationIntent, ArtifactPublicationState, ArtifactVersion,
+    EventId, ProjectId,
+};
+use kiana_ports::{
+    ArtifactContentPort, ArtifactStorePort, InMemoryArtifactContentStore, PortError,
+};
+
+/// A store that implements only the required artifact boundary and inherits the fail-closed
+/// publication-journal defaults. This pins the compatibility contract for existing adapters.
+struct JournallessStore;
+
+impl ArtifactStorePort for JournallessStore {}
 
 #[tokio::test]
 async fn artifact_read_port_requires_persisted_hash_matching_blob() {
@@ -73,5 +84,54 @@ async fn artifact_read_port_rejects_nil_identity_before_lookup() {
         store.read_artifact(&reference).await,
         Err(PortError::Failed(reason))
             if reason == "artifact_reference_invalid:artifact_ref_identity_invalid"
+    ));
+}
+
+#[tokio::test]
+async fn artifact_store_publication_journal_defaults_fail_closed() {
+    let scope = kiana_domain::json_digest(&serde_json::json!({"project": ProjectId::new()}));
+    let version = ArtifactVersion::new(
+        kiana_domain::ArtifactId::new(),
+        1,
+        "kiana.test-artifact.v1",
+        b"immutable",
+        scope,
+        ArtifactProvenance {
+            producer_kind: "fixture".to_owned(),
+            producer_id: "co06".to_owned(),
+            source_event_id: None,
+            source_run_id: None,
+            recorded_by: "fixture".to_owned(),
+        },
+        100,
+    )
+    .unwrap();
+    let intent = ArtifactPublicationIntent::new(
+        "command-1",
+        "idempotency-1",
+        "aggregate-1",
+        version.as_ref(),
+        100,
+    )
+    .unwrap();
+    let store = JournallessStore;
+    assert!(matches!(
+        store.record_publication_intent(&intent).await,
+        Err(PortError::Unavailable(reason)) if reason == "artifact_publication_journal_unsupported"
+    ));
+    assert!(matches!(
+        store
+            .resolve_publication_intent(
+                "command-1",
+                ArtifactPublicationState::Committed,
+                Some(EventId::new()),
+                200,
+            )
+            .await,
+        Err(PortError::Unavailable(reason)) if reason == "artifact_publication_journal_unsupported"
+    ));
+    assert!(matches!(
+        store.pending_publication_intents().await,
+        Err(PortError::Unavailable(reason)) if reason == "artifact_publication_journal_unsupported"
     ));
 }

@@ -1,6 +1,8 @@
 use kiana_domain::{
-    json_digest, ArtifactProvenance, ArtifactVersion, Criterion, CriterionId, EventId, EvidenceId,
-    EvidenceRef, InvocationId, ProjectId, RunId,
+    json_digest, ArtifactProvenance, ArtifactPublicationIntent, ArtifactPublicationReconciliation,
+    ArtifactPublicationState, ArtifactPublicationVerdict, ArtifactVersion, ArtifactWorkspaceDelta,
+    ArtifactWorkspaceDeltaState, Criterion, CriterionId, EventId, EvidenceId, EvidenceRef,
+    InvocationId, ProjectId, RunId,
 };
 use uuid::Uuid;
 
@@ -219,4 +221,268 @@ fn artifact_provenance_source_ids_must_be_non_nil() {
             "artifact_provenance_identity_invalid"
         );
     }
+}
+
+fn evidence_reference(bytes: &[u8]) -> kiana_domain::ArtifactRef {
+    ArtifactVersion::new(
+        kiana_domain::ArtifactId::new(),
+        1,
+        "kiana.test-evidence.v1",
+        bytes,
+        scope(),
+        provenance(),
+        100,
+    )
+    .unwrap()
+    .as_ref()
+}
+
+#[test]
+fn artifact_publication_intent_binds_reference_and_terminal_state() {
+    let reference = evidence_reference(b"historical evidence");
+    let intent = ArtifactPublicationIntent::new(
+        "command-1",
+        "idempotency-1",
+        "aggregate-1",
+        reference.clone(),
+        100,
+    )
+    .unwrap();
+    assert!(intent.is_pending());
+    assert_eq!(
+        intent.manifest_digest,
+        json_digest(&serde_json::json!(&reference))
+    );
+    assert_eq!(intent.artifact, reference);
+
+    // A pending intent may not carry a resolution marker.
+    assert!(intent
+        .resolved(ArtifactPublicationState::Pending, None, 200)
+        .is_err());
+    // Committed requires the fact's event id; Abandoned must not carry one.
+    assert!(intent
+        .resolved(ArtifactPublicationState::Committed, None, 200)
+        .is_err());
+    assert!(intent
+        .resolved(
+            ArtifactPublicationState::Abandoned,
+            Some(EventId::new()),
+            200
+        )
+        .is_err());
+    // A resolution cannot precede the recorded publication window.
+    assert!(intent
+        .resolved(ArtifactPublicationState::Abandoned, None, 99)
+        .is_err());
+
+    let event_id = EventId::new();
+    let committed = intent
+        .resolved(ArtifactPublicationState::Committed, Some(event_id), 200)
+        .unwrap();
+    assert_eq!(committed.state, ArtifactPublicationState::Committed);
+    assert_eq!(committed.resolved_event_id, Some(event_id));
+    assert_eq!(committed.artifact, reference);
+    // A terminal intent is not re-resolvable.
+    assert!(committed
+        .resolved(ArtifactPublicationState::Abandoned, None, 300)
+        .is_err());
+    let abandoned = intent
+        .resolved(ArtifactPublicationState::Abandoned, None, 150)
+        .unwrap();
+    assert_eq!(abandoned.state, ArtifactPublicationState::Abandoned);
+    assert_eq!(abandoned.resolved_event_id, None);
+
+    // Manifest drift, unknown fields and empty identity fail closed.
+    let mut tampered = intent.clone();
+    tampered.manifest_digest = json_digest(&serde_json::json!({"drifted": true}));
+    assert_eq!(
+        tampered.validate().unwrap_err(),
+        "artifact_publication_manifest_mismatch"
+    );
+    let mut unknown = serde_json::to_value(&intent).unwrap();
+    unknown["unknown_field"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<ArtifactPublicationIntent>(unknown).is_err());
+    assert!(
+        ArtifactPublicationIntent::new("", "idempotency-1", "aggregate-1", reference, 100).is_err()
+    );
+}
+
+#[test]
+fn artifact_publication_reconciliation_classifies_orphans_and_stays_conservative() {
+    let reference = evidence_reference(b"orphan bytes");
+    let published = ArtifactPublicationReconciliation::new(
+        "command-1",
+        reference.clone(),
+        true,
+        true,
+        Some(EventId::new()),
+        "fact_committed_and_blob_verified",
+    )
+    .unwrap();
+    assert_eq!(published.verdict, ArtifactPublicationVerdict::Published);
+    assert_eq!(
+        published.terminal_state(),
+        Some(ArtifactPublicationState::Committed)
+    );
+
+    let orphan = ArtifactPublicationReconciliation::new(
+        "command-2",
+        reference.clone(),
+        false,
+        true,
+        None,
+        "orphan_committed_blob_without_fact",
+    )
+    .unwrap();
+    assert_eq!(orphan.verdict, ArtifactPublicationVerdict::Unpublished);
+    assert_eq!(
+        orphan.terminal_state(),
+        Some(ArtifactPublicationState::Abandoned)
+    );
+
+    let fact_without_blob = ArtifactPublicationReconciliation::new(
+        "command-3",
+        reference.clone(),
+        true,
+        false,
+        Some(EventId::new()),
+        "fact_committed_without_readable_blob",
+    )
+    .unwrap();
+    assert_eq!(
+        fact_without_blob.verdict,
+        ArtifactPublicationVerdict::Unverifiable
+    );
+    assert!(fact_without_blob.terminal_state().is_none());
+
+    let unconfirmed = ArtifactPublicationReconciliation::new(
+        "command-4",
+        reference.clone(),
+        false,
+        false,
+        None,
+        "fact_and_blob_unconfirmed",
+    )
+    .unwrap();
+    assert_eq!(
+        unconfirmed.verdict,
+        ArtifactPublicationVerdict::Unverifiable
+    );
+    assert!(unconfirmed.terminal_state().is_none());
+
+    // A reconciliation cannot claim an event id without a committed fact.
+    let dropped = ArtifactPublicationReconciliation::new(
+        "command-5",
+        reference.clone(),
+        false,
+        true,
+        Some(EventId::new()),
+        "orphan_committed_blob_without_fact",
+    )
+    .unwrap();
+    assert_eq!(dropped.event_id, None);
+    let mut forged = orphan;
+    forged.verdict = ArtifactPublicationVerdict::Published;
+    assert_eq!(
+        forged.validate().unwrap_err(),
+        "artifact_publication_verdict_mismatch"
+    );
+}
+
+#[test]
+fn artifact_workspace_delta_denies_inconsistent_or_escaping_states() {
+    let reference = evidence_reference(b"one\ntwo\n");
+    let unchanged = ArtifactWorkspaceDelta::new(
+        reference.clone(),
+        "src/evidence.txt",
+        8,
+        ArtifactWorkspaceDeltaState::Unchanged,
+        Some(reference.content_hash.clone()),
+        Some(8),
+        0,
+        0,
+        Vec::new(),
+    )
+    .unwrap();
+    assert_eq!(
+        unchanged.current_state,
+        ArtifactWorkspaceDeltaState::Unchanged
+    );
+
+    // Unchanged must carry the committed digest, Changed must carry a current one, and an absent
+    // source must not smuggle content or a line delta.
+    assert!(ArtifactWorkspaceDelta::new(
+        reference.clone(),
+        "src/evidence.txt",
+        8,
+        ArtifactWorkspaceDeltaState::Unchanged,
+        Some(json_digest(&serde_json::json!({"drifted": true}))),
+        Some(8),
+        0,
+        0,
+        Vec::new(),
+    )
+    .is_err());
+    assert!(ArtifactWorkspaceDelta::new(
+        reference.clone(),
+        "src/evidence.txt",
+        8,
+        ArtifactWorkspaceDeltaState::Changed,
+        None,
+        None,
+        1,
+        0,
+        Vec::new(),
+    )
+    .is_err());
+    assert!(ArtifactWorkspaceDelta::new(
+        reference.clone(),
+        "src/evidence.txt",
+        8,
+        ArtifactWorkspaceDeltaState::Missing,
+        Some(reference.content_hash.clone()),
+        None,
+        0,
+        0,
+        Vec::new(),
+    )
+    .is_err());
+
+    // A path that escapes the project root, or an oversized snapshot, is never a valid input.
+    assert!(ArtifactWorkspaceDelta::new(
+        reference.clone(),
+        "../outside.txt",
+        8,
+        ArtifactWorkspaceDeltaState::Missing,
+        None,
+        None,
+        0,
+        0,
+        Vec::new(),
+    )
+    .is_err());
+    assert!(ArtifactWorkspaceDelta::new(
+        reference.clone(),
+        "/etc/passwd",
+        8,
+        ArtifactWorkspaceDeltaState::Missing,
+        None,
+        None,
+        0,
+        0,
+        Vec::new(),
+    )
+    .is_err());
+    assert!(ArtifactWorkspaceDelta::new(
+        reference,
+        "src/evidence.txt",
+        (kiana_domain::MAX_ARTIFACT_BYTES + 1) as u64,
+        ArtifactWorkspaceDeltaState::Missing,
+        None,
+        None,
+        0,
+        0,
+        Vec::new(),
+    )
+    .is_err());
 }

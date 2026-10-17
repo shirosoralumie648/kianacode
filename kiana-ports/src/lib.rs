@@ -19,22 +19,22 @@
 
 use async_trait::async_trait;
 use kiana_domain::{
-    AgentTemplate, ApprovalChallenge, ApprovalId, ArtifactRef, ArtifactVersion,
-    AssignmentDirectory, AssignmentId, AuditActionKind, AuditDecision, AuditRecord,
-    AuthenticatedPrincipalRef, AuthoritySnapshot, AuthorizedCapabilityRequest, BudgetLease,
-    BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityRequest, CapabilityResult, CellId,
-    CellLifecycle, CellSpec, ClockObservation, CommunicationMessage, ConfigSnapshot,
-    CorrelationContext, CorrelationScope, DataPropagationPlan, DataPropagationReceipt,
-    DeletionManifest, DeletionTombstone, EvalCase, EvalCaseId, EvalCaseResult, EvalDataset,
-    EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor, GoldenTrace, GoldenTraceId, HealthSnapshot,
-    MetricPoint, ObservabilityRecord, OrganizationId, PendingApproval, Principal, ProjectId,
-    ProjectIdentity, QualityArtifact, QualityArtifactId, QuotaReservation, QuotaReservationId,
-    QuotaReservationState, RateCard, RateCardId, RequestContext, RequestId, ResolvedAssignment,
-    RetirementRecord, RetrievalItem, RetrievalRequest, RetrievalResult, RoleAssignment, RunId,
-    RuntimeEvent, SecretRef, SignalKind, SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError,
-    StorageErrorClass, StorageHealth, StorageSchemaRegistry, StoreIdentityId, SupervisionLease,
-    SupervisorObservation, SupervisorRequest, SwarmLineage, SwarmPlanId, TraceSummary,
-    WorkFingerprint,
+    AgentTemplate, ApprovalChallenge, ApprovalId, ArtifactPublicationIntent,
+    ArtifactPublicationState, ArtifactRef, ArtifactVersion, AssignmentDirectory, AssignmentId,
+    AuditActionKind, AuditDecision, AuditRecord, AuthenticatedPrincipalRef, AuthoritySnapshot,
+    AuthorizedCapabilityRequest, BudgetLease, BudgetLeaseId, CapabilityGrant, CapabilityGrantId,
+    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, ClockObservation,
+    CommunicationMessage, ConfigSnapshot, CorrelationContext, CorrelationScope,
+    DataPropagationPlan, DataPropagationReceipt, DeletionManifest, DeletionTombstone, EvalCase,
+    EvalCaseId, EvalCaseResult, EvalDataset, EvalDatasetId, EvalSuite, EvalSuiteId, EventCursor,
+    EventId, GoldenTrace, GoldenTraceId, HealthSnapshot, MetricPoint, ObservabilityRecord,
+    OrganizationId, PendingApproval, Principal, ProjectId, ProjectIdentity, QualityArtifact,
+    QualityArtifactId, QuotaReservation, QuotaReservationId, QuotaReservationState, RateCard,
+    RateCardId, RequestContext, RequestId, ResolvedAssignment, RetirementRecord, RetrievalItem,
+    RetrievalRequest, RetrievalResult, RoleAssignment, RunId, RuntimeEvent, SecretRef, SignalKind,
+    SpanLinkKind, SpawnPlan, SpawnPlanId, StorageError, StorageErrorClass, StorageHealth,
+    StorageSchemaRegistry, StoreIdentityId, SupervisionLease, SupervisorObservation,
+    SupervisorRequest, SwarmLineage, SwarmPlanId, TraceSummary, WorkFingerprint,
 };
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde::{Deserialize, Serialize};
@@ -983,6 +983,42 @@ pub trait ArtifactStorePort: Send + Sync {
     ) -> Result<DataPropagationReceipt, PortError> {
         Err(PortError::Unavailable(
             "artifact_invalidation_unsupported".to_owned(),
+        ))
+    }
+
+    /// Record the write-ahead intent that binds a committed blob to the logical Company command
+    /// which will cite it. A store that cannot journal publication returns `Unavailable`, and the
+    /// caller keeps its legacy path; the intent is a recovery sidecar and never a fact source.
+    async fn record_publication_intent(
+        &self,
+        _intent: &ArtifactPublicationIntent,
+    ) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "artifact_publication_journal_unsupported".to_owned(),
+        ))
+    }
+
+    /// Append the terminal marker for an intent. Implementations must refuse to overwrite blob or
+    /// manifest bytes and must keep the original reference untouched.
+    async fn resolve_publication_intent(
+        &self,
+        _command_id: &str,
+        _state: ArtifactPublicationState,
+        _event_id: Option<EventId>,
+        _resolved_at_unix_ms: u64,
+    ) -> Result<ArtifactPublicationIntent, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_publication_journal_unsupported".to_owned(),
+        ))
+    }
+
+    /// Return the latest unresolved intent per command id, ordered by command id. This drives
+    /// orphan reconciliation after a restart and is not an authorization source.
+    async fn pending_publication_intents(
+        &self,
+    ) -> Result<Vec<ArtifactPublicationIntent>, PortError> {
+        Err(PortError::Unavailable(
+            "artifact_publication_journal_unsupported".to_owned(),
         ))
     }
 }

@@ -376,6 +376,12 @@ impl ControlPlane {
                 other => Err(other.into()),
             };
         }
+        // Record the cross-store publication window before the fact is appended. The intent binds
+        // the committed reference to this logical command so a restart can reconcile the
+        // blob/fact pair instead of guessing; an adapter without a journal keeps the legacy path.
+        let publication_intent = self
+            .record_artifact_publication_intent(&command_id, &context, &request, &proof)
+            .await?;
         // Retryable staging returns the first immutable manifest, including its timestamp.
         // The pre-publication transition above remains the deny boundary; rebuild the response
         // projection from the finalized proof so it matches the fact that will be committed.
@@ -409,6 +415,11 @@ impl ControlPlane {
             }
             Err(error) => return Err(error),
         };
+        self.resolve_artifact_publication_intent(
+            publication_intent.as_ref(),
+            Some(committed.event_id),
+        )
+        .await;
         let receipt = CompanyCommandReceipt::new(
             &company_aggregate_id(&context),
             &request.idempotency_key,
@@ -1182,6 +1193,235 @@ impl ControlPlane {
             artifact.typed_version = Some(persisted);
         }
         Ok(())
+    }
+
+    /// Write the recovery intent that binds a committed blob to this logical Company command.
+    /// The intent is written before the fact append; it carries identity and digests only and is
+    /// never an authority or a fact source. Adapters without a journal return `Unavailable` and
+    /// the command keeps its legacy single-phase behavior.
+    async fn record_artifact_publication_intent(
+        &self,
+        command_id: &kiana_domain::RequestId,
+        context: &RequestContext,
+        request: &CompanyCommandRequest,
+        proof: &CompanyProof,
+    ) -> Result<Option<kiana_domain::ArtifactPublicationIntent>, CoreError> {
+        let Some(store) = self.artifact_store.as_ref() else {
+            return Ok(None);
+        };
+        let Some(version) = proof.artifact_version.as_ref() else {
+            return Ok(None);
+        };
+        let intent = kiana_domain::ArtifactPublicationIntent::new(
+            command_id.to_string(),
+            request.idempotency_key.clone(),
+            company_aggregate_id(context),
+            version.as_ref(),
+            company_now(),
+        )
+        .map_err(|error| company_error(&error))?;
+        match store.record_publication_intent(&intent).await {
+            Ok(()) => Ok(Some(intent)),
+            Err(PortError::Unavailable(_)) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// Close the publication window after the Company fact is committed. A resolve failure leaves
+    /// the intent Pending and is recovered by reconciliation; it must not turn a committed
+    /// command into an error response.
+    async fn resolve_artifact_publication_intent(
+        &self,
+        intent: Option<&kiana_domain::ArtifactPublicationIntent>,
+        event_id: Option<kiana_domain::EventId>,
+    ) {
+        let Some(store) = self.artifact_store.as_ref() else {
+            return;
+        };
+        let Some(intent) = intent else {
+            return;
+        };
+        let _ = store
+            .resolve_publication_intent(
+                &intent.command_id,
+                kiana_domain::ArtifactPublicationState::Committed,
+                event_id,
+                company_now(),
+            )
+            .await;
+    }
+
+    /// Reconcile unresolved artifact-publication intents against the canonical fact log.
+    ///
+    /// This is a read-and-classify operation. It may append a terminal marker to the store's
+    /// recovery journal, but it never appends a Company fact, never widens authority, and never
+    /// deletes or rewrites blob bytes. A pending intent whose fact is committed becomes
+    /// `Published`; a readable blob with no fact is reported as `Unpublished` (an orphan) and is
+    /// marked `Abandoned` so it stays visible instead of being re-cited; anything else stays
+    /// `Unverifiable` and Pending for a later attempt.
+    pub async fn reconcile_artifact_publications(
+        &self,
+    ) -> Result<Vec<kiana_domain::ArtifactPublicationReconciliation>, CoreError> {
+        let Some(store) = self.artifact_store.as_ref() else {
+            return Ok(Vec::new());
+        };
+        let pending = match store.pending_publication_intents().await {
+            Ok(pending) => pending,
+            Err(PortError::Unavailable(_)) => return Ok(Vec::new()),
+            Err(error) => return Err(error.into()),
+        };
+        if pending.is_empty() {
+            return Ok(Vec::new());
+        }
+        let all = self.events.read_all().await?;
+        let mut report = Vec::with_capacity(pending.len());
+        for intent in pending {
+            let key = format!("company:{}:{}", intent.aggregate_id, intent.idempotency_key);
+            let event_id = all
+                .iter()
+                .find(|event| {
+                    event.kind.starts_with("company.")
+                        && event.idempotency_key.as_deref() == Some(key.as_str())
+                })
+                .map(|event| event.event_id);
+            let blob_readable = match store.read_artifact(&intent.artifact).await {
+                Ok(bytes) => kiana_domain::journal_sha256(&bytes) == intent.artifact.content_hash,
+                Err(_) => false,
+            };
+            let reason = match (event_id.is_some(), blob_readable) {
+                (true, true) => "fact_committed_and_blob_verified",
+                (false, true) => "orphan_committed_blob_without_fact",
+                (true, false) => "fact_committed_without_readable_blob",
+                (false, false) => "fact_and_blob_unconfirmed",
+            };
+            let reconciliation = kiana_domain::ArtifactPublicationReconciliation::new(
+                intent.command_id.clone(),
+                intent.artifact.clone(),
+                event_id.is_some(),
+                blob_readable,
+                event_id,
+                reason,
+            )
+            .map_err(|error| company_error(&error))?;
+            if let Some(state) = reconciliation.terminal_state() {
+                let _ = store
+                    .resolve_publication_intent(
+                        &reconciliation.command_id,
+                        state,
+                        reconciliation.event_id,
+                        company_now(),
+                    )
+                    .await;
+            }
+            report.push(reconciliation);
+        }
+        Ok(report)
+    }
+
+    /// Compare a committed Company artifact with its current workspace source.
+    ///
+    /// Read-only projection: it re-reads the immutable reference through the injected store,
+    /// reads the current file through the confined reader, and reports the difference. It never
+    /// rewrites history, widens authority, or fetches a path the project did not register.
+    pub async fn artifact_workspace_delta(
+        &self,
+        context: &RequestContext,
+        artifact_id: &str,
+    ) -> Result<kiana_domain::ArtifactWorkspaceDelta, CoreError> {
+        company_context(context, false).map_err(company_conflict)?;
+        let (state, _) = self.load_company(context).await?;
+        let artifact = state
+            .artifacts
+            .get(artifact_id)
+            .ok_or_else(|| company_conflict("company_artifact_not_registered"))?
+            .clone();
+        let reference = artifact
+            .typed_version
+            .as_ref()
+            .map(kiana_domain::ArtifactVersion::as_ref)
+            .ok_or_else(|| company_conflict("company_artifact_reference_invalid"))?;
+        let historical = match self.artifact_store.as_ref() {
+            Some(store) => {
+                let bytes = store.read_artifact(&reference).await?;
+                crate::artifacts::validate_artifact_reference_content(&reference, &bytes)
+                    .map_err(company_conflict)?;
+                bytes
+            }
+            None => artifact.text.as_bytes().to_vec(),
+        };
+        let root = company_root(context);
+        let relative = artifact.relative_path.clone();
+        let current = read_company_artifact(context, &relative).await;
+        let present = match current.as_ref() {
+            Ok(_) => true,
+            Err(_) => {
+                super::artifacts::project_artifact_exists(Path::new(&root), Path::new(&relative))
+                    .map_err(company_conflict)?
+            }
+        };
+        let (current_state, current_content_hash, current_size_bytes, added_lines, removed_lines) =
+            match current {
+                Ok(text) => {
+                    let bytes = text.as_bytes();
+                    let hash = kiana_domain::journal_sha256(bytes);
+                    if hash == reference.content_hash {
+                        (
+                            kiana_domain::ArtifactWorkspaceDeltaState::Unchanged,
+                            Some(hash),
+                            Some(bytes.len() as u64),
+                            0,
+                            0,
+                        )
+                    } else {
+                        let (added, removed) = match std::str::from_utf8(&historical) {
+                            Ok(historical_text) => {
+                                crate::artifacts::bounded_line_delta(historical_text, &text)
+                            }
+                            Err(_) => (0, 0),
+                        };
+                        (
+                            kiana_domain::ArtifactWorkspaceDeltaState::Changed,
+                            Some(hash),
+                            Some(bytes.len() as u64),
+                            added,
+                            removed,
+                        )
+                    }
+                }
+                Err(_) if present => (
+                    kiana_domain::ArtifactWorkspaceDeltaState::Unavailable,
+                    None,
+                    None,
+                    0,
+                    0,
+                ),
+                Err(_) => (
+                    kiana_domain::ArtifactWorkspaceDeltaState::Missing,
+                    None,
+                    None,
+                    0,
+                    0,
+                ),
+            };
+        let mut limitations = Vec::new();
+        if current_state == kiana_domain::ArtifactWorkspaceDeltaState::Unavailable {
+            limitations.push("current_source_unavailable".to_owned());
+        }
+        if std::str::from_utf8(&historical).is_err() {
+            limitations.push("historical_content_not_text".to_owned());
+        }
+        kiana_domain::ArtifactWorkspaceDelta::new(
+            reference,
+            relative,
+            historical.len() as u64,
+            current_state,
+            current_content_hash,
+            current_size_bytes,
+            added_lines,
+            removed_lines,
+            limitations,
+        )
+        .map_err(|error| company_error(&error))
     }
 }
 
