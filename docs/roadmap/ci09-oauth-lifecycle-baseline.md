@@ -69,3 +69,36 @@ across reload. A present token must match that digest; an active token cannot cl
 digest without material. Old active v1 files still derive the digest from their token. Historical
 files that already discarded the digest cannot recover it. Additional CI fixtures cover all
 three fencing transitions, zero refresh after reload and malformed/missing material binding.
+
+## 2026-10-17 explicit generation CAS and scope-insufficient fencing
+
+Two named lifecycle contracts from the §29.5 target were still open and are now covered at the
+provider boundary:
+
+- `OAuthManager::invalidate_if_current(observed_generation)` implements the documented
+  compare-and-swap revocation. An empty manager reports `oauth_token_missing`; a stale generation
+  reports `oauth_generation_conflict` and leaves the newer grant (metadata, access material and
+  token file) byte-for-byte unchanged; the current generation is revoked with a `revoke()` that
+  advances the fence before persistence and notification, so a concurrent in-flight refresh of
+  that generation cannot reinstall it. This is the sibling of `refresh(observed_generation)`
+  (`rotate`), not a replacement for it.
+- A refresh response whose scope is insufficient is no longer reported while the old token stays
+  `Active` and repeatedly refreshable. `finish_refresh` now treats `OAuthError::ScopeInsufficient`
+  as permanent for that grant: it calls `metadata.reauth()` (advance generation, drop refresh
+  material, keep the refresh provenance digest, status `ReauthRequired`) and returns
+  `oauth_scope_insufficient`. Subsequent `access_token` calls fail with `oauth_reauth_required`
+  and never issue another refresh.
+
+Fixtures: `invalidate_if_current_is_generation_cas_and_denies_stale_callers` (deny
+missing/stale, accept current, then fenced-after-revoke with zero refresh) and
+`insufficient_scope_refresh_fences_to_reauth_without_replacement` (deny-first scope downgrade,
+`ReauthRequired` metadata, zero further refresh, explicit reauthorization). The core source guard
+`ci09_oauth_guard` gained the `invalidate_if_current` marker. All three run under the existing
+`.github/workflows/ci09-oauth-lifecycle.yml` (provider via `--lib oauth::tests`); no new target,
+manifest or execution path was added. No local test/build is run in this session (CI-only);
+`feature_status=implemented`, `proof_level=source`.
+
+Still open (unchanged): real IdP/token-endpoint HTTP, `ProviderGateway` credential-backend
+integration, cross-process durable identity/revocation, the separately stored external account
+subject, workload attestation, scope policy, OAuth receipt/audit and external/live/physical proof
+remain CI-10/11 and PD/SC/ER follow-ups.

@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 CI-09 翻 ✅（OAuth/workload identity generation CAS 与 scope fail-closed 收口，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 169（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/ci09-oauth-lifecycle-baseline.md（+2026-10-17 段）；kiana-provider/src/oauth.rs（+`OAuthManager::invalidate_if_current`，`finish_refresh` 对 `OAuthError::ScopeInsufficient` 转 `ReauthRequired`，+两个 provider fixture）；kiana-core/tests/ci09_oauth_guard.rs（+`invalidate_if_current` marker）；kiana-domain/src/oauth.rs、kiana-domain/tests/ci09_oauth_contracts.rs、.github/workflows/ci09-oauth-lifecycle.yml 为已合并的 domain 契约/fixture/布线，未改
+worktree_status: 行 169 🔄 → ✅（CI pending）；只改本 Step 相关 provider 源码/夹具、core guard marker、baseline 与共享文档（roadmap §1.1 该行、§3 变更日志、CURRENT_STATUS）单点回填；无第二执行循环、无 Cargo.toml/Cargo.lock/package.json 变化、未新增外部依赖、未改五个模型工具面、未触碰冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/cat/sed/awk/git diff）与手工 rustfmt 风格对齐（已核对无 >100 列新增行）；.github/workflows/ci09-oauth-lifecycle.yml 运行 `cargo test -p kiana-domain --test ci09_oauth_contracts`、`cargo test -p kiana-provider --lib oauth::tests`、`cargo test -p kiana-core --test ci09_oauth_guard`（均 `--locked -- --test-threads=1`）、`cargo fmt --all --check` 与三个 target-scoped `--no-run`（provider `--lib` target 自动涵盖新用例，未新增步骤/目标）
+cwd·environment: worktree /workspace/kianacode-worktrees/CI-09，分支 step/ci-09-20261017-1（基线 master dcc9eee68f15）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: provider `invalidate_if_current_is_generation_cas_and_denies_stale_callers`——先拒绝空状态（`oauth_token_missing`）与旧 generation（`oauth_generation_conflict` 且 metadata/access material 保持 rotate 后的新 grant、旧调用者 0 refresh），再接受当前 generation（`revoke()` 递增 generation、状态 `Revoked`），revoke 后再次 invalidate 已回退的旧 generation 仍为 `oauth_generation_conflict`，随后 `access_token` 以 `oauth_credential_revoked` 失败且 refresh 调用计数为 0；provider `insufficient_scope_refresh_fences_to_reauth_without_replacement`——先拒绝 refresh 响应降级到 `model.read`（`oauth_scope_insufficient`），断言 metadata 转 `ReauthRequired`、generation 递增、refresh provenance digest 保留、后续 `access_token` 为 `oauth_reauth_required` 且 0 次 refresh，最后显式 `install_tokens` reauthorization 恢复 `Active`；既有 PKCE/state/redirect、strict bounded token response、single-flight/transient、generation CAS/permanent reauth、rotation/revoke race、0600 atomic token file 与 domain `ci09_oauth_contracts`、core `ci09_oauth_guard`（新增 `invalidate_if_current` marker）不变
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: CI-09 卡「先拒绝」（state/redirect mismatch、坏/超限 token response、scope 不足、旧 refresh 覆盖新 token、并发 refresh 重复发请求）与「再成功」（提前 skew refresh、瞬态错误保留有效 token、永久错误 reauth/revoked、rotation/revoke 立即 fencing）在源码层与夹具层齐备；本切片补齐 §29.5 明确点名但此前缺失的 `invalidate_if_current` generation CAS revocation，并把 scope 不足由「报错但保留 Active token」改为 fail-closed 转 `ReauthRequired`；行 169 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；`OAuthManager` 仍在 provider 进程内、exchange/refresh 经受控 closure 注入，未接入真实 IdP/token HTTP、`ProviderGateway` credential backend 或跨进程 durable identity/revocation，fake success 不等于 live；token file 仍在进程/磁盘保存 raw token，0600/atomic 是文件边界证据，不是 HSM 或物理内存擦除；§29.5 的「external account subject 分离保存」、真实 workload attestation、browser callback listener、scope policy、OAuth receipt/audit、跨设备恢复与 live/physical effect 仍属 CI-10/11、PD/SC/ER；`invalidate_if_current` 目前为 provider `pub(crate)` 边界，尚无产品路径调用者；未运行 `cargo fmt --check`，格式按手工 rustfmt 风格对齐（CI 会复核）
+reviewer: root integration agent；CI-09 OAuth/workload identity generation CAS 与 scope fail-closed 静态复核
+```
+
 ### 2026-10-17 EQ-15 翻 ✅（fault plan 与 fail-closed 不变量，CI-only 口径）
 
 ```text
