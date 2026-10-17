@@ -513,7 +513,9 @@ sequenceDiagram
 
 <a id="step-h23"></a>
 
-#### H23 — 压缩结果提交、来源和失效传播　⏳
+#### H23 — 压缩结果提交、来源和失效传播　✅
+
+当前 source slice 与 CI-only 证据见 [`h23-compaction-commit-baseline.md`](h23-compaction-commit-baseline.md)。
 
 **关联原单元**：`P0-G-02b/04`、`P2-K7-01`、`P4-L3-01`。**依赖**：H13、H18、H22。
 
@@ -523,6 +525,7 @@ sequenceDiagram
 
 **先拒绝**：`crash_before_compaction_commit_keeps_old_context`、`stale_summary_cannot_overwrite_new_steering`、`revoked_source_invalidates_summary`。**再成功**：`compacted_context_rebuilds_to_same_view_after_restart`。
 **交付**：先保存 artifact、再提交引用这一顺序的 crash fixture、摘要来源链和恢复视图；这不是跨存储的分布式两阶段提交，artifact 文件存在不等于视图已提交。
+**行为证据（2026-10-17，CI-only）**：`kiana-domain/src/compaction_journal.rs` 新增确定性顺序合同 `CompactionCommitJournal`——`stage` 先完整保存摘要字节并按保存字节重算 sha256（声明值不符 → `compaction_summary_digest_mismatch`，空载荷/超过 `MAX_STAGED_SUMMARY_BYTES` 在保存前拒绝，已失效摘要 → `compaction_summary_invalidated`，非 Active 视图 → `compaction_journal_not_active`），`commit` 要求 artifact 已 staged 且校验通过，再复用 `ContextCheckpoint` 以源 cursor/上下文 revision/workspace/data epoch 做 CAS，成功后才切换有效视图并写入 `CompactionAppliedFact`（`compaction.applied` 等价事实：`CompactionCommit` + 提交时 Inbox digest/sequence + `fact_digest`，只增不删）；`gc_candidates` 暴露已保存但未被引用（提交前崩溃/提交失败）的 artifact 交给正常 GC，`begin_next_compaction` 把已提交 checkpoint 归入只增 `history` 并以其 revision/cursor/Inbox 建立新的 Active checkpoint，`invalidate_from_plan` 依 CM-21 的 `ContextInvalidationPlan` 标记事实失效（保留 `invalidated_by`，旧事实仍可查询）并禁止同一摘要再保存/提交，`rebuild_view` 重新校验保存字节后用已提交 checkpoint 重建 `ContextResumeView`；`NativeCompactionBinding` 只允许 `CapabilitySupport::Supported` 启用 provider 原生 opaque compact（`Unknown`/`Unsupported` → `native_compaction_capability_unsupported`），route 或已编译上下文变化分别以 `native_compaction_route_changed`/`native_compaction_context_recompile_required` 拒绝复用；`kiana-domain/tests/h23_compaction_commit.rs` 驱动三条卡片命名拒绝夹具——`crash_before_compaction_commit_keeps_old_context`（第二次 artifact 已保存并校验但提交前崩溃：有效视图停在 revision 5、该 artifact 是唯一 GC 候选、第一次的 applied 事实仍可查询，且从序列化 journal 重启读回仍重建旧视图）、`stale_summary_cannot_overwrite_new_steering`（晚到源事件 → `compaction_source_changed`、旧 Inbox 快照 → `context_checkpoint_inbox_changed`，视图均不前进；合法提交把压缩期间到达的 steering sequence/digest 带入事实与下一 checkpoint 而不覆盖）、`revoked_source_invalidates_summary`（data epoch 前进在视图前进前 `compaction_data_epoch_changed` fail closed 且 artifact 仍为 GC 候选；已提交事实按 plan digest 标记失效，同摘要再次 stage 拒绝，派生 `ContextCacheBinding` 同计划失效）——与成功夹具 `compacted_context_rebuilds_to_same_view_after_restart`（来源链记录 source event IDs/prompt/profile/budget/旧新 revision；序列化 journal 重启后 `view_digest`/`checkpoint_digest` 相同，篡改保存字节 → `compaction_summary_digest_mismatch`）及 `native_opaque_compaction_requires_provider_capability_and_recompiles_on_model_switch`；`kiana-core/tests/h23_compaction_commit_guard.rs` 增纯合同守卫（journal 内禁止 `std::fs`/`std::process`/`std::net`/`tokio`/`reqwest`，并要求真实字节持久化仍走 `ContentAddressedArtifactStorePort` 的 stage/commit/verify）与 `h23_behaviour_fixtures_are_wired_into_the_diagnostic_lane`（夹具名绑定行为文件/baseline/workflow、先拒绝序、fmt + domain/core 两 target + 逐夹具 `--exact` + `--no-run`、禁 `#[ignore]`）；`.github/workflows/h23-compaction-commit-diagnostic.yml` 重建为单 job（fmt、domain/core 两 target、逐夹具 `--exact` 与两个 `--no-run`）。真实字节持久化、跨存储两阶段提交、模型摘要重试、物理 GC 与掉电恢复分别属 H24/PD/SC 线（见 baseline）。
 
 <a id="step-h24"></a>
 
