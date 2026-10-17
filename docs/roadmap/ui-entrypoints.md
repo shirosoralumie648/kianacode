@@ -380,7 +380,7 @@ TypeScript 生成、live 跨版本互操作、durable schema 迁移与 physical 
 
 
 
-#### UI-10 · CLI 命令和输出归一化　🔄
+#### UI-10 · CLI 命令和输出归一化　✅
 
 - 依赖：UI-07–09。代码：`kiana-entrypoints/src/cli.rs`（可按用户本节约定拆分）、command registry/dispatcher。
 - 步骤：统一 `run/status/events/approve/deny/cancel/resume/receipt/export/session` 的参数、workspace/session 解析和 command ID；每个命令只调用 client facade。
@@ -391,6 +391,38 @@ TypeScript 生成、live 跨版本互操作、durable schema 迁移与 physical 
   command IDs、legacy aliases、workspace/session/TTY/retry/redaction bounds，以及 GitHub-only
   fixtures/source guard；见 [UI-10 baseline](ui10-cli-contract-baseline.md)。证明等级为
   `source`，CI 结果未等待。
+
+2026-10-17 收口切片把四个纯表补到同一 client 边界（`kiana-client/src/cli_contract.rs`）：
+`CLI_COMMAND_SPECS` 为十个命令各一行（CLI token、wire name、摘要、usage、primary typed
+operation、只读 follow-up operation、facade、session/retry/idempotency 策略、有界参数、支持的
+输出模式）；`CliArgumentError` 给出 27 个稳定码与各自 remediation；`CliSessionRef` +
+`resolve_session` 以服务端派生的 session 快照拒绝未知 id（`cli_session_unknown`），`latest`
+仍交服务端解析；`CLI_LEGACY_FLAGS`/`normalize_legacy_args` 单向迁移旧参数
+（`--session-id`→`--session`、`-c/--continue/-r`→`--resume`、`-p`→`--prompt`、`--print` 丢弃；
+`--sdk-url`/`--input-format`/`--output-format`/`--debug-file`/`--record-only`/
+`--replay-user-messages`/`--include-partial-messages`/`--fork-session` 一律
+`cli_legacy_flag_retired`），argv 与 migration notice 都有上限，`--` 之后原样透传。命令参数按名
+有界并先拒绝缺必填/未知键/类型或 enum 不合法/超限（`cli_argument_missing`/`cli_argument_unknown`/
+`cli_argument_invalid`/`cli_argument_oversized`）；`quiet` 只允许 `run`/`status`/`cancel`/`resume`，
+载荷即结果的命令（events/approve/deny/receipt/export/session）返回
+`cli_output_mode_unsupported`。`cli_help_text()` 由同一批表确定性渲染，fixture 的 `help_shape`
+钉住形状。验收：`kiana-client/tests/ui10_cli_contract.rs` 12 条（新增
+`command_specs_match_the_declared_contract_fixture`、
+`help_text_covers_every_command_and_output_mode`、`argument_errors_follow_the_stable_catalogue`、
+`per_command_arguments_fail_closed_before_dispatch`、`output_mode_support_is_enforced_per_command`、
+`session_resolution_refuses_unknown_ids_from_the_server_snapshot`、
+`legacy_args_rewrite_or_fail_closed_per_the_migration_table`、
+`legacy_normalization_bounds_and_passthrough_are_enforced`、
+`typed_validation_maps_to_the_same_codes_as_the_string_api`）+ 声明式 fixture
+[`kiana-client/tests/fixtures/ui10-cli-contract.json`](../../kiana-client/tests/fixtures/ui10-cli-contract.json)
+（10 命令 / 27 错误码 / 14 legacy flag / 12 argv 行 / 预算 / help shape / required / denied /
+limitations）；`kiana-entrypoints/tests/ui10_cli_boundary_guard.rs` 2 条守卫（client 边界无执行
+权限 + fixture/lane/分片/baseline 绑定）。手动 lane 为
+[`.github/workflows/ui10-cli-contract.yml`](../../.github/workflows/ui10-cli-contract.yml)
+（`workflow_dispatch`-only、`permissions: contents: read`、fetch + fmt 门 + 两个 target +
+`--no-run`），自动 lane 仍是统一 `ci.yml` 的 `kiana-client`/`kiana-entrypoints` 整 crate 分片。
+证明等级为 `source`，CI 结果未等待；冻结的 `kiana-entrypoints/src/cli.rs` 迁移、真实 PTY/管道
+字节级输出与 live/physical 证据仍开放。
 
 <a id="step-ui-11"></a>
 

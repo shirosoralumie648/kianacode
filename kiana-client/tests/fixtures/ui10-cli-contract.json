@@ -1,0 +1,654 @@
+{
+  "schema": "kiana.cli-command-contract.v1",
+  "step": "UI-10",
+  "command_schema": "kiana.cli-command.v1",
+  "output_schema": "kiana.cli-output.v1",
+  "session_latest": "latest",
+  "budgets": {
+    "max_workspace_bytes": 4096,
+    "max_session_bytes": 256,
+    "max_argument_bytes": 65536,
+    "max_argument_value_bytes": 65536,
+    "max_output_bytes": 1048576,
+    "max_argv_tokens": 4096,
+    "max_migration_notices": 32
+  },
+  "commands": [
+    {
+      "command": "run",
+      "wire_name": "run",
+      "summary": "Submit a prompt and wait for the terminal result.",
+      "usage": "kiana run --workspace <path> [--session <id>|--session latest] --prompt <text> [--stream] [--json|--quiet]",
+      "operation": "ui.action.submit",
+      "follow_up_operation": "ui.query.command_status",
+      "facade": "action",
+      "requires_session": false,
+      "mutates_state": true,
+      "idempotency_required": true,
+      "output_modes": [
+        "json",
+        "tty",
+        "quiet"
+      ],
+      "arguments": [
+        {
+          "name": "prompt",
+          "required": true,
+          "kind": "text",
+          "max_bytes": 65536
+        },
+        {
+          "name": "stream",
+          "required": false,
+          "kind": "boolean",
+          "max_bytes": 16
+        }
+      ]
+    },
+    {
+      "command": "status",
+      "wire_name": "run.status",
+      "summary": "Show the server-owned status snapshot for one session.",
+      "usage": "kiana status --workspace <path> --session <id> [--detail summary|full] [--json|--quiet]",
+      "operation": "ui.query.snapshot",
+      "follow_up_operation": null,
+      "facade": "query",
+      "requires_session": true,
+      "mutates_state": false,
+      "idempotency_required": false,
+      "output_modes": [
+        "json",
+        "tty",
+        "quiet"
+      ],
+      "arguments": [
+        {
+          "name": "detail",
+          "required": false,
+          "kind": "enum",
+          "max_bytes": 32,
+          "allowed": [
+            "summary",
+            "full"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "events",
+      "wire_name": "run.events",
+      "summary": "Stream the versioned event feed for one session.",
+      "usage": "kiana events --workspace <path> --session <id> [--after <sequence>] [--follow] [--json]",
+      "operation": "ui.feed.subscribe",
+      "follow_up_operation": "ui.feed.resume",
+      "facade": "feed",
+      "requires_session": true,
+      "mutates_state": false,
+      "idempotency_required": false,
+      "output_modes": [
+        "json",
+        "tty"
+      ],
+      "arguments": [
+        {
+          "name": "after_sequence",
+          "required": false,
+          "kind": "integer",
+          "max_bytes": 32
+        },
+        {
+          "name": "follow",
+          "required": false,
+          "kind": "boolean",
+          "max_bytes": 16
+        }
+      ]
+    },
+    {
+      "command": "approve",
+      "wire_name": "approval.approve",
+      "summary": "Approve one human action card by its server-owned id.",
+      "usage": "kiana approve --workspace <path> --session <id> --approval <id> [--note <text>] [--json]",
+      "operation": "ui.action.submit",
+      "follow_up_operation": "ui.query.command_status",
+      "facade": "action",
+      "requires_session": true,
+      "mutates_state": true,
+      "idempotency_required": true,
+      "output_modes": [
+        "json",
+        "tty"
+      ],
+      "arguments": [
+        {
+          "name": "approval_id",
+          "required": true,
+          "kind": "text",
+          "max_bytes": 256
+        },
+        {
+          "name": "note",
+          "required": false,
+          "kind": "text",
+          "max_bytes": 4096
+        }
+      ]
+    },
+    {
+      "command": "deny",
+      "wire_name": "approval.deny",
+      "summary": "Deny one human action card and record the reason.",
+      "usage": "kiana deny --workspace <path> --session <id> --approval <id> --reason <text> [--json]",
+      "operation": "ui.action.submit",
+      "follow_up_operation": "ui.query.command_status",
+      "facade": "action",
+      "requires_session": true,
+      "mutates_state": true,
+      "idempotency_required": true,
+      "output_modes": [
+        "json",
+        "tty"
+      ],
+      "arguments": [
+        {
+          "name": "approval_id",
+          "required": true,
+          "kind": "text",
+          "max_bytes": 256
+        },
+        {
+          "name": "reason",
+          "required": true,
+          "kind": "text",
+          "max_bytes": 4096
+        }
+      ]
+    },
+    {
+      "command": "cancel",
+      "wire_name": "run.cancel",
+      "summary": "Request cancellation; the server owns the terminal state.",
+      "usage": "kiana cancel --workspace <path> --session <id> [--reason <text>] [--json|--quiet]",
+      "operation": "ui.action.cancel",
+      "follow_up_operation": "ui.query.command_status",
+      "facade": "action",
+      "requires_session": true,
+      "mutates_state": true,
+      "idempotency_required": true,
+      "output_modes": [
+        "json",
+        "tty",
+        "quiet"
+      ],
+      "arguments": [
+        {
+          "name": "reason",
+          "required": false,
+          "kind": "text",
+          "max_bytes": 4096
+        }
+      ]
+    },
+    {
+      "command": "resume",
+      "wire_name": "run.resume",
+      "summary": "Continue a paused session through a new authority check.",
+      "usage": "kiana resume --workspace <path> --session <id> [--prompt <text>] [--json|--quiet]",
+      "operation": "ui.action.continue",
+      "follow_up_operation": "ui.query.command_status",
+      "facade": "action",
+      "requires_session": true,
+      "mutates_state": true,
+      "idempotency_required": true,
+      "output_modes": [
+        "json",
+        "tty",
+        "quiet"
+      ],
+      "arguments": [
+        {
+          "name": "prompt",
+          "required": false,
+          "kind": "text",
+          "max_bytes": 65536
+        }
+      ]
+    },
+    {
+      "command": "receipt",
+      "wire_name": "run.receipt",
+      "summary": "Show the receipt projection for one session.",
+      "usage": "kiana receipt --workspace <path> --session <id> [--detail summary|full] [--json]",
+      "operation": "ui.query.snapshot",
+      "follow_up_operation": "ui.query.history",
+      "facade": "query",
+      "requires_session": true,
+      "mutates_state": false,
+      "idempotency_required": false,
+      "output_modes": [
+        "json",
+        "tty"
+      ],
+      "arguments": [
+        {
+          "name": "detail",
+          "required": false,
+          "kind": "enum",
+          "max_bytes": 32,
+          "allowed": [
+            "summary",
+            "full"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "export",
+      "wire_name": "audit.export",
+      "summary": "Export the audit projection as bounded artifact pages.",
+      "usage": "kiana export --workspace <path> --session <id> --format jsonl|json [--since <sequence>] [--json]",
+      "operation": "ui.artifact.page",
+      "follow_up_operation": "ui.query.history",
+      "facade": "artifact",
+      "requires_session": true,
+      "mutates_state": false,
+      "idempotency_required": false,
+      "output_modes": [
+        "json",
+        "tty"
+      ],
+      "arguments": [
+        {
+          "name": "format",
+          "required": true,
+          "kind": "enum",
+          "max_bytes": 32,
+          "allowed": [
+            "jsonl",
+            "json"
+          ]
+        },
+        {
+          "name": "since_sequence",
+          "required": false,
+          "kind": "integer",
+          "max_bytes": 32
+        }
+      ]
+    },
+    {
+      "command": "session",
+      "wire_name": "session.query",
+      "summary": "List server-owned sessions; unknown ids are refused.",
+      "usage": "kiana session --workspace <path> [--action list|attach|new] [--json]",
+      "operation": "ui.query.snapshot",
+      "follow_up_operation": null,
+      "facade": "query",
+      "requires_session": false,
+      "mutates_state": false,
+      "idempotency_required": false,
+      "output_modes": [
+        "json",
+        "tty"
+      ],
+      "arguments": [
+        {
+          "name": "action",
+          "required": false,
+          "kind": "enum",
+          "max_bytes": 32,
+          "allowed": [
+            "list",
+            "attach",
+            "new"
+          ]
+        }
+      ]
+    }
+  ],
+  "error_codes": [
+    "cli_command_unknown",
+    "cli_command_schema_invalid",
+    "cli_command_id_invalid",
+    "cli_command_id_mismatch",
+    "cli_workspace_required",
+    "cli_session_required",
+    "cli_session_invalid",
+    "cli_session_unknown",
+    "cli_interactive_requires_tty",
+    "cli_tty_output_requires_tty",
+    "cli_output_mode_invalid",
+    "cli_output_mode_unsupported",
+    "cli_implicit_retry_forbidden",
+    "cli_arguments_invalid",
+    "cli_arguments_sensitive_or_oversized",
+    "cli_arguments_too_many",
+    "cli_argument_unknown",
+    "cli_argument_missing",
+    "cli_argument_invalid",
+    "cli_argument_oversized",
+    "cli_legacy_flag_retired",
+    "cli_output_schema_invalid",
+    "cli_output_invalid",
+    "cli_output_sensitive_or_oversized",
+    "cli_output_error_invalid",
+    "cli_output_warning_invalid",
+    "cli_json_ansi_forbidden"
+  ],
+  "legacy_flags": [
+    {
+      "legacy": "--session-id",
+      "disposition": "rewrite",
+      "canonical": "--session",
+      "guidance": "use --session <id>"
+    },
+    {
+      "legacy": "-c",
+      "disposition": "rewrite",
+      "canonical": "--resume",
+      "guidance": "use --resume <id> or the `resume` command"
+    },
+    {
+      "legacy": "--continue",
+      "disposition": "rewrite",
+      "canonical": "--resume",
+      "guidance": "use --resume <id> or the `resume` command"
+    },
+    {
+      "legacy": "-r",
+      "disposition": "rewrite",
+      "canonical": "--resume",
+      "guidance": "use --resume <id> or the `resume` command"
+    },
+    {
+      "legacy": "-p",
+      "disposition": "rewrite",
+      "canonical": "--prompt",
+      "guidance": "use the `run` command with --prompt <text>"
+    },
+    {
+      "legacy": "--print",
+      "disposition": "drop",
+      "canonical": null,
+      "guidance": "use the `run` command"
+    },
+    {
+      "legacy": "--sdk-url",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "SDK transport is retired; use the local daemon transport"
+    },
+    {
+      "legacy": "--input-format",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "input is prompt text on the canonical `run` command"
+    },
+    {
+      "legacy": "--output-format",
+      "disposition": "retired",
+      "canonical": "--mode json|tty|quiet",
+      "guidance": "choose --json, --tty or --quiet"
+    },
+    {
+      "legacy": "--debug-file",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "diagnostics are server-owned events, not client-side files"
+    },
+    {
+      "legacy": "--record-only",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "recording mode is retired; submit a real command"
+    },
+    {
+      "legacy": "--replay-user-messages",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "use `kiana events` for the server-owned feed"
+    },
+    {
+      "legacy": "--include-partial-messages",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "use `kiana events --follow` for streaming deltas"
+    },
+    {
+      "legacy": "--fork-session",
+      "disposition": "retired",
+      "canonical": null,
+      "guidance": "session forking is not a canonical command; start a new session"
+    }
+  ],
+  "legacy_argv": [
+    {
+      "name": "session_id_alias",
+      "argv": [
+        "run",
+        "--session-id",
+        "s1",
+        "--prompt",
+        "hi"
+      ],
+      "disposition": "rewrite",
+      "expected": [
+        "run",
+        "--session",
+        "s1",
+        "--prompt",
+        "hi"
+      ],
+      "notices": 1
+    },
+    {
+      "name": "session_id_alias_with_equals",
+      "argv": [
+        "run",
+        "--session-id=s1"
+      ],
+      "disposition": "rewrite",
+      "expected": [
+        "run",
+        "--session=s1"
+      ],
+      "notices": 1
+    },
+    {
+      "name": "continue_short_alias",
+      "argv": [
+        "run",
+        "-c",
+        "s1"
+      ],
+      "disposition": "rewrite",
+      "expected": [
+        "run",
+        "--resume",
+        "s1"
+      ],
+      "notices": 1
+    },
+    {
+      "name": "continue_long_alias",
+      "argv": [
+        "run",
+        "--continue",
+        "s1"
+      ],
+      "disposition": "rewrite",
+      "expected": [
+        "run",
+        "--resume",
+        "s1"
+      ],
+      "notices": 1
+    },
+    {
+      "name": "print_short_alias",
+      "argv": [
+        "-p",
+        "hello"
+      ],
+      "disposition": "rewrite",
+      "expected": [
+        "--prompt",
+        "hello"
+      ],
+      "notices": 1
+    },
+    {
+      "name": "print_boolean_token",
+      "argv": [
+        "--print",
+        "hello"
+      ],
+      "disposition": "drop",
+      "expected": [
+        "hello"
+      ],
+      "notices": 1
+    },
+    {
+      "name": "canonical_tokens_pass_through",
+      "argv": [
+        "status",
+        "--workspace",
+        "/w",
+        "--session",
+        "s1",
+        "--json"
+      ],
+      "disposition": "pass_through",
+      "expected": [
+        "status",
+        "--workspace",
+        "/w",
+        "--session",
+        "s1",
+        "--json"
+      ],
+      "notices": 0
+    },
+    {
+      "name": "end_of_options_protects_retired_tokens",
+      "argv": [
+        "run",
+        "--json",
+        "--",
+        "--sdk-url",
+        "http://127.0.0.1"
+      ],
+      "disposition": "pass_through",
+      "expected": [
+        "run",
+        "--json",
+        "--",
+        "--sdk-url",
+        "http://127.0.0.1"
+      ],
+      "notices": 0
+    },
+    {
+      "name": "retired_transport_flag",
+      "argv": [
+        "run",
+        "--sdk-url",
+        "http://127.0.0.1"
+      ],
+      "disposition": "retired",
+      "error": "cli_legacy_flag_retired"
+    },
+    {
+      "name": "retired_output_format",
+      "argv": [
+        "run",
+        "--output-format=json"
+      ],
+      "disposition": "retired",
+      "error": "cli_legacy_flag_retired"
+    },
+    {
+      "name": "retired_fork_session",
+      "argv": [
+        "run",
+        "--fork-session",
+        "s1"
+      ],
+      "disposition": "retired",
+      "error": "cli_legacy_flag_retired"
+    },
+    {
+      "name": "dropped_token_with_value_fails_closed",
+      "argv": [
+        "--print=1",
+        "hello"
+      ],
+      "disposition": "retired",
+      "error": "cli_legacy_flag_retired"
+    }
+  ],
+  "help_shape": {
+    "first_line_contains": "kiana <command> [options]",
+    "mode_line_prefix": "  modes: ",
+    "argument_line_prefix": "  args: ",
+    "usage_line_prefix": "  usage: ",
+    "per_command_lines": 5
+  },
+  "fixtures": [
+    "canonical_commands_and_legacy_aliases_have_stable_wire_names",
+    "invocation_rejects_missing_scope_interaction_and_implicit_mutation_retry",
+    "invocation_and_output_reject_secret_fields_and_json_ansi",
+    "command_specs_match_the_declared_contract_fixture",
+    "help_text_covers_every_command_and_output_mode",
+    "argument_errors_follow_the_stable_catalogue",
+    "per_command_arguments_fail_closed_before_dispatch",
+    "output_mode_support_is_enforced_per_command",
+    "session_resolution_refuses_unknown_ids_from_the_server_snapshot",
+    "legacy_args_rewrite_or_fail_closed_per_the_migration_table",
+    "legacy_normalization_bounds_and_passthrough_are_enforced",
+    "typed_validation_maps_to_the_same_codes_as_the_string_api"
+  ],
+  "required": [
+    "CLI_COMMAND_SPECS",
+    "CliCommandSpec",
+    "CliFacade",
+    "CliArgumentKind",
+    "CliArgumentSpec",
+    "CliArgumentError",
+    "cli_argument_missing",
+    "cli_argument_unknown",
+    "cli_argument_invalid",
+    "cli_argument_oversized",
+    "cli_output_mode_unsupported",
+    "cli_session_unknown",
+    "cli_legacy_flag_retired",
+    "cli_arguments_too_many",
+    "CliSessionRef",
+    "CLI_SESSION_LATEST",
+    "normalize_legacy_args",
+    "normalize_workspace",
+    "cli_help_text",
+    "validate_command_arguments",
+    "follow_up_operation"
+  ],
+  "denied": [
+    "缺 workspace 仍构造 invocation",
+    "未知 session id 被当成有效目标",
+    "没有 TTY 却请求交互输出",
+    "不可恢复命令使用隐式 retry",
+    "输出/参数混入 token/secret 形状的键或值",
+    "命令参数缺必填项或携带未知键",
+    "enum 参数给出未登记取值",
+    "quiet 掩盖 events/approve/deny/receipt/export/session 的载荷",
+    "retired legacy flag 被静默接受",
+    "legacy argv 无界增长或迁移通知无界",
+    "CLI 契约拥有 daemon/broker/harness/进程/文件系统权限"
+  ],
+  "limitations": [
+    "契约只做本地归一化与拒绝，session 存在性、审批权威与终态仍由服务端判定",
+    "proof_level 为 source，行为回执依赖 GitHub Actions",
+    "冻结的 kiana-entrypoints/src/cli.rs 未迁移到新契约，旧路径继续存在",
+    "quiet 语义为仅退出码，presenter 的字节级输出由 UI-11 拥有"
+  ]
+}

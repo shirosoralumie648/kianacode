@@ -44,9 +44,15 @@ pub use acp::{
     ACP_PROTOCOL_V1, ACP_PROTOCOL_V2, ACP_SESSION_SCHEMA,
 };
 pub use cli_contract::{
-    validate_session, validate_workspace, CliCommand, CliCommandId, CliInvocation, CliOutput,
-    CliOutputMode, CLI_COMMAND_SCHEMA, CLI_MAX_ARGUMENT_BYTES, CLI_MAX_OUTPUT_BYTES,
-    CLI_MAX_SESSION_BYTES, CLI_MAX_WORKSPACE_BYTES, CLI_OUTPUT_SCHEMA,
+    classify_legacy_flag, cli_help_text, legacy_flag_spec, normalize_legacy_args,
+    normalize_workspace, validate_command_arguments, validate_session, validate_workspace,
+    CliArgumentError, CliArgumentKind, CliArgumentSpec, CliCommand, CliCommandId, CliCommandSpec,
+    CliFacade, CliInvocation, CliLegacyDisposition, CliLegacyFlagSpec, CliLegacyNormalization,
+    CliMigrationNotice, CliOutput, CliOutputMode, CliSessionRef, CLI_COMMAND_CONTRACT_SCHEMA,
+    CLI_COMMAND_SCHEMA, CLI_COMMAND_SPECS, CLI_LEGACY_FLAGS, CLI_MAX_ARGUMENT_BYTES,
+    CLI_MAX_ARGUMENT_VALUE_BYTES, CLI_MAX_ARGV_TOKENS, CLI_MAX_MIGRATION_NOTICES,
+    CLI_MAX_OUTPUT_BYTES, CLI_MAX_SESSION_BYTES, CLI_MAX_WORKSPACE_BYTES, CLI_OUTPUT_SCHEMA,
+    CLI_SESSION_LATEST,
 };
 pub use cli_presenter::{
     present_cli_output, CliExitCode, CliLocale, CliPresentation, CliPresenterOptions, CliSignal,
