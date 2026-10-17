@@ -44,6 +44,11 @@ fn receipts_are_event_projections_with_owner_and_effect_boundaries() {
             "receipt_from_events",
             "typed_run_receipt",
             "typed_execution_receipts",
+            "execution_receipt_evidence",
+            "descriptor_unavailable",
+            "input_digest_unavailable",
+            "scope_digest_unavailable",
+            "plan_digest_unavailable",
             "files_changed",
             "cost_ledger",
             "invocations",
@@ -58,6 +63,17 @@ fn receipts_are_event_projections_with_owner_and_effect_boundaries() {
         &[
             "RunReceipt",
             "ExecutionReceipt",
+            "ExecutionReceiptEvidence",
+            "with_evidence",
+            "descriptor_id",
+            "descriptor_digest",
+            "input_digest",
+            "scope_digest",
+            "plan_digest",
+            "resource_usage_digest",
+            "changes_digest",
+            "limitations",
+            "MAX_RECEIPT_LIMITATIONS",
             "source_event_ids",
             "action_digest",
             "effect_known",
@@ -222,4 +238,53 @@ fn all_four_surfaces_share_parity_and_terminal_replay_without_execution() {
             );
         }
     }
+}
+
+#[test]
+fn behavioural_fixtures_are_wired_and_deny_first() {
+    let core_fixtures = include_str!("../src/receipt_entrypoint_tests.rs");
+    let domain_fixtures = include_str!("../../kiana-domain/tests/cap25_receipt_evidence.rs");
+    let receipts = include_str!("../src/receipts.rs");
+    let daemon = include_str!("../../kiana-daemon/src/run_stream.rs");
+    let capabilities = include_str!("../src/capabilities.rs");
+    let workflow = include_str!("../../.github/workflows/cap25-receipt-entrypoint.yml");
+
+    // The card-named deny fixtures drive the production CLI-side read model and the real
+    // run-stream bus rather than a parallel harness.
+    for fixture in [
+        "foreign_run_cannot_read_output_or_receipt",
+        "invalid_adapter_result_cannot_be_rendered_as_success",
+        "execution_receipt_projects_plan_evidence_without_inventing_metrics",
+        "execution_receipt_limitations_stay_bounded_and_explicit",
+        "read_receipt",
+        "entrypoint_parity",
+        "run_owner_mismatch",
+    ] {
+        assert!(
+            core_fixtures.contains(fixture),
+            "CAP-25 core fixture marker missing: {fixture}"
+        );
+    }
+    for fixture in [
+        "plan_evidence_is_bound_into_the_execution_receipt",
+        "invalid_adapter_result_cannot_be_rendered_as_success",
+        "capability_result_receipt_inconsistent",
+        "adapter_result_unknown_not_fenced",
+    ] {
+        assert!(
+            domain_fixtures.contains(fixture),
+            "CAP-25 domain fixture marker missing: {fixture}"
+        );
+    }
+    assert!(daemon.contains("late_progress_cannot_overwrite_terminal_outcome"));
+    assert!(daemon.contains("reconnect_replays_terminal_without_reinvoking_runner_or_model"));
+    assert!(daemon.contains("feed_terminal_delta_forbidden"));
+    assert!(daemon.contains("feed_terminal_duplicate"));
+    assert!(receipts.contains("receipt_entrypoint_tests.rs"));
+    // The normalized request fact carries the canonical input digest used by receipt evidence.
+    assert!(capabilities.contains("canonical_action_input_digest"));
+    assert!(capabilities.contains("input_digest"));
+    // The focused lane runs the fixtures that can execute on a stock Ubuntu runner.
+    assert!(workflow.contains("cap25_receipt_evidence"));
+    assert!(workflow.contains("kiana-daemon --lib run_stream::tests"));
 }

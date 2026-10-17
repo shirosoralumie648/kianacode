@@ -1345,6 +1345,7 @@ impl ControlPlane {
                 return Ok(Err(reason));
             }
         };
+        let input_digest = kiana_domain::canonical_action_input_digest(&request).ok();
         self.record_event(
             request_id,
             sequence,
@@ -1355,6 +1356,7 @@ impl ControlPlane {
             "step_id":request_step_id,
             "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),
             "execution_scope":request.execution_scope,
+            "input_digest":input_digest.clone(),
             "tool":request.capability,"operation":request.operation}),
         )
         .await?;
@@ -1365,6 +1367,7 @@ impl ControlPlane {
             "attempt":1,"effect_started":false,"effect_known":true,"zero_effect":true,
             "stop_state":"not_requested","fenced":false,
             "action_digest":kiana_domain::capability_action_digest(&request),
+            "input_digest":input_digest,
             "turn_id":request_turn_id,
             "step_id":request_step_id,
             "invocation_id":kiana_domain::InvocationId::from_uuid(request.request_id.as_uuid()),

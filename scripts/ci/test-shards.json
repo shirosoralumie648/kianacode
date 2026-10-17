@@ -966,6 +966,7 @@
  "kiana-domain-s3/4": {
   "crate": "kiana-domain",
   "targets": [
+   "cap25_receipt_evidence",
    "er07_projection_checkpoint",
    "er10_recovery_resources",
    "er11_receipt_contracts",

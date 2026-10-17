@@ -25,10 +25,14 @@ jobs:
         run: cargo test -p kiana-domain --test cp14_result_receipt --locked -- --test-threads=1
       - run: cargo test -p kiana-domain --test er11_receipt_contracts --locked -- --test-threads=1
       - run: cargo test -p kiana-domain --test er12_receipt_aggregation --locked -- --test-threads=1
+      - name: Run CAP-25 receipt evidence fixtures
+        run: cargo test -p kiana-domain --test cap25_receipt_evidence --locked -- --test-threads=1
       - name: Run parity and stream fixtures
         run: cargo test -p kiana-core --test oa24_entrypoint_parity --locked -- --test-threads=1
       - run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --locked -- --test-threads=1
       - run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --locked -- --test-threads=1
+      - name: Run CAP-25 core receipt fixtures
+        run: cargo test -p kiana-core --lib receipt_entrypoint_tests --locked -- --test-threads=1
       - run: cargo test -p kiana-daemon --lib run_stream::tests --locked -- --test-threads=1
       - name: Run existing parity guard
         run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --locked -- --test-threads=1
@@ -38,10 +42,12 @@ jobs:
         run: cargo test -p kiana-domain --test cp14_result_receipt --no-run --locked
       - run: cargo test -p kiana-domain --test er11_receipt_contracts --no-run --locked
       - run: cargo test -p kiana-domain --test er12_receipt_aggregation --no-run --locked
+      - run: cargo test -p kiana-domain --test cap25_receipt_evidence --no-run --locked
       - name: Compile selected Core and entrypoint targets
         run: cargo test -p kiana-core --test cap25_receipt_entrypoint_guard --no-run --locked
       - run: cargo test -p kiana-core --test oa24_entrypoint_parity --no-run --locked
       - run: cargo test -p kiana-core --test er27_entrypoint_parity_guard --no-run --locked
+      - run: cargo test -p kiana-core --lib --no-run --locked
       - run: cargo test -p kiana-entrypoints --test cp22_protocol_surfaces --no-run --locked
       - run: cargo test -p kiana-entrypoints --test p2_m5_01_web_sync --no-run --locked
       - name: Compile daemon stream target
