@@ -21,11 +21,18 @@ jobs:
           - name: core-barriers
             package: kiana-core
             target: h16_parallel_barriers
+          - name: runner-bounded-parallel
+            package: kiana-runner
+            target: h16_bounded_parallel
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Fetch locked dependencies
         run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt -p kiana-domain -p kiana-core -p kiana-runner --check
       - name: Run focused H16 target
         run: cargo test -p ${{ matrix.package }} --test ${{ matrix.target }} --locked -- --test-threads=1

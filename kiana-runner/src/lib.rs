@@ -8,7 +8,7 @@
 //! 脚本和 fake provider 可证明本地行为，不代表已验证 live provider 或 UI token
 //! streaming。`reference/` 仅供审计对照，不是 workspace 成员或运行时依赖。
 //!
-//! ## 11 个私有模块
+//! ## 12 个私有模块
 //!
 //! 模块路径保持私有；下方 `pub use` 集中导出类型、函数和常量。内部可以调整文件组织，
 //! 但导出签名、协议字段和可观察行为仍需保持兼容。
@@ -25,6 +25,7 @@
 //! | `progress` | domain 进度 reducer 的导出层；当前 harness 保存 tracker，但未调用 observe |
 //! | `budget` | 按调用方 scope 共享的内存预算账本，不授予执行权限 |
 //! | `retry` | 重试条件、次数/deadline 检查与退避计算，不另起重试循环 |
+//! | `tool_batch_scheduler` | 有界并行只读组与独占屏障的批次执行器；只调度调用方闭包，不执行工具 |
 //! | `protocol_runner` | 无状态命令到事件的 helper；不调用 `KianaHarness` |
 //!
 //! ## 阅读顺序与依赖
@@ -51,6 +52,7 @@ mod protocol_runner;
 mod retry;
 mod state_driver;
 mod stream_normalizer;
+mod tool_batch_scheduler;
 mod tools;
 
 // ■ 预算配置与快照
@@ -127,3 +129,12 @@ pub use stream_normalizer::{
 // 两个函数把 ModelToolCall 映射成 CapabilityRequest，后者允许调用方指定 request_id。
 // 模型可见工具名仍是五个冻结名称；不能借注释维护扩展工具面或绕过 ControlPlane。
 pub use tools::{capability_for_tool, capability_for_tool_with_request_id};
+
+// ■ 有界并行工具批次调度
+// 按 domain 的 ToolBatchPlan 顺序调度调用方提供的 admit/execute 闭包：只读组有界并发，
+// 独占组前后各 drain 一次形成屏障，历史按源 ordinal 排列。执行器不执行工具副作用，
+// 也不授予权限；每个 execute 仍必须走 ControlPlane → Broker。
+pub use tool_batch_scheduler::{
+    ToolBatchAdmission, ToolBatchCallOutcome, ToolBatchCallState, ToolBatchRunReport,
+    ToolBatchScheduler,
+};
