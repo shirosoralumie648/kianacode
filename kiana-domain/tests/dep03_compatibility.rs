@@ -92,6 +92,48 @@ fn projection_minor_lag_is_blocked() {
 }
 
 #[test]
+fn epoch_generation_and_schema_major_rollbacks_are_blocked() {
+    let current = axes(3);
+
+    let mut domain_major = axes(3);
+    domain_major.domain_schema = SchemaVersion::new(2, 0);
+    domain_major.axes_digest = domain_major.digest();
+    let matrix = DeploymentCompatibilityMatrix::evaluate(current.clone(), domain_major).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["domain_schema_major_mismatch"]);
+
+    let mut projection_major = axes(3);
+    projection_major.projection_version = SchemaVersion::new(2, 0);
+    projection_major.axes_digest = projection_major.digest();
+    let matrix =
+        DeploymentCompatibilityMatrix::evaluate(current.clone(), projection_major).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["projection_major_mismatch"]);
+
+    let mut authority_rollback = axes(3);
+    authority_rollback.authority_epoch = 3;
+    authority_rollback.axes_digest = authority_rollback.digest();
+    let matrix =
+        DeploymentCompatibilityMatrix::evaluate(current.clone(), authority_rollback).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["authority_epoch_rollback"]);
+
+    let mut data_rollback = axes(3);
+    data_rollback.data_epoch = 6;
+    data_rollback.axes_digest = data_rollback.digest();
+    let matrix = DeploymentCompatibilityMatrix::evaluate(current.clone(), data_rollback).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["data_epoch_rollback"]);
+
+    let mut generation_rollback = axes(3);
+    generation_rollback.generation = 8;
+    generation_rollback.axes_digest = generation_rollback.digest();
+    let matrix = DeploymentCompatibilityMatrix::evaluate(current, generation_rollback).unwrap();
+    assert_eq!(matrix.status, DeploymentCompatibilityStatus::Blocked);
+    assert_eq!(matrix.reasons, vec!["generation_rollback"]);
+}
+
+#[test]
 fn status_and_reasons_cannot_be_forged() {
     let mut matrix = DeploymentCompatibilityMatrix::evaluate(axes(3), axes(3)).unwrap();
     matrix.status = DeploymentCompatibilityStatus::Blocked;
