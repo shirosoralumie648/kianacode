@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-16/17 第二波 step 切片（P0-A-01b/EQ-11 翻 ✅；ER-13/BQ-07/AUT-07/EXT-25/DEP-03 切片）
+
+```text
+source_snapshot: master 派生提交 b8b36f74(ER-13) 0bf5237a(BQ-07) 40cf7495(AUT-07) feb164d6(EXT-25) 4cf9e471(DEP-03)；行 068/183 翻 ✅，139/196/276/360/608 文本更新
+worktree_status: 七步推进；无 manifest/lockfile/共享路由变化；CAP-07 切片由后续代理报告（未计入本块）
+command_argv: CI-only；本地未运行 cargo/test/fmt；静态核对（rg/读取/九类 fixture 重放式检查）+ 两个静态 validator（validate-workflows.sh、validate-doc-references.sh）通过
+cwd·environment: 仓库根；GitHub Actions ubuntu-latest（回执未等待）
+fixture·cassette: P0-A-01b=contracts 单测 + p0_a01b_schema + Core guard（unknown major/schema/field/event 拒绝 + same-major minor 成功）；EQ-11=六类 effect 稳定拒绝 + unknown/取消 + no-real-executor guard；ER-13=提交前后竞态 fixture（source_missing/source_mismatch/already_claimed，绑定读回 digest，重试幂等）；BQ-07=精确边界/滚动/错位/空 group；AUT-07=path-lock 重绑定/过期/缺父预算/越界/重复 item；EXT-25=签名包折叠后真实 registry/admit_extensions 拒绝 role drift/stale gen/disabled/revoked 且零 handler 调用、control 一次；DEP-03=五个未覆盖 reason 精确断言
+exit_code: 本地未运行；CI 回执未等待（上一轮 38923336716 于 b60e1048 尚在运行）
+status_change: 行 068/183 提升 implemented；其余五步为 partial/source 增强
+proof-level_change: 维持 source/local_behavior；无 durable/live/physical 提升
+limitations: P0-A-01b 未证明 legacy upcaster/durable migration runner/生产写入接线；EQ-11 未证明生产 Broker 路由与 live；ER-13 仅进程内 EventLog 竞态（callback 崩溃/跨进程/live 未证明）；BQ-07/AUT-07 无 durable store/lease/fence；EXT-25 durable scope store/跨进程/live 与 detail-card ✅ 漂移未处理；DEP-03 admission 属 DEP-10/12、app_build 非阻断轴待文档化；全部回执未等待
+reviewer: root integration agent；六个子代理的静态复核报告（含一个只读审计）
+```
+
 ### 2026-10-16 五步翻 ✅（P0-A-01a / ER-02 / EQ-10 / CM-09 / DEP-04，CI-only 口径）
 
 ```text
