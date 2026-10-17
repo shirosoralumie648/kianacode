@@ -25,18 +25,50 @@ text are represented only by redacted digest references.
   configuration revision and explicit known/unknown provider reference status while the existing
   DaemonHost → ControlPlane path remains the only execution spine.
 
-## CI-only fixtures
+## 2026-10-17 completion slice (CI-only)
 
-`.github/workflows/p4-j7-26-model-events.yml` runs the domain lifecycle/redaction fixture, the
-Core source-boundary guard, formatting and workspace test-target compilation on GitHub Actions.
-Its path filter includes the current CM-36 `kiana-domain/src/memory_workbench.rs` module so a fresh
-remote run can clear the historical repository-wide fmt dependency; that result is pending and
-unobserved. Local tests, builds, checks, clippy and smoke commands are intentionally not run.
+The card's exit conditions are now covered at the source boundary by named, deny-first fixtures.
+No runtime producer, EventStore writer, provider transport or UI projector was added.
 
-The fixtures cover redacted provider traces and split markers, bounded delta retention, runtime
-event schema/identity, persistence-before-effect denial, receipt-link digest tampering, usage
-correction digest tampering and the model lifecycle registry. They use synthetic IDs and do not
-open a provider or network route.
+- `provider_secrets_split_across_deltas_are_redacted`: markers split at arbitrary delta
+  boundaries (`Authorization: Bear…er`, `api_key=`, `password=`, `x-api-key:`) are closed by the
+  shared `StreamingRedactor`; the ledger records all five observations but retains at most three
+  digest-only references, and no retained digest covers a raw secret.
+- `provider_error_body_cannot_leak_authorization`: a provider authentication error body with
+  `Authorization: Bearer`/`token=` material plus header/query sentinels becomes digest references;
+  the `ModelEvent` payload and the emitted `RuntimeEvent` contain none of the sentinels,
+  `payload_recoverable=false`, and the error digest equals the digest of the redacted text rather
+  than the raw body.
+- `model_fact_persistence_failure_prevents_tool_dispatch`: a failed append leaves the commitment
+  `Failed`, blocks both `require_tool_dispatch()` and `require_mark_completed()`, refuses a later
+  `mark_appended`, and binds the stable failure digest.
+- `model_attempt_to_invocation_receipt_chain_is_complete`: run/turn/step/model-call/attempt/
+  invocation/execution/tool identity, known provider request plus explicitly unknown response,
+  independent UI/upstream/durable channels and the source event cursor all survive into the
+  registered `RuntimeEvent`; the Invocation→Receipt link re-binds the model event digest.
+- `provider_trace_records_actual_model_and_config_version`: two facts record distinct reported
+  models/configuration revisions and different digests; the payload has no prompt/request/body/
+  credential field, and missing provider wire IDs stay `unknown` while fabricated
+  known-without-id / unknown-with-id references are rejected.
+- `provider_delta_ledger_granularity_remains_bounded`: 512 deltas keep four retained references,
+  508 dropped observations and one bounded durable row (<4096 bytes), so token-level display does
+  not become token-level durable writes.
+- `every_registered_model_kind_round_trips_through_the_event_registry`: prepared, denied,
+  attempt-started, retry-scheduled, finished and usage-correction facts each validate, survive
+  JSON round-trip and pass `validate_runtime_event` with kind-specific fields.
+
+## CI wiring
+
+`.github/workflows/p4-j7-26-model-events.yml` is a manual `workflow_dispatch` lane with
+`permissions: contents: read`; it runs `cargo fetch --locked`, `cargo fmt --all --check`, the
+domain fixture and the Core source-boundary guard with `--test-threads=1`, then
+`cargo check -p kiana-domain -p kiana-core --tests --locked`. The automatic lane is the unified
+`ci.yml`: `kiana-domain-s3/4` lists `p4_j7_26_model_events` and `kiana-core-s5/6` lists
+`p4_j7_26_model_events_guard`, so the crate shards pick both targets up without new manifests.
+
+Local tests, builds, checks, clippy and smoke commands are intentionally not run; GitHub Actions
+is the test authority and its receipt is not awaited. `scripts/ci/test-shards.json` and
+`Cargo.toml`/`Cargo.lock`/`package.json` are unchanged.
 
 ## Evidence ceiling and limitations
 

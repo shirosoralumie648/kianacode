@@ -411,7 +411,7 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 
 
 
-#### P4-J7-26 模型事件、脱敏和完整关联链　🔄
+#### P4-J7-26 模型事件、脱敏和完整关联链　✅
 
 - **依赖**：`P4-J7-20`、`P4-J7-23`、`P4-J7-24`、`P1-J8-01`、`P0-G-04`、`CP-26`。
 - **改动位置**：既有 RunnerEvent::ModelTurn、RuntimeEvent、schema registry、core events/receipts、daemon projections/redactor。
@@ -420,10 +420,28 @@ P4 是能力归属；本节的纯合同、解析修复和离线 fixture 可以�
 - **再成功**：`model_attempt_to_invocation_receipt_chain_is_complete`、`provider_trace_records_actual_model_and_config_version`、`provider_delta_ledger_granularity_remains_bounded`。
 - **退出 / 证据**：元数据缺 provider request id 时明确 unknown；UI sequence、上游 sequence 和 durable sequence 不混用；不打印完整 prompt/key。
 
-  当前 source slice 与 CI-only 验收见 [`p4-j7-26-model-events-baseline.md`](p4-j7-26-model-events-baseline.md)。
-  `ModelEvent`、provider trace/delta redaction、usage correction digest、append commitment 和
-  ModelCall→Invocation→Receipt digest link 已登记；EventStore writer 接线、跨进程恢复和
-  live/physical provider evidence 仍保留在后续步骤。
+  已实现切片（2026-10-17 完成切片，CI-only、回执未等待）：`kiana-domain/tests/p4_j7_26_model_events.rs`
+  先拒绝 `provider_secrets_split_across_deltas_are_redacted`（任意分片切开 `Authorization: Bear…er`、
+  `api_key=`、`password=`、`x-api-key:` 仍由同一 `StreamingRedactor` 关闭；ledger 记录全部观测但最多保留 3 条
+  纯 digest 引用，保留摘要不覆盖任何原始 secret）、`provider_error_body_cannot_leak_authorization`
+  （provider 认证错误 body/header/query 的 `Authorization: Bearer`、`token=` 等仅成为 digest 引用；
+  `ModelEvent` 载荷与 `RuntimeEvent` 均不含 sentinel、`payload_recoverable=false`，错误摘要等于脱敏文本摘要而非原始 body）、
+  `model_fact_persistence_failure_prevents_tool_dispatch`（append 失败后 commitment 停在 Failed，
+  `require_tool_dispatch()`/`require_mark_completed()` 都拒绝、不能再补记 `mark_appended`，失败摘要稳定绑定）；
+  再成功 `model_attempt_to_invocation_receipt_chain_is_complete`（run/turn/step/model-call/attempt/
+  invocation/execution/tool、known request + explicitly unknown response、独立的 UI/upstream/durable sequence
+  与 source cursor 全部进入已登记 `RuntimeEvent`，Invocation→Receipt link 重绑 model event digest）、
+  `provider_trace_records_actual_model_and_config_version`（两条事实记录不同实际模型/配置版本且摘要不同；载荷无
+  prompt/request/body/credential 字段，缺 wire id 明确 `unknown`，known-without-id / unknown-with-id 均拒绝）、
+  `provider_delta_ledger_granularity_remains_bounded`（512 条增量只保留 4 条引用、508 条 dropped、单条持久行
+  <4096 字节，逐 token 显示不产生逐 token 写放大）与
+  `every_registered_model_kind_round_trips_through_the_event_registry`（六种模型事实都能校验、JSON 往返并过
+  `validate_runtime_event`）。手动 lane `.github/workflows/p4-j7-26-model-events.yml`（`workflow_dispatch`-only、
+  `contents: read`、fetch/fmt 门 + domain/core 两个 target + `cargo check -p kiana-domain -p kiana-core --tests`）；
+  自动覆盖仍是统一 `ci.yml` 的 `kiana-domain-s3/4`（已列 `p4_j7_26_model_events`）与 `kiana-core-s5/6`
+  （已列 `p4_j7_26_model_events_guard`）。EventStore writer 接线、跨进程恢复、Receipt/UI 投影和
+  live/physical provider evidence 仍保留在后续步骤。详见
+  [`p4-j7-26-model-events-baseline.md`](p4-j7-26-model-events-baseline.md)。
 
 <a id="step-p4-j7-27"></a>
 
