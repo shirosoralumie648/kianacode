@@ -386,7 +386,11 @@ pub use notification_recovery::{
     plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
     NotificationRecoveryPlan, NotificationRecoveryState, NOTIFICATION_RECOVERY_SCHEMA,
 };
-pub use notification_resolver::resolve_notification_subscriptions;
+pub use notification_resolver::{
+    resolve_notification_subscriptions, NotificationClientClaims, NotificationEntryPoint,
+    NotificationResolver, ResolvedNotification, ResolvedNotificationTarget,
+    NOTIFICATION_RESOLUTION_SCHEMA,
+};
 pub use notification_store::{
     NotificationListRequest, NotificationPage, NotificationPageItem,
     NotificationProjectionMutation, NotificationStore, NotificationStoreError,
