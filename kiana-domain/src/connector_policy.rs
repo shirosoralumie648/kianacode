@@ -28,6 +28,16 @@ pub enum ConnectorOperationRisk {
 }
 
 impl ConnectorOperationRisk {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::R0ReadOnly => "r0_read_only",
+            Self::R1ReadOnly => "r1_read_only",
+            Self::R2DataGrant => "r2_data_grant",
+            Self::R3OnceApproval => "r3_once_approval",
+            Self::R4DefaultDeny => "r4_default_deny",
+        }
+    }
+
     pub const fn required_risk_level(self) -> RiskLevel {
         match self {
             Self::R0ReadOnly | Self::R1ReadOnly => RiskLevel::ReadOnly,
@@ -45,6 +55,22 @@ impl ConnectorOperationRisk {
             Self::R4DefaultDeny => ConnectorPolicyRequirement::DefaultDeny,
         }
     }
+
+    pub const fn is_read_only(self) -> bool {
+        matches!(self, Self::R0ReadOnly | Self::R1ReadOnly)
+    }
+
+    pub const fn requires_data_grant(self) -> bool {
+        matches!(self, Self::R2DataGrant)
+    }
+
+    pub const fn requires_once_approval(self) -> bool {
+        matches!(self, Self::R3OnceApproval)
+    }
+
+    pub const fn is_default_denied(self) -> bool {
+        matches!(self, Self::R4DefaultDeny)
+    }
 }
 
 /// The policy/gate/approval action selected by a server-owned operation contract.
@@ -55,6 +81,50 @@ pub enum ConnectorPolicyRequirement {
     DataGrant,
     OnceApproval,
     DefaultDeny,
+}
+
+/// Deterministic mapping from one server-owned operation contract onto the execution spine's
+/// risk level, policy requirement and approval requirement.  `declared` is the server-owned
+/// contract risk: it may raise the class (for example to R4) but it can never lower it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorRiskMapping {
+    pub risk: ConnectorOperationRisk,
+    pub required_risk_level: RiskLevel,
+    pub requirement: ConnectorPolicyRequirement,
+}
+
+impl ConnectorRiskMapping {
+    /// The only allowed decision carries exactly one Broker dispatch.
+    pub const fn broker_calls_on_allow(self) -> u32 {
+        1
+    }
+
+    pub const fn requires_data_grant(self) -> bool {
+        matches!(self.requirement, ConnectorPolicyRequirement::DataGrant)
+    }
+
+    pub const fn requires_once_approval(self) -> bool {
+        matches!(self.requirement, ConnectorPolicyRequirement::OnceApproval)
+    }
+
+    pub const fn is_default_denied(self) -> bool {
+        matches!(self.requirement, ConnectorPolicyRequirement::DefaultDeny)
+    }
+}
+
+/// Resolve the complete R0--R4 policy/gate/approval mapping for one operation contract.
+pub fn connector_risk_mapping(
+    operation_id: &str,
+    effect: ConnectorEffect,
+    declared: RiskLevel,
+) -> ConnectorRiskMapping {
+    let risk = connector_operation_risk_with_declared(operation_id, effect, declared);
+    ConnectorRiskMapping {
+        risk,
+        required_risk_level: risk.required_risk_level(),
+        requirement: risk.policy_requirement(),
+    }
 }
 
 /// Derive the connector risk from the immutable operation contract.  The operation name is part
@@ -370,6 +440,24 @@ impl ConnectorOnceApproval {
         Ok(())
     }
 
+    /// Consume the one-shot approval exactly once.  A consumed approval re-signs its digest
+    /// (so a stale copy is detectably outdated) and can never authorize another dispatch.
+    pub fn consume(mut self, now_unix_ms: u64) -> Result<Self, String> {
+        self.validate()?;
+        if self.revoked {
+            return Err("connector_once_approval_revoked".to_owned());
+        }
+        if self.consumed {
+            return Err("connector_once_approval_consumed".to_owned());
+        }
+        if now_unix_ms >= self.expires_at_unix_ms {
+            return Err("connector_once_approval_expired".to_owned());
+        }
+        self.consumed = true;
+        self.approval_digest = self.digest();
+        Ok(self)
+    }
+
     pub fn digest(&self) -> String {
         json_digest(&json!({
             "schema": self.schema,
@@ -509,13 +597,27 @@ impl ConnectorAdmission {
             | Self::Denied { broker_calls, .. } => *broker_calls,
         }
     }
+
+    /// Stable reason for every non-allowed decision; `Allowed` has none.
+    pub fn reason(&self) -> Option<&str> {
+        match self {
+            Self::Allowed { .. } => None,
+            Self::AwaitingApproval { reason, .. } | Self::Denied { reason, .. } => Some(reason),
+        }
+    }
+
+    /// A decision that can never reach a Broker on this evaluation.
+    pub const fn is_zero_effect(&self) -> bool {
+        matches!(self, Self::AwaitingApproval { .. } | Self::Denied { .. })
+    }
 }
 
 /// Apply binding, epoch, data-grant, final-payload and once-approval checks in a fixed order.
 /// Every non-allowed result carries `broker_calls = 0`; this is the source-level deny contract
 /// consumed by the policy/core fixtures.
 pub fn evaluate_connector_admission(input: &ConnectorAdmissionInput<'_>) -> ConnectorAdmission {
-    let risk = connector_operation_risk(input.operation, input.effect);
+    let mapping = connector_risk_mapping(input.operation, input.effect, input.declared_risk);
+    let risk = mapping.risk;
     let denied = |reason: &str| ConnectorAdmission::Denied {
         risk,
         reason: reason.to_owned(),
@@ -544,25 +646,26 @@ pub fn evaluate_connector_admission(input: &ConnectorAdmissionInput<'_>) -> Conn
     if input.binding_policy_epoch != input.policy_epoch {
         return denied("connector_policy_epoch_mismatch");
     }
-    if risk_rank(input.declared_risk) < risk_rank(risk.required_risk_level()) {
+    if risk == ConnectorOperationRisk::R4DefaultDeny {
+        return denied("connector_r4_default_denied");
+    }
+    if risk_rank(input.declared_risk) < risk_rank(mapping.required_risk_level) {
         return denied(match risk {
             ConnectorOperationRisk::R3OnceApproval => "connector_final_payload_approval_required",
             _ => "connector_risk_downgrade",
         });
     }
-    if risk == ConnectorOperationRisk::R4DefaultDeny {
-        return denied("connector_r4_default_denied");
-    }
 
     let payload_digest = input.payload.map(crate::connector_payload_sha256);
-    if let Some(expected) = payload_digest.as_deref() {
-        match input.final_payload_digest.as_deref() {
-            Some(actual) if actual == expected => {}
-            Some(_) => return denied("connector_final_payload_digest_mismatch"),
-            None if risk == ConnectorOperationRisk::R3OnceApproval => {
-                return denied("connector_final_payload_digest_required")
-            }
-            None => {}
+    if risk == ConnectorOperationRisk::R3OnceApproval && payload_digest.is_none() {
+        return denied("connector_final_payload_required");
+    }
+    if let (Some(expected), Some(actual)) = (
+        payload_digest.as_deref(),
+        input.final_payload_digest.as_deref(),
+    ) {
+        if actual != expected {
+            return denied("connector_final_payload_digest_mismatch");
         }
     }
     match risk.policy_requirement() {
@@ -596,9 +699,7 @@ pub fn evaluate_connector_admission(input: &ConnectorAdmissionInput<'_>) -> Conn
             }
         }
         ConnectorPolicyRequirement::OnceApproval => {
-            let final_payload_digest = payload_digest
-                .or_else(|| input.final_payload_digest.clone())
-                .unwrap_or_default();
+            let final_payload_digest = payload_digest.unwrap_or_default();
             let Some(approval) = input.once_approval else {
                 return ConnectorAdmission::AwaitingApproval {
                     risk,

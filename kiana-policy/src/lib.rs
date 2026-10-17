@@ -285,7 +285,33 @@ pub fn connector_policy_decision(
             })
         }
     };
+    if binding.project_root != context.project_root {
+        return Some(PolicyDecision::Deny {
+            reason: "connector_binding_scope_mismatch".to_owned(),
+        });
+    }
+    if request.arguments["binding_id"]
+        .as_str()
+        .is_some_and(|binding_id| binding_id != binding.binding.binding_id)
+    {
+        return Some(PolicyDecision::Deny {
+            reason: "connector_binding_id_mismatch".to_owned(),
+        });
+    }
     let payload = request.arguments.get("payload");
+    // The final-payload digest is always server-derived from the canonical payload.  A caller
+    // supplied digest can only be rejected as a mismatch; it can never select the approved
+    // payload.  R3 without a payload therefore fails closed in the domain admission below.
+    let final_payload_digest = payload.map(kiana_domain::connector_payload_sha256);
+    if final_payload_digest.as_deref().is_some_and(|derived| {
+        request.arguments["final_payload_digest"]
+            .as_str()
+            .is_some_and(|supplied| supplied != derived)
+    }) {
+        return Some(PolicyDecision::Deny {
+            reason: "connector_final_payload_digest_mismatch".to_owned(),
+        });
+    }
     let mut input = kiana_domain::ConnectorAdmissionInput::new(
         operation,
         contract.effect,
@@ -310,9 +336,7 @@ pub fn connector_policy_decision(
         .as_u64()
         .unwrap_or(input.policy_epoch);
     input.now_unix_ms = request.arguments["now_unix_ms"].as_u64().unwrap_or(1);
-    input.final_payload_digest = request.arguments["final_payload_digest"]
-        .as_str()
-        .map(str::to_owned);
+    input.final_payload_digest = final_payload_digest;
 
     let grant = request
         .arguments
