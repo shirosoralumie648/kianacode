@@ -14,6 +14,8 @@ pub const RUN_RECEIPT_SCHEMA: &str = "kiana.run-receipt.v1";
 pub const EXECUTION_RECEIPT_SCHEMA: &str = "kiana.execution-receipt.v1";
 pub const RECEIPT_CONTRACT_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 const MAX_RECEIPT_DIGESTS: usize = 1_024;
+pub const MAX_RECEIPT_LIMITATIONS: usize = 16;
+const MAX_RECEIPT_LABEL_BYTES: usize = 256;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -150,6 +152,27 @@ impl RunReceipt {
     }
 }
 
+/// Server-derived plan/effect evidence attached to an [`ExecutionReceipt`].
+///
+/// The evidence is a projection of committed facts (descriptor identity, prepared permit,
+/// scope/input digests, terminal result payload). Every field is optional because a legacy or
+/// denied attempt may genuinely have no plan; a missing field is never filled with a wildcard.
+/// This type carries no authority and grants nothing by itself.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ExecutionReceiptEvidence {
+    pub descriptor_id: Option<String>,
+    pub descriptor_digest: Option<String>,
+    pub input_digest: Option<String>,
+    pub scope_digest: Option<String>,
+    pub plan_digest: Option<String>,
+    pub approval_id: Option<String>,
+    pub backend: Option<String>,
+    pub resource_usage_digest: Option<String>,
+    pub changes_digest: Option<String>,
+    pub result_digest: Option<String>,
+    pub limitations: Vec<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionReceipt {
@@ -169,6 +192,28 @@ pub struct ExecutionReceipt {
     pub fenced: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result_digest: Option<String>,
+    /// Descriptor/binding identity observed for this attempt, e.g. `shell.exec@kiana.handler-binding.v1`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub descriptor_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub descriptor_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_usage_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changes_digest: Option<String>,
+    /// Bounded, stable limitations of this receipt projection; never raw diagnostics.
+    #[serde(default)]
+    pub limitations: Vec<String>,
     pub source_cursor: EventCursor,
     pub source_event_ids: Vec<EventId>,
     pub redaction_profile: String,
@@ -209,6 +254,16 @@ impl ExecutionReceipt {
             stop_confirmed,
             fenced,
             result_digest,
+            descriptor_id: None,
+            descriptor_digest: None,
+            input_digest: None,
+            scope_digest: None,
+            plan_digest: None,
+            approval_id: None,
+            backend: None,
+            resource_usage_digest: None,
+            changes_digest: None,
+            limitations: Vec::new(),
             source_cursor,
             source_event_ids,
             redaction_profile: redaction_profile.into(),
@@ -219,6 +274,31 @@ impl ExecutionReceipt {
         receipt.receipt_digest = receipt.digest();
         receipt.validate()?;
         Ok(receipt)
+    }
+
+    /// Attach the server-derived plan/effect evidence and rebind the receipt digest.
+    ///
+    /// Evidence fields that were already set by the constructor are preserved unless the evidence
+    /// supplies a value; a revision without evidence cannot silently erase a bound digest. The
+    /// combined receipt is re-validated before it is returned, so an invalid digest, unknown
+    /// effect or inconsistent limitation fails closed instead of entering the read model.
+    pub fn with_evidence(mut self, evidence: ExecutionReceiptEvidence) -> Result<Self, String> {
+        self.descriptor_id = evidence.descriptor_id.or(self.descriptor_id);
+        self.descriptor_digest = evidence.descriptor_digest.or(self.descriptor_digest);
+        self.input_digest = evidence.input_digest.or(self.input_digest);
+        self.scope_digest = evidence.scope_digest.or(self.scope_digest);
+        self.plan_digest = evidence.plan_digest.or(self.plan_digest);
+        self.approval_id = evidence.approval_id.or(self.approval_id);
+        self.backend = evidence.backend.or(self.backend);
+        self.resource_usage_digest = evidence
+            .resource_usage_digest
+            .or(self.resource_usage_digest);
+        self.changes_digest = evidence.changes_digest.or(self.changes_digest);
+        self.result_digest = evidence.result_digest.or(self.result_digest);
+        self.limitations = evidence.limitations;
+        self.receipt_digest = self.digest();
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn from_json(value: &Value) -> Result<Self, String> {
@@ -251,6 +331,30 @@ impl ExecutionReceipt {
                 .result_digest
                 .as_ref()
                 .is_some_and(|digest| !valid_digest(digest))
+            || [
+                self.descriptor_digest.as_deref(),
+                self.input_digest.as_deref(),
+                self.scope_digest.as_deref(),
+                self.plan_digest.as_deref(),
+                self.resource_usage_digest.as_deref(),
+                self.changes_digest.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|digest| !valid_digest(digest))
+            || [
+                self.descriptor_id.as_deref(),
+                self.approval_id.as_deref(),
+                self.backend.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|label| !valid_label(label))
+            || self.limitations.len() > MAX_RECEIPT_LIMITATIONS
+            || self
+                .limitations
+                .iter()
+                .any(|limitation| !valid_label(limitation))
             || !valid_digest(&self.receipt_digest)
             || (matches!(self.status, CapabilityExecutionState::Unknown)
                 && (self.effect_known || !self.fenced))
@@ -279,6 +383,16 @@ impl ExecutionReceipt {
             "stop_confirmed": self.stop_confirmed,
             "fenced": self.fenced,
             "result_digest": self.result_digest,
+            "descriptor_id": self.descriptor_id,
+            "descriptor_digest": self.descriptor_digest,
+            "input_digest": self.input_digest,
+            "scope_digest": self.scope_digest,
+            "plan_digest": self.plan_digest,
+            "approval_id": self.approval_id,
+            "backend": self.backend,
+            "resource_usage_digest": self.resource_usage_digest,
+            "changes_digest": self.changes_digest,
+            "limitations": self.limitations,
             "source_cursor": self.source_cursor,
             "source_event_ids": self.source_event_ids,
             "redaction_profile": self.redaction_profile,
@@ -286,6 +400,14 @@ impl ExecutionReceipt {
             "proof_level": self.proof_level,
         }))
     }
+}
+
+fn valid_label(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_RECEIPT_LABEL_BYTES
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'.' | b'_' | b'-' | b'/' | b'@')
+        })
 }
 
 fn unique_ids(values: &[EventId]) -> bool {

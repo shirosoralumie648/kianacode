@@ -512,7 +512,13 @@ fn typed_execution_receipts(run_id: RunId, events: &[RuntimeEvent]) -> Vec<Value
                     }
                 }
             };
-            kiana_domain::ExecutionReceipt::new(
+            let evidence = execution_receipt_evidence(&record, events);
+            // The typed contract requires a fence whenever an effect or stop cannot be confirmed.
+            // Deriving it from the stop fact keeps the receipt promised evidence consistent instead
+            // of silently dropping the attempt from the read model.
+            let fenced =
+                record.fenced || !record.effect_known || record.stop_confirmed == Some(false);
+            let Ok(receipt) = kiana_domain::ExecutionReceipt::new(
                 record.request_id,
                 record.execution_id,
                 record.invocation_id,
@@ -521,18 +527,178 @@ fn typed_execution_receipts(run_id: RunId, events: &[RuntimeEvent]) -> Vec<Value
                 status,
                 record.effect_known,
                 record.stop_confirmed,
-                record.fenced,
+                fenced,
                 None,
                 record.source_cursor,
                 record.source_event_ids,
                 profile.profile_digest.clone(),
                 "implemented",
                 "source",
-            )
-            .ok()
-            .and_then(|receipt| receipt.to_json().ok())
+            ) else {
+                return None;
+            };
+            receipt
+                .with_evidence(evidence)
+                .ok()
+                .and_then(|receipt| receipt.to_json().ok())
         })
         .collect()
+}
+
+/// Derive bounded plan/effect evidence for one attempt from committed facts only.
+///
+/// The projection never calls the Broker or a handler and never synthesizes a missing value:
+/// descriptor identity comes from the action catalog for the observed operation, digests come
+/// from the normalized request/prepared permit facts, and backend/output/resource summaries come
+/// from the terminal result payload. Anything the facts do not carry stays absent and, where it
+/// matters, is reported through `limitations` instead of a wildcard default.
+fn execution_receipt_evidence(
+    record: &kiana_domain::CapabilityAttemptRecord,
+    events: &[RuntimeEvent],
+) -> kiana_domain::ExecutionReceiptEvidence {
+    let mut evidence = kiana_domain::ExecutionReceiptEvidence::default();
+    let mut result_payload: Option<Value> = None;
+    for event in events {
+        if !event_matches_request(event, record.request_id) {
+            continue;
+        }
+        match event.kind.as_str() {
+            "run.capability_requested" | "run.tool_call" => {
+                if evidence.descriptor_id.is_none() {
+                    let descriptor = event
+                        .data
+                        .get("operation")
+                        .and_then(Value::as_str)
+                        .and_then(kiana_domain::capability_action_descriptor);
+                    if let Some(descriptor) = descriptor {
+                        evidence.descriptor_id = Some(format!(
+                            "{}@{}",
+                            descriptor.operation, descriptor.binding_version
+                        ));
+                        evidence.descriptor_digest = serde_json::to_value(&descriptor)
+                            .ok()
+                            .map(|descriptor| kiana_domain::json_digest(&descriptor));
+                    }
+                }
+                if evidence.scope_digest.is_none() {
+                    evidence.scope_digest = event
+                        .data
+                        .pointer("/execution_scope/scope_digest")
+                        .and_then(Value::as_str)
+                        .filter(|value| valid_receipt_digest(value))
+                        .map(str::to_owned);
+                }
+                if evidence.input_digest.is_none() {
+                    evidence.input_digest = event
+                        .data
+                        .get("input_digest")
+                        .and_then(Value::as_str)
+                        .filter(|value| valid_receipt_digest(value))
+                        .map(str::to_owned);
+                }
+            }
+            "execution.prepared" => {
+                if evidence.plan_digest.is_none() {
+                    evidence.plan_digest = event
+                        .data
+                        .pointer("/permit/permit_digest")
+                        .and_then(Value::as_str)
+                        .filter(|value| valid_receipt_digest(value))
+                        .map(str::to_owned);
+                }
+                if evidence.approval_id.is_none() {
+                    evidence.approval_id = event
+                        .data
+                        .pointer("/permit/approval_id")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned);
+                }
+            }
+            _ => {}
+        }
+        if terminal_attempt_event(&event.kind) {
+            let payload = event.data.get("result").unwrap_or(&event.data);
+            if result_payload.is_none() {
+                result_payload = Some(payload.clone());
+            }
+            if evidence.backend.is_none() {
+                evidence.backend = payload
+                    .get("backend")
+                    .and_then(Value::as_str)
+                    .or_else(|| event.data.get("backend").and_then(Value::as_str))
+                    .map(str::to_owned);
+            }
+            if evidence.resource_usage_digest.is_none() {
+                evidence.resource_usage_digest = payload
+                    .get("resource_budget")
+                    .or_else(|| payload.get("resource_usage"))
+                    .map(kiana_domain::json_digest);
+            }
+            if evidence.changes_digest.is_none() {
+                evidence.changes_digest = payload.get("changed").map(kiana_domain::json_digest);
+            }
+        }
+    }
+    evidence.result_digest = result_payload.as_ref().map(kiana_domain::json_digest);
+    let mut limitations = Vec::new();
+    if evidence.descriptor_id.is_none() {
+        limitations.push("descriptor_unavailable".to_owned());
+    }
+    if evidence.input_digest.is_none() {
+        limitations.push("input_digest_unavailable".to_owned());
+    }
+    if evidence.scope_digest.is_none() {
+        limitations.push("scope_digest_unavailable".to_owned());
+    }
+    if evidence.plan_digest.is_none() {
+        limitations.push("plan_digest_unavailable".to_owned());
+    }
+    if record.fenced && !record.effect_known {
+        limitations.push("effect_unknown".to_owned());
+    }
+    if record.stop_confirmed == Some(false) {
+        limitations.push("stop_unconfirmed".to_owned());
+    }
+    if let Some(quality) = record.attributes.get("metadata_quality") {
+        limitations.push(quality.clone());
+    }
+    limitations.truncate(kiana_domain::MAX_RECEIPT_LIMITATIONS);
+    evidence.limitations = limitations;
+    evidence
+}
+
+fn event_matches_request(event: &RuntimeEvent, request_id: RequestId) -> bool {
+    ["capability_request_id", "request_id", "subject_request_id"]
+        .iter()
+        .find_map(|name| event.data.get(*name))
+        .and_then(Value::as_str)
+        .and_then(RequestId::parse_str)
+        .is_some_and(|observed| observed == request_id)
+        || event
+            .data
+            .pointer("/permit/request_id")
+            .and_then(Value::as_str)
+            .and_then(RequestId::parse_str)
+            .is_some_and(|observed| observed == request_id)
+}
+
+fn terminal_attempt_event(kind: &str) -> bool {
+    matches!(
+        kind,
+        "execution.result_committed"
+            | "capability.completed"
+            | "capability.failed"
+            | "capability.cancelled"
+            | "capability.result_unknown"
+            | "run.tool_result"
+    )
+}
+
+fn valid_receipt_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn aggregate_receipt_facts(
@@ -1288,3 +1454,10 @@ pub(crate) fn cost_ledger_from_events(
         .collect();
     kiana_domain::CostLedger::from_records(records)
 }
+
+// CAP-25 行为夹具直接驱动本文件的 `typed_execution_receipts` 投影与 `ControlPlane` 的
+// receipt/parity 读取路径；按 `dispatch_delivery_tests`/`recovery_invocation_tests` 的既有约定
+// 内联到生产模块，而不是新增 test target 或第二套执行路径。
+#[cfg(test)]
+#[path = "receipt_entrypoint_tests.rs"]
+mod receipt_entrypoint_tests;

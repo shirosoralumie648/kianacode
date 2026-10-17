@@ -1306,4 +1306,106 @@ mod tests {
         frame.validate().unwrap();
         assert_eq!(bus.feed_metrics().queue_capacity, UI_FEED_QUEUE_CAPACITY);
     }
+
+    #[tokio::test]
+    async fn late_progress_cannot_overwrite_terminal_outcome() {
+        let bus = RunStreamBus::default();
+        let run_id = RunId::new();
+        let mut live = bus.subscribe(run_id);
+        bus.publish_terminal(
+            run_id,
+            ResponseEnvelope {
+                schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                request_id: RequestId::new(),
+                status: ExecutionStatus::Failed,
+                output: serde_json::json!({"error": "boom"}),
+                error: Some("run_failed".to_owned()),
+            },
+        );
+        let terminal = live.recv().await.expect("live terminal");
+        assert!(matches!(terminal.event, RunStreamEvent::Terminal { .. }));
+
+        for text in ["late progress", "model turn after terminal"] {
+            assert!(matches!(
+                bus.publish_checked(
+                    run_id,
+                    RunStreamEvent::Delta {
+                        run_id,
+                        text: text.to_owned()
+                    }
+                ),
+                Err(PortError::Conflict(reason)) if reason == "feed_terminal_delta_forbidden"
+            ));
+        }
+        assert!(matches!(
+            bus.publish_checked(
+                run_id,
+                RunStreamEvent::Terminal {
+                    run_id,
+                    response: ResponseEnvelope {
+                        schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                        request_id: RequestId::new(),
+                        status: ExecutionStatus::Completed,
+                        output: serde_json::json!({"success": true}),
+                        error: None,
+                    },
+                }
+            ),
+            Err(PortError::Conflict(reason)) if reason == "feed_terminal_duplicate"
+        ));
+
+        let mut reconnected = bus.subscribe_after(run_id, None);
+        assert!(reconnected.has_gap());
+        let replay = reconnected.recv().await.expect("terminal replay");
+        assert_eq!(replay.sequence, terminal.sequence);
+        match replay.event {
+            RunStreamEvent::Terminal { response, .. } => {
+                assert_eq!(response.status, ExecutionStatus::Failed);
+                assert_eq!(response.error.as_deref(), Some("run_failed"));
+            }
+            other => panic!("late progress replaced the terminal fact: {other:?}"),
+        }
+        assert_eq!(bus.feed_metrics().terminal_delta_rejections, 2);
+    }
+
+    #[tokio::test]
+    async fn reconnect_replays_terminal_without_reinvoking_runner_or_model() {
+        let inner = Arc::new(CountingRunner::default());
+        let bus = Arc::new(RunStreamBus::default());
+        let run_id = RunId::new();
+        let runner = RunStreamRunner::wrap(inner.clone(), bus.clone());
+        let mut first = bus.subscribe(run_id);
+        let events = runner
+            .send(RunnerCommand::start(run_id, "hello"))
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 2);
+        let delta = first.recv().await.expect("live delta");
+        assert!(matches!(delta.event, RunStreamEvent::Delta { .. }));
+        bus.publish_terminal(
+            run_id,
+            ResponseEnvelope {
+                schema: kiana_protocol::PROTOCOL_SCHEMA.to_owned(),
+                request_id: RequestId::new(),
+                status: ExecutionStatus::Completed,
+                output: serde_json::json!({"text": "alpha"}),
+                error: None,
+            },
+        );
+        let terminal = first.recv().await.expect("live terminal");
+        drop(first);
+
+        let mut reconnected = bus.subscribe_after(run_id, None);
+        assert!(reconnected.has_gap());
+        let replay = reconnected.recv().await.expect("terminal replay");
+        assert!(matches!(replay.event, RunStreamEvent::Terminal { .. }));
+        assert_eq!(replay.sequence, terminal.sequence);
+        assert_eq!(bus.run_cursor(run_id).sequence, terminal.sequence);
+        assert_eq!(
+            inner.streaming_calls.load(Ordering::SeqCst),
+            1,
+            "reconnect must not re-enter the runner"
+        );
+        assert_eq!(inner.send_calls.load(Ordering::SeqCst), 0);
+    }
 }
