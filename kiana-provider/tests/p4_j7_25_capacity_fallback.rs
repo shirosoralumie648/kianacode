@@ -113,6 +113,8 @@ fn backoff_never_holds_a_capacity_slot_and_aliases_share_one_waiter_pool() {
         "capacity_window",
         "queue_slots",
         "KIANA_MODEL_QUEUE_LIMIT",
+        "share_capacity_gates",
+        "connection_aliases_roll_up_to_one_bounded_gate_per_upstream_identity",
     ] {
         assert!(
             config.contains(marker),

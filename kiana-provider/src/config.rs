@@ -530,18 +530,23 @@ pub(crate) fn connections_with_workspace(
     if result.is_empty() {
         return Err(ModelError::invalid("model_profiles_empty"));
     }
-    // Connection aliases that point at the same credential and origin share one
-    // semaphore. A profile name is a routing label, not a way to bypass the
-    // provider's connection-level capacity limit.
-    // ========== 别名去重：把闸门按“真实上游身份”归并 ==========
-    //
-    // 场景：运维配了 3 个 profile，全都是同一个 OpenAI endpoint + 同一把 key，
-    // 只是模型名不同（planner 用 gpt-4o、builder 用 gpt-4o-mini）。
-    // 如果每个 profile 各有一套信号量和配额窗口，那么实际上并发能力被放大了 3 倍——
-    // 用户以为限了 2 并发，实际能跑 6。
-    //
-    // 解法：算一个“上游身份 scope”摘要，把 scope 相同的 profile 指向**同一份**闸门。
+    share_capacity_gates(&mut result);
+    Ok((result, explicit_profiles))
+}
 
+/// Connection aliases that point at the same credential and origin share one semaphore. A profile
+/// name is a routing label, not a way to bypass the provider's connection-level capacity limit.
+///
+/// ========== 别名去重：把闸门按“真实上游身份”归并 ==========
+///
+/// 场景：运维配了 3 个 profile，全都是同一个 OpenAI endpoint + 同一把 key，
+/// 只是模型名不同（planner 用 gpt-4o、builder 用 gpt-4o-mini）。
+/// 如果每个 profile 各有一套信号量和配额窗口，那么实际上并发能力被放大了 3 倍——
+/// 用户以为限了 2 并发，实际能跑 6。
+///
+/// 解法：算一个“上游身份 scope”摘要，把 scope 相同的 profile 指向**同一份**闸门。
+/// 这是纯归并（不新建闸门、不发请求、不写任何状态），因此可被行为夹具直接驱动。
+pub(crate) fn share_capacity_gates(result: &mut BTreeMap<String, Connection>) {
     let mut capacities: BTreeMap<
         String,
         (
@@ -590,7 +595,6 @@ pub(crate) fn connections_with_workspace(
         connection.queue_slots = queue_slots;
         connection.circuit = circuit;
     }
-    Ok((result, explicit_profiles))
 }
 
 fn default_source(
@@ -1185,4 +1189,99 @@ pub(crate) fn test_connection(provider: &str, model: &str) -> Result<Connection,
         ProviderConfigSource::BuiltinDefault,
         None,
     )
+}
+
+/// P4-J7-25 fixtures for the connection-alias capacity fold.
+///
+/// The card's exit evidence requires that several aliases of one API key cannot bypass the
+/// connection quota.  These fixtures drive the real `share_capacity_gates` fold with resolved
+/// `Connection` values: no environment variable is read, no socket is opened and no permit is
+/// consumed.  They only assert which upstream identity owns which process-local gate.
+#[cfg(test)]
+mod capacity_alias_tests {
+    use super::*;
+
+    fn alias_connection(model: &str, credential_key: &str) -> Connection {
+        let mut connection = test_connection("openai", model).expect("fixture connection");
+        connection.credential_ref = Some(
+            SecretRef::new("env", credential_key, "provider.request", "openai", 1)
+                .expect("credential reference"),
+        );
+        connection.route.connection_id = format!("{model}::{credential_key}");
+        connection
+    }
+
+    #[test]
+    fn connection_aliases_roll_up_to_one_bounded_gate_per_upstream_identity() {
+        let mut gates = BTreeMap::from([
+            (
+                "planner".to_owned(),
+                alias_connection("gpt-4o", "SHARED_PROVIDER_KEY"),
+            ),
+            (
+                "builder".to_owned(),
+                alias_connection("gpt-4o-mini", "SHARED_PROVIDER_KEY"),
+            ),
+            (
+                "other-account".to_owned(),
+                alias_connection("gpt-4o", "OTHER_PROVIDER_KEY"),
+            ),
+        ]);
+
+        share_capacity_gates(&mut gates);
+
+        let planner = gates.get("planner").expect("planner alias");
+        let builder = gates.get("builder").expect("builder alias");
+        let other = gates.get("other-account").expect("second account");
+
+        // Two profiles with the same provider/origin/credential identity share the exact same
+        // process-local gates; only the model name (a routing label) differs.
+        assert!(std::sync::Arc::ptr_eq(
+            &planner.capacity_policy,
+            &builder.capacity_policy
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            &planner.capacity_window,
+            &builder.capacity_window
+        ));
+        assert!(std::sync::Arc::ptr_eq(&planner.capacity, &builder.capacity));
+        assert!(std::sync::Arc::ptr_eq(
+            &planner.queue_slots,
+            &builder.queue_slots
+        ));
+        assert!(std::sync::Arc::ptr_eq(&planner.circuit, &builder.circuit));
+        assert_eq!(
+            planner.capacity.available_permits(),
+            planner.capacity_policy.max_concurrency as usize
+        );
+        assert_eq!(
+            planner.queue_slots.available_permits(),
+            planner.capacity_policy.max_queue as usize
+        );
+
+        // A different credential reference is a different upstream quota bucket; it must not be
+        // merged into the shared pool.
+        assert!(!std::sync::Arc::ptr_eq(&planner.capacity, &other.capacity));
+        assert!(!std::sync::Arc::ptr_eq(
+            &planner.queue_slots,
+            &other.queue_slots
+        ));
+        assert!(!std::sync::Arc::ptr_eq(&planner.circuit, &other.circuit));
+        assert!(!std::sync::Arc::ptr_eq(
+            &planner.capacity_window,
+            &other.capacity_window
+        ));
+        assert!(!std::sync::Arc::ptr_eq(
+            &planner.capacity_policy,
+            &other.capacity_policy
+        ));
+        assert_eq!(
+            other.capacity.available_permits(),
+            other.capacity_policy.max_concurrency as usize
+        );
+        assert_eq!(
+            other.queue_slots.available_permits(),
+            other.capacity_policy.max_queue as usize
+        );
+    }
 }

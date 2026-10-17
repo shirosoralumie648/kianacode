@@ -61,3 +61,40 @@ deadline and returns a typed `provider_capacity_queue_wait_expired` rejection wi
 The focused regression, the BQ-16 domain target (4/4), and the P4-J7-25 domain target (4/4) pass
 with a single Cargo process and no swap. This is local behavior evidence only; the capacity and
 breaker state remains process-local and no provider/external effect was exercised.
+
+## 2026-10-17 completion slice (CI-only)
+
+Two card items were previously evidenced only by source markers; this slice adds executable
+behavior fixtures and binds them into the guard and the manual lane. No production behavior
+changed beyond extracting the existing alias fold into `share_capacity_gates` (a pure,
+behavior-identical refactor so the fold can be driven directly).
+
+- **Config-update reset semantics (card step ③)**:
+  `config_update_resets_derived_health_before_any_new_admission` drives
+  `ProviderCircuitBreaker::reset_for_config`. An empty or oversized revision is refused with
+  `provider_circuit_config_revision_invalid` without touching state or the health digest (the
+  breaker still rejects with `provider_circuit_open`), while a valid revision resets to `Closed`,
+  clears `failure_count`/`open_until_unix_ms`/`half_open_probe_in_flight`, recomputes the digest
+  and only then admits again. A typed failure after the reset still only moves derived health.
+- **Alias quota sharing (exit evidence)**:
+  `connection_aliases_roll_up_to_one_bounded_gate_per_upstream_identity` (crate-internal
+  `kiana-provider/src/config.rs` fixture) builds three resolved connections differing only in
+  model name and credential reference, runs the real fold and asserts `Arc::ptr_eq` for
+  `capacity_policy`/`capacity_window`/`capacity`/`queue_slots`/`circuit` across the two aliases of
+  one credential, that the shared pool holds exactly `max_concurrency`/`max_queue` permits (three
+  aliases cannot multiply the bound), and that a different credential reference stays a separate
+  bucket. The fixture reads no environment variable, opens no socket and consumes no permit.
+
+CI wiring: `.github/workflows/p4-j7-25-capacity-fallback.yml` (manual `workflow_dispatch`,
+`permissions: contents: read`) runs `cargo fetch --locked`, `cargo fmt --all --check`, the domain
+fixture target, the provider boundary target, both provider lib fixture groups
+(`circuit_tests`, `capacity_alias_tests`) and the Core guard, all `--locked --test-threads=1`. The
+automatic lane stays the unified `ci.yml` shards `kiana-domain-s3/4`, `kiana-provider`
+(whole crate, `targets=null`) and `kiana-core-s5/6`. The Core guard binds the new markers
+(`reset_for_config`, `share_capacity_gates`), both fixture names and the new lane step.
+
+Local tests/build/check/clippy/smoke were not run (CI-only session; `cargo fmt --all` only), so the
+proof ceiling stays `source` and the CI receipt is not observed. Durable cross-process capacity or
+breaker storage, provider capacity/invoice telemetry, automatic route selection, a real fallback
+executor (which must re-enter ControlPlane, create a new attempt and independently reserve usage
+and authority) and live/physical provider evidence remain open.

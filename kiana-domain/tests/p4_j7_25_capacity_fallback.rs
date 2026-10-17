@@ -145,6 +145,49 @@ fn observe_failure_overflow_does_not_leave_a_half_updated_breaker() {
         .expect("overflow must preserve a valid state");
 }
 
+#[test]
+fn config_update_resets_derived_health_before_any_new_admission() {
+    let mut breaker = ProviderCircuitBreaker::new("config.v1", 1, 1_000).expect("breaker");
+    breaker
+        .observe_failure(10)
+        .expect("open after typed failure");
+    let opened = breaker.health_digest.clone();
+    assert_eq!(breaker.allow(11).unwrap_err(), "provider_circuit_open");
+
+    // An invalid configuration identity must not clear the fence: an empty or oversized revision
+    // neither resets the breaker nor authorizes a request, and the health digest is unchanged.
+    assert_eq!(
+        breaker.reset_for_config("").unwrap_err(),
+        "provider_circuit_config_revision_invalid"
+    );
+    assert_eq!(
+        breaker.reset_for_config("x".repeat(257)).unwrap_err(),
+        "provider_circuit_config_revision_invalid"
+    );
+    assert_eq!(breaker.allow(12).unwrap_err(), "provider_circuit_open");
+    assert_eq!(breaker.health_digest, opened);
+
+    // A configuration update resets derived health to closed and recomputes the digest. The
+    // breaker still only reports admission; it never grants a capability or permit itself.
+    breaker.reset_for_config("config.v2").expect("config reset");
+    assert_eq!(breaker.config_revision, "config.v2");
+    assert_eq!(breaker.state, ProviderCircuitState::Closed);
+    assert_eq!(breaker.failure_count, 0);
+    assert_eq!(breaker.open_until_unix_ms, None);
+    assert!(!breaker.half_open_probe_in_flight);
+    assert_ne!(breaker.health_digest, opened);
+    breaker.validate().expect("reset breaker is valid");
+    assert_eq!(
+        breaker.allow(13).expect("closed after reset"),
+        CircuitAdmission::Allowed
+    );
+
+    // A failure after the reset still only moves derived health.
+    breaker.observe_failure(14).expect("post-reset failure");
+    assert_eq!(breaker.state, ProviderCircuitState::Open);
+    assert_eq!(breaker.open_until_unix_ms, Some(1_014));
+}
+
 fn original_route() -> ModelRoute {
     ModelRoute {
         provider_id: "provider-a".to_owned(),
