@@ -492,25 +492,35 @@ fn sc12_pending_invocation_rebinds_and_fences_resume_identity() {
     request.execution_scope = Some(broker_scope(&ctx, &request, None, None));
     let run = RunId::new();
     let cursor = RequestId::new();
+    // Runner 队列摘要必须是 sha256 形状；这里用固定摘要模拟“已绑定的有序批次”。
+    let pending_batch_digest = format!("sha256:{}", "b".repeat(64));
     let binding = kiana_domain::InvocationResumeBinding::from_request(
         run,
         cursor,
         &request,
         &ctx,
         "a",
-        "pending-batch-digest",
+        pending_batch_digest,
     )
     .expect("resume binding");
     assert!(binding.validate().is_ok());
-    assert!(binding.validate_against(run, cursor, &request, &ctx, "a").is_ok());
+    assert!(binding
+        .validate_against(run, cursor, &request, &ctx, "a")
+        .is_ok());
     // sandbox 漂移：执行隔离配置变化后不能复用原绑定。
     let sandbox_drift = binding.validate_against(run, cursor, &request, &ctx, "b");
-    assert_eq!(sandbox_drift.unwrap_err(), "invocation_resume_binding_changed");
+    assert_eq!(
+        sandbox_drift.unwrap_err(),
+        "invocation_resume_binding_changed"
+    );
     // session 漂移：其他会话不能消费该待处理调用。
     let mut other = ctx.clone();
     other.session_id = kiana_domain::SessionId::new("session-other");
     let session_drift = binding.validate_against(run, cursor, &request, &other, "a");
-    assert_eq!(session_drift.unwrap_err(), "invocation_resume_binding_changed");
+    assert_eq!(
+        session_drift.unwrap_err(),
+        "invocation_resume_binding_changed"
+    );
     // 参数漂移：批准后替换参数不能复用同一绑定。
     let mut changed = request.clone();
     changed.arguments["query"] = json!("different");

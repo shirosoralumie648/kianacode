@@ -361,6 +361,7 @@
    "er17_run_snapshot_guard",
    "er18_workspace_checkpoint_guard",
    "er19_process_handle_guard",
+   "er20_restart_projector",
    "er20_restart_projector_guard",
    "er21_resume_claim_guard",
    "er22_cancel_recovery_guard",

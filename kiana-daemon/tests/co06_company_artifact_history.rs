@@ -1123,7 +1123,7 @@ async fn artifact_publication_reconciles_orphan_blob_and_recovers_after_restart(
         armed: std::sync::atomic::AtomicBool::new(true),
         append_before_failure: false,
     });
-    let core = company_control_plane(fault, store.clone());
+    let core = company_control_plane(fault.clone(), store.clone());
     let artifact_id = ArtifactId::new().to_string();
     fs::write(fixture.root.join("orphan.txt"), b"orphan committed bytes\n").expect("orphan source");
     let command = CompanyCommand::RegisterArtifact {
@@ -1346,7 +1346,10 @@ async fn artifact_orphan_retention_reclaims_only_unreferenced_blobs() {
         ArtifactOrphanRetentionDecision::Denied,
         "{denied:?}"
     );
-    assert_eq!(denied.orphans[0].reason, "orphan_blob_removal_not_permitted");
+    assert_eq!(
+        denied.orphans[0].reason,
+        "orphan_blob_removal_not_permitted"
+    );
     assert_eq!(
         ArtifactContentPort::read_artifact(store.as_ref(), &orphan_reference)
             .await
