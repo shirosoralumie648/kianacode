@@ -125,11 +125,11 @@ pub use state_driver::{
 // 其中 scope 是 runner 侧占位值（真实授权仍在 ControlPlane）。
 pub use step_context::{
     compile_step_context, compile_step_context_with_prefix, compile_wire_budget,
-    derive_data_binding, derive_workspace_binding, recheck_step_context_bindings,
-    wire_budget_part_items, wire_budget_parts, StablePrefixReuse, StepBudgetPart,
-    StepContextExplanation, StepContextInputs, StepContextOmission, WireBudgetParts,
-    CONSERVATIVE_WIRE_ACCOUNTING, STEP_CONTEXT_EXPLANATION_SCHEMA,
-    STEP_CONTEXT_MAX_MESSAGE_CANDIDATES,
+    compile_wire_budget_with_accounting, decide_stable_prefix_reuse, derive_data_binding,
+    derive_workspace_binding, recheck_step_context_bindings, wire_budget_part_items,
+    wire_budget_parts, StablePrefixReuse, StepBudgetPart, StepContextExplanation,
+    StepContextInputs, StepContextOmission, WireBudgetParts, CONSERVATIVE_WIRE_ACCOUNTING,
+    STEP_CONTEXT_EXPLANATION_SCHEMA, STEP_CONTEXT_MAX_MESSAGE_CANDIDATES,
 };
 
 // ■ 流式归一化

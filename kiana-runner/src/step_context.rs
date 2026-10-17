@@ -107,6 +107,19 @@ impl StablePrefixReuse {
     }
 }
 
+/// 已记录前缀能否复用于当前请求；`None` 表示本 run 首次观察该前缀，没有旧条目可复用。
+///
+/// harness 与行为夹具共用这一个决策函数，避免「记录的解释」与「实际复用判断」出现两套规则。
+/// [`StablePrefix::reuse_for`] 先比较 authority/data epoch（权限收紧或数据删除即拒绝），再比较
+/// profile、prompt bundle、工具目录、配置 revision 与缓存 key；失败原因被原样记录，不会静默
+/// 沿用旧条目，也不会因为前缀段相同就跳过撤销检查。
+pub fn decide_stable_prefix_reuse(
+    previous: Option<&StablePrefix>,
+    current: &StablePrefix,
+) -> Option<StablePrefixReuse> {
+    previous.map(|previous| StablePrefixReuse::from_decision(previous.reuse_for(current)))
+}
+
 /// 预算分项的观测字节数（解释用；不是新增授权或计费证据）。
 ///
 /// `system`/`history_content_blocks`/`tool_schemas`/`attachments` 四项相加（附件引用已在
@@ -449,6 +462,20 @@ impl WireBudgetParts {
 pub fn compile_wire_budget(
     prepared: &PreparedModelCall,
 ) -> Result<(WireBudget, WireBudgetParts), String> {
+    compile_wire_budget_with_accounting(prepared, CONSERVATIVE_WIRE_ACCOUNTING.clone())
+}
+
+/// 用调用方给出的会计口径构造一次性 wire 预算。
+///
+/// 适配器能提供精确计数时传入 [`TokenAccounting::Exact`] 或带 tokenizer 摘要的
+/// [`TokenAccounting::ExactTokenizer`]；缺失时必须显式使用
+/// [`CONSERVATIVE_WIRE_ACCOUNTING`]，不能把本地估计写成 provider 精度。无论哪种口径，
+/// 输出预留与输出 cap 都取自同一份有效 [`kiana_domain::TokenBudget`]（`reserved_output` /
+/// `limit`），超限时返回 `wire_budget_exceeded`，调用方必须在发送前拒绝。
+pub fn compile_wire_budget_with_accounting(
+    prepared: &PreparedModelCall,
+    accounting: TokenAccounting,
+) -> Result<(WireBudget, WireBudgetParts), String> {
     let parts = wire_budget_parts(prepared)?;
     let budget = WireBudget::from_input(WireBudgetInput {
         system_bytes: parts.system_bytes,
@@ -459,7 +486,7 @@ pub fn compile_wire_budget(
         output_reserved_tokens: prepared.budget.reserved_output,
         output_cap_tokens: prepared.budget.limit,
         token_limit: prepared.budget.limit,
-        accounting: CONSERVATIVE_WIRE_ACCOUNTING.clone(),
+        accounting,
     })?;
     Ok((budget, parts))
 }
