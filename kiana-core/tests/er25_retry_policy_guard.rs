@@ -229,3 +229,44 @@ fn unknown_or_denied_effects_never_auto_retry_and_exhaustion_is_terminal() {
         }
     }
 }
+
+/// The card's deny-first and regression fixtures must exist as real behavioural tests and stay
+/// deny-first; the source guards above only prove the shape of the retry read path.
+#[test]
+fn retry_behavioural_fixtures_are_wired() {
+    let fixtures = include_str!("er25_retry_policy.rs");
+    let workflow = include_str!("../../.github/workflows/er25-retry-policy.yml");
+    for name in [
+        "unknown_effect_never_auto_retries",
+        "policy_denied_never_retries",
+        "retry_exhaustion_is_terminal_failure_or_unknown",
+        "transient_before_dispatch_creates_a_bounded_new_attempt",
+        "known_no_effect_failure_honors_retry_after_backoff",
+        "absolute_deadline_bounds_backoff_before_a_new_attempt",
+        "duplicate_idempotency_key_is_fenced_at_the_attempt_reservation",
+    ] {
+        let needle = format!("fn {name}(");
+        assert!(
+            fixtures.contains(needle.as_str()),
+            "ER-25 behavioural fixture missing: {name}"
+        );
+    }
+    assert!(
+        !fixtures.contains("#[ignore]"),
+        "ER-25 behavioural fixtures must not be ignored"
+    );
+    assert!(
+        workflow.contains("--test er25_retry_policy"),
+        "ER-25 workflow must run the behavioural retry fixtures"
+    );
+    for forbidden in [
+        "unknown_effect_auto_retry",
+        "retry_unknown_effect",
+        "automatic_retry_allowed: true",
+    ] {
+        assert!(
+            !fixtures.contains(forbidden),
+            "ER-25 behavioural fixture widened retry authority: {forbidden}"
+        );
+    }
+}

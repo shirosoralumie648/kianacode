@@ -366,6 +366,7 @@
    "er22_cancel_recovery_guard",
    "er23_unknown_incident_guard",
    "er24_reconciliation_evidence_guard",
+   "er25_retry_policy",
    "er25_retry_policy_guard",
    "er26_cursor_snapshot_guard",
    "er27_entrypoint_parity_guard",
