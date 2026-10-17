@@ -232,7 +232,7 @@
 | OA-18 | Audit export/manifest/delivery evidence | `source`；server-scoped redacted JSONL/JSON/CSV materializer、query/source/projection/artifact manifest hashes、purpose/recipient/retention guards 和 Unknown delivery receipt 已实现；尚无 durable ArtifactStore/export file、external delivery connector/confirmation 或 export audit fact |
 | OA-19 | Alert/Incident rules, dedupe and Recovery association | `source`；committed metrics/facts 规则 fingerprint 去重、bounded Alert/Incident snapshot、source cursor/event refs、固定 reconciliation-safe recovery plan 已实现；尚无 durable incident checkpoint/event, operator workflow, queue/exporter live state or automatic reconciliation |
 | OA-20 | DataClass/Purpose/Retention/Deletion propagation | `source`；versioned DataPolicy/data_epoch/digest、payload-vs-audit metadata observations、committed invalidation projection、derived-store propagation map、daemon policy integrity/readout，以及逐目标删除结算面（`holds_payload`/`settled`/`settle`/`require_payload_coverage`/`require_complete` 与 `data_governance_project_scope_mismatch`/`data_governance_project_root_missing` 项目范围裁决）已实现；尚无 durable policy/snapshot checkpoint、实际 Artifact/Memory/Index/Telemetry purge scheduler、legal hold 或 cross-process deletion proof |
-| OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Health/Span comparison、bounded divergence locator、projection digests、unknown/schema/gap/duplicate guards 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
+| OA-21 | Replay/reconciliation diagnostics | `source`；read-only deterministic Invocation/Run/Metric/Audit/Receipt/Health/Span comparison、`kiana.replay-consistency-baseline.v1` 命名 projection digest 对照（`projection_mismatch` 不可降级）、`(invocation_id, attempt, input_digest, status, error_code)` canonical locator、unknown/schema/gap/duplicate/expectation guards 与只读 ControlPlane bridge 已实现；尚无 provider receipt reconciliation、automatic retry/compensation, durable diagnostics checkpoint or fault/capacity gate |
 | OA-22 | Crash/fault injection | `source`；deterministic replay-only eight-point FaultMatrix/Case safety contract、seed/source binding、unknown/rejected fencing and duplicate/false-success invariants 已实现；尚无 real crash/process fault hooks, EventStore/Broker/Provider/projector/export/shutdown injection, durable recovery or cross-process resource proof |
 | OA-23 | Provider-independent eval suite | `source`；versioned EvalCaseSpec/Result/Suite、normalized event/Audit/Metric/Span/Run/Replay evidence、secret/forbidden-effect/missing-evidence/status/replay/cost guards、promote only all-pass 已实现；尚无 real provider eval, Promptfoo runner, durable eval artifact, external receipt or automatic promotion/rollback |
 | OA-24 | 四入口审计/健康/Receipt parity | `source`；`kiana.entrypoint-parity.v1` 与 owner-scoped ControlPlane projection 已实现，CLI/Web/Workbench/Desktop 通过 protocol/DaemonHost 复用 source cursor、status、Receipt/Audit/Health digests、retention/unknown limitations；健康 endpoint 使用 liveness projection，入口不读 EventLog、不自行判定成功或恢复；尚无 durable query index、外部认证/健康探针、跨进程 retention/reconcile 或真实业务 Outcome 证明 |
@@ -748,23 +748,44 @@ legal hold 外部裁定或跨进程 deletion 证据；proof ceiling 仍是 `sour
 
 ## 27. OA-21 叠加说明
 
-OA-21 注册 `kiana.replay-diagnostic.v1` 与 `kiana.replay-diagnostic-snapshot.v1`。每条
-`ReplayDiagnostic` 绑定可选 invocation/attempt、input digest、expected/observed TraceStatus、受限
-divergence kind/error code、source cursor/event IDs 和 digest；snapshot 绑定 source、每个 deterministic
-projection digest、diagnostic 列表、status 和 limitations。原始 prompt/tool output/stack/secret 不进入
-diagnostic。
+OA-21 注册 `kiana.replay-diagnostic.v1`、`kiana.replay-diagnostic-snapshot.v1` 与
+`kiana.replay-consistency-baseline.v1`。每条 `ReplayDiagnostic` 绑定可选 invocation/attempt、input digest、
+expected/observed TraceStatus 与 error code、受限 divergence kind/error code、source cursor/event IDs 和
+digest；snapshot 绑定 source、每个 deterministic projection digest、baseline digest、diagnostic 列表、
+status 和 limitations。原始 prompt/tool output/stack/secret 不进入 diagnostic。
 
-`kiana-core::diagnose_replay` 仅重放已有 Invocation、Run、Metric、Audit、Health、Span projection；duplicate
-source、cursor gap、unknown audit/schema、terminal/projection error、effect unknown 或 expectation status/input
-digest mismatch 产生首个可定位 divergence 并令 snapshot `unknown`，不会调用 Model/Provider/Broker、执行
-Recovery action、重试或回写 metric/trace/receipt facts。`ControlPlane::replay_diagnostics` 只读 EventLog 全量
-事实；projection digest 只用于一致性诊断，不替代 EventLog/Receipt/Audit authority。
+`kiana-core::diagnose_replay[_with_baseline]` 仅重放已有 Invocation、Run、Metric、Audit、Receipt、Health、
+Span projection；duplicate source、cursor gap、unknown audit/schema、terminal/projection error、effect
+unknown、expectation status/input/error-code mismatch 或 unmatched expectation 产生 divergence 并令
+snapshot `unknown`，不会调用 Model/Provider/Broker、执行 Recovery action、重试或回写
+metric/trace/receipt facts。`ControlPlane::replay_diagnostics[_against_baseline]` 只读 EventLog 全量事实；
+projection digest 只用于一致性诊断，不替代 EventLog/Receipt/Audit authority。
 
-OA-21 远端 workflow 覆盖 deterministic replay、source duplicate/gap、unknown schema/terminal/projection
-errors、unknown effect locator、expectation status/input mismatch、safe error code/secret absence、snapshot
-serde 和 bounded expectations；本地只执行格式、静态源码检查和 test-target 编译，不执行测试二进制。该
-诊断仍是 source projection，不等价于 provider-side reconciliation/receipt、automatic compensate/retry、
-durable diagnostic checkpoint、fault injection 或 live health/incident consistency。
+2026-10-17 完成切片（CI-only）：
+
+- `ReplayConsistencyBaseline` 只接受 `audit|receipt|health|metrics|run|invocations|spans` 七个具名
+  deterministic projection；未知名字、空集合、重复 source、坏 digest 与自摘要漂移全部 fail-closed。
+  baseline 的 source 绑定不一致 → `replay_baseline_source_mismatch`；逐 projection 生成
+  `replay_<projection>_digest_mismatch` / `replay_<projection>_digest_unavailable` 的
+  `projection_mismatch` divergence，绝不把不一致降级为 limitation 或通过。
+- receipt projector digest 进入 snapshot（此前只有 audit/health）；run 级 replay 缺 receipt 事实时记录
+  `replay_receipt_projection_unavailable`，baseline 声明了 receipt 则同时产生 divergence。
+- `(invocation_id, attempt, input_digest, status, error_code)` 成为 canonical locator
+  （`ReplayDiagnostic::locator_key` / `ReplayDiagnosticSnapshot::first_divergence`）；diagnostics 在
+  snapshot 内按该键稳定排序，重排后的伪造 snapshot → `replay_diagnostic_order_invalid`。
+- expectation 现在同时比较 `expected_error_code` 与 observed terminal error token；未匹配任何 invocation
+  的 expectation → `replay_expectation_invocation_missing`；无 run 却给 expectations →
+  `replay_expectation_run_required`（不再静默丢弃）。
+- 夹具：`kiana-core/tests/oa21_replay_diagnostics.rs` + `kiana-core/tests/fixtures/oa21-replay-consistency.json`
+  （audit/receipt/health baseline 一致、篡改 digest、外来 source、receipt unavailable、未知 projector、
+  unknown audit schema、error-code/status/input mismatch、missing invocation、只读 ControlPlane bridge
+  零 append）+ `kiana-core/tests/oa21_replay_diagnostics_guard.rs` 源码边界守卫；手动
+  `.github/workflows/oa21-replay-diagnostics.yml`，自动覆盖登记在 `kiana-core-s5/6`
+  （`oa21_replay_diagnostics`、`oa21_replay_diagnostics_guard`）。
+
+限制不变：该诊断仍是 source projection，不等价于 provider-side reconciliation/receipt、automatic
+compensate/retry、durable diagnostic checkpoint、fault injection 或 live health/incident consistency；
+CI 回执未等待。
 
 ## 28. OA-22 叠加说明
 
