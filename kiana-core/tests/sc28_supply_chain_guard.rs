@@ -6,6 +6,7 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
     let scanner = include_str!("../../scripts/supply-chain-scan.sh");
     let normalizer = include_str!("../../scripts/supply-chain-scan.py");
     let validator = include_str!("../../scripts/validate-sc28-supply-chain.sh");
+    let fixtures = include_str!("../../scripts/tests/test_sc28_supply_chain.py");
     let deny = include_str!("../../deny.toml");
     let baseline = include_str!("../../docs/roadmap/sc28-supply-chain-baseline.md");
     let current_status = include_str!("../../CURRENT_STATUS.md");
@@ -20,6 +21,7 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "cargo fmt --all --check",
         "supply-chain-scan.sh",
         "upload-artifact@v4",
+        "scripts/tests/test_sc28_supply_chain.py",
     ] {
         assert!(
             workflow.contains(marker),
@@ -27,6 +29,17 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         );
     }
     assert!(!workflow.contains("continue-on-error: true"));
+    // The shipped lane pins zero tolerance for advisories. Raising either bound is
+    // a policy change that has to be visible in this file, not a silent fixture.
+    for marker in [
+        "SC28_MAX_HIGH_ADVISORIES: \"0\"",
+        "SC28_MAX_CRITICAL_ADVISORIES: \"0\"",
+    ] {
+        assert!(
+            workflow.contains(marker),
+            "SC-28 workflow must pin the zero-tolerance threshold: {marker}"
+        );
+    }
     for marker in [
         "Cargo.lock",
         "cargo metadata",
@@ -35,6 +48,9 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "SC28_MAX_HIGH_ADVISORIES",
         "SC28_MAX_CRITICAL_ADVISORIES",
         "lock_dirty",
+        "--metadata-exit",
+        "--lock-present",
+        "--audit-version",
     ] {
         assert!(
             scanner.contains(marker),
@@ -44,9 +60,14 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
     for marker in [
         "CycloneDX",
         "SPDX-2.3",
+        "REASON_CODES",
+        "lockfile_missing",
+        "lockfile_resolution_failed",
+        "dependency_graph_empty",
         "lockfile_drift",
         "license_unknown",
         "advisory_found",
+        "advisory_severity_unclassified",
         "quarantined",
         "automatic_release_allowed",
     ] {
@@ -73,6 +94,10 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "advisory",
         "license",
         "quarantine",
+        "completion slice",
+        "deny-first",
+        "test_sc28_supply_chain.py",
+        "lockfile_resolution_failed",
         "limitations",
         "reviewer",
     ] {
@@ -87,10 +112,53 @@ fn sc28_supply_chain_scanner_is_locked_and_quarantines_failures() {
         "supply-chain-scan.py",
         "lockfile_drift",
         "automatic_release_allowed",
+        "test_sc28_supply_chain.py",
     ] {
         assert!(
             validator.contains(marker),
             "SC-28 validator marker missing: {marker}"
+        );
+    }
+    for marker in [
+        "lockfile_missing",
+        "lockfile_resolution_failed",
+        "dependency_graph_empty",
+        "advisory_severity_unclassified",
+        "advisory_found",
+        "auto",
+    ] {
+        assert!(
+            fixtures.contains(marker),
+            "SC-28 fixture marker missing: {marker}"
+        );
+    }
+    // Deny-first ordering is a contract, not a preference: the success fixture is
+    // the last test in the file, so a passing gate cannot hide a missing denial.
+    let last_test = fixtures
+        .rsplit("def test_")
+        .next()
+        .expect("SC-28 fixtures define at least one test");
+    assert!(
+        last_test.starts_with("clean_locked_snapshot_passes"),
+        "SC-28 success fixture must be the final deny-first fixture"
+    );
+    // The fixtures are offline pure-Python: they must never grow a process or
+    // network edge, and they must never run the real Cargo or scanner commands.
+    for forbidden in [
+        "import subprocess",
+        "import socket",
+        "import urllib",
+        "import requests",
+        "import shutil",
+        "subprocess.run",
+        "urllib.request",
+        "socket.socket",
+        "cargo audit",
+        "cargo deny",
+    ] {
+        assert!(
+            !fixtures.contains(forbidden),
+            "SC-28 fixtures must stay offline: {forbidden}"
         );
     }
     assert!(current_status.contains("### SC-28"));

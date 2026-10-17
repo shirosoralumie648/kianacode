@@ -2,8 +2,10 @@
 set -euo pipefail
 
 # SC-28 is the read-only dependency/release input gate. It never publishes an
-# artifact. Any missing scanner, lock drift, unknown license or advisory keeps
-# the report quarantined and returns non-zero.
+# artifact. Any missing lockfile, unresolved dependency graph, lock drift,
+# unknown license, advisory finding or scanner failure keeps the report
+# quarantined and returns non-zero, so a reviewer always receives a machine
+# readable report instead of a bare non-zero exit.
 cd "$(dirname "$0")/.."
 
 out_dir="${1:-${SC28_OUT_DIR:-dist/sc28-supply-chain}}"
@@ -27,22 +29,33 @@ sha256_file() {
 }
 
 lockfile="Cargo.lock"
-if [[ ! -f "$lockfile" ]]; then
-  echo "SC-28 requires a committed Cargo.lock" >&2
-  exit 1
-fi
-
-lock_before="$(sha256_file "$lockfile")"
+lock_present=true
+lock_before="missing"
+lock_after="missing"
 metadata_file="$out_dir/cargo-metadata.json"
-printf '%s  %s\n' "$lock_before" "$lockfile" > "$out_dir/Cargo.lock.sha256"
-# The locked metadata command is the only dependency graph source for SC-28:
-# cargo metadata --locked --format-version 1 (optionally with --offline).
-cargo_args=(metadata --locked --format-version 1)
-if [[ "${SC28_OFFLINE:-0}" == "1" ]]; then
-  cargo_args+=(--offline)
+metadata_exit=127
+
+if [[ -f "$lockfile" ]]; then
+  lock_before="$(sha256_file "$lockfile")"
+  printf '%s  %s\n' "$lock_before" "$lockfile" > "$out_dir/Cargo.lock.sha256"
+  # The locked metadata command is the only dependency graph source for SC-28:
+  # cargo metadata --locked --format-version 1 (optionally with --offline). A
+  # non-zero exit is recorded as evidence instead of aborting the script, so an
+  # unlocked or unresolvable dependency graph still produces a quarantine record.
+  cargo_args=(metadata --locked --format-version 1)
+  if [[ "${SC28_OFFLINE:-0}" == "1" ]]; then
+    cargo_args+=(--offline)
+  fi
+  set +e
+  cargo "${cargo_args[@]}" > "$metadata_file"
+  metadata_exit=$?
+  set -e
+  lock_after="$(sha256_file "$lockfile")"
+else
+  lock_present=false
+  : > "$metadata_file"
+  echo "SC-28: Cargo.lock is absent; recording a quarantine report instead of exiting early" >&2
 fi
-cargo "${cargo_args[@]}" > "$metadata_file"
-lock_after="$(sha256_file "$lockfile")"
 
 lock_dirty=false
 if ! git diff --quiet -- Cargo.lock; then
@@ -96,6 +109,20 @@ max_high="${SC28_MAX_HIGH_ADVISORIES:-0}"
 max_critical="${SC28_MAX_CRITICAL_ADVISORIES:-0}"
 expected_digest="${SC28_EXPECTED_LOCKFILE_SHA256:-}"
 
+# Record which scanner builds produced the evidence. The binaries are installed by
+# the CI lane with `cargo install --locked`; their resolved versions are evidence,
+# not a pin, so a future drift is visible in the report instead of silent.
+audit_version="unknown"
+if [[ "$audit_tool" != "missing" ]]; then
+  audit_version="$("$audit_tool" --version 2>/dev/null | head -n1 || true)"
+  audit_version="${audit_version:-unknown}"
+fi
+deny_version="unknown"
+if [[ "$deny_tool" != "missing" ]]; then
+  deny_version="$("$deny_tool" --version 2>/dev/null | head -n1 || true)"
+  deny_version="${deny_version:-unknown}"
+fi
+
 set +e
 "$python_bin" scripts/supply-chain-scan.py \
   --metadata "$metadata_file" \
@@ -104,6 +131,8 @@ set +e
   --source-revision "$source_revision" \
   --lock-before "$lock_before" \
   --lock-after "$lock_after" \
+  --lock-present "$lock_present" \
+  --metadata-exit "$metadata_exit" \
   --lock-dirty "$lock_dirty" \
   --expected-lock-digest "$expected_digest" \
   --audit-json "$audit_json" \
@@ -111,6 +140,8 @@ set +e
   --deny-exit "$deny_exit" \
   --audit-tool "$audit_tool" \
   --deny-tool "$deny_tool" \
+  --audit-version "$audit_version" \
+  --deny-version "$deny_version" \
   --max-high "$max_high" \
   --max-critical "$max_critical"
 scan_exit=$?
