@@ -385,3 +385,517 @@ impl CapabilityAdmissionScheduler {
         self.notify.notify_waiters();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! CAP-23 行为夹具：直接驱动生产 `CapabilityAdmissionScheduler`，证明叠加写范围不会
+    //! 并发执行、排队调用取消后不会启动、Unknown 结果继续隔离同范围、互不冲突的读/写可以
+    //! 并行，以及释放/拒绝/队列上限的清理边界。
+    //!
+    //! 这些夹具只覆盖调度层的准入判定，不启动任何 handler、不写 EventLog、不申请 Cell 额度；
+    //! Cell 预算/并发上限由 `cell_registry::tests` 的夹具覆盖。夹具里的 `ExecutionScope`
+    //! 只为推导 footprint 而构造，未经过 Domain/Broker 的授权校验，因此不能当作授权证据。
+    use super::*;
+    use kiana_domain::{
+        AuthenticatedPrincipalRef, ExecutionScope, ProjectIdentity, RequestId, ScopeLimit,
+        ScopeSet, SessionId,
+    };
+    use std::sync::{Arc, PoisonError};
+    use std::time::Duration;
+
+    /// 测试专用视图：只读共享状态，用于断言某次准入确实没有发生，而不是只靠计时推断。
+    impl CapabilityAdmissionScheduler {
+        fn active_tickets(&self) -> Vec<u64> {
+            let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut tickets = state.active.keys().copied().collect::<Vec<_>>();
+            tickets.sort_unstable();
+            tickets
+        }
+
+        fn pending_tickets(&self) -> Vec<u64> {
+            let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+            state.pending.iter().map(|item| item.ticket).collect()
+        }
+
+        fn quarantined_len(&self) -> usize {
+            let state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+            state.quarantined.len()
+        }
+    }
+
+    fn lease_channel() -> (watch::Sender<bool>, watch::Receiver<bool>) {
+        watch::channel(false)
+    }
+
+    fn scope(permission_paths: &[&str], write_roots: &[&str]) -> ExecutionScope {
+        let permission_scope = ScopeSet::new(
+            ScopeDimension::NotApplicable,
+            ScopeDimension::Restricted(
+                permission_paths
+                    .iter()
+                    .map(|path| (*path).to_owned())
+                    .collect(),
+            ),
+            ScopeDimension::NotApplicable,
+            ScopeDimension::NotApplicable,
+            ScopeLimit::NotApplicable,
+            ScopeLimit::NotApplicable,
+        )
+        .expect("cap23 fixture scope set");
+        let project = ProjectIdentity::new(
+            "/tmp/cap23-project",
+            "/tmp/cap23-project",
+            None,
+            None,
+            "cap23-fixture-trust",
+        )
+        .expect("cap23 fixture project identity");
+        ExecutionScope {
+            schema: kiana_domain::EXECUTION_SCOPE_SCHEMA.to_owned(),
+            version: kiana_domain::EXECUTION_SCOPE_SCHEMA_VERSION,
+            principal: AuthenticatedPrincipalRef::local(),
+            project,
+            session_id: SessionId::new("cap23-fixture-session"),
+            run_id: None,
+            turn_id: None,
+            cell_id: None,
+            grant_refs: Vec::new(),
+            budget_lease_id: None,
+            work_packet_id: None,
+            environment_id: "kiana-local".to_owned(),
+            workspace_revision: None,
+            permission_scope_digest: permission_scope.digest(),
+            permission_scope,
+            read_roots: Vec::new(),
+            write_roots: write_roots.iter().map(|path| (*path).to_owned()).collect(),
+            read_denies: Vec::new(),
+            write_denies: Vec::new(),
+            memory_scopes: Vec::new(),
+            server_scopes: Vec::new(),
+            network_policy: Vec::new(),
+            authority_epoch: 1,
+            trust_revision: "cap23-fixture".to_owned(),
+            data_epoch: 1,
+            cancellation_epoch: 1,
+            deadline_unix_ms: u64::MAX,
+            fencing_token: 1,
+            catalog_digest: String::new(),
+            action_digest: String::new(),
+            scope_digest: String::new(),
+        }
+    }
+
+    fn request(
+        risk: RiskLevel,
+        capability: CapabilityKind,
+        operation: &str,
+        permission_paths: &[&str],
+        write_roots: &[&str],
+    ) -> CapabilityRequest {
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            capability,
+            operation,
+            serde_json::json!({"call_id": "cap23-call"}),
+        )
+        .with_risk(risk);
+        request.execution_scope = Some(scope(permission_paths, write_roots));
+        request
+    }
+
+    #[tokio::test]
+    async fn overlapping_write_scopes_never_execute_concurrently() {
+        let scheduler = Arc::new(CapabilityAdmissionScheduler::default());
+        // shell.exec 只声明服务端授权写 scope；锁必须来自 `ExecutionScope.write_roots`，
+        // 而不是从命令文本里猜文件清单。
+        let shell = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Process,
+            "shell.exec",
+            &[],
+            &["src"],
+        );
+        let (_shell_tx, shell_rx) = lease_channel();
+        let shell_lease = scheduler
+            .acquire(&shell, shell_rx)
+            .await
+            .expect("shell write admitted");
+        assert_eq!(scheduler.active_tickets(), vec![shell_lease.ticket]);
+
+        let patch = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src/lib.rs"],
+        );
+        let (_patch_tx, patch_rx) = lease_channel();
+        let patch_scheduler = scheduler.clone();
+        let mut patch_waiter =
+            tokio::spawn(async move { patch_scheduler.acquire(&patch, patch_rx).await });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut patch_waiter)
+                .await
+                .is_err(),
+            "an overlapping child write path must not enter the active set"
+        );
+        assert_eq!(
+            scheduler.active_tickets(),
+            vec![shell_lease.ticket],
+            "only the shell write may hold the overlapping scope"
+        );
+
+        // 外部副作用按 Unknown 处理：即使本地写已经持有活动槽，也必须串行化。
+        let external = request(
+            RiskLevel::ExternalSideEffect,
+            CapabilityKind::Network,
+            "connector.invoke",
+            &[],
+            &[],
+        );
+        let (_external_tx, external_rx) = lease_channel();
+        let external_scheduler = scheduler.clone();
+        let mut external_waiter =
+            tokio::spawn(async move { external_scheduler.acquire(&external, external_rx).await });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut external_waiter)
+                .await
+                .is_err(),
+            "unknown external effects stay exclusive against an active local write"
+        );
+
+        scheduler.release(shell_lease, AdmissionOutcome::Known);
+        let patch_lease = tokio::time::timeout(Duration::from_secs(5), patch_waiter)
+            .await
+            .expect("overlapping write admitted only after the holder released")
+            .expect("patch waiter joined")
+            .expect("patch lease");
+        assert_eq!(scheduler.active_tickets(), vec![patch_lease.ticket]);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut external_waiter)
+                .await
+                .is_err(),
+            "the unknown external effect still waits for the local write to finish"
+        );
+
+        scheduler.release(patch_lease, AdmissionOutcome::Known);
+        let external_lease = tokio::time::timeout(Duration::from_secs(5), external_waiter)
+            .await
+            .expect("external effect admitted after every local write released")
+            .expect("external waiter joined")
+            .expect("external lease");
+        assert_eq!(scheduler.active_tickets(), vec![external_lease.ticket]);
+        scheduler.release(external_lease, AdmissionOutcome::Known);
+        assert!(scheduler.active_tickets().is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancelled_queued_call_never_spawns() {
+        let scheduler = Arc::new(CapabilityAdmissionScheduler::default());
+        let holder = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src"],
+        );
+        let (_holder_tx, holder_rx) = lease_channel();
+        let holder_lease = scheduler
+            .acquire(&holder, holder_rx)
+            .await
+            .expect("holder admitted");
+
+        let queued = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src/app.rs"],
+        );
+        let (queued_tx, queued_rx) = lease_channel();
+        let queued_scheduler = scheduler.clone();
+        let mut queued_waiter =
+            tokio::spawn(async move { queued_scheduler.acquire(&queued, queued_rx).await });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut queued_waiter)
+                .await
+                .is_err(),
+            "the queued call must wait behind the overlapping write"
+        );
+        assert_eq!(scheduler.pending_tickets().len(), 1);
+
+        queued_tx.send(true).expect("cancel the queued call");
+        let queued_result = tokio::time::timeout(Duration::from_secs(5), queued_waiter)
+            .await
+            .expect("cancelled waiter finished")
+            .expect("queued waiter joined");
+        match queued_result {
+            Err(PortError::Conflict(reason)) => assert_eq!(reason, "cancelled:before_dispatch"),
+            Err(other) => panic!("queued cancellation must fail closed, got {other:?}"),
+            Ok(_) => panic!("a cancelled queued call must never be admitted"),
+        }
+        assert_eq!(
+            scheduler.active_tickets(),
+            vec![holder_lease.ticket],
+            "the cancelled call must not hold a slot"
+        );
+        assert!(
+            scheduler.pending_tickets().is_empty(),
+            "cancellation removes the queued entry"
+        );
+
+        scheduler.release(holder_lease, AdmissionOutcome::Known);
+        assert!(
+            scheduler.active_tickets().is_empty(),
+            "releasing the holder must not revive the cancelled queue entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn pre_cancelled_requests_never_enter_the_queue_or_take_a_slot() {
+        let scheduler = CapabilityAdmissionScheduler::default();
+        let (cancel_tx, cancel_rx) = lease_channel();
+        cancel_tx.send(true).expect("pre-cancel");
+        let cancelled = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src"],
+        );
+        match scheduler.acquire(&cancelled, cancel_rx).await {
+            Err(PortError::Conflict(reason)) => assert_eq!(reason, "cancelled:before_dispatch"),
+            Err(other) => panic!("pre-cancelled request must fail closed, got {other:?}"),
+            Ok(_) => panic!("a pre-cancelled request must not take a slot"),
+        }
+        assert!(scheduler.active_tickets().is_empty());
+        assert!(scheduler.pending_tickets().is_empty());
+
+        // 同一范围仍可由后续未被取消的请求正常使用。
+        let (_later_tx, later_rx) = lease_channel();
+        let lease = scheduler
+            .acquire(&cancelled, later_rx)
+            .await
+            .expect("scope stays free after a pre-cancelled request");
+        scheduler.release(lease, AdmissionOutcome::Known);
+        assert!(scheduler.active_tickets().is_empty());
+    }
+
+    #[tokio::test]
+    async fn read_only_requests_share_and_disjoint_writes_run_concurrently() {
+        let scheduler = Arc::new(CapabilityAdmissionScheduler::default());
+        let read_a = request(
+            RiskLevel::ReadOnly,
+            CapabilityKind::Filesystem,
+            "context.search",
+            &["src/lib.rs"],
+            &[],
+        );
+        let (_read_a_tx, read_a_rx) = lease_channel();
+        let read_a_lease = scheduler
+            .acquire(&read_a, read_a_rx)
+            .await
+            .expect("read a admitted");
+        let read_b = request(
+            RiskLevel::ReadOnly,
+            CapabilityKind::Filesystem,
+            "context.search",
+            &["src/lib.rs"],
+            &[],
+        );
+        let (_read_b_tx, read_b_rx) = lease_channel();
+        let read_b_lease = scheduler
+            .acquire(&read_b, read_b_rx)
+            .await
+            .expect("a second read of the same path is admitted");
+        let write_docs = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["docs"],
+        );
+        let (_write_docs_tx, write_docs_rx) = lease_channel();
+        let write_docs_lease = scheduler
+            .acquire(&write_docs, write_docs_rx)
+            .await
+            .expect("a disjoint write scope is admitted beside reads");
+        assert_eq!(
+            scheduler.active_tickets().len(),
+            3,
+            "reads and disjoint writes share the active set"
+        );
+        assert_eq!(scheduler.quarantined_len(), 0);
+
+        // 与该读范围重叠的写必须等待：读子树被写范围覆盖时按冲突处理。
+        let write_src = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src"],
+        );
+        let (_write_src_tx, write_src_rx) = lease_channel();
+        let write_src_scheduler = scheduler.clone();
+        let mut write_src_waiter =
+            tokio::spawn(
+                async move { write_src_scheduler.acquire(&write_src, write_src_rx).await },
+            );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut write_src_waiter)
+                .await
+                .is_err(),
+            "a write overlapping an active read subtree must not run concurrently"
+        );
+
+        scheduler.release(read_a_lease, AdmissionOutcome::Known);
+        scheduler.release(read_b_lease, AdmissionOutcome::Known);
+        scheduler.release(write_docs_lease, AdmissionOutcome::Known);
+        let write_src_lease = tokio::time::timeout(Duration::from_secs(5), write_src_waiter)
+            .await
+            .expect("the overlapping write is admitted once the reads release")
+            .expect("write waiter joined")
+            .expect("write lease");
+        scheduler.release(write_src_lease, AdmissionOutcome::Known);
+        assert!(scheduler.active_tickets().is_empty());
+    }
+
+    #[tokio::test]
+    async fn unknown_result_quarantines_its_scope_from_successors() {
+        let scheduler = Arc::new(CapabilityAdmissionScheduler::default());
+        let first = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src"],
+        );
+        let (_first_tx, first_rx) = lease_channel();
+        let first_lease = scheduler
+            .acquire(&first, first_rx)
+            .await
+            .expect("first admitted");
+        scheduler.release(first_lease, AdmissionOutcome::Unknown);
+        assert!(scheduler.active_tickets().is_empty());
+        assert_eq!(scheduler.quarantined_len(), 1);
+
+        let successor = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src/lib.rs"],
+        );
+        let (_successor_tx, successor_rx) = lease_channel();
+        let successor_scheduler = scheduler.clone();
+        let mut successor_waiter =
+            tokio::spawn(
+                async move { successor_scheduler.acquire(&successor, successor_rx).await },
+            );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut successor_waiter)
+                .await
+                .is_err(),
+            "an unresolved side effect must not hand its scope to a sibling request"
+        );
+        assert!(scheduler.active_tickets().is_empty());
+        assert_eq!(scheduler.pending_tickets().len(), 1);
+
+        // quarantine 只绑定该范围，不是全局停机：互不重叠的读仍然可以运行。
+        let disjoint = request(
+            RiskLevel::ReadOnly,
+            CapabilityKind::Filesystem,
+            "context.search",
+            &["docs"],
+            &[],
+        );
+        let (_disjoint_tx, disjoint_rx) = lease_channel();
+        let disjoint_lease = scheduler
+            .acquire(&disjoint, disjoint_rx)
+            .await
+            .expect("a disjoint read is admitted while the scope is quarantined");
+        assert_eq!(scheduler.active_tickets(), vec![disjoint_lease.ticket]);
+        scheduler.release(disjoint_lease, AdmissionOutcome::Known);
+
+        successor_waiter.abort();
+        let _ = successor_waiter.await;
+    }
+
+    #[tokio::test]
+    async fn released_or_rejected_admissions_clean_up_their_slot_and_queue_is_bounded() {
+        let scheduler = Arc::new(CapabilityAdmissionScheduler::default());
+        let gate = request(
+            RiskLevel::ExternalSideEffect,
+            CapabilityKind::Network,
+            "connector.invoke",
+            &[],
+            &[],
+        );
+        let (_gate_tx, gate_rx) = lease_channel();
+        let gate_lease = scheduler
+            .acquire(&gate, gate_rx)
+            .await
+            .expect("gate admitted");
+        // 已知结果立即释放活动槽：同一范围可以再次准入。
+        scheduler.release(gate_lease, AdmissionOutcome::Known);
+        let (_gate_again_tx, gate_again_rx) = lease_channel();
+        let gate_lease = scheduler
+            .acquire(&gate, gate_again_rx)
+            .await
+            .expect("a known outcome releases the slot for the same scope");
+        assert_eq!(scheduler.active_tickets(), vec![gate_lease.ticket]);
+
+        // 排队有硬上限：达到上限后新请求必须被拒绝，而不是让队列无界增长。
+        // 取消信号的 sender 必须活到断言之后：sender 被丢弃会让等待者走
+        // `changed()` 失败分支并自行出队，那样就测不到队列上限。
+        let mut waiters = Vec::new();
+        let mut paddles = Vec::new();
+        for _ in 0..MAX_PENDING_ADMISSIONS {
+            let pending = request(
+                RiskLevel::LocalWrite,
+                CapabilityKind::Filesystem,
+                "apply_patch",
+                &[],
+                &["src"],
+            );
+            let (pending_tx, pending_rx) = lease_channel();
+            paddles.push(pending_tx);
+            let pending_scheduler = scheduler.clone();
+            waiters.push(tokio::spawn(async move {
+                pending_scheduler.acquire(&pending, pending_rx).await
+            }));
+        }
+        let mut attempts = 0;
+        while scheduler.pending_tickets().len() < MAX_PENDING_ADMISSIONS && attempts < 10_000 {
+            tokio::task::yield_now().await;
+            attempts += 1;
+        }
+        assert_eq!(
+            scheduler.pending_tickets().len(),
+            MAX_PENDING_ADMISSIONS,
+            "every spawned waiter must be queued before the bound is probed"
+        );
+
+        let overflowing = request(
+            RiskLevel::LocalWrite,
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            &[],
+            &["src"],
+        );
+        let (_overflow_tx, overflow_rx) = lease_channel();
+        match scheduler.acquire(&overflowing, overflow_rx).await {
+            Err(PortError::Conflict(reason)) => {
+                assert_eq!(reason, "capability_scheduler_queue_full")
+            }
+            Err(other) => panic!("queue overflow must fail closed, got {other:?}"),
+            Ok(_) => panic!("the admission queue must reject work beyond its bound"),
+        }
+
+        for waiter in waiters {
+            waiter.abort();
+        }
+        scheduler.release(gate_lease, AdmissionOutcome::Known);
+        assert!(scheduler.active_tickets().is_empty());
+    }
+}

@@ -1171,3 +1171,319 @@ impl CellRegistryPort for MemoryCellRegistry {
             .or_else(|| cell_ids.first().copied()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! CAP-23 行为夹具：直接驱动生产 `MemoryCellRegistry`，证明同一 Cell 的并行调用不能
+    //! 越过父租约的预算/并发上限、被拒绝的调用不会消耗额度、已消耗的 effect 不会因失败被
+    //! 悄悄退还、并发槽在 finish 后释放，以及同一 request_id 不能在同一租约上并行启动两次。
+    //!
+    //! 夹具用真实 Domain 值对象走 `resolve_template` → `reserve_spawn` → `commit_spawn` →
+    //! `transition_cell(Ready, Running)` 的完整准入路径，但只覆盖进程内账本行为：不发事件、
+    //! 不启动 worker、不执行 handler，也不证明跨进程路径锁（那部分由 `sessions` 的 flock 与
+    //! 对应 guard 覆盖）。
+    use super::*;
+    use kiana_domain::{
+        CapabilityGrant, CapabilityKind, CapabilityRequest, RiskLevel, SpawnPlan, SupervisionLease,
+        CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA, ROLE_BUILDER, SPAWN_PLAN_SCHEMA,
+        SUPERVISION_LEASE_SCHEMA,
+    };
+
+    struct Fixture {
+        registry: MemoryCellRegistry,
+        cell_id: CellId,
+        grant_id: kiana_domain::CapabilityGrantId,
+        budget_id: BudgetLeaseId,
+        plan_id: SpawnPlanId,
+    }
+
+    /// 测试专用视图：只读取「当前有多少能力调用仍在进行」，不修改账本。
+    impl MemoryCellRegistry {
+        fn active_capability_count(&self, plan_id: SpawnPlanId) -> usize {
+            let state = self.state.lock().expect("cap23 registry lock");
+            state
+                .records
+                .get(&plan_id)
+                .map(|record| record.active_capabilities.len())
+                .unwrap_or(0)
+        }
+    }
+
+    fn capability_request(fixture: &Fixture, risk: RiskLevel) -> CapabilityRequest {
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            "apply_patch",
+            serde_json::json!({"call_id": "cap23-cell-call"}),
+        )
+        .with_risk(risk);
+        request.cell_id = Some(fixture.cell_id);
+        request.capability_grant_id = Some(fixture.grant_id);
+        request.budget_lease_id = Some(fixture.budget_id);
+        request
+    }
+
+    /// 用给定预算把一个 builder Cell 推进到 `Running`，返回可直接调用 `begin_capability` 的绑定。
+    async fn running_fixture(budget: BudgetLease) -> Fixture {
+        let registry = MemoryCellRegistry::new();
+        let template = registry
+            .resolve_template(ROLE_BUILDER, TEMPLATE_VERSION)
+            .await
+            .expect("cap23 template resolves");
+        let now = MemoryCellRegistry::now_unix_ms();
+        let deadline_unix_ms = now.saturating_add(120_000);
+        let supervision = SupervisionLease {
+            schema: SUPERVISION_LEASE_SCHEMA.to_owned(),
+            lease_id: kiana_domain::SupervisionLeaseId::new(),
+            heartbeat_interval_seconds: 15,
+            stall_threshold_seconds: 300,
+            retry_limit: 0,
+            retries_used: 0,
+        };
+        let grant = CapabilityGrant {
+            schema: CAPABILITY_GRANT_SCHEMA.to_owned(),
+            grant_id: kiana_domain::CapabilityGrantId::new(),
+            capability: CapabilityKind::Filesystem,
+            operation: "apply_patch".to_owned(),
+            resources: vec!["workspace".to_owned()],
+            paths: vec!["src".to_owned(), "docs".to_owned()],
+            expires_at_unix_ms: now.saturating_add(240_000),
+            approval_id: None,
+            delegation_allowed: false,
+        };
+        let plan = SpawnPlan {
+            schema: SPAWN_PLAN_SCHEMA.to_owned(),
+            plan_id: SpawnPlanId::new(),
+            parent_cell_id: None,
+            reason_code: "cap23_concurrency_fixture".to_owned(),
+            candidate_templates: vec![template.template_id],
+            count: 1,
+            partition: "cap23-partition".to_owned(),
+            input_refs: Vec::new(),
+            output_contract: "kiana.cap23-fixture.v1".to_owned(),
+            requested_capabilities: Vec::new(),
+            budget_reservation: 1,
+            deadline_unix_ms,
+            rollback_policy: "abort".to_owned(),
+            idempotency_key: format!("cap23-fixture:{}", SpawnPlanId::new()),
+            expected_utility: 0,
+            status: SpawnPlanStatus::Proposed,
+        };
+        let cell = CellSpec {
+            schema: CELL_SCHEMA.to_owned(),
+            cell_id: CellId::new(),
+            parent_cell_id: None,
+            root_run_id: RunId::new(),
+            template_id: template.template_id,
+            template_version: template.version.clone(),
+            role_id: ROLE_BUILDER.to_owned(),
+            objective: plan.reason_code.clone(),
+            input_refs: plan.input_refs.clone(),
+            output_contract: plan.output_contract.clone(),
+            partition_key: plan.partition.clone(),
+            owned_paths: vec!["src".to_owned()],
+            work_packet_id: None,
+            owner_actor_id: None,
+            capability_grant_id: grant.grant_id,
+            budget_lease_id: budget.lease_id,
+            supervision_lease_id: supervision.lease_id,
+            depth: 0,
+            spawn_quota: 0,
+            lifecycle: CellLifecycle::Proposed,
+        };
+        let fingerprint = WorkFingerprint::from_parts(
+            &plan.reason_code,
+            &plan.input_refs,
+            &plan.partition,
+            &plan.output_contract,
+            "kiana.policy.v1",
+        )
+        .expect("cap23 fingerprint");
+        let fixture = Fixture {
+            registry,
+            cell_id: cell.cell_id,
+            grant_id: grant.grant_id,
+            budget_id: budget.lease_id,
+            plan_id: plan.plan_id,
+        };
+        fixture
+            .registry
+            .reserve_spawn(SpawnReservationRequest {
+                plan,
+                cell,
+                template,
+                budget,
+                grant,
+                supervision,
+                fingerprint,
+                owned_paths: vec!["src".to_owned()],
+            })
+            .await
+            .expect("cap23 reservation admitted");
+        fixture
+            .registry
+            .commit_spawn(fixture.plan_id)
+            .await
+            .expect("cap23 spawn committed");
+        fixture
+            .registry
+            .transition_cell(
+                fixture.cell_id,
+                CellLifecycle::Ready,
+                CellLifecycle::Running,
+            )
+            .await
+            .expect("cap23 cell running");
+        fixture
+    }
+
+    #[tokio::test]
+    async fn parallel_calls_cannot_overspend_parent_budget() {
+        let fixture = running_fixture(BudgetLease::new(4, 1_000_000, 300_000, 2, 1)).await;
+
+        // 1) 第一次写调用消耗掉租约里唯一的 effect 额度。
+        let first = capability_request(&fixture, RiskLevel::LocalWrite);
+        let first_lease = fixture
+            .registry
+            .begin_capability(fixture.cell_id, fixture.grant_id, fixture.budget_id, &first)
+            .await
+            .expect("first write admitted");
+
+        // 2) 并行的第二次写必须在真正执行前被拒绝；错误码保持结构化，不塌缩成通用 I/O 错误。
+        let second = capability_request(&fixture, RiskLevel::LocalWrite);
+        match fixture
+            .registry
+            .begin_capability(
+                fixture.cell_id,
+                fixture.grant_id,
+                fixture.budget_id,
+                &second,
+            )
+            .await
+        {
+            Err(PortError::Conflict(reason)) => assert_eq!(reason, "budget_lease_exceeded"),
+            Err(other) => panic!("denied call must fail closed, got {other:?}"),
+            Ok(_) => panic!("a parallel call overspent the shared effect budget"),
+        }
+
+        // 3) 被拒绝的调用不能留下痕迹：账本只记录第一次调用，活动槽也只有它。
+        let reservation = fixture
+            .registry
+            .reservation(fixture.plan_id)
+            .expect("cap23 reservation exists");
+        assert_eq!(
+            reservation.budget.effects_used, 1,
+            "denied call consumed no effect"
+        );
+        assert_eq!(
+            reservation.budget.tool_calls_used, 1,
+            "denied call consumed no tool call"
+        );
+        assert_eq!(fixture.registry.active_capability_count(fixture.plan_id), 1);
+
+        // 4) finish 只释放并发槽，不退还已消耗的 effect：之后仍不能超发。
+        fixture
+            .registry
+            .finish_capability(first_lease, CapabilityOutcome::Failed)
+            .await
+            .expect("first write finished");
+        assert_eq!(fixture.registry.active_capability_count(fixture.plan_id), 0);
+        let third = capability_request(&fixture, RiskLevel::LocalWrite);
+        match fixture
+            .registry
+            .begin_capability(fixture.cell_id, fixture.grant_id, fixture.budget_id, &third)
+            .await
+        {
+            Err(PortError::Conflict(reason)) => assert_eq!(reason, "budget_lease_exceeded"),
+            Err(other) => panic!("exhausted budget must fail closed, got {other:?}"),
+            Ok(_) => panic!("a finished call must not refund spent effect budget"),
+        }
+        assert_eq!(fixture.registry.active_capability_count(fixture.plan_id), 0);
+
+        // 5) 回归：只读调用不消耗 effect 额度，仍可在剩余 tool-call 预算内执行。
+        let read = capability_request(&fixture, RiskLevel::ReadOnly);
+        let read_lease = fixture
+            .registry
+            .begin_capability(fixture.cell_id, fixture.grant_id, fixture.budget_id, &read)
+            .await
+            .expect("read-only call stays within the remaining budget");
+        fixture
+            .registry
+            .finish_capability(read_lease, CapabilityOutcome::Succeeded)
+            .await
+            .expect("read-only call finished");
+        assert_eq!(fixture.registry.active_capability_count(fixture.plan_id), 0);
+    }
+
+    #[tokio::test]
+    async fn cell_concurrency_and_duplicate_fences_share_one_lease() {
+        let fixture = running_fixture(BudgetLease::new(4, 1_000_000, 300_000, 1, 4)).await;
+
+        let first = capability_request(&fixture, RiskLevel::LocalWrite);
+        let first_lease = fixture
+            .registry
+            .begin_capability(fixture.cell_id, fixture.grant_id, fixture.budget_id, &first)
+            .await
+            .expect("first write admitted");
+
+        // 同一 request_id 在活动期间重复启动必须被拒绝，不能让两个 worker 共享一份在途状态。
+        let repeated = first.clone();
+        match fixture
+            .registry
+            .begin_capability(
+                fixture.cell_id,
+                fixture.grant_id,
+                fixture.budget_id,
+                &repeated,
+            )
+            .await
+        {
+            Err(PortError::Conflict(reason)) => {
+                assert_eq!(reason, "cell_capability_invocation_duplicate")
+            }
+            Err(other) => panic!("duplicate invocation must fail closed, got {other:?}"),
+            Ok(_) => panic!("the same request_id started twice on one lease"),
+        }
+
+        // 并发上限为 1：不同 request_id 也必须等前一个 finish 腾出槽位。
+        let second = capability_request(&fixture, RiskLevel::LocalWrite);
+        match fixture
+            .registry
+            .begin_capability(
+                fixture.cell_id,
+                fixture.grant_id,
+                fixture.budget_id,
+                &second,
+            )
+            .await
+        {
+            Err(PortError::Conflict(reason)) => {
+                assert_eq!(reason, "cell_capability_concurrency_exceeded")
+            }
+            Err(other) => panic!("concurrency cap must fail closed, got {other:?}"),
+            Ok(_) => panic!("parallel calls exceeded the parent concurrency cap"),
+        }
+
+        fixture
+            .registry
+            .finish_capability(first_lease, CapabilityOutcome::Succeeded)
+            .await
+            .expect("first write finished");
+        let second_lease = fixture
+            .registry
+            .begin_capability(
+                fixture.cell_id,
+                fixture.grant_id,
+                fixture.budget_id,
+                &second,
+            )
+            .await
+            .expect("finish released the concurrency slot");
+        fixture
+            .registry
+            .finish_capability(second_lease, CapabilityOutcome::Succeeded)
+            .await
+            .expect("second write finished");
+        assert_eq!(fixture.registry.active_capability_count(fixture.plan_id), 0);
+    }
+}
