@@ -40,7 +40,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/lib.rs",
-        "f56345cb6062aee79fca4e73b60876c45fe54b8b1eaac630c46bdfad8ff21ffd",
+        "10059173d718cea0f4bc7aedef260d18321fdda1cb3cec286755508db81beb66",
     ),
     (
         "kiana-core/src/events.rs",

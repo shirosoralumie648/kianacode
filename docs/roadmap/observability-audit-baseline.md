@@ -15,6 +15,8 @@
 > `EventStore facade`、`JSONL adapter`、`Daemon composition` 与 `Port contract` 六行
 > 再次按下表当前工作树重新钉扎，并同步测试表；其中 `Domain exports` 与 `JSONL adapter`
 > 为修复前已存在的遗留漂移，其余来自本轮格式化与 ER-21 恢复语义修正。
+> 2026-10-17 再次重新钉扎：CAP-17 `execution_stop` 导出使 `Domain exports` 行再次漂移，
+> 该行按当前工作树重新钉扎并与 `kiana-core/tests/observability_baseline.rs` 同步；其余行不变。
 
 ## 1. 快照、范围与证明上限
 
@@ -35,7 +37,7 @@
 | Runtime event shape | `kiana-domain/src/states.rs` | `c3efa271aa3b70c0a0dfd1637209ed7e0246b2fc6f28b914d4f7832d4724ad8b` |
 | Transition contract | `kiana-domain/src/journal.rs` | `6966da5534b7bb9155b3282e5338aa5195f362aa6a08ab6564a7a8ddfe24324e` |
 | Schema/ID registry | `kiana-domain/src/contracts.rs` | `bdcc46900a2530c526c68773b5fda7055efc0abd2d7718b7eb5bec399c163df1`（2026-10-16 重新钉扎；原注：OA-05 health schema 扩展） |
-| Domain exports | `kiana-domain/src/lib.rs` | `f56345cb6062aee79fca4e73b60876c45fe54b8b1eaac630c46bdfad8ff21ffd`（2026-10-17 重新钉扎；2026-10-16 重新钉扎；原注：OA-04 audit reducer 导出） |
+| Domain exports | `kiana-domain/src/lib.rs` | `10059173d718cea0f4bc7aedef260d18321fdda1cb3cec286755508db81beb66`（2026-10-17 再次重新钉扎：CAP-17 `execution_stop` 导出；2026-10-17 重新钉扎；2026-10-16 重新钉扎；原注：OA-04 audit reducer 导出） |
 | Audit taxonomy/reducer（OA-04） | `kiana-domain/src/audit.rs` | `87d3f19276ee001422894f5abd84d39b534eed05edd2948fcebcff9ae27ecf3c` |
 | Core audit facade（OA-04） | `kiana-core/src/audit.rs` | `9c444ff6a125a90ac6ba25c1756802e826c40e681ce24f21645f1f08eff9ee22` |
 | Health snapshot（OA-05） | `kiana-domain/src/observability.rs` | `03b6f822d5bac02c4717e2cf32796f6e8bfe53e853670b25ae88c0e98d5c7ea2` |
