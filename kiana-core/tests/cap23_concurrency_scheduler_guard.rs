@@ -124,3 +124,137 @@ fn unknown_and_cancelled_admissions_have_distinct_boundaries() {
     assert!(cancellation.contains("RunCancellationState::ResultUnknown"));
     assert!(lifecycle.contains("run.result_unknown"));
 }
+
+#[test]
+fn cap23_behavioural_fixtures_are_wired_and_deny_first() {
+    let scheduler = include_str!("../src/capability_scheduler.rs");
+    let cell = include_str!("../src/cell_registry.rs");
+    let capabilities = include_str!("../src/capabilities.rs");
+    let lane = include_str!("../../.github/workflows/cap23-concurrency-scheduler.yml");
+    let ci = include_str!("../../.github/workflows/ci.yml");
+    let baseline = include_str!("../../docs/roadmap/cap23-concurrency-scheduler-baseline.md");
+
+    let fixtures = [
+        (
+            "capability_scheduler.rs",
+            scheduler,
+            "overlapping_write_scopes_never_execute_concurrently",
+        ),
+        (
+            "capability_scheduler.rs",
+            scheduler,
+            "cancelled_queued_call_never_spawns",
+        ),
+        (
+            "capability_scheduler.rs",
+            scheduler,
+            "pre_cancelled_requests_never_enter_the_queue_or_take_a_slot",
+        ),
+        (
+            "capability_scheduler.rs",
+            scheduler,
+            "read_only_requests_share_and_disjoint_writes_run_concurrently",
+        ),
+        (
+            "capability_scheduler.rs",
+            scheduler,
+            "unknown_result_quarantines_its_scope_from_successors",
+        ),
+        (
+            "capability_scheduler.rs",
+            scheduler,
+            "released_or_rejected_admissions_clean_up_their_slot_and_queue_is_bounded",
+        ),
+        (
+            "cell_registry.rs",
+            cell,
+            "parallel_calls_cannot_overspend_parent_budget",
+        ),
+        (
+            "cell_registry.rs",
+            cell,
+            "cell_concurrency_and_duplicate_fences_share_one_lease",
+        ),
+    ];
+    for (module, source, fixture) in fixtures {
+        assert!(
+            source.contains(&format!("async fn {fixture}(")),
+            "CAP-23 fixture {module}::{fixture} is missing from the production module"
+        );
+        assert!(
+            lane.contains(fixture),
+            "CAP-23 fixture {fixture} is not wired into the focused lane"
+        );
+        assert!(
+            baseline.contains(fixture),
+            "CAP-23 fixture {fixture} is not recorded in the baseline"
+        );
+    }
+    // Behaviour fixtures are evidence, not placeholders: they must not be ignored or removed.
+    assert!(!scheduler.contains("#[ignore]"));
+    assert!(!cell.contains("#[ignore]"));
+
+    // The focused lane and the automatic unified lane must both run the in-module fixtures.
+    for lane_source in [lane, ci] {
+        assert!(
+            lane_source.contains("cargo test -p kiana-core --lib capability_scheduler::tests::")
+        );
+        assert!(lane_source.contains("cargo test -p kiana-core --lib cell_registry::tests::"));
+    }
+    assert!(lane.contains("--exact"));
+
+    // Deny-first ordering inside the focused lane: the deny fixtures run before the
+    // concurrency/regression fixtures that depend on them.
+    let deny_write = lane
+        .find("overlapping_write_scopes_never_execute_concurrently")
+        .expect("deny-first write fixture in the lane");
+    let read_success = lane
+        .find("read_only_requests_share_and_disjoint_writes_run_concurrently")
+        .expect("read/disjoint write fixture in the lane");
+    assert!(
+        deny_write < read_success,
+        "deny-first fixtures must run before the read/disjoint-write regression fixture"
+    );
+    let deny_budget = lane
+        .find("parallel_calls_cannot_overspend_parent_budget")
+        .expect("deny-first budget fixture in the lane");
+    let budget_regression = lane
+        .find("cell_concurrency_and_duplicate_fences_share_one_lease")
+        .expect("budget regression fixture in the lane");
+    assert!(
+        deny_budget < budget_regression,
+        "deny-first fixtures must run before the budget/concurrency regression fixture"
+    );
+
+    // Write footprints must come from the server-derived scope, not from command text.
+    let footprint = source_guard::item_source(scheduler, "fn from_request(");
+    assert!(footprint.contains("write_roots"));
+    assert!(
+        !footprint.contains("arguments"),
+        "the admission footprint must not parse request arguments"
+    );
+
+    // The slot is acquired inside the dispatch path only, after the approval decision is
+    // already final, and before the Cell budget lease is taken.
+    let dispatch = source_guard::item_source(capabilities, "async fn dispatch_capability_action(");
+    let acquire_at = dispatch
+        .find("admission_scheduler")
+        .expect("dispatch must acquire an admission lease");
+    let cell_at = dispatch
+        .find("begin_cell_capability_from_request")
+        .expect("dispatch must take the Cell lease after admission");
+    assert!(
+        acquire_at < cell_at,
+        "the admission gate must run before the Cell budget lease"
+    );
+    let approval = source_guard::item_source(capabilities, "async fn broker_harness_capability(");
+    assert!(
+        !approval.contains("admission_scheduler"),
+        "approval staging must not hold an execution slot"
+    );
+
+    // Denied Cell calls must stay inside the budget/concurrency fences.
+    assert!(cell.contains(".consume(1, 0, effect_count)"));
+    assert!(cell.contains("cell_capability_invocation_duplicate"));
+    assert!(cell.contains("cell_capability_concurrency_exceeded"));
+}

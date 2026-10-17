@@ -27,7 +27,26 @@ jobs:
         run: cargo test -p kiana-core --test sc16_quota_backpressure_guard --locked -- --test-threads=1
       - name: Run CAP-23 source guard
         run: cargo test -p kiana-core --test cap23_concurrency_scheduler_guard --locked -- --test-threads=1
+      - name: Run CAP-23 admission scheduler fixtures
+        run: cargo test -p kiana-core --lib capability_scheduler::tests:: --locked -- --test-threads=1
+      - name: Run CAP-23 Cell budget fixtures
+        run: cargo test -p kiana-core --lib cell_registry::tests:: --locked -- --test-threads=1
+      - name: Run CAP-23 deny-first fixtures individually
+        run: |
+          for fixture in \
+            capability_scheduler::tests::overlapping_write_scopes_never_execute_concurrently \
+            capability_scheduler::tests::cancelled_queued_call_never_spawns \
+            capability_scheduler::tests::pre_cancelled_requests_never_enter_the_queue_or_take_a_slot \
+            cell_registry::tests::parallel_calls_cannot_overspend_parent_budget \
+            capability_scheduler::tests::read_only_requests_share_and_disjoint_writes_run_concurrently \
+            capability_scheduler::tests::unknown_result_quarantines_its_scope_from_successors \
+            capability_scheduler::tests::released_or_rejected_admissions_clean_up_their_slot_and_queue_is_bounded \
+            cell_registry::tests::cell_concurrency_and_duplicate_fences_share_one_lease; do
+            cargo test -p kiana-core --lib "$fixture" --locked -- --exact --test-threads=1
+          done
       - name: Compile selected Core targets
         run: cargo test -p kiana-core --test p1_c02_cell_lifecycle --no-run --locked
       - run: cargo test -p kiana-core --test sc16_quota_backpressure_guard --no-run --locked
       - run: cargo test -p kiana-core --test cap23_concurrency_scheduler_guard --no-run --locked
+      - name: Compile in-module CAP-23 fixtures
+        run: cargo test -p kiana-core --lib --no-run --locked
