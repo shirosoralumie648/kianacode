@@ -612,7 +612,7 @@ fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content di
 
 
 
-#### UI-16 · Web 路由、来源校验和最小健康信息　🔄
+#### UI-16 · Web 路由、来源校验和最小健康信息　✅
 
 - 依赖：UI-03/07/11。代码：`kiana-entrypoints/src/web.rs`（可拆分 router/auth/handlers）。
 - 步骤：按 health/state/sessions/events/run/cancel/trust/sandbox/session/receipt/approval/resume/command 分类；统一 loopback Host/Origin/token 校验和请求大小/速率上限。
@@ -620,7 +620,21 @@ fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content di
 - 成功/回归：每路由 deny-first、OPTIONS/GET/POST 方法、错误码、token rotation、过大 body、并发 tab 和日志脱敏。
 - 完成产物：route/auth matrix、安全 header/CSP 草案、迁移旧 endpoint 的兼容表。
 
-实现基线：[UI-16 Web routes, origin checks and minimal health baseline](ui16-web-routes-baseline.md)。
+实现基线：[UI-16 Web routes, origin checks and minimal health baseline](ui16-web-routes-baseline.md)。完成切片（2026-10-17）
+把该基线补成卡片退出条件：`WEB_ROUTE_MATRIX`（28 路由，新增 `POST /api/token/rotate`，class `Token`）与
+Axum `.route(...)` 注册、fixture 三方双向绑定且 `OPTIONS` 从不注册；`WEB_ERROR_MATRIX` 63 码 + 机械 status 映射，
+守卫从源码错误码字面量反向重扫；安全 header/CSP 草案常量化并被响应中间件使用（覆盖 405/413/429）；首版
+workbench 九条旧 endpoint 的 1:1 兼容表（无别名/redirect）；每路由 `authorize_*` 先于任何 host/session/ledger
+访问（`ui16_per_route_authorization_precedes_any_host_access` 逐 handler 证明）；`POST /api/token/rotate` 真正接线
+（递增 `token_generation`、旧凭据立即 401、响应不回显凭据、页面从 host-only `/` 重新 hydrate）；限额先拒绝
+（128 KiB body → 413、8 KiB URI → 400、编码穿越 → 400、120 req/s → 429 且保留安全 header、窗口准时恢复）；
+并发 tab 只读同一 server snapshot；health 低细节 + host-only；请求/服务路径零日志且不能出现第二执行器。
+新增 4 条真实 loopback HTTP 夹具（`kiana-entrypoints/src/web.rs` 的 `web::tests::ui16_*`，真实 `DaemonHost` +
+raw socket）与重写的 `kiana-entrypoints/tests/ui16_web_routes.rs`/`ui16_web_routes_guard.rs`；重建手动
+`.github/workflows/ui16-web-routes.yml`（`workflow_dispatch`-only、`permissions: contents: read`），自动覆盖仍是
+统一 `ci.yml` 的 `kiana-entrypoints` 整 crate 分片。无 Cargo.toml/Cargo.lock/package.json 变化、无新依赖/第二执行
+循环，五工具面不变；本地未运行（CI-only，回执未等待），proof 上限 `source`；浏览器矩阵、跨进程 transport、
+durable rate state/token 持久化与 live/physical 证据仍开放。
 
 <a id="step-ui-17"></a>
 

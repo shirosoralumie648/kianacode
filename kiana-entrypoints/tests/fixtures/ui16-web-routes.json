@@ -5,7 +5,9 @@
     "host": "exact-bound-address",
     "origin": "exact-http-origin-when-present",
     "token_header": "x-kiana-web-token",
-    "sse_token_query": "explicit-eventsource-compatibility"
+    "sse_token_query": "explicit-eventsource-compatibility",
+    "token_rotation_schema": "kiana.web-token-rotation.v1",
+    "method_rejection": "axum-method-rejection-before-handler"
   },
   "limits": {
     "body_bytes": 131072,
@@ -13,31 +15,662 @@
     "requests_per_window": 120,
     "window_ms": 1000
   },
+  "page_route": {
+    "path": "/",
+    "method": "GET",
+    "class": "page",
+    "token_required": false,
+    "host_only": true
+  },
+  "host_only_routes": [
+    "/",
+    "/api/health",
+    "/api/csp-report"
+  ],
+  "methods": {
+    "registered": [
+      "GET",
+      "POST"
+    ],
+    "denied_without_handler": [
+      "OPTIONS",
+      "PUT",
+      "DELETE",
+      "PATCH",
+      "TRACE"
+    ],
+    "wrong_method_status": 405,
+    "options_rejected_status": 405
+  },
+  "token_rotation": {
+    "route": "/api/token/rotate",
+    "schema": "kiana.web-token-rotation.v1",
+    "echoes_credential": false,
+    "generation_monotonic": true,
+    "invalidates_previous_credential": true,
+    "rehydrate_route": "/",
+    "principal_changed": false,
+    "lease_changed": false
+  },
+  "security_headers": [
+    [
+      "x-content-type-options",
+      "nosniff"
+    ],
+    [
+      "cache-control",
+      "no-store"
+    ],
+    [
+      "referrer-policy",
+      "no-referrer"
+    ],
+    [
+      "x-frame-options",
+      "DENY"
+    ]
+  ],
+  "csp": {
+    "template": "default-src 'self'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report",
+    "nonce_placeholder": "{nonce}",
+    "report_uri": "/api/csp-report",
+    "unsafe_inline": false,
+    "eval": false,
+    "header": "content-security-policy"
+  },
+  "error_codes": [
+    {
+      "code": "artifact_not_found",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "command_arguments_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "command_arguments_limit",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "command_read_only_required",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "command_request_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "company_governance_project_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "extension_visibility_action_unsupported",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "extension_visibility_max_results_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "extension_visibility_surface_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "parity_entrypoint_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "parity_run_id_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "prompt_required",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "prompt_too_large",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "receipt_not_found",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "role_unknown",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "session_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "session_unknown",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "stream_cursor_conflict",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "stream_cursor_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "ui_action_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "ui_action_required",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "ui_cursor_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_input_text_required",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_notification_cursor_conflict",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_notification_cursor_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_notification_page_limit_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_page_cursor_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_page_cursor_limit_mismatch",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_page_cursor_offset_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_page_limit_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_path_traversal_denied",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_receipt_cursor_not_supported",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_request_target_too_large",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_run_id_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_stream_run_id_unavailable",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_tab_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_tab_required",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_turn_id_invalid",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_auth_required",
+      "status": 401,
+      "class": "deny"
+    },
+    {
+      "code": "session_busy",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "session_owner_required",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "session_principal_mismatch",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "session_read_only",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "ui_action_in_flight",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "ui_action_owner_mismatch",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "ui_action_submission_expired",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "ui_action_target_mismatch",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "web_page_cursor_scope_mismatch",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "web_page_source_changed",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "web_session_limit_exceeded",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
+      "code": "web_action_state_unavailable",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_human_action_response_encode",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_human_response_encode",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_hydrate_missing",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_notification_page_encode_failed",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_page_cursor_state_unavailable",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_page_epoch_unavailable",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_rate_state_unavailable",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_session_history_unsupported",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_state_poisoned",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_token_state_unavailable",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_rate_limit_exceeded",
+      "status": 429,
+      "class": "limit"
+    },
+    {
+      "code": "web_shutting_down",
+      "status": 503,
+      "class": "unavailable"
+    }
+  ],
+  "legacy_compat": [
+    {
+      "legacy": "/",
+      "current": "/",
+      "method": "GET",
+      "class": "page",
+      "disposition": "preserved",
+      "writes_facts": false
+    },
+    {
+      "legacy": "/api/health",
+      "current": "/api/health",
+      "method": "GET",
+      "class": "health",
+      "disposition": "preserved",
+      "writes_facts": false
+    },
+    {
+      "legacy": "/api/state",
+      "current": "/api/state",
+      "method": "GET",
+      "class": "state",
+      "disposition": "preserved",
+      "writes_facts": false
+    },
+    {
+      "legacy": "/api/run",
+      "current": "/api/run",
+      "method": "POST",
+      "class": "run",
+      "disposition": "preserved",
+      "writes_facts": true
+    },
+    {
+      "legacy": "/api/cancel",
+      "current": "/api/cancel",
+      "method": "POST",
+      "class": "cancel",
+      "disposition": "preserved",
+      "writes_facts": true
+    },
+    {
+      "legacy": "/api/trust",
+      "current": "/api/trust",
+      "method": "POST",
+      "class": "trust",
+      "disposition": "preserved",
+      "writes_facts": true
+    },
+    {
+      "legacy": "/api/sandbox",
+      "current": "/api/sandbox",
+      "method": "POST",
+      "class": "sandbox",
+      "disposition": "preserved",
+      "writes_facts": false
+    },
+    {
+      "legacy": "/api/session",
+      "current": "/api/session",
+      "method": "POST",
+      "class": "session",
+      "disposition": "preserved",
+      "writes_facts": false
+    },
+    {
+      "legacy": "/api/receipt",
+      "current": "/api/receipt",
+      "method": "POST",
+      "class": "receipt",
+      "disposition": "preserved",
+      "writes_facts": false
+    }
+  ],
   "deny": [
     "missing_token_state_events_action",
     "sse_header_query_conflict",
     "foreign_origin",
+    "foreign_host",
     "path_traversal",
+    "encoded_path_traversal",
     "cross_workspace_session",
     "health_absolute_path",
-    "health_internal_error"
+    "health_internal_error",
+    "wrong_method_options",
+    "wrong_method_get_on_post_route",
+    "wrong_method_post_on_get_route",
+    "oversized_body",
+    "rate_limit_flood",
+    "token_rotation_reuse_old_token",
+    "duplicate_credential_header",
+    "browser_side_executor"
+  ],
+  "success": [
+    "host_only_page_issues_the_live_token",
+    "health_probe_is_low_detail_and_tokenless",
+    "per_route_token_and_origin_check",
+    "security_headers_on_every_response",
+    "token_rotation_then_rehydrate",
+    "concurrent_tabs_observe_one_server_snapshot",
+    "rate_limit_window_recovers"
   ],
   "routes": [
-    {"path":"/api/health","method":"GET","class":"health","token_required":false},
-    {"path":"/api/state","method":"GET","class":"state","token_required":true},
-    {"path":"/api/sessions","method":"GET","class":"sessions","token_required":true},
-    {"path":"/api/events","method":"GET","class":"events","token_required":true},
-    {"path":"/api/run","method":"POST","class":"run","token_required":true},
-    {"path":"/api/cancel","method":"POST","class":"cancel","token_required":true},
-    {"path":"/api/trust","method":"POST","class":"trust","token_required":true},
-    {"path":"/api/sandbox","method":"POST","class":"sandbox","token_required":true},
-    {"path":"/api/session","method":"POST","class":"session","token_required":true},
-    {"path":"/api/receipt","method":"POST","class":"receipt","token_required":true},
-    {"path":"/api/approvals","method":"GET/POST","class":"approval","token_required":true},
-    {"path":"/api/resume","method":"POST","class":"resume","token_required":true},
-    {"path":"/api/command","method":"GET/POST","class":"command","token_required":true},
-    {"path":"/api/parity","method":"GET","class":"diagnostics","token_required":true},
-    {"path":"/api/company-governance","method":"GET","class":"diagnostics","token_required":true},
-    {"path":"/api/extensions","method":"GET","class":"diagnostics","token_required":true}
+    {
+      "path": "/api/health",
+      "method": "GET",
+      "class": "health",
+      "token_required": false
+    },
+    {
+      "path": "/api/csp-report",
+      "method": "POST",
+      "class": "diagnostics",
+      "token_required": false
+    },
+    {
+      "path": "/api/bootstrap",
+      "method": "GET",
+      "class": "bootstrap",
+      "token_required": true
+    },
+    {
+      "path": "/api/state",
+      "method": "GET",
+      "class": "state",
+      "token_required": true
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET",
+      "class": "sessions",
+      "token_required": true
+    },
+    {
+      "path": "/api/history",
+      "method": "GET",
+      "class": "history",
+      "token_required": true
+    },
+    {
+      "path": "/api/artifact",
+      "method": "GET",
+      "class": "artifact",
+      "token_required": true
+    },
+    {
+      "path": "/api/artifact/detail",
+      "method": "GET",
+      "class": "artifact_detail",
+      "token_required": true
+    },
+    {
+      "path": "/api/diff",
+      "method": "GET",
+      "class": "diff",
+      "token_required": true
+    },
+    {
+      "path": "/api/events",
+      "method": "GET",
+      "class": "events",
+      "token_required": true
+    },
+    {
+      "path": "/api/notifications",
+      "method": "GET",
+      "class": "notifications",
+      "token_required": true
+    },
+    {
+      "path": "/api/notifications/events",
+      "method": "GET",
+      "class": "notification_events",
+      "token_required": true
+    },
+    {
+      "path": "/api/run",
+      "method": "POST",
+      "class": "run",
+      "token_required": true
+    },
+    {
+      "path": "/api/cancel",
+      "method": "POST",
+      "class": "cancel",
+      "token_required": true
+    },
+    {
+      "path": "/api/trust",
+      "method": "POST",
+      "class": "trust",
+      "token_required": true
+    },
+    {
+      "path": "/api/sandbox",
+      "method": "POST",
+      "class": "sandbox",
+      "token_required": true
+    },
+    {
+      "path": "/api/session",
+      "method": "POST",
+      "class": "session",
+      "token_required": true
+    },
+    {
+      "path": "/api/receipt",
+      "method": "POST",
+      "class": "receipt",
+      "token_required": true
+    },
+    {
+      "path": "/api/receipt/detail",
+      "method": "GET",
+      "class": "receipt_detail",
+      "token_required": true
+    },
+    {
+      "path": "/api/approvals",
+      "method": "GET/POST",
+      "class": "approval",
+      "token_required": true
+    },
+    {
+      "path": "/api/resume",
+      "method": "POST",
+      "class": "resume",
+      "token_required": true
+    },
+    {
+      "path": "/api/steer",
+      "method": "POST",
+      "class": "steer",
+      "token_required": true
+    },
+    {
+      "path": "/api/inject",
+      "method": "POST",
+      "class": "inject",
+      "token_required": true
+    },
+    {
+      "path": "/api/command",
+      "method": "GET/POST",
+      "class": "command",
+      "token_required": true
+    },
+    {
+      "path": "/api/parity",
+      "method": "GET",
+      "class": "diagnostics",
+      "token_required": true
+    },
+    {
+      "path": "/api/company-governance",
+      "method": "GET",
+      "class": "diagnostics",
+      "token_required": true
+    },
+    {
+      "path": "/api/extensions",
+      "method": "GET",
+      "class": "diagnostics",
+      "token_required": true
+    },
+    {
+      "path": "/api/token/rotate",
+      "method": "POST",
+      "class": "token",
+      "token_required": true
+    }
+  ],
+  "limitations": [
+    "no local HTTP behavior run in this session; CI receipt not awaited",
+    "no browser matrix, cross-process transport, durable rate state or token persistence",
+    "health is intentionally low detail and host-only; it is not a durable health probe",
+    "token rotation is per-process and does not rotate any ControlPlane credential"
   ]
 }
