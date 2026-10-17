@@ -16,6 +16,16 @@
 //! 是按 query.owner_id 字符串筛选事件，不等于身份认证；可信入口必须自行把 owner_id 绑定到已认证主体。
 //! 页面游标 digest 是无密钥内容摘要，不是签名。当前实现只把 epoch/source cursor/generation/offset
 //! 放入游标摘要，因此调用方不应把它当作已绑定用户、session、数据 epoch 或查询条件的凭证。
+//!
+//! 同一份事件切片还可用于两条只读读路径：
+//!
+//! - [`project_ui_snapshot_health()`] 报告 projector 的 source/projection/lag 状态，把「读模型落后」
+//!   与「read model 进度未知」显式区分，不把它们伪装成空列表；
+//! - [`rebuild_ui_snapshot_projection()`] 是 read-model rebuild 入口：重新从账本切片生成页面并附带
+//!   与同一游标一致的 health，用于新进程重建与重放核对。
+//!
+//! 三条读路径都不写事件、不占资源租约，也不构成第二事实源：重建只读取 EventLog，任何状态判断都来自
+//! 调用方给出的 cursor 标签，而不是本模块自己保存的进度。
 
 use crate::{json_digest, RuntimeEvent};
 use serde::{Deserialize, Serialize};
@@ -25,6 +35,16 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const UI_SNAPSHOT_PROJECTOR_SCHEMA: &str = "kiana.ui-snapshot-projector.v1";
 pub const UI_SNAPSHOT_PAGE_SCHEMA: &str = "kiana.ui-snapshot-page.v1";
 pub const UI_SNAPSHOT_CURSOR_SCHEMA: &str = "kiana.ui-snapshot-cursor.v1";
+pub const UI_SNAPSHOT_PROJECTOR_HEALTH_SCHEMA: &str = "kiana.ui-snapshot-projector-health.v1";
+pub const UI_SNAPSHOT_REBUILD_SCHEMA: &str = "kiana.ui-snapshot-rebuild.v1";
+/// 页面 limitation：本页只是完整 owner/session 结果的一个切片，调用方必须继续跟随 `next_page`。
+pub const UI_SNAPSHOT_LIMITATION_PARTIAL_PAGE: &str = "ui_snapshot_page_partial";
+/// 页面/health limitation：retention floor 之前的历史可能已被清理，不能当作完整历史展示。
+pub const UI_SNAPSHOT_LIMITATION_RETENTION_FLOOR: &str = "ui_snapshot_retention_floor_applied";
+/// health limitation：read model 明确落后于 source cursor；此时禁止渲染为「已是最新」。
+pub const UI_SNAPSHOT_LIMITATION_PROJECTION_LAGGING: &str = "ui_snapshot_projection_lagging";
+/// health limitation：read model 的处理进度未知；它与「落后」不同，必须单独可见。
+pub const UI_SNAPSHOT_LIMITATION_PROJECTION_UNKNOWN: &str = "ui_snapshot_projection_unknown";
 /// 单页允许返回的最大条目数，用来约束一次响应体的规模。
 pub const UI_SNAPSHOT_MAX_PAGE_SIZE: usize = 256;
 /// 一次完整投影最多保留的去重条目数；超过后拒绝整次查询，不返回截断且看似完整的首页。
@@ -350,7 +370,7 @@ pub struct UiSnapshotPage {
     /// 下一页的 JSON cursor；最后一页为空。
     #[serde(default)]
     pub next_page: Option<String>,
-    /// 已知投影限制；当前 projector 返回空列表。
+    /// 已知投影限制：retention 清理边界与「本页只是完整结果切片」等稳定编码，按字典序去重排列。
     #[serde(default)]
     pub limitations: Vec<String>,
     /// 对本页所有业务字段计算的无密钥自摘要。
@@ -744,6 +764,17 @@ pub fn project_ui_snapshot(
     } else {
         None
     };
+    // limitation 由本次切片的实际边界产生，而不是常量文案：retention floor 之前的历史可能已被清理，
+    // 只有 `next_page` 存在时本页才是完整结果的切片。调用方据此决定「继续翻页」还是「历史不完整」。
+    let mut limitations = Vec::new();
+    if query.retention_floor > 0 {
+        limitations.push(UI_SNAPSHOT_LIMITATION_RETENTION_FLOOR.to_owned());
+    }
+    if next_page.is_some() {
+        limitations.push(UI_SNAPSHOT_LIMITATION_PARTIAL_PAGE.to_owned());
+    }
+    limitations.sort();
+    limitations.dedup();
     let mut page = UiSnapshotPage {
         schema: UI_SNAPSHOT_PAGE_SCHEMA.to_owned(),
         epoch: query.epoch.clone(),
@@ -756,11 +787,370 @@ pub fn project_ui_snapshot(
         retention_floor: query.retention_floor,
         entries,
         next_page,
-        limitations: Vec::new(),
+        limitations,
         snapshot_digest: String::new(),
     };
     // 先填充所有页面字段，再计算摘要并走公开 validator，避免返回尚未自洽的结构体。
     page.snapshot_digest = page.digest();
     page.validate()?;
     Ok(page)
+}
+
+/// projector 相对 source cursor 的处理状态。
+///
+/// `UpToDate` 只表示 read model 已处理到本次切片末端；`Lagging` 表示还差一段；`Unknown` 表示调用方
+/// 没有给出处理位置。三者都不是权限或业务终态，且任何一项都不能被渲染成「空结果」。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSnapshotProjectorStatus {
+    /// read model 已处理到 source cursor。
+    UpToDate,
+    /// read model 落后于 source cursor，`lag` 字段给出差值。
+    Lagging,
+    /// 处理位置未知；不能当作已追平。
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiSnapshotProjectorHealthQuery {
+    /// health 合同 schema。
+    pub schema: String,
+    /// authority/instance epoch 标签。
+    pub epoch: String,
+    /// 调用方声明这次传入事件切片末端的位置，必须等于切片长度。
+    pub source_cursor: u64,
+    /// read model 已处理到的位置；缺失代表未知，落后代表 lag。
+    pub projection_cursor: Option<u64>,
+    /// projector 版本代数。
+    pub projection_generation: u64,
+    /// 数据治理 epoch 标签。
+    pub data_epoch: u64,
+    /// 已清理到的最早边界。
+    pub retention_floor: u64,
+    /// 调用方提供的观测时间标签；projector 只校验非零，不读取系统时钟。
+    pub observed_at_unix_ms: u64,
+}
+
+impl UiSnapshotProjectorHealthQuery {
+    /// 创建并校验 projector health 查询。
+    ///
+    /// 【调用者】外层 Daemon/API adapter 与 `rebuild_ui_snapshot_projection()` 的派生构造。
+    /// 【输出】字段完整的 health 查询；失败返回 health header 或 cursor-ahead 错误。
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        epoch: impl Into<String>,
+        source_cursor: u64,
+        projection_cursor: Option<u64>,
+        projection_generation: u64,
+        data_epoch: u64,
+        retention_floor: u64,
+        observed_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let query = Self {
+            schema: UI_SNAPSHOT_PROJECTOR_HEALTH_SCHEMA.to_owned(),
+            epoch: epoch.into(),
+            source_cursor,
+            projection_cursor,
+            projection_generation,
+            data_epoch,
+            retention_floor,
+            observed_at_unix_ms,
+        };
+        query.validate()?;
+        Ok(query)
+    }
+
+    /// 检查 health query 的 schema、范围与必填标签。
+    ///
+    /// 【关键拒绝】generation/data epoch/时间为 0、retention 越过 source、epoch 为空、projection cursor
+    /// 超前（谎报处理位置）都会失败；落后的 projection cursor 是合法输入，其结果会被标为 `Lagging`。
+    /// 【边界】不认证 owner/epoch，也不读取账本；这些由调用边界负责。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_SNAPSHOT_PROJECTOR_HEALTH_SCHEMA
+            || self.projection_generation == 0
+            || self.data_epoch == 0
+            || self.retention_floor > self.source_cursor
+            || self.observed_at_unix_ms == 0
+        {
+            return Err("ui_snapshot_health_query_header_invalid".to_owned());
+        }
+        required(&self.epoch, "ui_snapshot_health_query_epoch", 256)?;
+        if self
+            .projection_cursor
+            .is_some_and(|cursor| cursor > self.source_cursor)
+        {
+            return Err("ui_snapshot_projection_cursor_ahead".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiSnapshotProjectorHealth {
+    /// health wire schema。
+    pub schema: String,
+    /// 观测时的 epoch 标签。
+    pub epoch: String,
+    /// 处理状态：已追平 / 落后 / 未知。
+    pub status: UiSnapshotProjectorStatus,
+    /// 本次观测的事件切片末端位置。
+    pub source_cursor: u64,
+    /// read model 处理位置；`Unknown` 状态为空。
+    pub projection_cursor: Option<u64>,
+    /// `source_cursor - projection_cursor`；仅 `Lagging`/`UpToDate` 有值。
+    pub lag: Option<u64>,
+    /// 当前 projector 版本代数。
+    pub projection_generation: u64,
+    /// 数据治理 epoch 标签。
+    pub data_epoch: u64,
+    /// retention 清理边界。
+    pub retention_floor: u64,
+    /// 调用方给出的观测时间标签。
+    pub observed_at_unix_ms: u64,
+    /// 稳定 limitation 编码；未知进度与落后状态必须在这里可见。
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    /// 对本结构公开字段计算的无密钥自摘要。
+    pub health_digest: String,
+}
+
+impl UiSnapshotProjectorHealth {
+    /// 校验 status 与 cursor/lag 的自洽性、文本边界和自摘要。
+    ///
+    /// 【失败】未知字段在反序列化阶段已拒绝；这里对 `UpToDate` 要求 lag=0、对 `Lagging` 要求
+    /// `lag = source - projection > 0`、对 `Unknown` 要求两个 cursor 字段都为空，并重算摘要。
+    /// 【边界】健康快照只描述 projector 的读进度，不证明事件事实正确，也不授权任何动作。
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_SNAPSHOT_PROJECTOR_HEALTH_SCHEMA
+            || self.projection_generation == 0
+            || self.data_epoch == 0
+            || self.retention_floor > self.source_cursor
+            || self.observed_at_unix_ms == 0
+            || self.limitations.len() > 32
+        {
+            return Err("ui_snapshot_health_header_invalid".to_owned());
+        }
+        required(&self.epoch, "ui_snapshot_health_epoch", 256)?;
+        match self.status {
+            UiSnapshotProjectorStatus::UpToDate => {
+                if self.projection_cursor != Some(self.source_cursor) || self.lag != Some(0) {
+                    return Err("ui_snapshot_health_status_inconsistent".to_owned());
+                }
+            }
+            UiSnapshotProjectorStatus::Lagging => {
+                let Some(projection_cursor) = self.projection_cursor else {
+                    return Err("ui_snapshot_health_status_inconsistent".to_owned());
+                };
+                if projection_cursor >= self.source_cursor
+                    || self.lag != Some(self.source_cursor - projection_cursor)
+                {
+                    return Err("ui_snapshot_health_status_inconsistent".to_owned());
+                }
+            }
+            UiSnapshotProjectorStatus::Unknown => {
+                if self.projection_cursor.is_some() || self.lag.is_some() {
+                    return Err("ui_snapshot_health_status_inconsistent".to_owned());
+                }
+            }
+        }
+        for limitation in &self.limitations {
+            required(limitation, "ui_snapshot_health_limitation", 512)?;
+        }
+        digest(&self.health_digest, "ui_snapshot_health_digest")?;
+        if self.health_digest != self.digest() {
+            return Err("ui_snapshot_health_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 对 health 的所有公开字段生成确定性摘要；`health_digest` 自身不参与摘要输入。
+    fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "epoch": self.epoch,
+            "status": self.status,
+            "source_cursor": self.source_cursor,
+            "projection_cursor": self.projection_cursor,
+            "lag": self.lag,
+            "projection_generation": self.projection_generation,
+            "data_epoch": self.data_epoch,
+            "retention_floor": self.retention_floor,
+            "observed_at_unix_ms": self.observed_at_unix_ms,
+            "limitations": self.limitations,
+        }))
+    }
+}
+
+/// 从调用方提供的一次有序事件切片生成 projector health/lag 快照。
+///
+/// 【调用者】`DaemonHost::ui_snapshot_projector_health()`；语义上与页面投影共享「source cursor 等于
+/// 切片长度」这同一条单游标规则。
+/// 【输出】`UpToDate` / `Lagging` / `Unknown` 三态之一，落后差值写入 `lag`，并把对应稳定 limitation
+/// 放进列表。
+/// 【副作用】纯内存读取；不写事件、不推进任何游标、不接触 UI 状态。
+/// 【失败情况】query 不合法、source cursor 与切片长度不符时拒绝。
+/// 【为什么不能返回空列表】UI 若在 lag/unknown 时渲染「没有待办」，就会把投影落后伪装成业务空态；
+/// 这里让状态先可见，由调用方决定显示的是 lag 指标而不是空结果。
+/// 【安全边界】owner 过滤不在本函数内；它只做切片/游标一致性判断，不认证主体。
+pub fn project_ui_snapshot_health(
+    events: &[RuntimeEvent],
+    query: &UiSnapshotProjectorHealthQuery,
+) -> Result<UiSnapshotProjectorHealth, String> {
+    query.validate()?;
+    if query.source_cursor != events.len() as u64 {
+        return Err("ui_snapshot_source_cursor_mismatch".to_owned());
+    }
+    let (status, lag) = match query.projection_cursor {
+        None => (UiSnapshotProjectorStatus::Unknown, None),
+        Some(projection_cursor) if projection_cursor < query.source_cursor => (
+            UiSnapshotProjectorStatus::Lagging,
+            Some(query.source_cursor - projection_cursor),
+        ),
+        // validate() 已拒绝 projection_cursor > source_cursor，因此这里只剩已追平一种情况。
+        Some(_) => (UiSnapshotProjectorStatus::UpToDate, Some(0)),
+    };
+    let mut limitations = Vec::new();
+    match status {
+        UiSnapshotProjectorStatus::Unknown => {
+            limitations.push(UI_SNAPSHOT_LIMITATION_PROJECTION_UNKNOWN.to_owned());
+        }
+        UiSnapshotProjectorStatus::Lagging => {
+            limitations.push(UI_SNAPSHOT_LIMITATION_PROJECTION_LAGGING.to_owned());
+        }
+        UiSnapshotProjectorStatus::UpToDate => {}
+    }
+    if query.retention_floor > 0 {
+        limitations.push(UI_SNAPSHOT_LIMITATION_RETENTION_FLOOR.to_owned());
+    }
+    limitations.sort();
+    limitations.dedup();
+    let mut health = UiSnapshotProjectorHealth {
+        schema: UI_SNAPSHOT_PROJECTOR_HEALTH_SCHEMA.to_owned(),
+        epoch: query.epoch.clone(),
+        status,
+        source_cursor: query.source_cursor,
+        projection_cursor: query.projection_cursor,
+        lag,
+        projection_generation: query.projection_generation,
+        data_epoch: query.data_epoch,
+        retention_floor: query.retention_floor,
+        observed_at_unix_ms: query.observed_at_unix_ms,
+        limitations,
+        health_digest: String::new(),
+    };
+    health.health_digest = health.digest();
+    health.validate()?;
+    Ok(health)
+}
+
+/// read-model rebuild 的只读结果：同一游标下的页面与 projector health。
+///
+/// 这是 UI-05 的「read-model rebuild 命令」产物：重建永远从 EventLog 切片重新计算，不加载、也不
+/// 覆盖任何持久化 read model；`page` 与 `health` 必须指向同一次读取。
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiSnapshotRebuild {
+    /// rebuild 合同 schema。
+    pub schema: String,
+    /// 本次重建采用的 epoch。
+    pub epoch: String,
+    /// 本次重建读取的完整切片位置。
+    pub source_cursor: u64,
+    /// 采用的 projector 版本代数。
+    pub projection_generation: u64,
+    /// 数据治理 epoch 标签。
+    pub data_epoch: u64,
+    /// 从账本切片重建的页面。
+    pub page: UiSnapshotPage,
+    /// 与页面同一游标、同一读取的 projector health。
+    pub health: UiSnapshotProjectorHealth,
+    /// 绑定页面与 health 摘要的重建自摘要。
+    pub rebuild_digest: String,
+}
+
+impl UiSnapshotRebuild {
+    /// 校验页面与 health 指向同一次读取，并且状态已追平。
+    ///
+    /// 【失败】任一侧 validate 失败、epoch/source/generation/data epoch 不一致、health 不是
+    /// `UpToDate`、或 rebuild 摘要不匹配时拒绝。
+    /// 【边界】重建结果仍然只是读模型；它的摘要不证明事件事实或业务结果正确。
+    pub fn validate(&self) -> Result<(), String> {
+        self.page.validate()?;
+        self.health.validate()?;
+        if self.schema != UI_SNAPSHOT_REBUILD_SCHEMA
+            || self.epoch != self.page.epoch
+            || self.epoch != self.health.epoch
+            || self.source_cursor != self.page.source_cursor
+            || self.source_cursor != self.health.source_cursor
+            || self.projection_generation != self.page.projection_generation
+            || self.projection_generation != self.health.projection_generation
+            || self.data_epoch != self.page.data_epoch
+            || self.data_epoch != self.health.data_epoch
+            || self.health.status != UiSnapshotProjectorStatus::UpToDate
+        {
+            return Err("ui_snapshot_rebuild_inconsistent".to_owned());
+        }
+        digest(&self.rebuild_digest, "ui_snapshot_rebuild_digest")?;
+        if self.rebuild_digest != self.digest() {
+            return Err("ui_snapshot_rebuild_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 通过页面与 health 的两个子摘要生成重建摘要，避免再造第三份业务字段快照。
+    fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "epoch": self.epoch,
+            "source_cursor": self.source_cursor,
+            "projection_generation": self.projection_generation,
+            "data_epoch": self.data_epoch,
+            "page": self.page.snapshot_digest,
+            "health": self.health.health_digest,
+        }))
+    }
+}
+
+/// 从同一事件切片重建页面与 projector health。
+///
+/// 【调用者】`DaemonHost::rebuild_ui_snapshot_projection()`：一次 `persisted_events()` 读取同时用于页面
+/// 与 health，保证两者指向同一游标。
+/// 【输入】事件 Vec 与页面 query；health 查询由 query 派生（同一 epoch/source/generation/data epoch/
+/// retention floor/时间标签），因此重建结果可重复且不引入新的时间源。
+/// 【输出】`UiSnapshotRebuild`：页面通过全部页边界/retention/cursor 校验，health 状态为 `UpToDate`。
+/// 【失败情况】页面投影的任何拒绝（lag、未知进度、retention pending、跨 owner session、cursor 拼接）
+/// 都会让重建失败，不返回半新半旧的组合。
+/// 【为什么需要它】新进程或恢复后的调用方需要一条显式路径证明「读模型可以从账本重建」，而不是依赖
+/// 进程内缓存；本函数与页面投影共享同一验证器，不存在第二套重建逻辑。
+/// 【安全边界】与 `project_ui_snapshot()` 相同：owner 过滤不等于认证，摘要不是签名。
+pub fn rebuild_ui_snapshot_projection(
+    events: &[RuntimeEvent],
+    query: &UiSnapshotQuery,
+) -> Result<UiSnapshotRebuild, String> {
+    let page = project_ui_snapshot(events, query)?;
+    let health_query = UiSnapshotProjectorHealthQuery::new(
+        query.epoch.clone(),
+        query.source_cursor,
+        query.projection_cursor,
+        query.projection_generation,
+        query.data_epoch,
+        query.retention_floor,
+        query.generated_at_unix_ms,
+    )?;
+    let health = project_ui_snapshot_health(events, &health_query)?;
+    let mut rebuild = UiSnapshotRebuild {
+        schema: UI_SNAPSHOT_REBUILD_SCHEMA.to_owned(),
+        epoch: page.epoch.clone(),
+        source_cursor: page.source_cursor,
+        projection_generation: page.projection_generation,
+        data_epoch: page.data_epoch,
+        page,
+        health,
+        rebuild_digest: String::new(),
+    };
+    rebuild.rebuild_digest = rebuild.digest();
+    rebuild.validate()?;
+    Ok(rebuild)
 }
