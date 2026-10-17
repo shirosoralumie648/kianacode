@@ -25,6 +25,28 @@ jobs:
         run: cargo test -p kiana-domain --test aut07_workflow_queue_claim --locked -- --test-threads=1
       - name: Run AUT-07 ready view fixture
         run: cargo test -p kiana-core --test aut07_workflow_queue_ready --locked -- --test-threads=1
+      - name: Run named AUT-07 domain deny-first fixtures
+        run: |
+          for fixture in \
+            queue_claim_rejects_cycle_duplicate_and_parallel_overflow \
+            ready_claim_cannot_smuggle_owner_or_missing_parent_scope \
+            shared_claim_derives_and_rebinds_the_path_lock_from_work_packet \
+            expired_claim_and_missing_parent_budget_fail_closed \
+            later_child_deadline_is_a_budget_breach_in_the_shared_contract; do
+            cargo test -p kiana-domain --test aut07_workflow_queue_claim "$fixture" --locked -- --exact --test-threads=1
+          done
+      - name: Run named AUT-07 ready-view fixtures
+        run: |
+          for fixture in \
+            ready_view_reuses_packet_readiness_and_emits_one_claim_per_item \
+            dependency_readiness_blocks_child_before_queue_claim \
+            child_scope_or_budget_widening_fails_closed_before_claim \
+            ready_view_rejects_two_claims_for_one_item \
+            ready_view_matches_ready_packets_for_the_same_snapshot \
+            expired_packet_claim_is_reclaimable_but_active_claim_is_never_readied \
+            lease_expired_beyond_the_packet_deadline_cannot_cross_the_gate; do
+            cargo test -p kiana-core --test aut07_workflow_queue_ready "$fixture" --locked -- --exact --test-threads=1
+          done
       - name: Run AUT-07 source guard
         run: cargo test -p kiana-core --test aut07_workflow_queue_claim_guard --locked -- --test-threads=1
       - name: Compile domain claim target
