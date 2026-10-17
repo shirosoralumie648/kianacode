@@ -1368,12 +1368,13 @@ impl ControlPlane {
         }
         authorized.authorization_id = format!("permit:{execution_id}");
         let executed_request = authorized.request.clone();
-        let (stop_tx, _rx) = watch::channel(None);
+        // 把本次执行登记进 run 级停止集合；并发执行各自持有独立状态，不会被覆盖。
         if let Some(id) = run_id {
-            self.capability_stops
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .insert(id, stop_tx.clone());
+            self.register_execution_stop(
+                id,
+                execution_id,
+                kiana_domain::ExecutionStopKind::Capability,
+            );
         }
         let result = self
             .capabilities
@@ -1422,7 +1423,9 @@ impl ControlPlane {
         let confirmed = !unknown
             && (result.output["cancelled"] != true || result.output["stop_confirmed"] == true);
         let stop_requested = *cancellation.borrow();
-        stop_tx.send_replace(Some(confirmed));
+        if let Some(id) = run_id {
+            self.resolve_execution_stop(id, execution_id, stop_requested, confirmed);
+        }
         let invocation = typed_invocation_identity(
             permit.run_id,
             permit.turn_id,
