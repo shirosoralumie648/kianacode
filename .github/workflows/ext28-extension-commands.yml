@@ -1,0 +1,33 @@
+name: "EXT-28 · Extension command and UI contract"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ext28-extension-commands:
+    name: "EXT-28 · Extension command and UI contract"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Compile kiana-daemon library tests
+        run: cargo test -p kiana-daemon --lib --locked --no-run
+      - name: Run kiana-domain EXT-28 command contract
+        run: cargo test -p kiana-domain --test ext28_extension_commands --locked -- --test-threads=1
+      - name: Run kiana-protocol EXT-28 wire round trip
+        run: cargo test -p kiana-protocol --test ext28_extension_command_wire --locked -- --test-threads=1
+      - name: Run kiana-core EXT-28 ControlPlane guard
+        run: cargo test -p kiana-core --test ext28_extension_command_guard --locked -- --test-threads=1
+      - name: Run kiana-daemon EXT-28 command fixtures
+        run: cargo test -p kiana-daemon --lib ext28_ --locked -- --test-threads=1
+      - name: Run kiana-entrypoints EXT-28 cross-surface fixture
+        run: cargo test -p kiana-entrypoints --test ext28_extension_commands --locked -- --test-threads=1

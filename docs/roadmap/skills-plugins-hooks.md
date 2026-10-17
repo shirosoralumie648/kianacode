@@ -380,11 +380,13 @@ Hook discovery 与 Skill/Plugin descriptor 使用同一来源/trust 前置结果
 
 
 
-#### EXT-28 · 命令与 UI 合同　🔄
+#### EXT-28 · 命令与 UI 合同　✅
 
 当前 source slice 与 CI-only 证据见 [`ext28-extension-command-baseline.md`](ext28-extension-command-baseline.md)。
 
 为 `extension.list`、`extension.inspect`、`extension.install`、`extension.enable`、`extension.disable`、`extension.revoke`、`extension.rollback` 定义 versioned protocol DTO、结构化错误和权限边界；只读 inspect 不需要 mutation approval，状态改变都要 actor/reason/idempotency/expected version。Workbench/Web/Desktop 只投影事件和 receipt，不在前端执行 Hook、解析包或自行决定 scope。
+
+完成切片（2026-10-17，CI-only）：补上基线自认的缺口（typed `install`/`enable` 缺 approval/config/dependency/trust 绑定字段，daemon `enable` 不消费这些快照）——`ExtensionCommandRequest` 新增 `trust_revision`、`dependency_snapshot_digest`、`approval_id`、`config_snapshot_digest`、`config_snapshot` 并在本地逐动作校验（install/enable 需 trust+dependency，enable 还需与快照自证摘要、extension、expected registry version 一致的 approval+config；只读命令携带任何绑定一律 `extension_command_read_only_mutation_fields`）；`ExtensionCommandReceipt` 增补 `mutation_digest`/`approval_id` 与 `from_response_output` 解码，`kiana-entrypoints` 共享 adapter 新增 `command_receipt`/`command_receipt_json`，daemon 幂等重放路径返回同形状 `command_receipt`（`replayed=true`、原 `event_id`）。验收夹具：domain `read_only_commands_have_no_mutation_authority`/`mutation_requires_operator_reason_idempotency_and_expected_version`/`package_commands_bind_project_relative_path_and_hash`/`binding_fields_are_bounded_and_encoded_for_the_shared_route`/`committed_receipt_is_decoded_and_rejects_unbound_data`，protocol `typed_extension_command_round_trips_through_generic_envelope`/`enable_carries_the_server_issued_lifecycle_binding_on_the_wire`，daemon `ext28_commands_are_permission_bound_and_the_receipt_resolves_to_the_committed_event`/`ext28_replayed_commands_return_the_same_receipt_and_event_without_a_second_fact`，entrypoints `untrusted_project_refuses_every_command_before_authority_and_leaks_nothing`/`trusted_project_keeps_reads_free_and_state_changes_approval_bound`，core `command_binding_and_receipt_projection_stay_on_the_shared_route`/`ext28_fixtures_stay_wired_to_the_manual_lane_and_the_auto_shards`；手动 lane `.github/workflows/ext28-extension-commands.yml`；durable 跨进程安装/恢复、approval UX 与 live provider 证据仍开放。
 
 <a id="step-ext-29"></a>
 

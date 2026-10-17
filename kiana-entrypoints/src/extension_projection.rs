@@ -8,7 +8,7 @@
 use anyhow::{anyhow, Result};
 use kiana_daemon::DaemonHost;
 use kiana_protocol::{
-    EntryPointKind, ExtensionCommandRequest, ExtensionVisibilityAction,
+    EntryPointKind, ExtensionCommandReceipt, ExtensionCommandRequest, ExtensionVisibilityAction,
     ExtensionVisibilityActionKind, ExtensionVisibilitySnapshot, ResponseEnvelope,
 };
 use serde_json::{json, Value};
@@ -67,6 +67,21 @@ pub fn visibility_action_intent(
     snapshot
         .action(extension_id, action, reason.to_owned())
         .map_err(|error| anyhow!(error))
+}
+
+/// Decode and validate the typed receipt the server committed for one lifecycle command.
+///
+/// Every surface shares this receipt projection: it reads the `command_receipt` object out of
+/// the response the daemon already produced and re-validates it against the versioned DTO. It
+/// never re-derives the receipt, loads a package, executes a Hook or decides scope/approval.
+pub fn command_receipt(response: &ResponseEnvelope) -> Result<ExtensionCommandReceipt> {
+    ExtensionCommandReceipt::from_response_output(&response.output).map_err(|error| anyhow!(error))
+}
+
+/// Serialize a committed command receipt for JSON/HTML/TTY presenters.
+pub fn command_receipt_json(response: &ResponseEnvelope) -> Result<Value> {
+    let receipt = command_receipt(response)?;
+    serde_json::to_value(receipt).map_err(|error| anyhow!(error))
 }
 
 /// Serialize a read-only projection for JSON/HTML/TTY presenters. The value contains no skill

@@ -325,6 +325,27 @@ impl ExtensionRegistry {
             let mut output = previous.data["receipt"].clone();
             output["replayed"] = json!(true);
             output["event_id"] = json!(previous.event_id);
+            // A replayed command must answer with the same typed receipt shape as the original
+            // commit: a surface that renders receipts cannot be forced back onto the generic
+            // lifecycle envelope just because the answer came from the idempotency ledger.
+            output["command_receipt"] = json!({
+                "schema": kiana_domain::EXTENSION_COMMAND_RECEIPT_SCHEMA,
+                "command": action,
+                "extension_id": extension_id,
+                "actor_id": actor,
+                "reason": previous.data["receipt"]["reason"],
+                "idempotency_key": key,
+                "expected_registry_version": arguments["expected_registry_version"],
+                "registry_version": previous.data["receipt"]["registry_version"],
+                "mutation_digest": lifecycle_mutation
+                    .as_ref()
+                    .map(|mutation| &mutation.mutation_digest),
+                "approval_id": lifecycle_mutation
+                    .as_ref()
+                    .and_then(|mutation| mutation.approval_id.as_ref()),
+                "event_id": previous.event_id,
+                "replayed": true,
+            });
             return Ok(output);
         }
         let expected = arguments["expected_registry_version"]
@@ -1605,12 +1626,13 @@ mod tests {
     use kiana_capability_broker::{CapabilityBroker, CapabilityHandler, ExtensionAdmission};
     use kiana_domain::{
         AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, CapabilityKind, CapabilityRequest,
-        CapabilityResult, ExecutionScope, ExtensionConfigEntry, ExtensionConfigScope,
-        ExtensionConfigSnapshot, ExtensionEffect, ExtensionExecutionScope, ExtensionManifest,
-        ExtensionNetworkPolicy, ExtensionPackage, ExtensionRequires, ExtensionSignature,
-        ExtensionType, ProjectIdentity, RequestId, RiskLevel, RuntimeEvent, ScopeDimension,
-        ScopeLimit, ScopeSet, SessionId, EXTENSION_MANAGE_OPERATION, EXTENSION_MANIFEST_SCHEMA,
-        EXTENSION_PACKAGE_SCHEMA, EXTENSION_STREAM,
+        CapabilityResult, ExecutionScope, ExtensionCommand, ExtensionCommandReceipt,
+        ExtensionConfigEntry, ExtensionConfigScope, ExtensionConfigSnapshot, ExtensionEffect,
+        ExtensionExecutionScope, ExtensionManifest, ExtensionNetworkPolicy, ExtensionPackage,
+        ExtensionRequires, ExtensionSignature, ExtensionType, ProjectIdentity, RequestId,
+        RiskLevel, RuntimeEvent, ScopeDimension, ScopeLimit, ScopeSet, SessionId,
+        EXTENSION_MANAGE_OPERATION, EXTENSION_MANIFEST_SCHEMA, EXTENSION_PACKAGE_SCHEMA,
+        EXTENSION_STREAM,
     };
     use kiana_ports::{
         CapabilityBrokerPort, EventStorePort, ExecutionPermitVerifierPort, PortError,
@@ -3127,5 +3149,243 @@ mod tests {
 
         // The label remains an intent: it carries the snapshot identity, never an authorization.
         assert_ne!(fresh.snapshot_digest, cached_intent.snapshot_digest);
+    }
+
+    // ---- EXT-28: typed command contract, permission errors and receipt audit association ----
+
+    /// A read-only `list` command plus the server-owned fields, the way the ControlPlane injects
+    /// them after a request passes the entrypoint.
+    fn ext28_list_arguments(project_root: &str) -> serde_json::Value {
+        let mut arguments = json!({"action": "list", "max_results": 64});
+        server_owned_arguments(&mut arguments, project_root);
+        arguments
+    }
+
+    /// A `disable` mutation carrying the operator binding EXT-28 requires from every state change.
+    fn ext28_disable_arguments(
+        project_root: &str,
+        expected_registry_version: u64,
+        idempotency_key: &str,
+    ) -> serde_json::Value {
+        let mut arguments = json!({
+            "action": "disable",
+            "extension_id": "review-skill",
+            "expected_registry_version": expected_registry_version,
+            "idempotency_key": idempotency_key,
+            "reason": "EXT-28 command fixture",
+        });
+        server_owned_arguments(&mut arguments, project_root);
+        arguments
+    }
+
+    /// Build an authorized `extension.manage` request without the adapter's action-contract
+    /// normalization. EXT-28 uses it only to prove the daemon refuses an under-declared mutation
+    /// even when a hand-built request skipped the entrypoint check (defense in depth).
+    fn raw_manage_request(
+        risk: RiskLevel,
+        arguments: serde_json::Value,
+    ) -> AuthorizedCapabilityRequest {
+        let mut request = CapabilityRequest::new(
+            RequestId::new(),
+            CapabilityKind::Filesystem,
+            EXTENSION_MANAGE_OPERATION,
+            arguments,
+        )
+        .with_risk(risk);
+        request.execution_scope = Some(execution_scope(&request));
+        AuthorizedCapabilityRequest::new("extension:ext28-fixture", request).expect("authorized")
+    }
+
+    /// EXT-28 deny-first daemon fixture. A read-only command is free and appends no fact, while
+    /// every state change is refused unless the caller is an operator outside a cell and carries
+    /// the expected registry generation. Only the accepted command commits one CAS fact, and the
+    /// typed receipt it returns resolves to exactly that committed event.
+    #[tokio::test]
+    async fn ext28_commands_are_permission_bound_and_the_receipt_resolves_to_the_committed_event() {
+        let package = fixture_package();
+        let root = fixture_root("ext28-commands");
+        let (project_root, scope_id) = project_scope(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        append_registry_state(&events, &scope_id, 1, &installed_state(&package, "enabled")).await;
+
+        // (a) read-only list: no mutation binding, no approval, no lifecycle fact.
+        let listed = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ReadOnly,
+                ext28_list_arguments(&project_root),
+            ))
+            .await
+            .expect("read-only list");
+        assert_eq!(listed["registry_version"], json!(1));
+        assert!(listed["snapshot"].is_object());
+
+        // (b) a state change that declares read-only risk is refused before it can reach a
+        // state transition: the daemon re-checks the declared risk even for a hand-built request
+        // that never went through the adapter's action contract.
+        assert_eq!(
+            registry
+                .manage(&raw_manage_request(
+                    RiskLevel::ReadOnly,
+                    ext28_disable_arguments(&project_root, 1, "ext28-downgraded"),
+                ))
+                .await
+                .expect_err("a mutation may not declare read-only risk"),
+            PortError::Failed("extension_approval_risk_required".to_owned())
+        );
+
+        // (c) no operator identity: the mutation is refused before any argument is trusted.
+        let mut missing_operator = ext28_disable_arguments(&project_root, 1, "ext28-no-operator");
+        missing_operator["operator_authorized"] = json!(false);
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    missing_operator,
+                ))
+                .await
+                .expect_err("operator identity required"),
+            PortError::Failed("extension_operator_required".to_owned())
+        );
+
+        // (d) a cell-scoped request never owns extension state changes.
+        let mut cell_request = manage_request(
+            &project_root,
+            RiskLevel::ExternalSideEffect,
+            ext28_disable_arguments(&project_root, 1, "ext28-cell"),
+        );
+        cell_request.request.cell_id = Some(kiana_domain::CellId::new());
+        assert_eq!(
+            registry
+                .manage(&cell_request)
+                .await
+                .expect_err("cell context must not mutate the registry"),
+            PortError::Failed("extension_operator_required".to_owned())
+        );
+
+        // (e) the expected registry generation is a required precondition, not a hint.
+        let mut mut_no_version = ext28_disable_arguments(&project_root, 1, "ext28-no-version");
+        mut_no_version
+            .as_object_mut()
+            .expect("arguments object")
+            .remove("expected_registry_version");
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    mut_no_version,
+                ))
+                .await
+                .expect_err("expected registry version required"),
+            PortError::Failed("extension_expected_registry_version_required".to_owned())
+        );
+
+        // None of the refusals above may have appended a fact.
+        let (version, states) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 1);
+        assert_eq!(states["review-skill"].state, "enabled");
+
+        // (f) the accepted command commits exactly one CAS fact and returns the typed receipt.
+        let committed = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                ext28_disable_arguments(&project_root, 1, "ext28-disable-1"),
+            ))
+            .await
+            .expect("disable");
+        assert_eq!(committed["state"], json!("disabled"));
+        assert_eq!(committed["registry_version"], json!(2));
+        assert_eq!(committed["replayed"], json!(false));
+        let receipt = ExtensionCommandReceipt::from_response_output(&committed)
+            .expect("typed receipt projection");
+        assert_eq!(receipt.command, ExtensionCommand::Disable);
+        assert_eq!(receipt.extension_id, "review-skill");
+        assert_eq!(receipt.expected_registry_version, 1);
+        assert_eq!(receipt.registry_version, 2);
+        assert!(!receipt.replayed);
+        assert_eq!(receipt.event_id, committed["event_id"]);
+        receipt.validate().expect("receipt self-check");
+
+        // Audit association: the receipt resolves to the committed event, not to a parallel
+        // lifecycle envelope, and the event stream grew by exactly one fact.
+        let (_, history) = registry.stream(&project_root).await.expect("stream");
+        assert_eq!(history.len(), 2);
+        let appending = history.last().expect("committed disable fact");
+        assert_eq!(appending.kind, "extension.lifecycle");
+        assert_eq!(appending.stream_version, Some(2));
+        assert_eq!(appending.data["action"], json!("disable"));
+        assert_eq!(appending.event_id.to_string(), receipt.event_id);
+        let (version, states) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 2);
+        assert_eq!(states["review-skill"].state, "disabled");
+    }
+
+    /// EXT-28 deny-first daemon fixture: a replayed command returns the original typed receipt
+    /// and event identity without appending a second fact, and the same idempotency key with a
+    /// different payload is a conflict that leaves the registry untouched.
+    #[tokio::test]
+    async fn ext28_replayed_commands_return_the_same_receipt_and_event_without_a_second_fact() {
+        let package = fixture_package();
+        let root = fixture_root("ext28-replay");
+        let (project_root, scope_id) = project_scope(&root);
+        let events: Arc<dyn EventStorePort> = Arc::new(kiana_eventlog::MemoryEventLog::new());
+        let registry = fixture_registry(&root, &package, events.clone());
+        append_registry_state(&events, &scope_id, 1, &installed_state(&package, "enabled")).await;
+
+        let disable = ext28_disable_arguments(&project_root, 1, "ext28-replay-1");
+        let committed = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                disable.clone(),
+            ))
+            .await
+            .expect("disable");
+        let receipt =
+            ExtensionCommandReceipt::from_response_output(&committed).expect("committed receipt");
+        assert!(!receipt.replayed);
+
+        let replayed = registry
+            .manage(&manage_request(
+                &project_root,
+                RiskLevel::ExternalSideEffect,
+                disable.clone(),
+            ))
+            .await
+            .expect("idempotent replay");
+        assert_eq!(replayed["replayed"], json!(true));
+        assert_eq!(replayed["event_id"], committed["event_id"]);
+        let replay_receipt = ExtensionCommandReceipt::from_response_output(&replayed)
+            .expect("a replayed command answers with the same typed receipt");
+        assert!(replay_receipt.replayed);
+        assert_eq!(replay_receipt.event_id, receipt.event_id);
+        assert_eq!(
+            replay_receipt.expected_registry_version,
+            receipt.expected_registry_version
+        );
+        assert_eq!(replay_receipt.registry_version, receipt.registry_version);
+        assert_eq!(replayed["command_receipt"]["command"], json!("disable"));
+
+        // Payload drift under one idempotency key is a conflict, not a second mutation.
+        let mut drifted = disable;
+        drifted["reason"] = json!("EXT-28 drifted replay");
+        assert_eq!(
+            registry
+                .manage(&manage_request(
+                    &project_root,
+                    RiskLevel::ExternalSideEffect,
+                    drifted,
+                ))
+                .await
+                .expect_err("payload drift under one key"),
+            PortError::Conflict("extension_idempotency_payload_mismatch".to_owned())
+        );
+        let (version, states) = folded_registry(&registry, &project_root).await;
+        assert_eq!(version, 2);
+        assert_eq!(states["review-skill"].state, "disabled");
     }
 }
