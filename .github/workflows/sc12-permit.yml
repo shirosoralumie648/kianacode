@@ -21,7 +21,11 @@ jobs:
         run: cargo fmt --all --check
       - name: Run SC-12 source guard
         run: cargo test -p kiana-core --test sc12_permit_guard --locked -- --test-threads=1
+      - name: Run SC-12 permit CAS and idempotency fixtures
+        run: cargo test -p kiana-core --test sc12_invocation_permit --locked -- --test-threads=1
       - name: Compile SC-12 domain target
         run: cargo test -p kiana-domain --lib --no-run --locked
       - name: Compile SC-12 Core guard target
         run: cargo test -p kiana-core --test sc12_permit_guard --no-run --locked
+      - name: Compile SC-12 Core behavior target
+        run: cargo test -p kiana-core --test sc12_invocation_permit --no-run --locked
