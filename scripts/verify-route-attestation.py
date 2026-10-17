@@ -35,14 +35,18 @@ def digest_bytes(value: bytes) -> str:
 
 def digest_value(value: Any) -> str:
     return digest_bytes(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode()
     )
 
 
 def require_digest(value: Any, field: str) -> str:
     if not isinstance(value, str) or len(value) != len(DIGEST_PREFIX) + 64:
         fail(f"{field}_invalid")
-    if not value.startswith(DIGEST_PREFIX) or any(c not in "0123456789abcdef" for c in value[7:]):
+    if not value.startswith(DIGEST_PREFIX) or any(
+        c not in "0123456789abcdef" for c in value[7:]
+    ):
         fail(f"{field}_invalid")
     return value
 
@@ -86,7 +90,14 @@ def verify_route_shape(route: dict[str, Any]) -> str:
         },
         "route",
     )
-    for key in ("provider_id", "protocol", "connection_id", "model_id", "profile", "configuration_revision"):
+    for key in (
+        "provider_id",
+        "protocol",
+        "connection_id",
+        "model_id",
+        "profile",
+        "configuration_revision",
+    ):
         require_text(route.get(key), f"route_{key}")
     if route["protocol"] not in {
         "legacy",
@@ -114,16 +125,33 @@ def verify_route_shape(route: dict[str, Any]) -> str:
 def verify_prompt(prompt: dict[str, Any]) -> None:
     strict_object(
         prompt,
-        {"schema", "version", "pack_id", "pack_version", "content_digest", "provenance_digest", "trust"},
+        {
+            "schema",
+            "version",
+            "pack_id",
+            "pack_version",
+            "content_digest",
+            "provenance_digest",
+            "trust",
+        },
         "route_prompt",
     )
-    if prompt.get("schema") != "kiana.route-attestation-prompt.v1" or prompt.get("version") != VERSION:
+    if (
+        prompt.get("schema") != "kiana.route-attestation-prompt.v1"
+        or prompt.get("version") != VERSION
+    ):
         fail("route_prompt_header_invalid")
     require_text(prompt.get("pack_id"), "route_prompt_pack_id")
     require_text(prompt.get("pack_version"), "route_prompt_pack_version")
     require_digest(prompt.get("content_digest"), "route_prompt_content_digest")
     require_digest(prompt.get("provenance_digest"), "route_prompt_provenance_digest")
-    if prompt.get("trust") not in {"product", "signed", "untrusted", "unknown", "revoked"}:
+    if prompt.get("trust") not in {
+        "product",
+        "signed",
+        "untrusted",
+        "unknown",
+        "revoked",
+    }:
         fail("route_prompt_trust_invalid")
 
 
@@ -143,7 +171,10 @@ def verify_mcp(mcp: dict[str, Any]) -> str:
         },
         "route_mcp",
     )
-    if mcp.get("schema") != "kiana.route-attestation-mcp.v1" or mcp.get("version") != VERSION:
+    if (
+        mcp.get("schema") != "kiana.route-attestation-mcp.v1"
+        or mcp.get("version") != VERSION
+    ):
         fail("route_mcp_header_invalid")
     require_text(mcp.get("server_id"), "route_mcp_server")
     if mcp.get("transport") not in {"stdio", "http"}:
@@ -161,6 +192,38 @@ def verify_mcp(mcp: dict[str, Any]) -> str:
     return route_digest
 
 
+def verify_downstream_token(token: dict[str, Any]) -> None:
+    strict_object(
+        token,
+        {
+            "schema",
+            "version",
+            "token_ref_digest",
+            "account_id",
+            "audience",
+            "purpose",
+            "token_scope_digest",
+        },
+        "route_downstream_token",
+    )
+    if (
+        token.get("schema") != "kiana.route-attestation-downstream-token.v1"
+        or token.get("version") != VERSION
+    ):
+        fail("route_downstream_token_header_invalid")
+    require_digest(token.get("token_ref_digest"), "route_downstream_token_ref_digest")
+    require_text(token.get("account_id"), "route_downstream_token_account")
+    require_text(token.get("audience"), "route_downstream_token_audience")
+    require_text(token.get("purpose"), "route_downstream_token_purpose")
+    scope_digest = require_digest(
+        token.get("token_scope_digest"), "route_downstream_token_scope_digest"
+    )
+    expected = dict(token)
+    expected.pop("token_scope_digest", None)
+    if scope_digest != digest_value(expected):
+        fail("route_downstream_token_digest_mismatch")
+
+
 def verify_policy(policy: dict[str, Any]) -> None:
     strict_object(
         policy,
@@ -176,18 +239,31 @@ def verify_policy(policy: dict[str, Any]) -> None:
         },
         "route_policy",
     )
-    if policy.get("schema") != "kiana.route-attestation-policy.v1" or policy.get("version") != VERSION:
+    if (
+        policy.get("schema") != "kiana.route-attestation-policy.v1"
+        or policy.get("version") != VERSION
+    ):
         fail("route_policy_header_invalid")
     require_digest(policy.get("policy_digest"), "route_policy_digest")
-    if not isinstance(policy.get("policy_revision"), int) or policy["policy_revision"] < 0:
+    if (
+        not isinstance(policy.get("policy_revision"), int)
+        or policy["policy_revision"] < 0
+    ):
         fail("route_policy_revision_invalid")
     if not isinstance(policy.get("data_epoch"), int) or policy["data_epoch"] == 0:
         fail("route_policy_epoch_invalid")
     require_text(policy.get("purpose"), "route_policy_purpose")
     classes = policy.get("allowed_classes")
-    if not isinstance(classes, list) or len(classes) > 4 or len(set(classes)) != len(classes):
+    if (
+        not isinstance(classes, list)
+        or len(classes) > 4
+        or len(set(classes)) != len(classes)
+    ):
         fail("route_policy_scope_invalid")
-    if any(value not in {"public", "internal", "confidential", "restricted"} for value in classes):
+    if any(
+        value not in {"public", "internal", "confidential", "restricted"}
+        for value in classes
+    ):
         fail("route_policy_data_class_invalid")
     require_digest(policy.get("use_policy_digest"), "route_policy_use_digest")
     expected = dict(policy)
@@ -211,7 +287,14 @@ def verify_claim(claim: dict[str, Any]) -> str:
         },
         "route_claim",
     )
-    for key in ("provider_id", "protocol", "connection_id", "model_id", "profile", "configuration_revision"):
+    for key in (
+        "provider_id",
+        "protocol",
+        "connection_id",
+        "model_id",
+        "profile",
+        "configuration_revision",
+    ):
         require_text(claim.get(key), f"route_claim_{key}")
     if claim["protocol"] not in {
         "legacy",
@@ -238,13 +321,25 @@ def verify_claim(claim: dict[str, Any]) -> str:
     return route_digest
 
 
-def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[str, Any]:
+def verify_attestation(
+    value: dict[str, Any], expected: dict[str, Any]
+) -> dict[str, Any]:
     strict_object(
         value,
-        {"schema", "version", "context", "provider_claim", "provider_verified", "attestation_digest"},
+        {
+            "schema",
+            "version",
+            "context",
+            "provider_claim",
+            "provider_verified",
+            "attestation_digest",
+        },
         "route_attestation",
     )
-    if value.get("schema") != "kiana.route-attestation.v1" or value.get("version") != VERSION:
+    if (
+        value.get("schema") != "kiana.route-attestation.v1"
+        or value.get("version") != VERSION
+    ):
         fail("route_attestation_header_invalid")
     context = strict_object(
         value.get("context"),
@@ -259,25 +354,45 @@ def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[
             "credential_ref_digest",
             "account_id",
             "audience",
+            "downstream_token",
             "release_manifest_digest",
             "release_signature_attestation_digest",
         },
         "route_attestation_context",
     )
-    if context.get("schema") != "kiana.route-attestation-context.v1" or context.get("version") != VERSION:
+    if (
+        context.get("schema") != "kiana.route-attestation-context.v1"
+        or context.get("version") != VERSION
+    ):
         fail("route_attestation_context_header_invalid")
     route_digest = verify_route_shape(context.get("route"))
-    if require_digest(context.get("route_digest"), "route_attestation_route_digest") != route_digest:
+    if (
+        require_digest(context.get("route_digest"), "route_attestation_route_digest")
+        != route_digest
+    ):
         fail("route_attestation_route_digest_mismatch")
     verify_prompt(context.get("prompt_pack"))
     mcp_digest = None
     if context.get("mcp_route") is not None:
         mcp_digest = verify_mcp(context["mcp_route"])
     verify_policy(context.get("data_policy"))
-    require_digest(context.get("credential_ref_digest"), "route_attestation_credential_digest")
+    require_digest(
+        context.get("credential_ref_digest"), "route_attestation_credential_digest"
+    )
     require_text(context.get("account_id"), "route_attestation_account")
     require_text(context.get("audience"), "route_attestation_audience")
-    require_digest(context.get("release_manifest_digest"), "route_attestation_release_manifest_digest")
+    if context.get("downstream_token") is not None:
+        verify_downstream_token(context["downstream_token"])
+        if context["downstream_token"]["account_id"] != context["account_id"]:
+            fail("route_attestation_downstream_token_account_mismatch")
+        if context["downstream_token"]["audience"] != context["audience"]:
+            fail("route_attestation_downstream_token_audience_mismatch")
+        if context["downstream_token"]["purpose"] != context["data_policy"]["purpose"]:
+            fail("route_attestation_downstream_token_purpose_mismatch")
+    require_digest(
+        context.get("release_manifest_digest"),
+        "route_attestation_release_manifest_digest",
+    )
     require_digest(
         context.get("release_signature_attestation_digest"),
         "route_attestation_release_signature_digest",
@@ -287,7 +402,9 @@ def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[
     verify_claim(claim)
     if not isinstance(value.get("provider_verified"), bool):
         fail("route_attestation_provider_verified_invalid")
-    attestation_digest = require_digest(value.get("attestation_digest"), "route_attestation_digest")
+    attestation_digest = require_digest(
+        value.get("attestation_digest"), "route_attestation_digest"
+    )
     expected_attestation = dict(value)
     expected_attestation.pop("attestation_digest", None)
     if attestation_digest != digest_value(expected_attestation):
@@ -295,8 +412,11 @@ def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[
 
     expected_context = expected
     expected_context_digest = digest_value(expected_context)
-    if context != expected_context:
-        reason = "route_attestation_binding_mismatch"
+    if (
+        context["route"] != expected_context["route"]
+        or context["route_digest"] != expected_context["route_digest"]
+    ):
+        reason = "route_attestation_route_mismatch"
     elif claim != {
         "provider_id": expected_context["route"]["provider_id"],
         "protocol": expected_context["route"]["protocol"],
@@ -308,6 +428,8 @@ def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[
         "route_digest": expected_context["route_digest"],
     }:
         reason = "route_attestation_provider_claim_mismatch"
+    elif context["prompt_pack"] != expected_context["prompt_pack"]:
+        reason = "route_attestation_prompt_pack_mismatch"
     elif context["prompt_pack"]["trust"] in {"untrusted", "revoked"}:
         reason = "route_attestation_prompt_pack_untrusted"
     elif context["prompt_pack"]["trust"] == "unknown":
@@ -316,6 +438,10 @@ def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[
         reason = "route_attestation_mcp_route_mismatch"
     elif context.get("mcp_route", {}).get("transport") == "http":
         reason = "route_attestation_mcp_transport_unsupported"
+    elif context.get("mcp_route") is not None and not context["mcp_route"].get(
+        "enabled"
+    ):
+        reason = "route_attestation_mcp_disabled"
     elif context["data_policy"] != expected_context["data_policy"]:
         reason = "route_attestation_data_policy_mismatch"
     elif context["credential_ref_digest"] != expected_context["credential_ref_digest"]:
@@ -324,16 +450,36 @@ def verify_attestation(value: dict[str, Any], expected: dict[str, Any]) -> dict[
         reason = "route_attestation_account_mismatch"
     elif context["audience"] != expected_context["audience"]:
         reason = "route_attestation_audience_mismatch"
-    elif context["release_manifest_digest"] != expected_context["release_manifest_digest"] or context[
-        "release_signature_attestation_digest"
-    ] != expected_context["release_signature_attestation_digest"]:
+    elif (
+        expected_context.get("downstream_token") is not None
+        and context.get("downstream_token") is None
+    ):
+        reason = "route_attestation_downstream_token_missing"
+    elif context.get("downstream_token") != expected_context.get("downstream_token"):
+        reason = "route_attestation_downstream_token_mismatch"
+    elif (
+        context["release_manifest_digest"]
+        != expected_context["release_manifest_digest"]
+        or context["release_signature_attestation_digest"]
+        != expected_context["release_signature_attestation_digest"]
+    ):
         reason = "route_attestation_release_binding_mismatch"
+    elif context != expected_context:
+        # Final fence for any context field not compared above; keeping the coarse
+        # comparison last preserves the fixed deny order for every known field.
+        reason = "route_attestation_binding_mismatch"
     elif not value["provider_verified"]:
         reason = "route_attestation_provider_unverified"
     else:
         reason = "ok"
 
-    status = "verified" if reason == "ok" else "unknown" if reason.endswith("unknown") or reason.endswith("unverified") else "blocked"
+    status = (
+        "verified"
+        if reason == "ok"
+        else "unknown"
+        if reason.endswith("unknown") or reason.endswith("unverified")
+        else "blocked"
+    )
     return {
         "schema": "kiana.route-attestation-report.v1",
         "status": status,
@@ -388,6 +534,15 @@ def fixture() -> tuple[dict[str, Any], dict[str, Any]]:
         "allowed_classes": ["confidential", "internal"],
     }
     policy["use_policy_digest"] = digest_value(policy)
+    downstream_token = {
+        "schema": "kiana.route-attestation-downstream-token.v1",
+        "version": VERSION,
+        "token_ref_digest": "sha256:" + "d" * 64,
+        "account_id": "account-fixture",
+        "audience": "audience:provider-fixture",
+        "purpose": "code-generation",
+    }
+    downstream_token["token_scope_digest"] = digest_value(downstream_token)
     context = {
         "schema": "kiana.route-attestation-context.v1",
         "version": VERSION,
@@ -399,6 +554,7 @@ def fixture() -> tuple[dict[str, Any], dict[str, Any]]:
         "credential_ref_digest": "sha256:" + "e" * 64,
         "account_id": "account-fixture",
         "audience": "audience:provider-fixture",
+        "downstream_token": downstream_token,
         "release_manifest_digest": "sha256:" + "a" * 64,
         "release_signature_attestation_digest": "sha256:" + "f" * 64,
     }
@@ -429,7 +585,9 @@ def self_test() -> None:
             "protocol": forged["provider_claim"]["protocol"],
             "model_id": forged["provider_claim"]["model_id"],
             "profile": forged["provider_claim"]["profile"],
-            "configuration_revision": forged["provider_claim"]["configuration_revision"],
+            "configuration_revision": forged["provider_claim"][
+                "configuration_revision"
+            ],
             "streaming": forged["provider_claim"]["streaming"],
         }
     )
@@ -450,6 +608,35 @@ def self_test() -> None:
     if report["status"] != "unknown":
         fail("self_test_unknown_prompt_not_preserved")
 
+    # A downstream token minted for another account is refused even after the token's own
+    # scope digest is re-derived, so token mixing cannot be laundered into the snapshot.
+    mixed = json.loads(json.dumps(attestation))
+    mixed["context"]["downstream_token"]["account_id"] = "other-account"
+    mixed["context"]["downstream_token"]["token_scope_digest"] = digest_value(
+        {
+            key: value
+            for key, value in mixed["context"]["downstream_token"].items()
+            if key != "token_scope_digest"
+        }
+    )
+    try:
+        verify_attestation(mixed, json.loads(json.dumps(mixed["context"])))
+    except VerificationError as error:
+        if str(error) != "route_attestation_downstream_token_account_mismatch":
+            fail("self_test_downstream_token_account_mismatch_unexpected_reason")
+    else:
+        fail("self_test_mixed_downstream_token_accepted")
+
+    # Dropping the expected token is a blocked report, not a silent pass.
+    without = json.loads(json.dumps(attestation))
+    del without["context"]["downstream_token"]
+    without["attestation_digest"] = digest_value(
+        {key: value for key, value in without.items() if key != "attestation_digest"}
+    )
+    report = verify_attestation(without, expected)
+    if report["reason"] != "route_attestation_downstream_token_missing":
+        fail("self_test_missing_downstream_token_not_reported")
+
     with tempfile.TemporaryDirectory(prefix="kiana-sc30-") as directory:
         path = Path(directory) / "attestation.json"
         path.write_text(json.dumps(attestation), encoding="utf-8")
@@ -468,7 +655,9 @@ def main(argv: list[str]) -> int:
         elif not args.attestation or not args.expected:
             parser.error("--attestation and --expected are required")
         else:
-            report = verify_attestation(read_json(Path(args.attestation)), read_json(Path(args.expected)))
+            report = verify_attestation(
+                read_json(Path(args.attestation)), read_json(Path(args.expected))
+            )
             print(json.dumps(report, sort_keys=True))
     except VerificationError as error:
         print(f"route attestation verification failed: {error}", file=sys.stderr)

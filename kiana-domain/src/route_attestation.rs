@@ -17,6 +17,9 @@ pub const ROUTE_ATTESTATION_PROMPT_SCHEMA: &str = "kiana.route-attestation-promp
 pub const ROUTE_ATTESTATION_MCP_SCHEMA: &str = "kiana.route-attestation-mcp.v1";
 pub const ROUTE_ATTESTATION_POLICY_SCHEMA: &str = "kiana.route-attestation-policy.v1";
 pub const ROUTE_ATTESTATION_REPORT_SCHEMA: &str = "kiana.route-attestation-report.v1";
+pub const ROUTE_ATTESTATION_DOWNSTREAM_TOKEN_SCHEMA: &str =
+    "kiana.route-attestation-downstream-token.v1";
+pub const ROUTE_ATTESTATION_USE_DECISION_SCHEMA: &str = "kiana.route-attestation-use-decision.v1";
 pub const ROUTE_ATTESTATION_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_ROUTE_ATTESTATION_TEXT_BYTES: usize = 512;
 pub const MAX_ROUTE_ATTESTATION_CLASSES: usize = 4;
@@ -224,6 +227,77 @@ impl McpRouteAttestation {
     }
 }
 
+/// Opaque identity of the token minted for the downstream provider or MCP call.
+///
+/// Only the reference digest and the exact server-owned account/audience/purpose scope are
+/// represented: never the token value.  A token minted for another account, audience or
+/// purpose is structurally invalid for this context, so a reused downstream token cannot be
+/// re-labelled on top of an otherwise valid route snapshot.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DownstreamTokenAttestation {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub token_ref_digest: String,
+    pub account_id: String,
+    pub audience: String,
+    pub purpose: String,
+    pub token_scope_digest: String,
+}
+
+impl DownstreamTokenAttestation {
+    pub fn new(
+        token_ref_digest: impl Into<String>,
+        account_id: impl Into<String>,
+        audience: impl Into<String>,
+        purpose: impl Into<String>,
+    ) -> Result<Self, String> {
+        let mut token = Self {
+            schema: ROUTE_ATTESTATION_DOWNSTREAM_TOKEN_SCHEMA.to_owned(),
+            version: ROUTE_ATTESTATION_VERSION,
+            token_ref_digest: token_ref_digest.into(),
+            account_id: account_id.into(),
+            audience: audience.into(),
+            purpose: purpose.into(),
+            token_scope_digest: String::new(),
+        };
+        token.token_scope_digest = token.digest();
+        token.validate()?;
+        Ok(token)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ROUTE_ATTESTATION_DOWNSTREAM_TOKEN_SCHEMA
+            || self.version != ROUTE_ATTESTATION_VERSION
+        {
+            return Err("route_downstream_token_header_invalid".to_owned());
+        }
+        digest(&self.token_ref_digest, "route_downstream_token_ref_digest")?;
+        bounded(&self.account_id, "route_downstream_token_account")?;
+        bounded(&self.audience, "route_downstream_token_audience")?;
+        bounded(&self.purpose, "route_downstream_token_purpose")?;
+        digest(
+            &self.token_scope_digest,
+            "route_downstream_token_scope_digest",
+        )?;
+        if self.token_scope_digest != self.digest() {
+            return Err("route_downstream_token_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "token_ref_digest": self.token_ref_digest,
+            "account_id": self.account_id,
+            "audience": self.audience,
+            "purpose": self.purpose,
+        }))
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RouteDataPolicyBinding {
@@ -272,10 +346,7 @@ impl RouteDataPolicyBinding {
         }
         bounded(&self.purpose, "route_policy_purpose")?;
         for class in &self.allowed_classes {
-            if !matches!(
-                class.as_str(),
-                "public" | "internal" | "confidential" | "restricted"
-            ) {
+            if !is_data_class(class) {
                 return Err("route_policy_data_class_invalid".to_owned());
             }
         }
@@ -297,6 +368,130 @@ impl RouteDataPolicyBinding {
             "allowed_classes": self.allowed_classes,
         }))
     }
+
+    /// Decide whether a requested purpose and data-class set stay inside this binding.
+    ///
+    /// The decision is pure: it never resolves data, contacts a provider or mutates the
+    /// binding.  A refusal is a structured, digest-bound report with stable reason codes, so
+    /// callers must treat anything other than `allowed` as zero effect.
+    pub fn authorize_use(
+        &self,
+        purpose: &str,
+        classes: &BTreeSet<String>,
+    ) -> Result<RouteDataUseDecision, String> {
+        self.validate()?;
+        let reason = if purpose.trim().is_empty() || purpose != self.purpose {
+            "route_attestation_purpose_not_permitted"
+        } else if classes.is_empty() || classes.len() > MAX_ROUTE_ATTESTATION_CLASSES {
+            "route_attestation_data_classes_invalid"
+        } else if classes.iter().any(|class| !is_data_class(class)) {
+            "route_attestation_data_class_unknown"
+        } else if classes
+            .iter()
+            .any(|class| !self.allowed_classes.contains(class))
+        {
+            "route_attestation_data_class_not_permitted"
+        } else {
+            "ok"
+        };
+        RouteDataUseDecision::new(self, reason, classes)
+    }
+}
+
+/// Digest-bound outcome of [`RouteDataPolicyBinding::authorize_use`].
+///
+/// `allowed=false` carries a stable reason and is the only value a caller may treat as a
+/// refusal; `allowed=true` always carries `"ok"`.  The decision binds the policy revision,
+/// data epoch, requested classes and permitted classes so evidence cannot be re-labelled.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RouteDataUseDecision {
+    pub schema: String,
+    pub version: SchemaVersion,
+    pub allowed: bool,
+    pub reason: String,
+    pub purpose: String,
+    pub requested_classes: BTreeSet<String>,
+    pub permitted_classes: BTreeSet<String>,
+    pub policy_revision: u64,
+    pub data_epoch: u64,
+    pub decision_digest: String,
+}
+
+impl RouteDataUseDecision {
+    fn new(
+        binding: &RouteDataPolicyBinding,
+        reason: &str,
+        requested_classes: &BTreeSet<String>,
+    ) -> Result<Self, String> {
+        let mut decision = Self {
+            schema: ROUTE_ATTESTATION_USE_DECISION_SCHEMA.to_owned(),
+            version: ROUTE_ATTESTATION_VERSION,
+            allowed: reason == "ok",
+            reason: reason.to_owned(),
+            purpose: binding.purpose.clone(),
+            requested_classes: requested_classes.clone(),
+            permitted_classes: binding.allowed_classes.clone(),
+            policy_revision: binding.policy_revision,
+            data_epoch: binding.data_epoch,
+            decision_digest: String::new(),
+        };
+        decision.decision_digest = decision.digest();
+        decision.validate()?;
+        Ok(decision)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != ROUTE_ATTESTATION_USE_DECISION_SCHEMA
+            || self.version != ROUTE_ATTESTATION_VERSION
+        {
+            return Err("route_use_decision_header_invalid".to_owned());
+        }
+        if self.data_epoch == 0 {
+            return Err("route_use_decision_epoch_invalid".to_owned());
+        }
+        bounded(&self.purpose, "route_use_decision_purpose")?;
+        bounded(&self.reason, "route_use_decision_reason")?;
+        if self.allowed != (self.reason == "ok") {
+            return Err("route_use_decision_state_invalid".to_owned());
+        }
+        if !self.allowed && !self.reason.starts_with("route_attestation_") {
+            return Err("route_use_decision_reason_invalid".to_owned());
+        }
+        if self.requested_classes.len() > MAX_ROUTE_ATTESTATION_CLASSES
+            || self.permitted_classes.len() > MAX_ROUTE_ATTESTATION_CLASSES
+        {
+            return Err("route_use_decision_scope_invalid".to_owned());
+        }
+        for class in self
+            .requested_classes
+            .iter()
+            .chain(self.permitted_classes.iter())
+        {
+            if !is_data_class(class) {
+                return Err("route_use_decision_data_class_invalid".to_owned());
+            }
+        }
+        digest(&self.decision_digest, "route_use_decision_digest")?;
+        if self.decision_digest != self.digest() {
+            return Err("route_use_decision_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "version": self.version,
+            "allowed": self.allowed,
+            "reason": self.reason,
+            "purpose": self.purpose,
+            "requested_classes": self.requested_classes,
+            "permitted_classes": self.permitted_classes,
+            "policy_revision": self.policy_revision,
+            "data_epoch": self.data_epoch,
+        }))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -313,6 +508,8 @@ pub struct RouteAttestationContext {
     pub credential_ref_digest: String,
     pub account_id: String,
     pub audience: String,
+    #[serde(default)]
+    pub downstream_token: Option<DownstreamTokenAttestation>,
     pub release_manifest_digest: String,
     pub release_signature_attestation_digest: String,
 }
@@ -341,11 +538,26 @@ impl RouteAttestationContext {
             credential_ref_digest: credential_ref_digest.into(),
             account_id: account_id.into(),
             audience: audience.into(),
+            downstream_token: None,
             release_manifest_digest: release_manifest_digest.into(),
             release_signature_attestation_digest: release_signature_attestation_digest.into(),
         };
         context.validate()?;
         Ok(context)
+    }
+
+    /// Attach the opaque downstream token identity and re-run the cross-field binding.
+    ///
+    /// The token must have been minted for this context's exact account, audience and data
+    /// policy purpose; a token reused from another route is refused here, before any
+    /// provider or MCP dispatch.
+    pub fn with_downstream_token(
+        mut self,
+        downstream_token: DownstreamTokenAttestation,
+    ) -> Result<Self, String> {
+        self.downstream_token = Some(downstream_token);
+        self.validate()?;
+        Ok(self)
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -370,6 +582,18 @@ impl RouteAttestationContext {
         )?;
         bounded(&self.account_id, "route_attestation_account")?;
         bounded(&self.audience, "route_attestation_audience")?;
+        if let Some(token) = &self.downstream_token {
+            token.validate()?;
+            if token.account_id != self.account_id {
+                return Err("route_attestation_downstream_token_account_mismatch".to_owned());
+            }
+            if token.audience != self.audience {
+                return Err("route_attestation_downstream_token_audience_mismatch".to_owned());
+            }
+            if token.purpose != self.data_policy.purpose {
+                return Err("route_attestation_downstream_token_purpose_mismatch".to_owned());
+            }
+        }
         digest(
             &self.release_manifest_digest,
             "route_attestation_release_manifest_digest",
@@ -392,6 +616,7 @@ impl RouteAttestationContext {
             "credential_ref_digest": self.credential_ref_digest,
             "account_id": self.account_id,
             "audience": self.audience,
+            "downstream_token": self.downstream_token,
             "release_manifest_digest": self.release_manifest_digest,
             "release_signature_attestation_digest": self.release_signature_attestation_digest,
         }))
@@ -453,6 +678,12 @@ impl RouteAttestation {
 
     /// Compare a provider/model claim with the server-owned admission snapshot.
     ///
+    /// The comparison order is fixed and deny-first:
+    /// route → provider claim → prompt pack equality → prompt trust (untrusted/revoked →
+    /// blocked, unknown → unknown) → MCP route equality → MCP transport → MCP enabled →
+    /// data policy → credential → account → audience → downstream token (missing, then
+    /// mismatch) → release binding → provider verification → `ok`.
+    ///
     /// The report is structured so callers can preserve `Unknown` separately from a hard
     /// mismatch.  This function never performs a provider call, resolves a credential or invokes
     /// an MCP server.
@@ -487,6 +718,13 @@ impl RouteAttestation {
             .is_some_and(|route| route.transport == McpRouteTransport::Http)
         {
             "route_attestation_mcp_transport_unsupported"
+        } else if self
+            .context
+            .mcp_route
+            .as_ref()
+            .is_some_and(|route| !route.enabled)
+        {
+            "route_attestation_mcp_disabled"
         } else if self.context.data_policy != expected.data_policy {
             "route_attestation_data_policy_mismatch"
         } else if self.context.credential_ref_digest != expected.credential_ref_digest {
@@ -495,6 +733,10 @@ impl RouteAttestation {
             "route_attestation_account_mismatch"
         } else if self.context.audience != expected.audience {
             "route_attestation_audience_mismatch"
+        } else if expected.downstream_token.is_some() && self.context.downstream_token.is_none() {
+            "route_attestation_downstream_token_missing"
+        } else if self.context.downstream_token != expected.downstream_token {
+            "route_attestation_downstream_token_mismatch"
         } else if self.context.release_manifest_digest != expected.release_manifest_digest
             || self.context.release_signature_attestation_digest
                 != expected.release_signature_attestation_digest
@@ -629,6 +871,10 @@ fn validate_route(route: &ModelRoute) -> Result<(), String> {
         &route.configuration_revision,
         "route_configuration_revision",
     )
+}
+
+fn is_data_class(value: &str) -> bool {
+    matches!(value, "public" | "internal" | "confidential" | "restricted")
 }
 
 fn bounded(value: &str, field: &str) -> Result<(), String> {
