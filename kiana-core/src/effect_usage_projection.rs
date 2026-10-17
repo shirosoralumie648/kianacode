@@ -59,6 +59,14 @@ pub fn project_effect_usage(
         };
         let usage = EffectUsageObservation::from_json(value)
             .map_err(EffectUsageProjectionError::Invalid)?;
+        // BQ-15 boundary: a started/failed/unknown effect fact must carry the server-admitted
+        // envelope it was measured against.  An unmetered or widened usage fact is refused
+        // instead of being projected into a Receipt.
+        if usage.envelope.is_none() && !usage.state.is_not_started() {
+            return Err(EffectUsageProjectionError::Invalid(
+                "effect_usage_envelope_missing".to_owned(),
+            ));
+        }
         if usage.run_id != run_id
             || event.data.get("run_id").and_then(serde_json::Value::as_str)
                 != Some(run_text.as_str())
@@ -148,6 +156,16 @@ pub fn project_effect_usage(
             "capability.result_unknown" if usage.state != EffectUsageState::Unknown => {
                 return Err(EffectUsageProjectionError::Invalid(
                     "unknown_terminal_usage_required".to_owned(),
+                ));
+            }
+            "capability.completed" if !usage.state.is_success() => {
+                return Err(EffectUsageProjectionError::Invalid(
+                    "completed_usage_not_success".to_owned(),
+                ));
+            }
+            "capability.failed" if usage.state.is_success() => {
+                return Err(EffectUsageProjectionError::Invalid(
+                    "failed_usage_success".to_owned(),
                 ));
             }
             _ => {}
