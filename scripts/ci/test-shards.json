@@ -515,6 +515,7 @@
    "oa20_data_governance_guard",
    "oa20_data_governance_projection",
    "oa21_replay_diagnostics",
+   "oa21_replay_diagnostics_guard",
    "oa22_fault_injection",
    "oa23_provider_independent_eval",
    "oa24_entrypoint_parity",

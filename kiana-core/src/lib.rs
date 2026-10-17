@@ -434,7 +434,9 @@ pub use recovery_rehearsal::{
     evaluate_post_recovery_lease, evaluate_recovery_rehearsal, RecoveryLeaseObservation,
     RecoveryRehearsalOutcome, RECOVERY_REHEARSAL_CORE_VERSION, RECOVERY_REHEARSAL_OUTCOME_SCHEMA,
 };
-pub use replay_diagnostics::{diagnose_replay, ReplayDiagnosticsError, ReplayExpectation};
+pub use replay_diagnostics::{
+    diagnose_replay, diagnose_replay_with_baseline, ReplayDiagnosticsError, ReplayExpectation,
+};
 pub use resource_projection::project_recovery_resources;
 pub use restore_activation::{
     admit_audit_read_after_activation, admit_command_after_activation, ActivationLedger,

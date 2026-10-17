@@ -30,6 +30,19 @@ pub const OBSERVABILITY_INCIDENT_SCHEMA: &str = "kiana.observability-incident.v1
 pub const OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA: &str = "kiana.observability-incident-snapshot.v1";
 pub const REPLAY_DIAGNOSTIC_SCHEMA: &str = "kiana.replay-diagnostic.v1";
 pub const REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA: &str = "kiana.replay-diagnostic-snapshot.v1";
+pub const REPLAY_CONSISTENCY_BASELINE_SCHEMA: &str = "kiana.replay-consistency-baseline.v1";
+/// Deterministic projections a replay baseline may pin. A free-form projection name is refused
+/// instead of being guessed, so a baseline cannot smuggle an unknown projector into a
+/// "consistent" verdict.
+pub const REPLAY_CONSISTENCY_PROJECTIONS: [&str; 7] = [
+    "audit",
+    "health",
+    "invocations",
+    "metrics",
+    "receipt",
+    "run",
+    "spans",
+];
 pub const METRIC_CATALOG_SCHEMA: &str = "kiana.metric-catalog.v1";
 pub const TRACE_SUMMARY_SCHEMA: &str = "kiana.trace-summary.v1";
 pub const TRACE_EXPORT_SPAN_SCHEMA: &str = "kiana.trace-export-span.v1";
@@ -52,6 +65,7 @@ pub const OBSERVABILITY_INCIDENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::
 pub const OBSERVABILITY_INCIDENT_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const REPLAY_DIAGNOSTIC_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const REPLAY_CONSISTENCY_BASELINE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const METRIC_CATALOG_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_SUMMARY_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const TRACE_EXPORT_SPAN_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
@@ -2162,6 +2176,7 @@ pub enum ReplayDivergenceKind {
     SchemaConflict,
     TerminalConflict,
     ProjectionError,
+    ProjectionMismatch,
     StatusMismatch,
     UnknownEffect,
 }
@@ -2181,11 +2196,39 @@ pub struct ReplayDiagnostic {
     pub expected_status: Option<TraceStatus>,
     #[serde(default)]
     pub observed_status: Option<TraceStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_error_code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_error_code: Option<String>,
     pub divergence: ReplayDivergenceKind,
     pub error_code: String,
     pub source_cursor: u64,
     pub source_event_ids: Vec<EventId>,
     pub diagnostic_digest: String,
+}
+
+/// Lowercase stable name for a trace status, used by the divergence locator key.
+fn trace_status_name(status: TraceStatus) -> &'static str {
+    match status {
+        TraceStatus::Ok => "ok",
+        TraceStatus::Error => "error",
+        TraceStatus::Unknown => "unknown",
+        TraceStatus::Degraded => "degraded",
+    }
+}
+
+/// An error code is only replayable when it is a bounded, single-token name. Anything else is
+/// refused instead of being echoed into a diagnostic.
+fn validate_error_code(value: &str, field: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > MAX_MODEL_ERROR_CODE_BYTES
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || "._-".contains(byte as char))
+    {
+        return Err(format!("{field}_invalid"));
+    }
+    Ok(())
 }
 
 impl ReplayDiagnostic {
@@ -2201,6 +2244,37 @@ impl ReplayDiagnostic {
         source_cursor: u64,
         source_event_ids: Vec<EventId>,
     ) -> Result<Self, String> {
+        Self::with_error_codes(
+            invocation_id,
+            attempt,
+            input_digest,
+            expected_status,
+            observed_status,
+            None,
+            None,
+            divergence,
+            error_code,
+            source_cursor,
+            source_event_ids,
+        )
+    }
+
+    /// Build a diagnostic that also carries the expected/observed error codes of the compared
+    /// attempt. The codes stay bounded single tokens; a mismatch is never collapsed into a status.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_error_codes(
+        invocation_id: Option<InvocationId>,
+        attempt: Option<u32>,
+        input_digest: Option<String>,
+        expected_status: Option<TraceStatus>,
+        observed_status: Option<TraceStatus>,
+        expected_error_code: Option<String>,
+        observed_error_code: Option<String>,
+        divergence: ReplayDivergenceKind,
+        error_code: impl Into<String>,
+        source_cursor: u64,
+        source_event_ids: Vec<EventId>,
+    ) -> Result<Self, String> {
         let mut diagnostic = Self {
             schema: REPLAY_DIAGNOSTIC_SCHEMA.to_owned(),
             version: REPLAY_DIAGNOSTIC_SCHEMA_VERSION,
@@ -2209,6 +2283,8 @@ impl ReplayDiagnostic {
             input_digest,
             expected_status,
             observed_status,
+            expected_error_code,
+            observed_error_code,
             divergence,
             error_code: error_code.into(),
             source_cursor,
@@ -2218,6 +2294,25 @@ impl ReplayDiagnostic {
         diagnostic.diagnostic_digest = diagnostic.digest();
         diagnostic.validate()?;
         Ok(diagnostic)
+    }
+
+    /// Stable locator for the `(invocation_id, attempt, input_digest, status, error_code)`
+    /// divergence identity. Unspecified bindings sort first as empty strings, so the first
+    /// divergence is reproducible across replays and independent of projection iteration order.
+    pub fn locator_key(&self) -> (String, u32, String, String, String) {
+        (
+            self.invocation_id
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
+            self.attempt.unwrap_or(0),
+            self.input_digest.clone().unwrap_or_default(),
+            self.observed_status
+                .or(self.expected_status)
+                .map(trace_status_name)
+                .unwrap_or_default()
+                .to_owned(),
+            self.error_code.clone(),
+        )
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -2233,7 +2328,13 @@ impl ReplayDiagnostic {
         if let Some(input_digest) = &self.input_digest {
             validate_digest(input_digest, "replay_input_digest")?;
         }
-        validate_nonempty(&self.error_code, "replay_error_code", 128)?;
+        if let Some(error_code) = &self.expected_error_code {
+            validate_error_code(error_code, "replay_expected_error_code")?;
+        }
+        if let Some(error_code) = &self.observed_error_code {
+            validate_error_code(error_code, "replay_observed_error_code")?;
+        }
+        validate_error_code(&self.error_code, "replay_error_code")?;
         validate_cursor(self.source_cursor, &self.source_event_ids)?;
         validate_digest(&self.diagnostic_digest, "replay_diagnostic_digest")?;
         if self.diagnostic_digest != self.digest() {
@@ -2265,6 +2366,10 @@ pub struct ReplayDiagnosticSnapshot {
     pub diagnostics: Vec<ReplayDiagnostic>,
     #[serde(default)]
     pub limitations: Vec<String>,
+    /// Digest of the consistency baseline this snapshot was compared against, when one was
+    /// supplied. It records which baseline the verdict belongs to without copying its digests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline_digest: Option<String>,
     pub snapshot_digest: String,
 }
 
@@ -2276,6 +2381,7 @@ impl ReplayDiagnosticSnapshot {
         projection_digests: BTreeMap<String, String>,
         diagnostics: Vec<ReplayDiagnostic>,
         limitations: Vec<String>,
+        baseline_digest: Option<String>,
     ) -> Result<Self, String> {
         let mut snapshot = Self {
             schema: REPLAY_DIAGNOSTIC_SNAPSHOT_SCHEMA.to_owned(),
@@ -2286,11 +2392,27 @@ impl ReplayDiagnosticSnapshot {
             projection_digests,
             diagnostics,
             limitations,
+            baseline_digest,
             snapshot_digest: String::new(),
         };
         snapshot.snapshot_digest = snapshot.digest();
         snapshot.validate()?;
         Ok(snapshot)
+    }
+
+    /// The first divergence under the canonical
+    /// `(invocation_id, attempt, input_digest, status, error_code)` locator order. `None` means
+    /// the deterministic projections agreed with the source and with any supplied baseline.
+    pub fn first_divergence(&self) -> Option<&ReplayDiagnostic> {
+        self.diagnostics
+            .iter()
+            .min_by_key(|diagnostic| diagnostic.locator_key())
+    }
+
+    /// Whether the replay found no divergence. A `false` verdict is never silently downgraded to
+    /// a pass by a caller-supplied baseline or an empty diagnostics list.
+    pub fn is_consistent(&self) -> bool {
+        self.diagnostics.is_empty()
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -2304,11 +2426,20 @@ impl ReplayDiagnosticSnapshot {
         if self.diagnostics.len() > MAX_REPLAY_DIAGNOSTICS {
             return Err("replay_diagnostic_limit".to_owned());
         }
+        let mut previous_key: Option<(String, u32, String, String, String)> = None;
         for diagnostic in &self.diagnostics {
             diagnostic.validate()?;
             if diagnostic.source_cursor > self.source_cursor {
                 return Err("replay_diagnostic_cursor_ahead".to_owned());
             }
+            let key = diagnostic.locator_key();
+            if previous_key
+                .as_ref()
+                .is_some_and(|previous| key < *previous)
+            {
+                return Err("replay_diagnostic_order_invalid".to_owned());
+            }
+            previous_key = Some(key);
         }
         if self.projection_digests.len() > MAX_SIGNAL_ATTRIBUTES {
             return Err("replay_projection_digest_limit".to_owned());
@@ -2323,6 +2454,9 @@ impl ReplayDiagnosticSnapshot {
         for limitation in &self.limitations {
             validate_nonempty(limitation, "replay_limitation", MAX_ATTRIBUTE_VALUE_BYTES)?;
         }
+        if let Some(baseline_digest) = &self.baseline_digest {
+            validate_digest(baseline_digest, "replay_baseline_digest")?;
+        }
         validate_digest(&self.snapshot_digest, "replay_snapshot_digest")?;
         if self.snapshot_digest != self.digest() {
             return Err("replay_snapshot_digest_mismatch".to_owned());
@@ -2336,6 +2470,107 @@ impl ReplayDiagnosticSnapshot {
 
     pub fn digest(&self) -> String {
         value_without_digest(self, "snapshot_digest")
+            .map(|value| json_digest(&value))
+            .unwrap_or_else(|_| "sha256:".to_owned())
+    }
+}
+
+/// A read-only expectation of what deterministic projectors must reconstruct from one committed
+/// source range.
+///
+/// The baseline carries only named projection digests (audit/receipt/health and the other
+/// deterministic replay projections). It is not authority: comparing against it can only add a
+/// divergence or a limitation to a replay snapshot, never rewrite facts, grant a retry or stand in
+/// for a provider-side reconciliation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayConsistencyBaseline {
+    pub schema: String,
+    pub version: SchemaVersion,
+    /// Optional source binding: when non-empty the baseline only applies to the identical
+    /// committed source event id sequence, otherwise the comparison reports a source mismatch.
+    #[serde(default)]
+    pub source_event_ids: Vec<EventId>,
+    /// Deterministic projection name -> expected canonical digest.
+    pub projection_digests: BTreeMap<String, String>,
+    #[serde(default)]
+    pub limitations: Vec<String>,
+    pub baseline_digest: String,
+}
+
+impl ReplayConsistencyBaseline {
+    pub fn new(
+        source_event_ids: Vec<EventId>,
+        projection_digests: BTreeMap<String, String>,
+        limitations: Vec<String>,
+    ) -> Result<Self, String> {
+        let mut baseline = Self {
+            schema: REPLAY_CONSISTENCY_BASELINE_SCHEMA.to_owned(),
+            version: REPLAY_CONSISTENCY_BASELINE_SCHEMA_VERSION,
+            source_event_ids,
+            projection_digests,
+            limitations,
+            baseline_digest: String::new(),
+        };
+        baseline.baseline_digest = baseline.digest();
+        baseline.validate()?;
+        Ok(baseline)
+    }
+
+    /// The digest the baseline pins for one projection, if it declares that projection.
+    pub fn expected_digest(&self, projection: &str) -> Option<&str> {
+        self.projection_digests.get(projection).map(String::as_str)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        validate_header(
+            &self.schema,
+            self.version,
+            REPLAY_CONSISTENCY_BASELINE_SCHEMA,
+            REPLAY_CONSISTENCY_BASELINE_SCHEMA_VERSION,
+        )?;
+        if self.source_event_ids.len() > MAX_SOURCE_EVENT_IDS {
+            return Err("replay_baseline_source_event_ids_limit".to_owned());
+        }
+        let mut unique = BTreeSet::new();
+        if self
+            .source_event_ids
+            .iter()
+            .any(|id| !unique.insert(id.to_string()))
+        {
+            return Err("replay_baseline_source_event_ids_duplicate".to_owned());
+        }
+        if self.projection_digests.is_empty() {
+            return Err("replay_baseline_projection_required".to_owned());
+        }
+        if self.projection_digests.len() > MAX_SIGNAL_ATTRIBUTES {
+            return Err("replay_baseline_projection_limit".to_owned());
+        }
+        for (name, digest) in &self.projection_digests {
+            if !REPLAY_CONSISTENCY_PROJECTIONS.contains(&name.as_str()) {
+                return Err(format!("replay_baseline_projection_unknown:{name}"));
+            }
+            validate_digest(digest, "replay_baseline_projection_digest")?;
+        }
+        if self.limitations.len() > MAX_HEALTH_LIMITATIONS {
+            return Err("replay_limitation_limit".to_owned());
+        }
+        for limitation in &self.limitations {
+            validate_nonempty(limitation, "replay_limitation", MAX_ATTRIBUTE_VALUE_BYTES)?;
+        }
+        validate_digest(&self.baseline_digest, "replay_baseline_digest")?;
+        if self.baseline_digest != self.digest() {
+            return Err("replay_baseline_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
+        canonical_bytes(self)
+    }
+
+    pub fn digest(&self) -> String {
+        value_without_digest(self, "baseline_digest")
             .map(|value| json_digest(&value))
             .unwrap_or_else(|_| "sha256:".to_owned())
     }
