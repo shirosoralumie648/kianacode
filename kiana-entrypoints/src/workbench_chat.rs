@@ -1014,7 +1014,15 @@ async fn handle_action(
         ChatAction::Submit(prompt) => {
             if view.running {
                 // 运行中继续输入的文本走 next-turn 注入排队，不再要求先取消当前 turn。
-                queue_running_input(view, host, session_id, options, last_run_id, prompt, input_tx);
+                queue_running_input(
+                    view,
+                    host,
+                    session_id,
+                    options,
+                    last_run_id,
+                    prompt,
+                    input_tx,
+                );
                 return Ok(LoopControl::Continue);
             }
             submit_turn(
