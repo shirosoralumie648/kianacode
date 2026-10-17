@@ -1,0 +1,28 @@
+name: p4-j7-20-protected-replay
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protected-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run P4-J7-20 domain replay scope fixtures
+        run: cargo test -p kiana-domain --test p4_j7_20_protected_replay --locked -- --test-threads=1
+      - name: Run P4-J7-20 provider replay codec fixtures
+        run: cargo test -p kiana-provider --test p4_j7_20_protected_replay --locked -- --test-threads=1
+      - name: Run P4-J7-20 provider request compiler fixtures
+        run: cargo test -p kiana-provider --lib --locked -- --test-threads=1
+      - name: Run P4-J7-20 source guard
+        run: cargo test -p kiana-core --test p4_j7_20_protected_replay_guard --locked -- --test-threads=1

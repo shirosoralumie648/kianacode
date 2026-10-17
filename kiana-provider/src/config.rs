@@ -1164,3 +1164,25 @@ pub(crate) fn snapshot(
         .collect::<Result<Vec<_>, _>>()?;
     ProviderConfigSnapshot::new(ProviderSelectionMode::Live, profiles).map_err(ModelError::invalid)
 }
+
+/// In-crate fixture: a fully resolved connection with an inline credential.
+///
+/// Test-only seam so request/response codecs can be exercised against a real `Connection`
+/// without reading provider environment variables or opening a socket.
+#[cfg(test)]
+pub(crate) fn test_connection(provider: &str, model: &str) -> Result<Connection, ModelError> {
+    connection_with_credential_env(
+        "default",
+        ProviderConfig {
+            provider: Some(provider.to_owned()),
+            model: Some(model.to_owned()),
+            base_url: None,
+            api_key: Some("fixture-key".to_owned()),
+        },
+        None,
+        None,
+        None,
+        ProviderConfigSource::BuiltinDefault,
+        None,
+    )
+}

@@ -52,6 +52,39 @@ pub(crate) fn compile_with_images(
     spec: ModelCallSpec,
     images: &[ImageInputAdmission],
 ) -> Result<PreparedModelCall, ModelError> {
+    compile_inner(connection, request, spec, images, None)
+}
+
+/// Compile a request that resumes a provider continuation through a protected replay adapter.
+///
+/// The adapter resolves each declared reference inside the exact connection/model/protocol/
+/// effort/TTL scope and returns the private bytes; the compiler refuses a missing, revoked,
+/// expired or foreign entry before any network dispatch. Callers without an adapter keep using
+/// `compile`/`compile_with_images`, which fail closed with `model_replay_storage_unavailable`.
+pub(crate) fn compile_with_protected_replay(
+    connection: &Connection,
+    request: ModelRequest,
+    spec: ModelCallSpec,
+    images: &[ImageInputAdmission],
+    source: &dyn ProtectedReplaySource,
+    now_unix_ms: u64,
+) -> Result<PreparedModelCall, ModelError> {
+    compile_inner(
+        connection,
+        request,
+        spec,
+        images,
+        Some((source, now_unix_ms)),
+    )
+}
+
+fn compile_inner(
+    connection: &Connection,
+    request: ModelRequest,
+    spec: ModelCallSpec,
+    images: &[ImageInputAdmission],
+    replay_source: Option<(&dyn ProtectedReplaySource, u64)>,
+) -> Result<PreparedModelCall, ModelError> {
     spec.response_format.validate()?;
     validate_model_history(&request.messages)?;
     if !request.tools.is_empty() && connection.capabilities.tools != CapabilitySupport::Supported {
@@ -72,37 +105,67 @@ pub(crate) fn compile_with_images(
     if let Some(assignment) = &spec.assignment {
         route.profile = assignment.profile.clone();
     }
-    if !spec.replay.is_empty() {
-        for reference in &spec.replay {
-            reference.validate_for_call(&route, spec.call_id, spec.deadline_unix_ms)?;
+    let replay = match replay_source {
+        Some((source, now_unix_ms)) => {
+            crate::replay::plan_injection(&route, &request, &spec, source, now_unix_ms)?
         }
-        // The provider crate only receives reference metadata. A deployment without a protected
-        // artifact adapter must refuse before network dispatch rather than guessing at a replay
-        // payload or persisting private reasoning in the request/receipt.
-        return Err(ModelError::invalid("model_replay_storage_unavailable"));
-    }
+        None => {
+            if !spec.replay.is_empty() {
+                for reference in &spec.replay {
+                    reference.validate_for_call(&route, spec.call_id, spec.deadline_unix_ms)?;
+                }
+                // The provider crate only receives reference metadata. A deployment without a
+                // protected artifact adapter must refuse before network dispatch rather than
+                // guessing at a replay payload or persisting private reasoning in the
+                // request/receipt.
+                return Err(ModelError::invalid("model_replay_storage_unavailable"));
+            }
+            crate::replay::ReplayInjection::default()
+        }
+    };
     validate_image_admissions(&request, &route, connection, images)?;
     let original_request = request.clone();
-    let request = normalize_structured_request(request, &route, connection, images)?;
+    let request =
+        normalize_structured_request(request, &route, connection, images, replay_source.is_some())?;
     let context = ModelRequestContext::for_request(&request);
     let tool_names = ToolNameMap::from_tools(&request.tools, true)?;
     let tools = tool_map(&request.tools, &tool_names)?;
     let mut body = match route.protocol {
-        ModelProtocol::AnthropicMessages => {
-            anthropic_body(&request, &context.system_prompt, &tools, &tool_names)
-        }
-        ModelProtocol::OpenAiChat => {
-            chat_body(&request, &context.system_prompt, &tools, &tool_names)
-        }
-        ModelProtocol::OpenAiResponses => {
-            responses_body(&request, &context.system_prompt, &tools, &tool_names)
-        }
-        ModelProtocol::OllamaChat => {
-            ollama_body(&request, &context.system_prompt, &tools, &tool_names)
-        }
-        ModelProtocol::GeminiInteractions => {
-            gemini_body(&request, &context.system_prompt, &tools, &tool_names)
-        }
+        ModelProtocol::AnthropicMessages => anthropic_body(
+            &request,
+            &context.system_prompt,
+            &tools,
+            &tool_names,
+            &replay,
+        ),
+        ModelProtocol::OpenAiChat => chat_body(
+            &request,
+            &context.system_prompt,
+            &tools,
+            &tool_names,
+            &replay,
+        ),
+        ModelProtocol::OpenAiResponses => responses_body(
+            &request,
+            &context.system_prompt,
+            &tools,
+            &tool_names,
+            &replay,
+        ),
+        ModelProtocol::OllamaChat => ollama_body(
+            &request,
+            &context.system_prompt,
+            &tools,
+            &tool_names,
+            &replay,
+        ),
+        ModelProtocol::GeminiInteractions => gemini_body(
+            &request,
+            &context.system_prompt,
+            &tools,
+            &tool_names,
+            &replay,
+        ),
         ModelProtocol::Legacy => {
             return Err(ModelError::invalid(
                 "provider_legacy_protocol_not_networked",
@@ -470,6 +533,7 @@ fn normalize_structured_request(
     route: &ModelRoute,
     connection: &Connection,
     images: &[ImageInputAdmission],
+    allow_continuation: bool,
 ) -> Result<ModelRequest, ModelError> {
     for message in &mut request.messages {
         if message.content.is_empty() && message.continuation.is_none() {
@@ -530,7 +594,9 @@ fn normalize_structured_request(
             {
                 return Err(ModelError::invalid("opaque_item_cannot_cross_provider"));
             }
-            return Err(ModelError::invalid("provider_continuation_unsupported"));
+            if !allow_continuation || continuation.route_digest != route.digest() {
+                return Err(ModelError::invalid("provider_continuation_unsupported"));
+            }
         }
         message.text = text;
         message.tool_calls = tool_calls;
@@ -545,14 +611,19 @@ fn anthropic_body(
     system: &str,
     tools: &[Value],
     names: &ToolNameMap,
+    replay: &crate::replay::ReplayInjection,
 ) -> Result<Value, ModelError> {
     let mut messages = Vec::new();
-    for message in &request.messages {
+    for (index, message) in request.messages.iter().enumerate() {
         match message.role {
             ModelRole::System => {}
             ModelRole::User => messages.push(json!({"role":"user","content":message.text})),
             ModelRole::Assistant => {
                 let mut content = Vec::new();
+                // Private thinking/signature blocks come first, exactly as captured.
+                for item in replay.items_for(index) {
+                    content.push(item.clone());
+                }
                 if !message.text.is_empty() {
                     content.push(json!({"type":"text","text":message.text}));
                 }
@@ -595,17 +666,26 @@ fn chat_body(
     system: &str,
     tools: &[Value],
     names: &ToolNameMap,
+    replay: &crate::replay::ReplayInjection,
 ) -> Result<Value, ModelError> {
     let mut messages = Vec::new();
     if !system.is_empty() {
         messages.push(json!({"role":"system","content":system}));
     }
-    for message in &request.messages {
+    for (index, message) in request.messages.iter().enumerate() {
         match message.role {
             ModelRole::System => {}
             ModelRole::User => messages.push(json!({"role":"user","content":message.text})),
             ModelRole::Assistant => {
                 let mut item = json!({"role":"assistant","content":message.text});
+                // DeepSeek-compatible reasoning content is one private string, resent verbatim.
+                let private = replay.items_for(index);
+                if !private.is_empty() {
+                    if private.len() != 1 {
+                        return Err(ModelError::invalid("protected_replay_item_count_invalid"));
+                    }
+                    item["reasoning_content"] = private[0].clone();
+                }
                 if !message.tool_calls.is_empty() {
                     item["tool_calls"] = json!(message
                         .tool_calls
@@ -636,13 +716,18 @@ fn responses_body(
     system: &str,
     tools: &[Value],
     names: &ToolNameMap,
+    replay: &crate::replay::ReplayInjection,
 ) -> Result<Value, ModelError> {
     let mut input = Vec::new();
-    for message in &request.messages {
+    for (index, message) in request.messages.iter().enumerate() {
         match message.role {
             ModelRole::System=>{},
             ModelRole::User=>input.push(json!({"role":"user","content":message.text})),
             ModelRole::Assistant=>{
+                // Reasoning items precede the text/function_call items of the same turn.
+                for item in replay.items_for(index) {
+                    input.push(item.clone());
+                }
                 if !message.text.is_empty(){input.push(json!({"role":"assistant","content":message.text}));}
                 for call in &message.tool_calls {
                     input.push(json!({"type":"function_call","call_id":call.id,"name":names.wire_name(&call.name)?,"arguments":call.arguments.to_string()}));
@@ -662,8 +747,9 @@ pub(crate) fn ollama_body(
     system: &str,
     tools: &[Value],
     names: &ToolNameMap,
+    replay: &crate::replay::ReplayInjection,
 ) -> Result<Value, ModelError> {
-    let mut body = chat_body(request, system, tools, names)?;
+    let mut body = chat_body(request, system, tools, names, replay)?;
     body.as_object_mut().unwrap().remove("n");
     let mut call_names = BTreeMap::new();
     for message in &request.messages {
@@ -696,6 +782,7 @@ fn gemini_body(
     system: &str,
     tools: &[Value],
     tool_names: &ToolNameMap,
+    replay: &crate::replay::ReplayInjection,
 ) -> Result<Value, ModelError> {
     // Interactions uses a flat sequence of typed steps, including every local tool result.
     let mut input = Vec::new();
@@ -708,12 +795,16 @@ fn gemini_body(
             );
         }
     }
-    for message in &request.messages {
+    for (index, message) in request.messages.iter().enumerate() {
         match message.role {
             ModelRole::System => {}
             ModelRole::User => input
                 .push(json!({"type":"user_input","content":[{"type":"text","text":message.text}]})),
             ModelRole::Assistant => {
+                // Thought steps precede the public output/function_call steps of the same turn.
+                for step in replay.items_for(index) {
+                    input.push(step.clone());
+                }
                 if !message.text.is_empty() {
                     input.push(json!({"type":"model_output","content":[{"type":"text","text":message.text}]}));
                 }
@@ -811,6 +902,7 @@ mod gemini_interactions_tests {
             "system",
             &tool_map(&tools, &names).unwrap(),
             &names,
+            &crate::replay::ReplayInjection::default(),
         )
         .expect("Interactions request");
         assert_eq!(body["store"], false);
@@ -1144,5 +1236,282 @@ mod p4_j7_22_image_input_tests {
         let (encoded, data_url, _) = image_data(&admitted(), 4096).expect("encoded image");
         assert!(!encoded.contains("assets/image.png"));
         assert!(data_url.starts_with("data:image/png;base64,"));
+    }
+}
+
+#[cfg(test)]
+mod p4_j7_20_protected_replay_tests {
+    use super::*;
+    use crate::replay::{capture_from_value, ProtectedReplayService};
+
+    const ANTHROPIC_RESPONSE: &str = r#"{
+        "content": [
+            {"type": "thinking", "thinking": "private chain", "signature": "sig-anthropic"},
+            {"type": "text", "text": "working"},
+            {"type": "tool_use", "id": "call-1", "name": "shell", "input": {"command": "pwd"}}
+        ],
+        "stop_reason": "tool_use"
+    }"#;
+
+    const CHAT_RESPONSE: &str = r#"{
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "reasoning_content": "deepseek-private-chain",
+                    "content": "working",
+                    "tool_calls": [
+                        {"id": "call-1", "type": "function", "function": {"name": "shell", "arguments": "{\"command\":\"pwd\"}"}}
+                    ]
+                }
+            }
+        ]
+    }"#;
+
+    const RESPONSES_RESPONSE: &str = r#"{
+        "output": [
+            {"type": "reasoning", "id": "rs-1", "encrypted_content": "enc-1"},
+            {"type": "message", "content": [{"type": "output_text", "text": "working"}]},
+            {"type": "function_call", "call_id": "call-1", "name": "shell", "arguments": "{\"command\":\"pwd\"}"}
+        ],
+        "status": "completed"
+    }"#;
+
+    const GEMINI_RESPONSE: &str = r#"{
+        "id": "interaction-1",
+        "status": "requires_action",
+        "steps": [
+            {"type": "thought", "signature": "sig-gemini", "content": [{"type": "text", "text": "private chain"}]},
+            {"type": "model_output", "content": [{"type": "text", "text": "working"}]},
+            {"type": "function_call", "id": "call-1", "name": "shell", "arguments": {"command": "pwd"}}
+        ]
+    }"#;
+
+    fn scope(
+        route: &ModelRoute,
+        kind: ReasoningReplayKind,
+        call_id: RequestId,
+        expires_at_unix_ms: u64,
+    ) -> ProtectedReplayScope {
+        ProtectedReplayScope {
+            connection_id: route.connection_id.clone(),
+            protocol: kind.protocol(),
+            model_id: route.model_id.clone(),
+            route_digest: route.digest(),
+            effort: Some("medium".to_owned()),
+            prompt_digest: "sha256:prompt".to_owned(),
+            tool_catalog_digest: "sha256:tools".to_owned(),
+            data_revision: "data.v1".to_owned(),
+            source_call_id: call_id,
+            expires_at_unix_ms,
+        }
+    }
+
+    /// A real resolved connection plus the material a provider response captured for it.
+    fn fixture(
+        provider: &str,
+        model: &str,
+        response: &str,
+        call_id: RequestId,
+    ) -> (
+        Connection,
+        ModelRoute,
+        ModelRequest,
+        ModelCallSpec,
+        ProtectedReplayService,
+    ) {
+        let connection =
+            crate::config::test_connection(provider, model).expect("fixture connection");
+        let mut route = connection.route.clone();
+        require_gemini_streaming(&mut route);
+        let value: Value = serde_json::from_str(response).expect("fixture response");
+        let capture = capture_from_value(&route, &value)
+            .expect("capture")
+            .expect("private material");
+        let kind = capture.kind();
+        let material = capture
+            .material(scope(&route, kind, call_id, 60_000))
+            .expect("scoped material");
+        let mut service = ProtectedReplayService::new(&[21u8; 32]).expect("service");
+        let reference = service.store("artifact-1", &material).expect("store");
+
+        let mut assistant = ModelMessage::assistant("working");
+        assistant.tool_calls = vec![ModelToolCall {
+            id: "call-1".to_owned(),
+            name: "shell".to_owned(),
+            arguments: json!({"command": "pwd"}),
+        }];
+        assistant.continuation = Some(ProviderContinuation {
+            schema: PROVIDER_CONTINUATION_SCHEMA.to_owned(),
+            provider_id: route.provider_id.clone(),
+            protocol: route.protocol,
+            route_digest: route.digest(),
+            item_ref: "artifact-1".to_owned(),
+        });
+        let request = ModelRequest {
+            messages: vec![
+                ModelMessage::user("continue the tool loop"),
+                assistant,
+                ModelMessage::tool("call-1", "{\"ok\":true}"),
+            ],
+            tools: tool_schemas(),
+            sandbox: "read-only".to_owned(),
+        };
+        let spec = ModelCallSpec {
+            call_id,
+            attempt_id: RequestId::new(),
+            model_attempt_id: None,
+            step_id: None,
+            step: 2,
+            purpose: ModelPurpose::Task,
+            assignment: None,
+            response_format: ModelResponseFormat::Text,
+            replay: vec![reference],
+            deadline_unix_ms: u64::MAX,
+        };
+        // The adapter travels with the fixture: a caller that resumes must hold the protected
+        // store that owns the bytes, never just the reference.
+        (connection, route, request, spec, service)
+    }
+
+    #[test]
+    fn signed_reasoning_survives_tool_continuation_byte_for_byte() {
+        let call_id = RequestId::new();
+        for (provider, model, response, expected) in [
+            (
+                "anthropic",
+                "claude-sonnet-4-6",
+                ANTHROPIC_RESPONSE,
+                "anthropic",
+            ),
+            ("openai", "gpt-4o-mini", CHAT_RESPONSE, "deepseek"),
+            (
+                "openai-responses",
+                "gpt-4.1",
+                RESPONSES_RESPONSE,
+                "responses",
+            ),
+            ("gemini", "gemini-2.5-flash", GEMINI_RESPONSE, "gemini"),
+        ] {
+            let (connection, route, request, spec, service) =
+                fixture(provider, model, response, call_id);
+            let prepared =
+                compile_with_protected_replay(&connection, request, spec, &[], &service, 1_000)
+                    .expect("protected replay compiler accepts the stored material");
+            assert_eq!(prepared.route.digest(), route.digest());
+            let body = &prepared.wire_body;
+            match expected {
+                "anthropic" => {
+                    let messages = body["messages"].as_array().expect("messages");
+                    let assistant = messages
+                        .iter()
+                        .find(|message| message["role"] == "assistant")
+                        .expect("assistant message");
+                    let content = assistant["content"].as_array().expect("content");
+                    // Private thinking/signature first, public text and tool call after it.
+                    assert_eq!(content[0]["type"], "thinking");
+                    assert_eq!(content[0]["thinking"], "private chain");
+                    assert_eq!(content[0]["signature"], "sig-anthropic");
+                    assert_eq!(content[1]["type"], "text");
+                    assert_eq!(content[1]["text"], "working");
+                    assert_eq!(content[2]["type"], "tool_use");
+                    assert_eq!(content[2]["id"], "call-1");
+                    let result = messages.last().expect("tool result message");
+                    assert_eq!(result["content"][0]["type"], "tool_result");
+                    assert_eq!(result["content"][0]["tool_use_id"], "call-1");
+                }
+                "deepseek" => {
+                    let messages = body["messages"].as_array().expect("messages");
+                    let assistant = messages
+                        .iter()
+                        .find(|message| message["role"] == "assistant")
+                        .expect("assistant message");
+                    assert_eq!(assistant["reasoning_content"], "deepseek-private-chain");
+                    assert_eq!(assistant["content"], "working");
+                    assert_eq!(assistant["tool_calls"][0]["id"], "call-1");
+                    assert_eq!(messages.last().expect("tool result")["role"], "tool");
+                }
+                "responses" => {
+                    let input = body["input"].as_array().expect("input");
+                    let index = input
+                        .iter()
+                        .position(|item| item["type"] == "reasoning")
+                        .expect("reasoning item");
+                    assert_eq!(input[index]["id"], "rs-1");
+                    assert_eq!(input[index]["encrypted_content"], "enc-1");
+                    assert_eq!(input[index + 1]["role"], "assistant");
+                    assert_eq!(input[index + 1]["content"], "working");
+                    assert_eq!(input[index + 2]["type"], "function_call");
+                    assert_eq!(input[index + 2]["call_id"], "call-1");
+                    assert_eq!(
+                        input.last().expect("tool output")["type"],
+                        "function_call_output"
+                    );
+                }
+                "gemini" => {
+                    let input = body["input"].as_array().expect("input");
+                    let index = input
+                        .iter()
+                        .position(|item| item["type"] == "thought")
+                        .expect("thought step");
+                    assert_eq!(input[index]["signature"], "sig-gemini");
+                    assert_eq!(input[index]["content"][0]["text"], "private chain");
+                    assert_eq!(input[index + 1]["type"], "model_output");
+                    assert_eq!(input[index + 2]["type"], "function_call");
+                    assert_eq!(
+                        input.last().expect("tool result")["type"],
+                        "function_result"
+                    );
+                }
+                other => panic!("unknown fixture {other}"),
+            }
+        }
+    }
+
+    #[test]
+    fn continuation_without_a_protected_adapter_is_refused_before_dispatch() {
+        let call_id = RequestId::new();
+        let (connection, _route, request, spec, _service) = fixture(
+            "anthropic",
+            "claude-sonnet-4-6",
+            ANTHROPIC_RESPONSE,
+            call_id,
+        );
+
+        // A declared reference without an adapter must never be compiled from guesswork.
+        assert_eq!(
+            compile(&connection, request.clone(), spec.clone())
+                .unwrap_err()
+                .code,
+            "model_replay_storage_unavailable"
+        );
+
+        // A continuation message without a reference is not silently dropped either.
+        let mut undeclared = spec;
+        undeclared.replay = Vec::new();
+        assert_eq!(
+            compile(&connection, request, undeclared).unwrap_err().code,
+            "provider_continuation_unsupported"
+        );
+    }
+
+    #[test]
+    fn revoked_material_never_reaches_the_wire_body() {
+        let call_id = RequestId::new();
+        let (connection, _route, request, spec, mut service) = fixture(
+            "anthropic",
+            "claude-sonnet-4-6",
+            ANTHROPIC_RESPONSE,
+            call_id,
+        );
+        service
+            .revoke("artifact-1", "data_governance_revocation")
+            .expect("revoke");
+        assert_eq!(
+            compile_with_protected_replay(&connection, request, spec, &[], &service, 1_000)
+                .unwrap_err()
+                .code,
+            "replay_material_revoked"
+        );
     }
 }
