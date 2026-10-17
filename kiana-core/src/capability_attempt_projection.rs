@@ -1058,7 +1058,15 @@ pub fn project_capability_attempts(
             }
         }
     }
-    states.into_values().map(AttemptState::record).collect()
+    // Records are keyed by `(request_id, attempt)`. Sort the folded set so a projection rebuilt in
+    // a new process observes the same order instead of this map's iteration order; read models
+    // that compare a fresh-process rebuild against the online projection need that stability.
+    let mut records = states
+        .into_values()
+        .map(AttemptState::record)
+        .collect::<Result<Vec<_>, _>>()?;
+    records.sort_by_key(|record| (record.request_id, record.attempt));
+    Ok(records)
 }
 
 /// Alias for callers that use invocation/effect terminology.
