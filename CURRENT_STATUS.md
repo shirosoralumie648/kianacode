@@ -1,5 +1,20 @@
 # Kiana 当前状态账本
 
+### 2026-10-17 BQ-07 翻 ✅（quota group 聚合/别名绕过夹具收口，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 196（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/billing-quota-window-baseline.md（新增 2026-10-17 exact boundary/aggregation 段）；kiana-domain/tests/bq07_quota_window.rs（+`budget_for` helper、+2 fixture）；kiana-domain/src/billing_quota.rs、kiana-core/tests/bq07_quota_window_guard.rs、.github/workflows/bq07-quota-window.yml 为已合并的实现/守卫/布线，未改
+worktree_status: 行 196 🔄 → ✅（CI pending）；只改本 Step 相关测试/夹具与共享文档（roadmap 该行/变更日志、BQ-07 baseline、CURRENT_STATUS）单点回填；无 kiana-domain/src 源码改动、无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本；仅静态核对（rg/sed/cat/git diff）与阅读源码/夹具；.github/workflows/bq07-quota-window.yml 运行 `cargo test -p kiana-domain --test bq07_quota_window --locked -- --test-threads=1` 与 Core guard（test target 自动涵盖新用例，未新增步骤）
+cwd·environment: worktree /workspace/kianacode-worktrees/BQ-07，分支 step/bq-07-20261017-1（基线 master 9bf80ffb571f）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: domain `bq07_quota_window` 新增 2 个夹具——`alias_and_casing_variants_aggregate_into_one_quota_bucket`（provider `Provider:Main`/credential `Credential:Primary`/model `Model-X`/alias `Friendly-Alias` 与全小写变体 `==` 且 `group_digest` 相同；以 digest 为聚合键的已用尽桶对变体可见，`check_at(125000,1,0,0)` 返回 `quota_exhausted:retry_after_ms=55000`，别名无法多放行一次；`credential:secondary` 为不同 digest/不同桶）与 `tampered_group_digest_is_rejected_before_aggregation`（把 `group_digest` 换成他组摘要后 `validate()` 返回 `quota_group_invalid`）；既有精确边界（119999→1、120000→60000、179999→1、180000→0）、滚动/错位窗口、空 scope 夹具不变
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: BQ-07 卡「先拒绝」（时钟回退、窗口错位、同 credential 别名绕过、空 scope/超限）与「再成功」（固定时钟窗口滚动、quota group 聚合、retry-after 可复现）在源码层与夹具层齐备；本切片补齐别名绕过与 group 聚合两项；行 196 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；`QuotaGroupKey`/`QuotaWindowBudget` 为纯内存合同，聚合以 canonical `group_digest` 为键，未证明 durable 桶存储；durable reservation/fence/CAS、跨进程 clock store、provider capacity/fair queue、provider dispatch 与财务权威（BQ-08+/BQ-16+）仍开放；旧 `check` 保留窗口起点兼容语义
+reviewer: root integration agent；BQ-07 quota window/group 静态复核
+```
+
 ### 2026-10-17 CAP-05 翻 ✅（consume CAS 提交→OS spawn 崩溃窗口分类，CI-only 口径）
 
 ```text
