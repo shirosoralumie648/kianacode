@@ -11,11 +11,11 @@ use async_trait::async_trait;
 use kiana_capability_broker::{CapabilityBroker, CapabilityHandler};
 use kiana_core::JournalPermitVerifier;
 use kiana_domain::{
-    AggregateVersion, AuthenticatedPrincipalRef, AuthorizedCapabilityRequest, CapabilityKind,
-    CapabilityRequest, CapabilityResult, DispatchCrashClass, DispatchPermit, ExecutionId,
-    ExecutionScope, InvocationId, InvocationIdentity, ProjectIdentity, RequestContext, RequestId,
-    RunId, RuntimeEvent, ScopeDimension, ScopeLimit, ScopeSet, TurnId, DISPATCH_PERMIT_SCHEMA,
-    DISPATCH_PERMIT_VERSION,
+    AggregateVersion, ApprovalId, AuthenticatedPrincipalRef, AuthorizedCapabilityRequest,
+    CapabilityKind, CapabilityRequest, CapabilityResult, DispatchCrashClass, DispatchPermit,
+    ExecutionId, ExecutionScope, InvocationId, InvocationIdentity, ProjectIdentity, RequestContext,
+    RequestId, RunId, RuntimeEvent, ScopeDimension, ScopeLimit, ScopeSet, TurnId,
+    DISPATCH_PERMIT_SCHEMA, DISPATCH_PERMIT_VERSION,
 };
 use kiana_eventlog::MemoryEventLog;
 use kiana_ports::{CapabilityBrokerPort, EventStorePort, ExecutionPermitVerifierPort, PortError};
@@ -24,6 +24,39 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
+
+/// 三种派发入口共用同一张一次性 permit：直接命令、Harness 工具调用、审批恢复。
+///
+/// 验收夹具对每种入口都重复同一组拒绝/重放断言，证明「执行许可与派发线性化点」不因入口
+/// 不同而出现第二条执行路径或额外 handler 调用。`Direct` 没有 Harness run（invocation
+/// 身份必须是 null），`ApprovalResume` 的 permit 额外绑定一个 already-consumed once approval。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DispatchMode {
+    Direct,
+    Harness,
+    ApprovalResume,
+}
+
+impl DispatchMode {
+    const ALL: [Self; 3] = [Self::Direct, Self::Harness, Self::ApprovalResume];
+
+    /// Harness 与审批恢复路径都处于一次 Run/Turn 中；直接命令没有 run 身份。
+    fn harness(self) -> bool {
+        !matches!(self, Self::Direct)
+    }
+
+    fn approval(self) -> bool {
+        matches!(self, Self::ApprovalResume)
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::Harness => "harness",
+            Self::ApprovalResume => "approval-resume",
+        }
+    }
+}
 
 fn request(context: &RequestContext) -> CapabilityRequest {
     CapabilityRequest::new(
@@ -37,8 +70,8 @@ fn request(context: &RequestContext) -> CapabilityRequest {
 fn broker_scope(
     context: &RequestContext,
     request: &CapabilityRequest,
-    run_id: RunId,
-    turn_id: TurnId,
+    run_id: Option<RunId>,
+    turn_id: Option<TurnId>,
 ) -> ExecutionScope {
     let permission_scope = ScopeSet::new(
         ScopeDimension::Restricted(vec![request.operation.clone()]),
@@ -66,8 +99,8 @@ fn broker_scope(
         principal: AuthenticatedPrincipalRef::local(),
         project,
         session_id: context.session_id.clone(),
-        run_id: Some(run_id),
-        turn_id: Some(turn_id),
+        run_id,
+        turn_id,
         cell_id: None,
         grant_refs: Vec::new(),
         budget_lease_id: None,
@@ -101,11 +134,13 @@ fn broker_scope(
 /// 在 EventStore 中写入一条已提交 `execution.prepared` 事实，并返回可消费的授权请求。
 ///
 /// `cell_reservation` 与 `reservation_digest` 由调用方提供，用于覆盖“预留已绑定/未绑定”两条路径；
-/// 其他字段严格复刻 Core 写出的准备事实形状，使 verifier 的逐字段校验通过。
+/// `mode` 决定这是直接命令、Harness 工具调用还是审批恢复执行；其他字段严格复刻 Core 写出的
+/// 准备事实形状，使 verifier 的逐字段校验通过。
 async fn prepared_permit(
     events: Arc<dyn EventStorePort>,
     cell_reservation: Option<Value>,
     tamper_reservation_digest: bool,
+    mode: DispatchMode,
 ) -> (
     Arc<JournalPermitVerifier>,
     Arc<dyn EventStorePort>,
@@ -119,8 +154,8 @@ async fn prepared_permit(
     kiana_domain::normalize_capability_action(&mut request).unwrap();
     let execution_id = ExecutionId::new();
     let invocation_id = InvocationId::from_uuid(request.request_id.as_uuid());
-    let run_id = RunId::new();
-    let turn_id = TurnId::new();
+    let run_id = mode.harness().then(RunId::new);
+    let turn_id = mode.harness().then(TurnId::new);
     request.execution_scope = Some(broker_scope(&context, &request, run_id, turn_id));
     let project_identity = kiana_core::project_root_identity(&context.project_root).unwrap();
     events
@@ -142,10 +177,10 @@ async fn prepared_permit(
         execution_id,
         invocation_id,
         request_id: request.request_id,
-        run_id: Some(run_id),
-        turn_id: Some(turn_id),
+        run_id,
+        turn_id,
         decision_id: "policy:cp13".to_owned(),
-        approval_id: None,
+        approval_id: mode.approval().then(ApprovalId::new),
         context,
         action_digest: kiana_domain::capability_action_digest(&request),
         project_identity,
@@ -155,20 +190,23 @@ async fn prepared_permit(
         permit_digest: String::new(),
     };
     permit.permit_digest = permit.digest();
-    let invocation = InvocationIdentity::new(
-        run_id,
-        turn_id,
-        invocation_id,
-        execution_id,
-        request.arguments["call_id"].as_str().map(str::to_owned),
-        1,
-    )
-    .unwrap();
+    // 只有 Harness/审批恢复路径处于 Run/Turn 中；直接命令的准备事实必须把 invocation 写成
+    // null，不能为一个没有 run 的请求伪造 `InvocationIdentity`。
+    let invocation = match (run_id, turn_id) {
+        (Some(run_id), Some(turn_id)) => json!(InvocationIdentity::new(
+            run_id,
+            turn_id,
+            invocation_id,
+            execution_id,
+            request.arguments["call_id"].as_str().map(str::to_owned),
+            1,
+        )
+        .unwrap()),
+        _ => Value::Null,
+    };
     let reservation_value = cell_reservation.unwrap_or(Value::Null);
-    let mut reservation_digest = kiana_domain::dispatch_reservation_digest(
-        &reservation_value,
-        &permit.authority_versions,
-    );
+    let mut reservation_digest =
+        kiana_domain::dispatch_reservation_digest(&reservation_value, &permit.authority_versions);
     if tamper_reservation_digest {
         reservation_digest = format!("sha256:{}", "0".repeat(64));
     }
@@ -299,121 +337,138 @@ async fn stream_kinds(events: &dyn EventStorePort, permit: &DispatchPermit) -> V
 #[tokio::test]
 async fn cp_forged_authorization_string_is_not_a_permit() {
     // 伪造的授权串不是许可：既不是 `permit:<execution_id>` 形状，也没有对应的 prepared 事实。
-    let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
-    let (verifier, events, authorized, permit) = prepared_permit(events, None, false).await;
-    let (broker, calls) = broker_with_counter(verifier, events.clone());
-    for authorization_id in ["policy:cp13", "approval:cp13", "opaque", "permit:"] {
-        let forged =
-            AuthorizedCapabilityRequest::new(authorization_id, authorized.request.clone()).unwrap();
-        assert!(
-            matches!(broker.execute(forged).await, Err(PortError::Failed(reason))
-                if reason == "execution_permit_required"),
-            "forged authorization {authorization_id} must never act as a permit"
-        );
+    // direct/Harness/approval-resume 三种入口都必须走同一条拒绝路径。
+    for mode in DispatchMode::ALL {
+        let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
+        let (verifier, events, authorized, permit) =
+            prepared_permit(events, None, false, mode).await;
+        let (broker, calls) = broker_with_counter(verifier, events.clone());
+        for authorization_id in ["policy:cp13", "approval:cp13", "opaque", "permit:"] {
+            let forged =
+                AuthorizedCapabilityRequest::new(authorization_id, authorized.request.clone())
+                    .unwrap();
+            assert!(
+                matches!(broker.execute(forged).await, Err(PortError::Failed(reason))
+                    if reason == "execution_permit_required"),
+                "forged authorization {authorization_id} must never act as a permit for {}",
+                mode.label()
+            );
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+        }
+        // 一个未知但形状合法的 execution id 同样没有 prepared 事实可消费。
+        let unknown = AuthorizedCapabilityRequest::new(
+            format!("permit:{}", ExecutionId::new()),
+            authorized.request.clone(),
+        )
+        .unwrap();
+        assert!(matches!(
+            broker.execute(unknown).await,
+            Err(PortError::Failed(reason)) if reason == "execution_permit_unavailable"
+        ));
         assert_eq!(calls.load(Ordering::SeqCst), 0);
-    }
-    // 一个未知但形状合法的 execution id 同样没有 prepared 事实可消费。
-    let unknown = AuthorizedCapabilityRequest::new(
-        format!("permit:{}", ExecutionId::new()),
-        authorized.request.clone(),
-    )
-    .unwrap();
-    assert!(matches!(
-        broker.execute(unknown).await,
-        Err(PortError::Failed(reason)) if reason == "execution_permit_unavailable"
-    ));
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
-    // 拒绝路径不能写任何消费事实：流仍只有 prepared。
-    assert_eq!(
-        stream_kinds(events.as_ref(), &permit).await,
-        ["execution.prepared"]
-    );
-    let class = kiana_domain::classify_dispatch_stream(
-        &events
-            .read_stream("execution_permit", &permit.execution_id.to_string())
-            .await
-            .unwrap(),
-    );
-    assert_eq!(class, DispatchCrashClass::PreparedUndispatched);
-    assert!(!class.handler_may_have_started());
+        // 拒绝路径不能写任何消费事实：流仍只有 prepared。
+        assert_eq!(
+            stream_kinds(events.as_ref(), &permit).await,
+            ["execution.prepared"]
+        );
+        let class = kiana_domain::classify_dispatch_stream(
+            &events
+                .read_stream("execution_permit", &permit.execution_id.to_string())
+                .await
+                .unwrap(),
+        );
+        assert_eq!(class, DispatchCrashClass::PreparedUndispatched);
+        assert!(!class.handler_may_have_started());
+        assert!(class.requires_unknown_terminal());
 
-    // 许可只能从已提交事实解码，不能由一个 JSON 字符串冒充。
-    assert!(DispatchPermit::from_json(&json!(format!("permit:{}", permit.execution_id))).is_err());
-    assert!(DispatchPermit::from_json(&Value::Null).is_err());
+        // 许可只能从已提交事实解码，不能由一个 JSON 字符串冒充。
+        assert!(
+            DispatchPermit::from_json(&json!(format!("permit:{}", permit.execution_id))).is_err()
+        );
+        assert!(DispatchPermit::from_json(&Value::Null).is_err());
+    }
 }
 
 #[tokio::test]
 async fn cp_cancel_before_dispatch_commit_starts_no_handler() {
-    let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
-    let (verifier, events, authorized, permit) = prepared_permit(events, None, false).await;
-    let (broker, calls) = broker_with_counter(verifier, events.clone());
-    let (_keep, cancelled) = tokio::sync::watch::channel(true);
-    assert!(matches!(
-        broker.execute_cancellable(authorized, cancelled).await,
-        Err(PortError::Failed(reason)) if reason == "cancelled:before_broker"
-    ));
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
-    // 取消发生在 permit 消费 CAS 之前，因此不会有 dispatching/executing，也没有消费回执。
-    assert_eq!(
-        stream_kinds(events.as_ref(), &permit).await,
-        ["execution.prepared"]
-    );
-    let consume =
-        kiana_domain::derived_request_id("permit.consume", &permit.execution_id.to_string());
-    assert!(events.read_command(&consume).await.unwrap().is_none());
-    let class = kiana_domain::classify_dispatch_stream(
-        &events
-            .read_stream("execution_permit", &permit.execution_id.to_string())
-            .await
-            .unwrap(),
-    );
-    assert_eq!(class, DispatchCrashClass::PreparedUndispatched);
-    assert!(!class.handler_may_have_started());
-    // 孤儿许可仍需要一条 Unknown 终结事实，不能被当成已成功派发。
-    assert!(class.requires_unknown_terminal());
+    for mode in DispatchMode::ALL {
+        let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
+        let (verifier, events, authorized, permit) =
+            prepared_permit(events, None, false, mode).await;
+        let (broker, calls) = broker_with_counter(verifier, events.clone());
+        let (_keep, cancelled) = tokio::sync::watch::channel(true);
+        assert!(matches!(
+            broker.execute_cancellable(authorized, cancelled).await,
+            Err(PortError::Failed(reason)) if reason == "cancelled:before_broker"
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        // 取消发生在 permit 消费 CAS 之前，因此不会有 dispatching/executing，也没有消费回执。
+        assert_eq!(
+            stream_kinds(events.as_ref(), &permit).await,
+            ["execution.prepared"]
+        );
+        let consume =
+            kiana_domain::derived_request_id("permit.consume", &permit.execution_id.to_string());
+        assert!(events.read_command(&consume).await.unwrap().is_none());
+        let class = kiana_domain::classify_dispatch_stream(
+            &events
+                .read_stream("execution_permit", &permit.execution_id.to_string())
+                .await
+                .unwrap(),
+        );
+        assert_eq!(class, DispatchCrashClass::PreparedUndispatched);
+        assert!(!class.handler_may_have_started());
+        // 孤儿许可仍需要一条 Unknown 终结事实，不能被当成已成功派发。
+        assert!(class.requires_unknown_terminal());
+    }
 }
 
 #[tokio::test]
 async fn cp_replayed_permit_never_dispatches_twice() {
-    let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
-    let (verifier, events, authorized, permit) = prepared_permit(events, None, false).await;
-    let (broker, calls) = broker_with_counter(verifier, events.clone());
-    let result = broker.execute(authorized.clone()).await.unwrap();
-    assert!(result.success);
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
-    let after_first = events
-        .read_stream("execution_permit", &permit.execution_id.to_string())
-        .await
-        .unwrap();
-    assert_eq!(
-        after_first
-            .iter()
-            .map(|event| event.kind.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "execution.prepared",
-            "invocation.dispatching",
-            "invocation.executing"
-        ]
-    );
-    assert_eq!(
-        kiana_domain::classify_dispatch_stream(&after_first),
-        DispatchCrashClass::EffectPossiblyStarted
-    );
-
-    // 同一许可重放：消费 CAS 已提交，必须拒绝且不改变流、不再调用 handler。
-    assert!(matches!(
-        broker.execute(authorized).await,
-        Err(PortError::Failed(reason)) if reason == "execution_permit_already_consumed"
-    ));
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
-    assert_eq!(
-        events
+    for mode in DispatchMode::ALL {
+        let events: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
+        let (verifier, events, authorized, permit) =
+            prepared_permit(events, None, false, mode).await;
+        let (broker, calls) = broker_with_counter(verifier, events.clone());
+        let result = broker.execute(authorized.clone()).await.unwrap();
+        assert!(result.success);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let after_first = events
             .read_stream("execution_permit", &permit.execution_id.to_string())
             .await
-            .unwrap(),
-        after_first
-    );
+            .unwrap();
+        assert_eq!(
+            after_first
+                .iter()
+                .map(|event| event.kind.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "execution.prepared",
+                "invocation.dispatching",
+                "invocation.executing"
+            ],
+            "{} dispatch must commit both facts before the handler runs",
+            mode.label()
+        );
+        assert_eq!(
+            kiana_domain::classify_dispatch_stream(&after_first),
+            DispatchCrashClass::EffectPossiblyStarted
+        );
+
+        // 同一许可重放：消费 CAS 已提交，必须拒绝且不改变流、不再调用 handler。
+        assert!(matches!(
+            broker.execute(authorized).await,
+            Err(PortError::Failed(reason)) if reason == "execution_permit_already_consumed"
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            events
+                .read_stream("execution_permit", &permit.execution_id.to_string())
+                .await
+                .unwrap(),
+            after_first
+        );
+    }
 }
 
 #[tokio::test]
@@ -421,8 +476,13 @@ async fn cp_prepared_reservation_that_is_not_bound_to_the_transaction_is_rejecte
     // 预留快照与许可 read-set 绑定正确时，消费可以在提交 dispatching/executing 后进入 handler。
     let bound: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
     let reservation = json!({"budget":{"lease_id":"budget-1"},"cell":{"cell_id":"cell-1"}});
-    let (verifier, events, authorized, permit) =
-        prepared_permit(bound, Some(reservation.clone()), false).await;
+    let (verifier, events, authorized, permit) = prepared_permit(
+        bound,
+        Some(reservation.clone()),
+        false,
+        DispatchMode::Harness,
+    )
+    .await;
     verifier.verify_and_consume(&authorized).await.unwrap();
     assert_eq!(
         stream_kinds(events.as_ref(), &permit).await,
@@ -436,8 +496,13 @@ async fn cp_prepared_reservation_that_is_not_bound_to_the_transaction_is_rejecte
     // 同一份预留快照但绑定摘要被改写：verifier 必须在写 dispatching/executing 之前拒绝，
     // handler 调用次数保持为零，流仍只有 prepared。
     let tampered: Arc<dyn EventStorePort> = Arc::new(MemoryEventLog::new());
-    let (verifier, events, authorized, permit) =
-        prepared_permit(tampered, Some(reservation), true).await;
+    let (verifier, events, authorized, permit) = prepared_permit(
+        tampered,
+        Some(reservation),
+        true,
+        DispatchMode::ApprovalResume,
+    )
+    .await;
     let (broker, calls) = broker_with_counter(verifier, events.clone());
     assert!(matches!(
         broker.execute(authorized).await,

@@ -141,3 +141,65 @@ fn cp13_linearization_points_and_crash_classes_are_pinned() {
         );
     }
 }
+
+#[test]
+fn cp13_prepare_consumes_approval_and_mints_permit_in_one_transaction() {
+    let dispatch = include_str!("../src/dispatch.rs");
+    let broker = include_str!("../../kiana-capability-broker/src/lib.rs");
+    let broker_registry = include_str!("../../kiana-capability-broker/tests/cap01_registry.rs");
+    // Step 1/2：一次派发的准备事务必须同时包含许可事实与（如有）一次性审批消费事实。
+    // `prepare_consumption` 只准备事件，真正的 Approved→Consumed 由同一条 prepared CAS 提交；
+    // 因此 approval.consumed 事件必须被 push 进与 permit 同一个 `events` 批次。
+    let prepare = compact_code(&item_source(
+        dispatch,
+        "pub(crate) async fn dispatch_authorized(",
+    ));
+    assert!(prepare.contains("self.approvals.prepare_consumption("));
+    assert!(prepare.contains("events.push(prepared.event);"));
+    assert!(prepare.contains("authority_versions.push(prepared.expected_version);"));
+    // 审批消费事件必须在构造许可/提交批次之前进入同一事务，不能出现“先提交许可、再消费审批”
+    // 的双写窗口；两者与同一条 TransitionBatch 的先后顺序由源码索引固定。
+    let approval_event = prepare
+        .find("events.push(prepared.event);")
+        .expect("approval consumption event must join the prepared batch");
+    let permit_mint = prepare
+        .find("letmutpermit=DispatchPermit{")
+        .expect("permit must be minted inside the same function");
+    let prepared_batch = prepare
+        .find("letbatch=TransitionBatch{")
+        .expect("the prepared fact must be committed as one transition batch");
+    let prepared_commit = prepare
+        .find("commit_confirmed(self.events.as_ref(),batch)")
+        .expect("the prepared batch must be committed");
+    assert!(
+        approval_event < permit_mint
+            && permit_mint < prepared_batch
+            && prepared_batch < prepared_commit,
+        "approval consumption, permit minting and the prepared commit must share one batch"
+    );
+    // 直接命令没有 Harness run：invocation 身份必须是 null，不能伪造一个无 run 的调用身份。
+    assert!(dispatch.contains("let Some(run_id) = run_id else {"));
+    assert!(dispatch.contains("return Ok(None);"));
+    // Step 3：真实 handler 之前先做 catalog/扩展/路由（未注册/错误版本 handler 不回退 shell），
+    // 再消费 permit。拒绝必须发生在消费 CAS 之前，否则会浪费一次性许可并把未执行误报为已派发。
+    let unregistered = broker
+        .find("capability_unregistered")
+        .expect("broker must reject unregistered operations");
+    let consume = broker
+        .find("verify_and_consume")
+        .expect("broker must consume the permit");
+    assert!(
+        unregistered < consume,
+        "broker must reject before consuming the one-shot permit"
+    );
+    // 未注册/错误版本 handler 的“不回退 shell”行为由既有 CAP-01 夹具证明，CP-13 只交叉引用。
+    for marker in [
+        "unregistered_operation_does_not_fallback_to_shell",
+        "descriptor_binding_version_mismatch_never_dispatches",
+    ] {
+        assert!(
+            broker_registry.contains(marker),
+            "CAP-01 no-fallback fixture missing: {marker}"
+        );
+    }
+}
