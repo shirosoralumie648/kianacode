@@ -65,7 +65,7 @@ included), so the fixtures also gate regular pushes; `python3` comes from the ru
 
 ## Evidence and limitations
 
-- Proof level: `source`. The fixtures are compiled and run only in CI; no local runtime tests or
+- Proof level: `source`. The fixtures are compiled and run only in CI. No local runtime tests or
   smoke commands were run while authoring them, and no local `cargo test`/`fmt` execution is
   claimed.
 - The `/proc` marker scan is a bounded host observation of the current namespace; it does not
