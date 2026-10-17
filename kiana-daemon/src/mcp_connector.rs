@@ -567,12 +567,17 @@ main()
                 ),
             ),
         ] {
-            let error = StdioMcpConnectorAdapter::new(
+            let refused = StdioMcpConnectorAdapter::new(
                 config,
                 int10_scope(&root, &script, 5_000),
                 Vec::new(),
-            )
-            .expect_err("a remote transport must be refused before any child exists");
+            );
+            let error = match refused {
+                Ok(_) => {
+                    panic!("{label}: a remote transport must be refused before any child exists")
+                }
+                Err(error) => error,
+            };
             assert_eq!(int10_failure_code(error), "mcp_http_unsupported", "{label}");
         }
 
