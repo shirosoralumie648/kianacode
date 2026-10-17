@@ -30,14 +30,15 @@ shell 通过 daemon `ProcessSupervisor::stop` 发送 TERM/KILL 并检查 leader/
 |---|---|
 | `silent_model_is_interrupted_by_deadline` | 模型不吐 delta 时 deadline 中止，不能完成 turn |
 | `cancel_during_retry_wait_prevents_next_attempt` | provider retry backoff 期间取消，不发下一次 attempt |
-| `unconfirmed_tool_stop_is_unknown` | source guard 固定 shell/MCP 未确认停止→result_unknown 边界 |
-| `cancel_reaps_process_group_and_records_one_turn_terminal` | 复核 daemon 现有 shell process-group 取消与单终态夹具 |
+| `unconfirmed_tool_stop_is_unknown` | `kiana-daemon/tests/h08_stop_confirmation_guard.rs` source guard：未确认停止的 shell/MCP 只能落 `result_unknown`，`stop_confirmed` 输出字段不构成 durable 取消证据 |
+| `cancel_reaps_process_group_and_records_one_turn_terminal` | `kiana-daemon/tests/h08_stop_confirmation_guard.rs` source guard + daemon `cancel_stops_in_flight_shell_before_it_writes` / `cancelling_mid_stream_never_completes_or_emits_a_late_delta` 复核进程组收割与单终态 |
 | `h08_cancellation_fence_covers_model_and_effect_boundaries` | source guard 固定 cancellable model port、watch signal、reap/stop markers 和 no-bypass |
 
 ## 3. Proof ceiling and handoff
 
 H08 proof ceiling 为 `source`：模型端口与 effect adapter 的取消信号、deadline 和停止确认已接线，
-CI-only runner/daemon fixtures 固化拒绝路径。当前新增 `.github/workflows/h08-cancellation-diagnostic.yml`
-作为手动 focused receipt，覆盖 runner 两个目标和 daemon 两个既有取消目标；远程结果不在本地等待。
+CI-only runner/daemon fixtures 固化拒绝路径。当前 `.github/workflows/h08-cancellation-diagnostic.yml`
+作为手动 focused receipt，矩阵覆盖 `h08_cancellation`、`h08_cancellation_guard`、
+`h08_stop_confirmation_guard`（2026-10-17 新增）与 daemon 既有取消目标；远程结果不在本地等待。
 跨进程取消信号持久化、OS 强杀/电源故障窗口、真实
 provider 网络与 MCP server 证据、完整 P0-J1 状态机和 live/physical proof 仍留待后续 CP/PD/P4/INT。
