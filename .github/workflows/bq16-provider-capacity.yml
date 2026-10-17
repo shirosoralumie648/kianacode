@@ -1,0 +1,44 @@
+name: BQ-16 provider capacity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provider-capacity:
+    name: BQ-16 provider capacity fixtures and guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run BQ-16 domain fixtures
+        run: cargo test -p kiana-domain --test bq16_provider_capacity --locked -- --test-threads=1
+      - name: Run BQ-16 provider boundary fixtures
+        run: cargo test -p kiana-provider --test bq16_provider_capacity --locked -- --test-threads=1
+      - name: Run BQ-16 provider capacity unit fixtures
+        run: cargo test -p kiana-provider --lib --locked capacity -- --test-threads=1
+      - name: Run BQ-16 core source guard
+        run: cargo test -p kiana-core --test bq16_provider_capacity_guard --locked -- --test-threads=1
+      - name: Run BQ-16 daemon source guard
+        run: cargo test -p kiana-daemon --test bq16_provider_capacity_guard --locked -- --test-threads=1
+      - name: Compile BQ-16 domain target
+        run: cargo test -p kiana-domain --test bq16_provider_capacity --no-run --locked
+      - name: Compile BQ-16 provider boundary target
+        run: cargo test -p kiana-provider --test bq16_provider_capacity --no-run --locked
+      - name: Compile BQ-16 provider library targets
+        run: cargo test -p kiana-provider --lib --no-run --locked
+      - name: Compile BQ-16 core guard target
+        run: cargo test -p kiana-core --test bq16_provider_capacity_guard --no-run --locked
+      - name: Compile BQ-16 daemon guard target
+        run: cargo test -p kiana-daemon --test bq16_provider_capacity_guard --no-run --locked

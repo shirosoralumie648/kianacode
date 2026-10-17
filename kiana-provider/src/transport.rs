@@ -1053,4 +1053,109 @@ mod tests {
             "provider_frame_truncated"
         );
     }
+
+    #[test]
+    fn capacity_permits_are_bounded_and_released_on_drop() {
+        let connection = crate::config::test_connection("openai", "gpt-4o").expect("connection");
+        let max_concurrency = connection.capacity_policy.max_concurrency as usize;
+        let queue_limit = connection.capacity_policy.max_queue as usize;
+        assert!(max_concurrency >= 1 && queue_limit >= 1);
+
+        // The active gate is exactly as large as the admitted concurrency policy.
+        assert_eq!(connection.capacity.available_permits(), max_concurrency);
+        let mut permits = Vec::new();
+        while let Ok(permit) = connection.capacity.clone().try_acquire_owned() {
+            permits.push(permit);
+        }
+        assert_eq!(permits.len(), max_concurrency);
+        assert!(
+            connection.capacity.clone().try_acquire_owned().is_err(),
+            "an exhausted active gate refuses another request"
+        );
+        // RAII release: dropping an owned permit returns the slot without any explicit release.
+        permits.clear();
+        assert_eq!(
+            connection.capacity.available_permits(),
+            max_concurrency,
+            "dropping a permit returns the active slot"
+        );
+
+        // The waiter gate is bounded by the admitted queue policy and released the same way.
+        assert_eq!(connection.queue_slots.available_permits(), queue_limit);
+        let waiter = connection
+            .queue_slots
+            .clone()
+            .try_acquire_owned()
+            .expect("bounded waiter slot");
+        assert_eq!(connection.queue_slots.available_permits(), queue_limit - 1);
+        drop(waiter);
+        assert_eq!(
+            connection.queue_slots.available_permits(),
+            queue_limit,
+            "dropping a waiter slot returns it"
+        );
+
+        // The pool sizes stay inside the hard capacity bounds; an unbounded waiter pool would be
+        // rejected at construction and is forbidden by the source guard as well.
+        assert!(queue_limit <= MAX_CAPACITY_QUEUE as usize);
+        assert!(max_concurrency <= MAX_CAPACITY_CONCURRENCY as usize);
+    }
+
+    #[test]
+    fn aliased_connections_cannot_double_spend_the_shared_capacity_budget() {
+        let mut planner = crate::config::test_connection("openai", "gpt-4o").expect("planner");
+        // Two profiles of one upstream identity share the same credential reference.
+        planner.credential_ref = Some(
+            SecretRef::new(
+                "env",
+                "SHARED_PROVIDER_KEY",
+                "provider.request",
+                "openai",
+                1,
+            )
+            .expect("credential reference"),
+        );
+        let mut builder = planner.clone();
+        builder.route.connection_id = "builder".to_owned();
+        builder.route.profile = "builder".to_owned();
+        builder.route.model_id = "gpt-4o-mini".to_owned();
+        let mut connections = std::collections::BTreeMap::from([
+            ("builder".to_owned(), builder),
+            ("planner".to_owned(), planner),
+        ]);
+        assert_eq!(
+            crate::config::capacity_scope(&connections["builder"]),
+            crate::config::capacity_scope(&connections["planner"])
+        );
+        crate::config::share_capacity_gates(&mut connections);
+        let builder = &connections["builder"];
+        let planner = &connections["planner"];
+        assert!(std::sync::Arc::ptr_eq(&builder.capacity, &planner.capacity));
+        assert!(std::sync::Arc::ptr_eq(
+            &builder.queue_slots,
+            &planner.queue_slots
+        ));
+        assert_eq!(
+            builder.capacity_policy.policy_digest,
+            planner.capacity_policy.policy_digest
+        );
+
+        // One alias spending the whole active budget blocks the other alias: a profile name is
+        // never additional capacity.
+        let max_concurrency = builder.capacity_policy.max_concurrency as usize;
+        let mut permits = Vec::new();
+        while let Ok(permit) = builder.capacity.clone().try_acquire_owned() {
+            permits.push(permit);
+        }
+        assert_eq!(permits.len(), max_concurrency);
+        assert!(
+            planner.capacity.clone().try_acquire_owned().is_err(),
+            "an alias must not gain a second concurrency budget"
+        );
+        drop(permits);
+        assert!(
+            planner.capacity.clone().try_acquire_owned().is_ok(),
+            "dropping the permits returns the shared budget (RAII release)"
+        );
+    }
 }
