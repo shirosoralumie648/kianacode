@@ -353,6 +353,13 @@ pub fn evaluate_evidence_receipt(
     let mut artifacts_seen = BTreeSet::new();
     for (index, artifact) in artifacts.iter().enumerate() {
         let evidence_ref = format!("evidence:artifact:{index}");
+        check_schema(
+            &mut findings,
+            "evidence.artifact_schema_invalid",
+            &artifact.schema,
+            ARTIFACT_SCHEMA,
+            &evidence_ref,
+        )?;
         if !is_bounded_reference(&artifact.artifact_ref)
             || !artifacts_seen.insert(artifact.artifact_ref.clone())
         {
