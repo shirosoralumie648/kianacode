@@ -434,6 +434,9 @@ fn cancel_timeout_and_eof_never_become_an_automatic_zero_or_release() {
         late_settlement.usage_class = Some(SettlementUsageClass::Known);
         late_settlement.usage_digest = Some(digest('b'));
         late_settlement.reconciliation_required = false;
+        // A later settlement must be structurally valid on its own; only then is the refusal the
+        // already-unknown attempt state rather than a malformed consumed payload.
+        late_settlement.unknown_reason = None;
         late_settlement.consumed = Some(ConsumedUnits {
             requests: 1,
             tokens: Some(12),
@@ -767,10 +770,13 @@ fn identity_usage_digest_and_revision_drift_fail_closed() {
         "settlement_revision_conflict"
     );
 
-    // Reusing a source event reference would let one committed fact drive two folds.
-    let mut replayed_source = reserved.clone();
-    replayed_source.source_refs = ledger.get(fixture.attempt_id).unwrap().source_refs.clone();
-    let replayed_source = restamped(replayed_source, settled.revision + 1);
+    // Reusing a source event reference would let one committed fact drive two folds. `restamped`
+    // refreshes the identity and digest, so the committed references are re-bound after it and the
+    // event digest is recomputed over the final payload.
+    let committed_sources = ledger.get(fixture.attempt_id).unwrap().source_refs.clone();
+    let mut replayed_source = restamped(reserved.clone(), settled.revision + 1);
+    replayed_source.source_refs = committed_sources;
+    replayed_source.event_digest = replayed_source.digest();
     assert_eq!(
         ledger.apply(replayed_source).unwrap_err(),
         "settlement_source_event_replay_conflict"

@@ -860,6 +860,7 @@ const MODEL_ATTEMPT_FIELDS: &[&str] = &[
     "budget",
     "reserved_tokens",
     "prompt_sources",
+    "step_context",
     "usage",
     "usage_complete",
     "attempted",

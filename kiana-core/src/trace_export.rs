@@ -262,7 +262,9 @@ fn foreign_value_too_long(value: &str) -> bool {
 }
 
 fn parse_foreign_annotations(value: &str) -> Result<Vec<ForeignAnnotation>, TraceExportError> {
-    if value.len() > MAX_FOREIGN_CONTEXT_BYTES || value.trim() != value {
+    // Surrounding optional whitespace is normalized by the per-member trim below; only the byte
+    // bound is checked on the raw header here so a padded key still reports `..._key_invalid`.
+    if value.len() > MAX_FOREIGN_CONTEXT_BYTES {
         return Err(foreign_context_invalid("trace_export_foreign_context_size"));
     }
     if value.is_empty() {

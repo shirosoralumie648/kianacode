@@ -387,9 +387,12 @@ async fn concurrent_duplicate_admissions_commit_exactly_one_accepted_fact() {
         json!({"decision":"approve"}),
     );
 
+    // `tokio::join!` keeps both futures alive until the join completes, so the authority
+    // snapshots they borrow must outlive the statement instead of being temporaries.
+    let authority = authority();
     let (left, right) = tokio::join!(
-        core.admit_ui_action(&first, &authority(), 1_000),
-        core.admit_ui_action(&second, &authority(), 1_000),
+        core.admit_ui_action(&first, &authority, 1_000),
+        core.admit_ui_action(&second, &authority, 1_000),
     );
 
     let mut succeeded = 0usize;

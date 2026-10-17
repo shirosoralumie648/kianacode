@@ -242,14 +242,22 @@ fn deny_flush_without_append_and_mismatched_permit() {
         "model_attempt_flush_sequence_invalid"
     );
     assert!(!partial.ledger.prepared_flushed());
+    // The flush fence is checked before the permit comparison: an unflushed attempt must not be
+    // dispatched even when the caller also presents a permit that does not match.
     assert_eq!(
         partial.ledger.dispatch(Some(RequestId::new())).unwrap_err(),
-        "model_attempt_permit_mismatch"
+        "model_attempt_prepared_not_flushed"
     );
     assert_eq!(partial.ledger.state(), Some(ModelAttemptState::Prepared));
 
     partial.ledger.mark_prepared_flushed(2).unwrap();
     assert!(partial.ledger.prepared_flushed());
+    // Once the prepared fact is flushed, a mismatched permit is the reason dispatch is refused.
+    assert_eq!(
+        partial.ledger.dispatch(Some(RequestId::new())).unwrap_err(),
+        "model_attempt_permit_mismatch"
+    );
+    assert_eq!(partial.ledger.state(), Some(ModelAttemptState::Prepared));
     assert_eq!(
         partial.ledger.prepare(Some(partial.permit)).unwrap_err(),
         "model_attempt_already_prepared"

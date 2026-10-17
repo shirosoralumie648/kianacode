@@ -577,7 +577,7 @@ pub(crate) struct Accumulator {
     gemini_terminal_status: Option<String>,
     gemini_step_usage: Option<ModelUsage>,
     gemini_step_usage_complete: bool,
-    /// DeepSeek-compatible private reasoning text, kept out of public output.
+    /// OpenAI-compatible private reasoning text (`reasoning_content`), kept out of public output.
     chat_reasoning: String,
 }
 impl Accumulator {

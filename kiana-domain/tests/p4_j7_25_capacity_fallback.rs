@@ -584,23 +584,32 @@ fn rate_limit_queue_is_bounded_and_fair() {
     controller
         .release(first.lease.expect("a2 lease").lease_id, "session-a")
         .expect("release a2");
+    assert_eq!(controller.usage().admitted_requests, 2);
 
-    // Session fairness: the second session is served before the first session's third entry.
-    let second = controller
+    // Session fairness: the fair rotation serves session-b's b1 before session-a's third entry.
+    // The UTC request window is already exhausted (2 admitted), so the queued dispatch is a typed
+    // delay: it never hands out a lease and never consumes an active slot. The queue must not be a
+    // dispatch back door that bypasses the RPM budget.
+    let fair = controller
         .dispatch_next(60_007)
         .expect("dispatch b1")
         .expect("b1 decision");
-    assert_eq!(second.outcome.attempt_id, b1.outcome.attempt_id);
-    controller
-        .release(second.lease.expect("b1 lease").lease_id, "session-b")
-        .expect("release b1");
+    assert_eq!(fair.outcome.attempt_id, b1.outcome.attempt_id);
+    assert_eq!(fair.outcome.kind, ProviderCapacityOutcomeKind::Delay);
+    assert_eq!(
+        fair.outcome.reason.as_deref(),
+        Some("provider_capacity_quota_window_exhausted")
+    );
+    assert!(fair.lease.is_none());
+    assert_eq!(controller.active_len(), 0);
+    assert_eq!(controller.queue_len(), 2);
 
-    // The UTC request window is exhausted; the delay is typed, keeps the entry queued and never
-    // consumes an active slot (backoff does not occupy the network slot).
+    // The next fair dispatch rotates back to session-a's third entry.
     let delayed = controller
         .dispatch_next(60_008)
-        .expect("dispatch delay")
+        .expect("dispatch a3")
         .expect("delay decision");
+    assert_eq!(delayed.outcome.attempt_id, a3.outcome.attempt_id);
     assert_eq!(delayed.outcome.kind, ProviderCapacityOutcomeKind::Delay);
     assert_eq!(
         delayed.outcome.reason.as_deref(),
@@ -608,7 +617,7 @@ fn rate_limit_queue_is_bounded_and_fair() {
     );
     assert!(delayed.lease.is_none());
     assert_eq!(controller.active_len(), 0);
-    assert_eq!(controller.queue_len(), 1);
+    assert_eq!(controller.queue_len(), 2);
     assert_eq!(controller.usage().admitted_requests, 2);
 
     let delayed_again = controller
@@ -619,8 +628,8 @@ fn rate_limit_queue_is_bounded_and_fair() {
         delayed_again.outcome.kind,
         ProviderCapacityOutcomeKind::Delay
     );
-    assert_eq!(delayed_again.outcome.attempt_id, a3.outcome.attempt_id);
-    assert_eq!(controller.queue_len(), 1);
+    assert_eq!(delayed_again.outcome.attempt_id, b1.outcome.attempt_id);
+    assert_eq!(controller.queue_len(), 2);
     assert_eq!(controller.active_len(), 0);
 }
 

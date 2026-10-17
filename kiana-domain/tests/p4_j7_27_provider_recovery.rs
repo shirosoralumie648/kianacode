@@ -572,9 +572,11 @@ fn complete_round_facts() -> (
 fn expired_resume_binding_and_widened_ttl_are_rejected_before_any_send() {
     let route = route();
     let call_id = RequestId::new();
-    let binding = binding(&route, call_id, None);
+    // Distinct local names keep the `binding()` helper visible: `let x = binding(...)` would
+    // otherwise resolve the call to the local variable after the first shadowing let.
+    let expired = binding(&route, call_id, None);
     assert_eq!(
-        binding
+        expired
             .validate_for_resume(
                 &route,
                 &digest('a'),
@@ -595,15 +597,15 @@ fn expired_resume_binding_and_widened_ttl_are_rejected_before_any_send() {
     let material = protected_material(&route, call_id);
     let mut widened = material.reference("artifact-fixture");
     widened.expires_at_unix_ms = 30_000;
-    let mut binding = binding(
+    let mut widened_binding = binding(
         &route,
         call_id,
         Some(material.reference("artifact-fixture")),
     );
-    binding.replay = Some(widened);
-    binding.binding_digest = binding.digest();
+    widened_binding.replay = Some(widened);
+    widened_binding.binding_digest = widened_binding.digest();
     assert_eq!(
-        binding
+        widened_binding
             .validate_for_resume(
                 &route,
                 &digest('a'),
@@ -622,15 +624,15 @@ fn expired_resume_binding_and_widened_ttl_are_rejected_before_any_send() {
     // Material that expired before the binding did is refused on its own deadline too.
     let mut narrowed = material.reference("artifact-fixture");
     narrowed.expires_at_unix_ms = 1_500;
-    let mut binding = binding(
+    let mut narrowed_binding = binding(
         &route,
         call_id,
         Some(material.reference("artifact-fixture")),
     );
-    binding.replay = Some(narrowed);
-    binding.binding_digest = binding.digest();
+    narrowed_binding.replay = Some(narrowed);
+    narrowed_binding.binding_digest = narrowed_binding.digest();
     assert_eq!(
-        binding
+        narrowed_binding
             .validate_for_resume(
                 &route,
                 &digest('a'),

@@ -36,11 +36,11 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-domain/src/contracts.rs",
-        "bdcc46900a2530c526c68773b5fda7055efc0abd2d7718b7eb5bec399c163df1",
+        "e491c7177bb2d1606115ff8e248be4583056309028d7fd957fae9ea075d0d3e6",
     ),
     (
         "kiana-domain/src/lib.rs",
-        "10059173d718cea0f4bc7aedef260d18321fdda1cb3cec286755508db81beb66",
+        "3cf06f5b893a21ee082b2c236de01bf653b174c644c3b9bd4639e3182b3d9eb1",
     ),
     (
         "kiana-core/src/events.rs",
@@ -56,7 +56,7 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-core/src/recovery.rs",
-        "ee6add98f6fab1d024495b58b03462c0a42afe8ae75c82c4506fe6f948011a05",
+        "b12dbb0fdddde7bbd9e69088dc5565f06e385a231ecc9993c63deefff053e402",
     ),
     (
         "kiana-core/src/lifecycle.rs",
@@ -96,11 +96,11 @@ const BASELINE: &[(&str, &str)] = &[
     ),
     (
         "kiana-daemon/src/lib.rs",
-        "384db8716260eaa3a450dfa6263eb3b4c3b28eb95d2b3aa0b204d21f55919826",
+        "cdb0a19083ad8bd5799b6dfb52d0bb344c6b4971e0978cd8882ce820eacd048d",
     ),
     (
         "kiana-ports/src/lib.rs",
-        "a58b9c59f2c548820f5ac75da734d302859220f822441794c51887b888728b2f",
+        "437abaa2c3011cd9e1f9b464d92258eae7eb8ec40f8f91be449700f24b3f887f",
     ),
 ];
 
