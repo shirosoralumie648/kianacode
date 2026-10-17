@@ -19,6 +19,8 @@ jobs:
             command: cargo test -p kiana-runner --test h08_cancellation --locked -- --test-threads=1
           - name: runner-guard
             command: cargo test -p kiana-runner --test h08_cancellation_guard --locked -- --test-threads=1
+          - name: daemon-stop-confirmation
+            command: cargo test -p kiana-daemon --test h08_stop_confirmation_guard --locked -- --test-threads=1
           - name: daemon-stream-cancellation
             command: cargo test -p kiana-daemon --test daemon_host cancelling_mid_stream_never_completes_or_emits_a_late_delta --locked -- --test-threads=1
           - name: daemon-shell-cancellation

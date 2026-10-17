@@ -15,6 +15,21 @@ limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Acti
 reviewer: root integration agent；CAP-05 Broker permit 与崩溃窗口静态复核
 ```
 
+### 2026-10-17 H08 翻 ✅（deadline/取消贯穿静默 I/O 的 effect 边界命名夹具与 focused workflow，CI-only 口径）
+
+```text
+source_snapshot: docs/roadmap.md §1.1 行 147（🔄 → ✅，CI pending）与 §3 变更日志；docs/roadmap/harness-cancellation-baseline.md（fixture catalog 与 §3 收口说明）；kiana-daemon/tests/h08_stop_confirmation_guard.rs（新增，两条命名 source guard）；.github/workflows/h08-cancellation-diagnostic.yml（新增 daemon-stop-confirmation 目标）；既有 kiana-runner/tests/{h08_cancellation.rs,h08_cancellation_guard.rs}、kiana-daemon/tests/daemon_host.rs（cancel_stops_in_flight_shell_before_it_writes / cancelling_mid_stream_never_completes_or_emits_a_late_delta）、kiana-ports/src/model.rs、kiana-runner/src/{harness.rs,inbox.rs}、kiana-daemon/src/{harness_capabilities.rs,mcp_stdio.rs,harness_mcp.rs,process_supervisor.rs,execution_control.rs}、kiana-core/src/{capabilities.rs,lifecycle.rs} 仍为已合并的实现与既有夹具，未改
+worktree_status: 行 147 🔄 → ✅（CI pending）；只改本 Step 相关源码/夹具与共享文档的单点回填（roadmap 该行/变更日志、H08 baseline、CURRENT_STATUS）；无 Cargo.toml/Cargo.lock/package.json 变化；未新增第二条执行循环、未改五个模型工具面、未新增外部依赖、未触及冻结项（HTTP MCP 仍不支持、无 live provider）
+command_argv: CI-only；本地未运行 cargo build/test/check/clippy/fmt/run、make、npm、smoke 或验收脚本（用户 2026-10-16 授权禁用）；仅静态核对（rg/sed/cat/git diff）与阅读既有源码/夹具
+cwd·environment: worktree /workspace/kianacode-worktrees/H08，分支 step/h08-20261017-1（基线 master d075cbd9e41c）；GitHub Actions ubuntu-latest 为运行时（回执未等待）
+fixture·cassette: daemon `h08_stop_confirmation_guard` 新增两条命名 guard——`unconfirmed_tool_stop_is_unknown`（断言 `shell_result_unknown:cancel_stop_unconfirmed` / `shell_result_unknown:process_group_not_stopped` / `if !report.confirmed` / `result_unknown:mcp_stop_unconfirmed` / `needs_reconciliation` 存在；Core 侧 `result_unknown:cancel_stop_unconfirmed`、`await_capability_stop`、`cancelled:user` 与 `!*cancellation.borrow() && receipt.stop_confirmed.is_some()` 三态证据；并禁 `cancelled_without_stop_confirmation_is_success` / `unconfirmed_stop_is_cancelled_success` / `unknown_effect_is_success`）与 `cancel_reaps_process_group_and_records_one_turn_terminal`（断言 `ProcessSupervisor::{prepare_command,stop}` / `TERM_GRACE` / `leader_reaped` / `process_group_exists` / `stop_confirmed` / `process_group_id` 收割证据；daemon 既有 `cancel_stops_in_flight_shell_before_it_writes`、`cancelling_mid_stream_never_completes_or_emits_a_late_delta`、`terminal_count != 1` 单终态证据，`lifecycle` `record_terminal_event`；并禁 `drop_child_without_reap` / `late_delta_after_terminal`）；runner 侧既有 `h08_cancellation::silent_model_is_interrupted_by_deadline` 与 `cancel_during_retry_wait_prevents_next_attempt`、`h08_cancellation_guard::h08_cancellation_fence_covers_model_and_effect_boundaries` 不变；新目标随 `.github/workflows/h08-cancellation-diagnostic.yml` 的 `daemon-stop-confirmation` 矩阵项接入 CI
+exit_code: 本地未运行；未编译/未执行，退出码未知；CI 回执未等待
+status_change: H08 卡「先拒绝」（静默模型被 deadline 中止、retry backoff 期间取消不发下一 attempt、未确认停止归 result_unknown）与「再成功」（确认取消收割进程组并记录单终态、保留 cancelling_mid_stream 无晚到 delta 语义）在源码层与夹具层齐备，两条命名夹具此前只在 baseline 叙述中映射、现以 daemon guard 落地并接入 focused workflow；行 147 由 🔄 提升 ✅（CI pending）/ feature_status=implemented
+proof-level_change: 维持 source；本地未编译/未运行测试，未提升 local_behavior/durable/live/physical
+limitations: 本地未编译未运行，编译/运行正确性依赖 GitHub Actions；new daemon guard 为 source guard，不重跑 daemon 行为夹具（由同一 workflow 的 daemon 目标负责）；跨进程取消信号持久化、OS 强杀/电源故障窗口、真实 provider 网络与 MCP server 证据、ER-01 之后 daemon shell 目标的 current-head 回执、完整 P0-J1 状态机与 live/physical 证明仍开放；HTTP/SSE MCP 仍不支持（无 HTTP 取消）
+reviewer: root integration agent；H08 取消/停止边界源码与既有夹具静态复核
+```
+
 ### 2026-10-17 ER-13 翻 ✅（result delivery 的 crash window 与跨进程重启恢复，CI-only 口径）
 
 ```text
