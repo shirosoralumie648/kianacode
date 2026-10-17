@@ -445,7 +445,7 @@ deny-first fixtures/source guard；见 [UI-11 baseline](ui11-cli-presenter-basel
 
 
 
-#### UI-12 · TTY 输入状态机　🔄
+#### UI-12 · TTY 输入状态机　✅
 
 - 依赖：UI-08/10。代码：Workbench/CLI input layer；可参考 Pi 的跨 chunk parser 和 Codex composer。
 - 步骤：解析 Unicode、IME、bracketed paste、历史、逐行/多行、resize、EOF、SIGINT；输入草稿与已提交 command 分离。
@@ -458,6 +458,35 @@ paste 作为单个文本 payload，IME candidate、历史、逐行/多行、resi
 NonTty fence 均与 draft/`CommittedInput` 分离；WorkBench 事件适配仍只把提交交给既有
 `WorkbenchView::interpret_line` 和 DaemonHost 路径。deny-first PTY/Unicode/paste/resize/EOF/
 SIGINT/bounds fixtures、source guard 和 GitHub-only workflow 已接入；见 [UI-12 baseline](ui12-tty-input-baseline.md)。证明等级为 `source`，CI 结果未等待。
+
+2026-10-17 收口切片补齐上一轮遗留的缺口（专属 lane 被 08552ada workflow fan-in 删除、
+若干先拒绝用例只是隐含）：`kiana-entrypoints/src/tty_input.rs` 的 IME API
+（`begin_ime`/`update_ime`/`commit_ime`/`cancel_ime`）现在在 `InputMode::NonTty` 下于任何
+composition 状态存在之前返回 `tty_input_requires_tty`；声明式 fixture
+[`kiana-entrypoints/tests/fixtures/ui12-pty-events.json`](../../kiana-entrypoints/tests/fixtures/ui12-pty-events.json)
+（`kiana.ui12-pty-events.v1`）固化为六个 stream（含期望 transition 序列 changed/committed/
+cancel/resized/ignored）、五条原子拒绝、预算（65536 bytes / 16384 scalars / 64 history
+entries）与 required/denied/limitations 列表；`kiana-entrypoints/tests/ui12_tty_input.rs` 由
+11 条扩到 19 条先拒绝优先夹具，新增
+`partial_escape_sequences_never_synthesize_enter_across_chunks`、
+`a_dangling_escape_across_chunks_is_rejected_and_never_submits_the_draft`、
+`bracketed_paste_payload_controls_stay_data_until_the_closing_marker`、
+`oversized_bracketed_paste_is_rejected_at_the_decoder_boundary_and_clears_pending`、
+`scalar_safe_editing_never_splits_a_character_and_combining_marks_stay_data`、
+`non_tty_mode_rejects_ime_and_resize_before_any_state_change`、
+`ime_rejects_paste_enter_and_oversized_candidates_without_touching_the_draft`、
+`history_navigation_is_bounded_and_editing_resets_the_cursor`；
+`kiana-entrypoints/tests/ui12_tty_input_guard.rs` 新增第二条守卫
+`tty_input_completion_slice_stays_wired_to_the_fixture_lane_and_shard`（fixture 预算↔源码常量、
+登记夹具名↔真实测试、required marker↔baseline、拒绝码↔源码、Workbench 提交路径、手动 lane
+逐字命令与整 crate 分片）。重建手动 lane
+[`.github/workflows/ui12-tty-input.yml`](../../.github/workflows/ui12-tty-input.yml)
+（`workflow_dispatch`-only、`permissions: contents: read`、`cargo fetch --locked` + fmt 门 +
+两个 target（`--test-threads=1`）+ `--no-run`），自动 lane 仍是统一 `ci.yml` 的
+`kiana-entrypoints` 整 crate 分片（`scripts/ci/test-shards.json` 未改）。证明等级为 `source`，
+CI 结果未等待；paste 内 CR 仍按终端控制拒绝（不归一化为换行）、live Workbench 仍用 crossterm
+自有事件流（`PtyChunkDecoder` 是确定性 source fixture）、无 OS-backed PTY/IME 与
+durable/live/physical 证据仍开放。
 
 <a id="step-ui-13"></a>
 
