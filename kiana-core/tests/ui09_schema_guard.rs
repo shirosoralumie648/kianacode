@@ -16,6 +16,12 @@ fn ui09_schema_gate_is_data_only_and_generated_catalog_is_bound() {
         "unknown_major_policy",
         "reject_before_decode",
         "UI_SCHEMA_CONTRACTS",
+        "unlocked_schema_file",
+        "unreferenced_example_fixture",
+        "unreferenced_negative_fixture",
+        "contract_deprecated_fields_unbound",
+        "emitted_schema_mismatch",
+        "kiana.ui09-emitted.v1",
     ] {
         assert!(
             validator.contains(marker)
@@ -87,6 +93,7 @@ fn ui09_shape_rust_drift_and_negative_fixtures_stay_wired_to_the_lane_and_auto_s
     let lock_raw = include_str!("../../docs/schemas/ui/schema-lock.v1.json");
     let matrix_raw = include_str!("../../docs/schemas/ui/compatibility-matrix.v1.json");
     let round_trip = include_str!("../../kiana-client/tests/ui09_schema_round_trip.rs");
+    let emit_example = include_str!("../../kiana-client/examples/ui09_schema_emit.rs");
     let registry = include_str!("../../kiana-domain/src/contracts.rs");
     let ui_contracts = include_str!("../../kiana-protocol/src/ui_contracts.rs");
     let ui_store = include_str!("../../kiana-client/src/ui_store.rs");
@@ -108,6 +115,15 @@ fn ui09_shape_rust_drift_and_negative_fixtures_stay_wired_to_the_lane_and_auto_s
         "frozen_shape",
         "property_descriptor",
         "shape_inventory",
+        "unlocked_schema_file",
+        "unreferenced_example_fixture",
+        "unreferenced_negative_fixture",
+        "contract_deprecated_fields_unbound",
+        "contract_deprecated_field_unreviewed",
+        "emitted_contract_set_mismatch",
+        "emitted_schema_mismatch",
+        "kiana.ui09-emitted.v1",
+        "--emitted",
         "--write",
     ] {
         assert!(
@@ -338,12 +354,46 @@ fn ui09_shape_rust_drift_and_negative_fixtures_stay_wired_to_the_lane_and_auto_s
         );
     }
 
-    // 6. the baseline document keeps the completion slice and its limits.
+    // 6. the emit example closes the other half of the cross-language round trip: it decodes the
+    //    same locked fixtures with the Rust wire types and prints them for the JSON Schema gate.
+    for marker in [
+        "ui09_schema_emit",
+        "kiana.ui09-emitted.v1",
+        "UiEntityStoreSnapshot",
+        "docs/schemas/ui/examples/kiana.ui-snapshot.v1.json",
+        "serde_json::to_string_pretty",
+    ] {
+        assert!(
+            emit_example.contains(marker) || lane.contains(marker),
+            "UI-09 emit example is missing: {marker}"
+        );
+    }
+    for forbidden in [
+        "DaemonHost",
+        "CapabilityBroker",
+        "ControlPlane",
+        "std::fs::",
+        "std::process",
+        "Command::new",
+        "tokio::spawn",
+        "reqwest",
+        "#[ignore",
+    ] {
+        assert!(
+            !emit_example.contains(forbidden),
+            "the emit example must not use {forbidden}"
+        );
+    }
+
+    // 7. the baseline document keeps the completion slice and its limits.
     for marker in [
         "frozen_shape",
         "rust_field_drift",
         "negative_case_not_rejected",
         "ui09_schema_round_trip.rs",
+        "ui09_schema_emit.rs",
+        "unlocked_schema_file",
+        "deprecated_fields",
         "proof_level",
     ] {
         assert!(
@@ -352,7 +402,7 @@ fn ui09_shape_rust_drift_and_negative_fixtures_stay_wired_to_the_lane_and_auto_s
         );
     }
 
-    // 7. the manual lane stays dispatch-only, read-only and bound to the same targets.
+    // 8. the manual lane stays dispatch-only, read-only and bound to the same targets.
     assert!(lane.contains("workflow_dispatch:"));
     assert!(lane.contains("permissions:"));
     assert!(lane.contains("contents: read"));
@@ -375,13 +425,15 @@ fn ui09_shape_rust_drift_and_negative_fixtures_stay_wired_to_the_lane_and_auto_s
         "python3 scripts/validate-ui09-schemas.py",
         "cargo test -p kiana-client --test ui09_schema_catalog --locked -- --test-threads=1",
         "cargo test -p kiana-client --test ui09_schema_round_trip --locked -- --test-threads=1",
+        "cargo run --locked -p kiana-client --example ui09_schema_emit > ui09-emitted.json",
+        "python3 scripts/validate-ui09-schemas.py --emitted ui09-emitted.json",
         "cargo test -p kiana-core --test ui09_schema_guard --locked -- --test-threads=1",
         "cargo test -p kiana-client -p kiana-core --no-run --locked",
     ] {
         assert!(lane.contains(command), "UI-09 lane is missing: {command}");
     }
 
-    // 8. the automatic shard book stays the authority for the crate lanes.
+    // 9. the automatic shard book stays the authority for the crate lanes.
     let shards: serde_json::Value =
         serde_json::from_str(shards_raw).expect("test shards must stay valid JSON");
     let core_shard = shards["kiana-core-s6/6"]["targets"]

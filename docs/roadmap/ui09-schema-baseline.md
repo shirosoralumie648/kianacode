@@ -64,3 +64,25 @@ domain/event payload or future TypeScript package; semantic digest/cursor invari
 by Rust validators; no live old/new client interoperability, browser transport, provider behavior,
 durable schema migration or physical proof is claimed. Later schema versions require a new major or
 an explicit migration/upcaster entry.
+
+## 5. 2026-10-17 收口切片（第二次执行）
+
+本次在既有 lock/matrix/fixture 之上补齐三类缺口，并把跨语言 round-trip 的另一半接进 lane：
+
+| 新增 gate | 断言 / 失败码 |
+|---|---|
+| 资产覆盖 | 目录中任何未登记的 `*.schema.json`、`examples/*.json`、`negative/*.json` 都会被 `unlocked_schema_file` / `unreferenced_example_fixture` / `unreferenced_negative_fixture` 拒绝；新增文件不能绕过版本合同 |
+| deprecated 绑定 | lock 的 `deprecated_fields` 必须逐字等于 schema 自己标记 `"deprecated": true` 的字段集合；每项还必须是 `field`/`since`/`remove_in` 的评审记录，否则 `contract_deprecated_fields_unbound` / `contract_deprecated_field_unreviewed` |
+| Rust 发射 → JSON Schema | `cargo run -p kiana-client --example ui09_schema_emit` 用 Rust wire type 解码 7 个 fixture 再编码成报告，`validate-ui09-schemas.py --emitted` 再对 canonical schema 校验；漂移即 `emitted_schema_mismatch`，集合缺失即 `emitted_contract_set_mismatch` |
+
+- `frozen_shape` 与 `schema_sha256` 不变：同版本形状改动仍然先失败，必须人工评审并升版本；
+  `rust_field_drift` / `schema_optional_field_rust_required` / `rust_required_field_schema_optional`
+  继续挡住 Rust 与 schema 的字段漂移；`negative_case_not_rejected` 等负例仍然先拒绝。
+- 验收目标：`kiana-client/tests/ui09_schema_round_trip.rs`（4 条 typed round-trip，含
+  `ui09_locked_examples_round_trip_through_the_rust_wire_types`）、
+  `kiana-client/examples/ui09_schema_emit.rs` 与 `kiana-client/tests/ui09_schema_catalog.rs`；
+  source guard 仍是 `kiana-core/tests/ui09_schema_guard.rs`，lane 仍是
+  `.github/workflows/ui09-schema-contract.yml`（并按 `scripts/ci/test-shards.json` 进
+  `kiana-core-s6/6` 自动分片）。
+- proof_level 仍为 `source`：本地不运行测试/构建，lane 是 dispatch-only，CI 回执未等待；本页不声称
+  live 跨版本互操作、浏览器侧 Schema 生成或 durable 迁移。

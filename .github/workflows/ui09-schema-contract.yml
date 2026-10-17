@@ -30,6 +30,10 @@ jobs:
         run: cargo test -p kiana-client --test ui09_schema_catalog --locked -- --test-threads=1
       - name: Run the cross-language schema round-trip
         run: cargo test -p kiana-client --test ui09_schema_round_trip --locked -- --test-threads=1
+      - name: Emit the locked examples through the Rust wire types
+        run: cargo run --locked -p kiana-client --example ui09_schema_emit > ui09-emitted.json
+      - name: Validate the Rust-emitted payloads against the canonical JSON Schema
+        run: python3 scripts/validate-ui09-schemas.py --emitted ui09-emitted.json
       - name: Run the UI-09 source guard
         run: cargo test -p kiana-core --test ui09_schema_guard --locked -- --test-threads=1
       - name: Compile the affected targets without running

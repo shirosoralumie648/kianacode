@@ -28,8 +28,25 @@ python3 scripts/validate-ui09-schemas.py
 
 It checks deterministic lock ordering, schema ids and hashes, examples, strict unknown-field
 fixtures, byte ceilings, redaction/path rules, compatibility rules and generated catalog parity.
-CI is the authority for running this command; local tests and builds are intentionally not part of
-the UI-09 evidence.
+It also refuses any registry asset that is not locked: every `*.schema.json` in this directory and
+every file under `examples/` and `negative/` must be referenced by the lock or by the compatibility
+matrix (`unlocked_schema_file`, `unreferenced_example_fixture`, `unreferenced_negative_fixture`).
+`deprecated_fields` is not free-form: it must equal the properties the schema itself marks
+`"deprecated": true`, and each entry must be a reviewed `field`/`since`/`remove_in` record.
+
+The cross-language round trip has two halves. The typed target
+`kiana-client/tests/ui09_schema_round_trip.rs` decodes the checked-in examples with the Rust wire
+types and re-encodes them; `kiana-client/examples/ui09_schema_emit.rs` prints those encodings as a
+report, and the same validator then checks every emitted payload against the canonical JSON Schema:
+
+```bash
+cargo run --locked -p kiana-client --example ui09_schema_emit > ui09-emitted.json
+python3 scripts/validate-ui09-schemas.py --emitted ui09-emitted.json
+```
+
+A payload Rust can no longer emit, or a contract missing from the report, fails with
+`emitted_schema_mismatch` / `emitted_contract_set_mismatch`. CI is the authority for running these
+commands; local tests and builds are intentionally not part of the UI-09 evidence.
 
 ## Compatibility policy
 
