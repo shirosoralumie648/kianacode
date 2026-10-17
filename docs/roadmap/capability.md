@@ -562,13 +562,14 @@ CP-13/CAP-07/CAP-10+ 继续。
 
 
 
-#### CAP-15 — patch 一次解析，所有受影响路径可预览
+#### CAP-15 — patch 一次解析，所有受影响路径可预览　✅
 
 - **落点：** daemon/apply_patch、共享 paths，core prepare 与 approval preview。
 - **步骤：** 让现有 parser 产生 typed operations/affected paths；policy、scope 校验、preview 和 commit 共用该 AST，停止重复逐行提取。覆盖 add/update/delete/move 两端、文件 mode、二进制支持范围、patch bytes/hunk 数；预规划只读、不创建目录/锁外临时文件。
 - **先拒绝：** `patch_preview_and_commit_use_identical_target_set`、`malformed_late_hunk_makes_no_earlier_change`、`move_source_and_target_both_require_authority`。
 - **成功/回归：** 合法多文件 patch 产出准确 changeset 和 before hashes；已有 symlink/hardlink/temp collision/上下文不匹配断言保留。
 - **完成产物：** patch 预览与真正执行同一请求摘要；预检失败完全没有工作区写入。
+- **完成记录（2026-10-17）：** 唯一 parser `parse_patch` 新增 `patch_affected_paths`，从 typed `Hunk` AST 派生受影响路径（add/delete + update 的 move 目标两端）；`harness_capabilities::prepare_patch_request` 的 policy/scope/`path_allow` 校验改为消费该视图，删除原先按 `*** …:` 前缀的逐行重扫，使请求校验、预览与提交共用同一解析。验收夹具：`kiana-daemon` lib `patch_preview_and_commit_use_identical_target_set`（preview 与 commit 的 `affected_paths`/`before_hashes`/`patch_digest`/`hunk_count` 一致且含 move 两端，preview 不落任何写入）、`malformed_late_hunk_makes_no_earlier_change`（后半段畸形整体拒绝，早先文件不变）、`oversized_patch_and_hunk_overflow_are_rejected_before_any_write`（`MAX_PATCH_BYTES`/`MAX_PATCH_HUNKS` 在解析阶段拒绝且零写入）、`patch_affected_paths_cover_move_source_and_destination`、`move_source_and_target_both_require_authority`（只授权 move 一端即 `apply_patch_scope_denied`）与既有回归 `preview_and_commit_share_the_same_plan_digest_and_affected_paths`，二进制删除/mode/symlink/hardlink/temp collision/上下文不匹配断言保留；`kiana-core` guard `cap15_patch_plan_guard::patch_scope_validation_reuses_the_typed_parse_instead_of_rescanning_lines` 禁止重扫。本地仅静态核对（CI-only，未运行测试/构建）。
 
 <a id="step-cap-16"></a>
 
