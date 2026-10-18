@@ -149,6 +149,7 @@ mod model_attempt_projection;
 mod notification_action;
 mod notification_delivery;
 mod notification_external;
+mod notification_fault_harness;
 mod notification_faults;
 mod notification_materializer;
 mod notification_parity;
@@ -384,6 +385,11 @@ pub use notification_external::{
     admit_external_notification, observe_external_notification_receipt,
     ExternalNotificationAdmission, ExternalNotificationDisposition,
     ExternalNotificationReceiptObservation,
+};
+pub use notification_fault_harness::{
+    Nm20FaultCase, Nm20FaultFamily, Nm20FaultHarnessRun, Nm20FaultObservation, Nm20FaultSeam,
+    Nm20LibrarySeam, NM20_FAULT_CASES_SCHEMA, NM20_FAULT_HARNESS_SCHEMA, NM20_FAULT_MAX_CASES,
+    NM20_FAULT_MAX_TEXT_BYTES,
 };
 pub use notification_faults::{
     notification_fault_matrix, NotificationFaultCase, NotificationFaultDisposition,
