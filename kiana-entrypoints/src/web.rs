@@ -7227,9 +7227,15 @@ mod tests {
             "ui18-epoch-a:1:2".to_owned(),
             format!("{}:1", "e".repeat(MAX_WEB_SSE_CURSOR_BYTES)),
         ] {
-            let response =
-                ui18_open_stream(&client, &base, &token, &server.session, Some(&cursor), None)
-                    .await;
+            let response = ui18_open_stream(
+                &client,
+                &base,
+                &token,
+                &server.session,
+                Some(cursor.as_str()),
+                None,
+            )
+            .await;
             assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{cursor}");
             assert_eq!(
                 response.json::<Value>().await.unwrap()["error"],
@@ -7358,12 +7364,13 @@ mod tests {
 
         // A previous daemon incarnation can never keep rendering: the first frame is an explicit
         // snapshot-required gap that carries the *current* server epoch, never the stale one.
+        let stale_cursor = format!("{UI18_STALE_EPOCH}:1");
         let stale = ui18_open_stream(
             &client,
             &base,
             &token,
             &server.session,
-            Some(&format!("{UI18_STALE_EPOCH}:1")),
+            Some(stale_cursor.as_str()),
             None,
         )
         .await;
@@ -7417,12 +7424,13 @@ mod tests {
 
         // Resuming from an older cursor cannot silently continue: the display window the tab
         // missed is reported as one explicit snapshot-required gap.
+        let reconnect_cursor = format!("{epoch}:0");
         let reconnect = ui18_open_stream(
             &client,
             &base,
             &token,
             &server.session,
-            Some(&format!("{epoch}:0")),
+            Some(reconnect_cursor.as_str()),
             None,
         )
         .await;
@@ -7540,7 +7548,7 @@ mod tests {
             &base,
             &token,
             &server.session,
-            Some(&retained_cursor),
+            Some(retained_cursor.as_str()),
             None,
         )
         .await;
@@ -7562,7 +7570,7 @@ mod tests {
             &base,
             &token,
             &server.session,
-            Some(&retained_cursor),
+            Some(retained_cursor.as_str()),
             None,
         )
         .await;
@@ -7606,7 +7614,7 @@ mod tests {
             &base,
             &token,
             &server.session,
-            Some(&retained_cursor),
+            Some(retained_cursor.as_str()),
             None,
         )
         .await;
