@@ -296,6 +296,33 @@ impl ControlPlane {
         self.events.last_durable_cursor().await.map_err(Into::into)
     }
 
+    /// Read-only committed-boundary cursor snapshot used by boot recovery.
+    ///
+    /// `Ok(None)` is reserved for adapters that explicitly report
+    /// `event_store_cursor_snapshot_unsupported`; every other failure reaches the caller. The
+    /// snapshot is an observation, never a durable proof.
+    pub async fn cursor_snapshot(
+        &self,
+    ) -> Result<Option<kiana_domain::EventLogCursorSnapshot>, CoreError> {
+        match self.events.cursor_snapshot().await {
+            Ok(snapshot) => Ok(Some(snapshot)),
+            Err(PortError::Unavailable(reason))
+                if reason == "event_store_cursor_snapshot_unsupported" =>
+            {
+                Ok(None)
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// Read-only authority epoch observed from the project authority ledger.
+    ///
+    /// A project without authority facts reports the legacy epoch `1` instead of `0`, because `0`
+    /// means "uninitialized" and must never be used as a recovery or fencing value.
+    pub async fn observed_authority_epoch(&self, root: &str) -> Result<u64, CoreError> {
+        Ok(self.authority_epoch(root).await?.unwrap_or(1))
+    }
+
     /// Close the EventStore only after its own durable flush acknowledgement.
     pub async fn close_event_store(&self) -> Result<kiana_domain::EventStoreHealth, CoreError> {
         self.events.close().await.map_err(Into::into)

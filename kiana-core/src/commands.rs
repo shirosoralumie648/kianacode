@@ -831,6 +831,13 @@ impl ControlPlane {
         if intent.name == kiana_domain::AUTOMATION_SNAPSHOT {
             return self.workflow_snapshot(context).await;
         }
+        // AUT-21：显式启动恢复 resume。只推导/复核恢复事实，不是第二条执行循环；它的
+        // operator 检查在 handler 内完成，成功也不会自动启动 dispatch/workflow 服务。
+        if intent.name == crate::automation_boot_recovery::AUTOMATION_BOOT_RECOVERY_RESUME_COMMAND {
+            return self
+                .handle_boot_recovery_resume(context, intent.arguments)
+                .await;
+        }
         if intent.name == "company.reclaim_expired.v1" {
             return self.reclaim_packet_leases(context, intent.arguments).await;
         }

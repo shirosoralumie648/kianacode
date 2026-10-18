@@ -226,7 +226,10 @@ pub use authority_read_model::{
     BudgetAuthorityProjection, CellAuthorityProjection, GrantAuthorityProjection,
     LeaseAuthorityProjection, AUTHORITY_READ_MODEL_SCHEMA,
 };
-pub use automation_boot_recovery::validate_boot_recovery;
+pub use automation_boot_recovery::{
+    derive_boot_recovery_resume, validate_boot_recovery, AUTOMATION_BOOT_RECOVERY_RESUME_COMMAND,
+    AUTOMATION_BOOT_RECOVERY_RESUME_SCHEMA,
+};
 pub use automation_cancellation::{
     cancel_automation_worker_command, record_automation_late_result, validate_automation_cancel,
     AutomationCancellationOutcome,

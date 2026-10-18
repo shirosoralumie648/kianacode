@@ -134,7 +134,6 @@ docs/roadmap/aut17-cancellation-baseline.md :: .github/workflows/aut17-cancellat
 docs/roadmap/aut18-signal-baseline.md :: .github/workflows/aut18-signal.yml
 docs/roadmap/aut19-fanout-baseline.md :: .github/workflows/aut19-fanout.yml
 docs/roadmap/aut20-compensation-baseline.md :: .github/workflows/aut20-compensation.yml
-docs/roadmap/aut21-boot-recovery-baseline.md :: .github/workflows/aut21-boot-recovery.yml
 docs/roadmap/aut22-automation-snapshot-baseline.md :: .github/workflows/aut22-automation-snapshot.yml
 docs/roadmap/aut23-surface-uat-baseline.md :: .github/workflows/aut23-surface-uat.yml
 docs/roadmap/aut24-release-evidence-baseline.md :: .github/workflows/aut24-release-evidence.yml
