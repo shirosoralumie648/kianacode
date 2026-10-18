@@ -646,7 +646,7 @@ denial_templates↔源码+夹具、protocol-propagated 边界↔`kiana-protocol`
 
 
 
-#### UI-15 · Workbench inbox、Diff 和 Receipt　🔄
+#### UI-15 · Workbench inbox、Diff 和 Receipt　✅
 
 - 依赖：UI-05/08/13/14、Event/Receipt §23。代码：inbox panel、artifact viewer、receipt view。
 - 步骤：展示 reason/scope/expiry/fields/allowed decisions；Diff 由服务端 Artifact ref 提供并校验 digest/revision；Receipt 显示 files/cost/unknown/limitations/provenance。
@@ -661,6 +661,64 @@ fail-closed；Diff 只接受服务端 `ArtifactRef` 页并校验 page/content di
 边界与完整 artifact digest；Receipt 显示 files/cost/unknown/limitations/provenance，
 `ResultUnknown` 永不画成绿色完成。fixture、source guard 和 GitHub-only workflow 已接入；见
 [UI-15 baseline](ui15-workbench-inbox-receipt-baseline.md)。证明等级为 `source`，CI 结果未等待。
+
+2026-10-17 收口切片把「纯 inbox/artifact/receipt source contract + 少量夹具 + 无专属 lane」补成
+卡片退出条件收口——`kiana-entrypoints/src/workbench_review.rs`：
+
+1. **展示与拒绝同源**：新增 `WorkbenchDecision`（五个词的封闭审批词汇，`ALL`/`as_str`/`parse`）与
+   `InboxCardState`（`actionable`/`expired`/`revoked`）；`WorkbenchInboxCard::display_state` 只由服务端
+   facts 派生，`prepare_decision` 走同一状态机，所以画成 expired/revoked 的卡片不可能产出可执行决策；
+   卡片声明任何词汇表外的 decision 一律 `inbox_allowed_decision_unsupported`；
+   手工构造的 `WorkbenchInboxDecision` 现在必须自证 payload digest
+   （`inbox_decision_payload_digest_mismatch`/`inbox_decision_payload_limit`），并拒绝词汇表外的
+   decision 值（`inbox_decision_value_unsupported`）；
+2. **inbox 面板不再只是去重**：`WorkbenchInbox::upsert` 允许服务端刷新但拒绝 expected revision 回退
+   （`inbox_card_revision_stale`）与「已撤销卡片被后来的非撤销 payload 复活」
+   （`inbox_card_revocation_regression`）；`revoke` 对未知 action id 报 `inbox_action_unknown` 而不是静默
+   丢弃；`state_of`/`actionable` 让 presenter 只读共享投影（过期/撤销卡片仍可见但不在 actionable 列表）；
+3. **Diff 只来自服务端页**：`ArtifactViewState`（`empty`/`partial`/`complete`）+ `missing_pages()` +
+   `retained_bytes()`/`retained_pages()`；部分内容永远不是 artifact（`content()` 只在完整可信时返回），
+   presenter 拿到的是还需向服务端请求的页号列表，而不是客户端拼出的 diff；
+4. **Receipt 重算与终态回放分开**：`recompute` 现在对重建结果做完整校验，不一致片段
+   （`receipt_file_revision_invalid` 等）返回错误而不是画出来；唯一替换保留回执的入口是
+   `apply_server_receipt`，固定顺序拒绝 `receipt_run_mismatch`/`receipt_replay_stale`/
+   `receipt_replay_conflict`（同 cursor 必须同 digest/状态/unknown 标记）与
+   `receipt_terminal_regression`（终态不得回到非终态），同 cursor 的完全相同回执是幂等 `Replayed`；
+   `is_terminal()` 由非终态集合的补集派生（新增状态默认终态，fail-closed）；
+5. **receipt golden 与审阅错误恢复说明**：`ReceiptGolden`（`kiana.workbench-receipt-golden.v1`，文件按
+   path/revision/status 排序、digest 归一化、逐字节稳定，`green`/`unknown`/limitations/provenance 全部
+   可见）；`REVIEW_REFUSALS` 是唯一 presenter 可见拒绝目录（32 码 × `inbox`/`decision`/`artifact`/
+   `receipt` 四阶段，每码一条有界 review_recovery 说明，且没有任何一条会代替操作者 resubmit/retry/
+   approve/restore/reconcile）。
+
+声明式 fixture `kiana.ui15-workbench-review.v1`
+（[`kiana-entrypoints/tests/fixtures/ui15-workbench-review.json`](../../kiana-entrypoints/tests/fixtures/ui15-workbench-review.json)：
+11 行预算、六组词汇表、14 个先拒绝优先 scenario + refusal 码、22 个夹具名、required/denied/
+denial_templates/recovery/limitations、receipt golden 逐字期望值）；`kiana-entrypoints/tests/ui15_workbench_review.rs`
+7 → 22 条先拒绝优先夹具（新增 `every_declared_decision_produces_its_stable_decision_intent`、
+`inbox_decisions_are_restricted_to_the_declared_vocabulary`、
+`hand_built_decisions_must_still_match_their_payload_digest`、
+`inbox_bounds_scope_fields_decisions_and_payload_size`、
+`inbox_deduplicates_cards_and_updates_are_never_a_silent_downgrade`、
+`artifact_pagination_is_partial_until_every_server_page_is_verified`、
+`artifact_pages_outside_the_declared_bounds_are_refused`、
+`receipt_never_paints_result_unknown_as_green_completed`、
+`receipt_replay_is_idempotent_and_never_regresses_a_terminal_state`、
+`receipt_recompute_refuses_inconsistent_server_fragments`、
+`receipt_golden_is_deterministic_and_keeps_unknown_and_limitations_visible`、
+`review_refusal_catalogue_covers_every_presenter_visible_refusal`、
+`review_contracts_round_trip_through_typed_input`、
+`declared_scenarios_are_exercised_by_their_named_fixtures`），既有断言一条未放宽；
+`kiana-entrypoints/tests/ui15_workbench_review_guard.rs` 1 → 2 条守卫，新增
+`ui15_completion_slice_stays_wired_to_the_fixture_lane_and_shard`（预算↔源码常量、六组词汇表↔
+enum `ALL`/`as_str`、22 个夹具名↔真实测试、scenario↔夹具与「只在目录之前的模块正文里」核对 refusal
+码、denied↔`ReviewRefusal::codes()` 双向且每码都有恢复说明与被夹具断言、denial_templates↔源码字段与
+组合码、required↔baseline、propagated↔`kiana-protocol`、手动 lane 逐字命令与 `kiana-entrypoints`
+整 crate 分片）；重建手动 `.github/workflows/ui15-workbench-review.yml`（`workflow_dispatch`-only、
+`permissions: contents: read`、fetch/fmt 门 + 两个 target（`--test-threads=1`）+ `--no-run`），
+自动覆盖仍是统一 `ci.yml` 的 `kiana-entrypoints` 整 crate 分片（`scripts/ci/test-shards.json` 未改）。
+证明等级为 `source`，CI 结果未等待；真实 Workbench 事件循环/渲染、durable artifact store、跨进程回执
+重算、provider 成本真值与 live/physical 证据仍开放。
 
 ### 27.3 Web、SSE 和多标签页
 

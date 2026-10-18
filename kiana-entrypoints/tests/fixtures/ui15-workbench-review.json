@@ -1,14 +1,56 @@
 {
-  "schema": "kiana.workbench-review.v1",
+  "schema": "kiana.ui15-workbench-review.v1",
+  "step": "UI-15",
+  "review_schema": "kiana.workbench-review.v1",
+  "receipt_schema": "kiana.workbench-receipt.v1",
+  "receipt_golden_schema": "kiana.workbench-receipt-golden.v1",
   "deny_first": [
     "approval_expired",
     "approval_revoked",
     "approval_revision_mismatch",
     "client_payload_mutation",
-    "artifact_digest_mismatch",
+    "inbox_allowed_decision_unsupported",
+    "inbox_card_revocation_regression",
+    "inbox_card_revision_stale",
+    "artifact_reference_mismatch",
     "artifact_revision_mismatch",
+    "artifact_page_digest_mismatch",
+    "artifact_page_bounds_invalid",
+    "artifact_page_conflict",
+    "artifact_page_count_mismatch",
+    "artifact_digest_mismatch",
+    "artifact_content_too_large",
+    "receipt_run_mismatch",
+    "receipt_replay_stale",
+    "receipt_replay_conflict",
+    "receipt_terminal_regression",
     "result_unknown_not_green"
   ],
+  "budgets": {
+    "max_inbox_payload_bytes": 131072,
+    "max_inbox_cards": 256,
+    "max_inbox_fields": 32,
+    "max_inbox_decisions": 16,
+    "max_scope_paths": 256,
+    "max_artifact_pages": 1024,
+    "max_artifact_page_bytes": 262144,
+    "max_artifact_bytes": 16777216,
+    "max_receipt_files": 1024,
+    "max_receipt_limitations": 128,
+    "max_receipt_provenance": 256
+  },
+  "decisions": ["approve", "deny", "edit", "restore", "continue"],
+  "card_states": ["actionable", "expired", "revoked"],
+  "artifact_states": ["empty", "partial", "complete"],
+  "receipt_display_states": [
+    "completed",
+    "completed_with_limitations",
+    "failed",
+    "cancelled",
+    "result_unknown"
+  ],
+  "receipt_updates": ["applied", "replayed"],
+  "review_stages": ["inbox", "decision", "artifact", "receipt"],
   "inbox": {
     "action_id": "approval-15",
     "command": "approval.decide",
@@ -19,6 +61,7 @@
       "summary": "workspace files under src/",
       "paths": ["src/main.rs"]
     },
+    "expected_revision": 4,
     "expiry_ms": 2000,
     "fields": [
       {"name": "comment", "label": "Review comment", "field_type": "text", "required": true}
@@ -29,13 +72,232 @@
   },
   "diff": {
     "source": "server_artifact_ref",
-    "checks": ["digest", "revision", "page_bounds"]
+    "checks": ["ref", "revision", "page_bounds", "page_digest", "whole_artifact_digest"],
+    "states": ["empty", "partial", "complete"],
+    "client_side_diff": "forbidden"
   },
   "receipt": {
+    "run_id": "12345678-1234-4234-8234-123456789abc",
     "files": ["src/main.rs"],
     "cost": {"currency": "USD", "amount_micros": 1200},
     "unknown": true,
     "limitations": ["provider_receipt_pending"],
-    "provenance": {"source_cursor": 15, "source_event_ids": ["event-15"]}
-  }
+    "provenance": {"source_cursor": 15, "source_event_ids": ["event-15"]},
+    "golden": {
+      "schema": "kiana.workbench-receipt-golden.v1",
+      "run_id": "12345678-1234-4234-8234-123456789abc",
+      "status": "result_unknown",
+      "display": "result_unknown",
+      "green": false,
+      "unknown": true,
+      "file_count": 1,
+      "files": [
+        {"path": "src/main.rs", "status": "modified", "revision": 4, "artifact_digest": null}
+      ],
+      "currency": "USD",
+      "amount_micros": null,
+      "usage_known": false,
+      "cost_known": false,
+      "limitations": ["provider_receipt_pending"],
+      "provenance": {
+        "receipt_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "source_cursor": 15,
+        "source_event_ids": ["event-15"],
+        "producer": "daemon"
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "inbox-shows-reason-scope-expiry-fields-and-decisions",
+      "fixture": "inbox_display_keeps_reason_scope_expiry_fields_and_allowed_decisions",
+      "refusals": []
+    },
+    {
+      "id": "expired-or-revoked-card-is-not-actionable",
+      "fixture": "expired_and_revoked_cards_are_never_actionable_and_never_produce_a_decision",
+      "refusals": ["approval_expired", "approval_revoked"]
+    },
+    {
+      "id": "stale-revision-and-client-payload-edit-stop-before-an-action",
+      "fixture": "revision_mismatch_and_client_payload_mutation_fail_before_an_action_exists",
+      "refusals": ["approval_revision_mismatch", "client_payload_mutation", "approval_decision_not_allowed"]
+    },
+    {
+      "id": "unknown-decision-verbs-are-not-rendered-as-actions",
+      "fixture": "inbox_decisions_are_restricted_to_the_declared_vocabulary",
+      "refusals": ["inbox_allowed_decision_unsupported", "inbox_decision_value_unsupported"]
+    },
+    {
+      "id": "client-edited-payload-never-rides-the-original-digest",
+      "fixture": "hand_built_decisions_must_still_match_their_payload_digest",
+      "refusals": ["inbox_decision_payload_digest_mismatch", "inbox_payload_digest_mismatch"]
+    },
+    {
+      "id": "duplicate-cards-and-card-downgrades-are-refused",
+      "fixture": "inbox_deduplicates_cards_and_updates_are_never_a_silent_downgrade",
+      "refusals": [
+        "inbox_action_duplicate",
+        "inbox_action_unknown",
+        "inbox_card_revocation_regression",
+        "inbox_card_revision_stale"
+      ]
+    },
+    {
+      "id": "forged-pages-and-foreign-artifact-refs-are-refused",
+      "fixture": "artifact_viewer_rejects_changed_reference_and_assembled_content",
+      "refusals": ["artifact_reference_mismatch", "artifact_digest_mismatch"]
+    },
+    {
+      "id": "pages-with-forged-byte-digests-are-refused",
+      "fixture": "artifact_pages_reject_malformed_and_forged_byte_digests",
+      "refusals": ["artifact_page_digest_mismatch"]
+    },
+    {
+      "id": "partial-artifact-stays-partial-until-every-page-is-verified",
+      "fixture": "artifact_pagination_is_partial_until_every_server_page_is_verified",
+      "refusals": ["artifact_page_conflict", "artifact_page_count_mismatch"]
+    },
+    {
+      "id": "page-bounds-and-total-bytes-fail-closed",
+      "fixture": "artifact_pages_outside_the_declared_bounds_are_refused",
+      "refusals": ["artifact_page_bounds_invalid", "artifact_revision_mismatch", "artifact_content_too_large"]
+    },
+    {
+      "id": "result-unknown-is-never-a-green-completed-receipt",
+      "fixture": "receipt_never_paints_result_unknown_as_green_completed",
+      "refusals": ["result_unknown_marker_missing", "receipt_cost_known_mismatch"]
+    },
+    {
+      "id": "receipt-replay-is-idempotent-and-terminal-states-do-not-regress",
+      "fixture": "receipt_replay_is_idempotent_and_never_regresses_a_terminal_state",
+      "refusals": ["receipt_run_mismatch", "receipt_replay_stale", "receipt_replay_conflict", "receipt_terminal_regression"]
+    },
+    {
+      "id": "approve-deny-edit-restore-continue-produce-their-stable-intent",
+      "fixture": "every_declared_decision_produces_its_stable_decision_intent",
+      "refusals": []
+    },
+    {
+      "id": "receipt-golden-keeps-unknown-limitations-cost-and-provenance",
+      "fixture": "receipt_golden_is_deterministic_and_keeps_unknown_and_limitations_visible",
+      "refusals": ["workbench_receipt_schema_invalid"]
+    }
+  ],
+  "fixtures": [
+    "inbox_display_keeps_reason_scope_expiry_fields_and_allowed_decisions",
+    "expired_and_revoked_cards_are_never_actionable_and_never_produce_a_decision",
+    "revision_mismatch_and_client_payload_mutation_fail_before_an_action_exists",
+    "every_declared_decision_produces_its_stable_decision_intent",
+    "inbox_decisions_are_restricted_to_the_declared_vocabulary",
+    "hand_built_decisions_must_still_match_their_payload_digest",
+    "inbox_bounds_scope_fields_decisions_and_payload_size",
+    "inbox_deduplicates_cards_and_updates_are_never_a_silent_downgrade",
+    "artifact_pages_reject_malformed_and_forged_byte_digests",
+    "artifact_viewer_rejects_changed_reference_and_assembled_content",
+    "artifact_viewer_accepts_verified_bare_and_prefixed_sha256_hashes",
+    "artifact_pagination_is_partial_until_every_server_page_is_verified",
+    "artifact_pages_outside_the_declared_bounds_are_refused",
+    "receipt_keeps_files_cost_limitations_provenance_and_unknown_visible",
+    "receipt_never_paints_result_unknown_as_green_completed",
+    "receipt_replay_is_idempotent_and_never_regresses_a_terminal_state",
+    "receipt_recompute_refuses_inconsistent_server_fragments",
+    "receipt_golden_is_deterministic_and_keeps_unknown_and_limitations_visible",
+    "protocol_card_conversion_does_not_add_client_fields",
+    "review_refusal_catalogue_covers_every_presenter_visible_refusal",
+    "review_contracts_round_trip_through_typed_input",
+    "declared_scenarios_are_exercised_by_their_named_fixtures"
+  ],
+  "required": [
+    "WorkbenchInboxCard",
+    "WorkbenchInbox",
+    "WorkbenchDecision",
+    "InboxCardState",
+    "ArtifactViewer",
+    "ArtifactViewState",
+    "ArtifactPage",
+    "WorkbenchReceipt",
+    "ReceiptGolden",
+    "ReceiptUpdate",
+    "REVIEW_REFUSALS",
+    "review_recovery",
+    "proof_level",
+    "limitations"
+  ],
+  "denied": [
+    "workbench_inbox_schema_invalid",
+    "inbox_payload_digest_mismatch",
+    "inbox_payload_limit",
+    "inbox_allowed_decision_unsupported",
+    "inbox_allowed_decision_duplicate",
+    "inbox_action_duplicate",
+    "inbox_action_unknown",
+    "inbox_card_revocation_regression",
+    "inbox_card_revision_stale",
+    "approval_expired",
+    "approval_revoked",
+    "approval_revision_mismatch",
+    "approval_decision_not_allowed",
+    "client_payload_mutation",
+    "inbox_decision_payload_digest_mismatch",
+    "inbox_decision_value_unsupported",
+    "inbox_decision_revision_invalid",
+    "artifact_reference_mismatch",
+    "artifact_revision_mismatch",
+    "artifact_page_digest_mismatch",
+    "artifact_page_bounds_invalid",
+    "artifact_page_conflict",
+    "artifact_page_count_mismatch",
+    "artifact_digest_mismatch",
+    "artifact_content_too_large",
+    "workbench_receipt_schema_invalid",
+    "result_unknown_marker_missing",
+    "receipt_run_mismatch",
+    "receipt_replay_stale",
+    "receipt_replay_conflict",
+    "receipt_terminal_regression",
+    "receipt_cost_known_mismatch"
+  ],
+  "denial_templates": {
+    "{field}_invalid": [
+      "inbox_action_id",
+      "inbox_command",
+      "inbox_target_id",
+      "inbox_reason",
+      "inbox_scope_digest",
+      "inbox_scope_path",
+      "inbox_field_label",
+      "inbox_payload_digest",
+      "inbox_decision_payload_digest",
+      "artifact_page_digest",
+      "receipt_digest",
+      "receipt_file_path",
+      "receipt_limitation"
+    ],
+    "{field}_limit": [
+      "inbox_cards",
+      "inbox_fields",
+      "inbox_allowed_decisions",
+      "inbox_scope_paths",
+      "receipt_files",
+      "receipt_limitations"
+    ]
+  },
+  "recovery": {
+    "catalogue": "REVIEW_REFUSALS",
+    "stages": ["inbox", "decision", "artifact", "receipt"],
+    "notes": [
+      "reload the server snapshot before acting again",
+      "request the missing artifact pages instead of a client-side diff",
+      "keep the terminal receipt and ask the server for the next cursor",
+      "never resubmit, retry or reconcile on the operator's behalf"
+    ]
+  },
+  "limitations": [
+    "local projection only: no local_behavior/durable/live/physical promotion",
+    "artifact pages are synthetic fixtures, not a durable artifact store",
+    "receipt costs and file revisions are server claims, not filesystem truth",
+    "unknown external effects stay unknown; the view never reconciles them",
+    "no Web/Desktop/IDE adapter, browser rendering or second execution path"
+  ]
 }
