@@ -451,6 +451,7 @@
    "int16_connector_reservation_guard",
    "int17_connector_quota_guard",
    "int18_effect_permit_guard",
+   "int19_connector_dispatch_guard",
    "int20_receipt_observation_guard",
    "int21_connector_retry_guard",
    "int22_connector_reconciliation_guard",
