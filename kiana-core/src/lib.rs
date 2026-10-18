@@ -491,7 +491,10 @@ pub use restore_activation::{
     RESTORE_ACTIVATION_REPORT_SCHEMA, RESTORE_ACTIVATION_REQUEST_SCHEMA,
     RESTORE_ACTIVATION_STATE_SCHEMA, RESTORE_ACTIVATION_VERSION,
 };
-pub use restore_verification::validate_restore_verification_fact;
+pub use restore_verification::{
+    admit_restored_command, require_restore_ready, restore_effect_claim_from_receipt,
+    validate_restore_verification_fact, verify_restore_effect_claims, RestoreEffectClaimError,
+};
 pub use retention::scan_retention;
 pub use retention_archive_bounds::*;
 pub use retention_deletion::*;

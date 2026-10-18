@@ -198,7 +198,7 @@ pub use notification_stream::{
     NOTIFICATION_STREAM_SEEN_EVENT_IDS,
 };
 pub use oauth_accounts::InMemoryOAuthAccountStore;
-pub use restore_verifier::verify_restore;
+pub use restore_verifier::{require_activated_after_restart, verify_restore, verify_restore_ready};
 use run_stream::RunStreamBus;
 pub use run_stream::{
     RunStreamFeedError, RunStreamFeedSubscription, RunStreamSubscription,
@@ -797,6 +797,89 @@ impl DaemonHost {
         role: Option<RoleSpec>,
     ) -> Result<RuntimeConfig, PortError> {
         harness_runtime_config_from_env().map(|config| config.into_runtime_config(role))
+    }
+
+    /// PD-23 恢复门：manifest/fact 校验 + 外部 effect 证据 + 激活就绪门。
+    ///
+    /// 【位置】这是 verifier 的唯一生产消费入口。它组合三个已有权威而不复制它们的规则：
+    /// `restore_verifier::verify_restore`（Domain 合同 + manifest/artifact 绑定）、
+    /// `kiana_core::verify_restore_effect_claims`（重新派生 effect receipt 并比对事实里的
+    /// claim）、`kiana_core::require_restore_ready`（`Verified` + `ActivationState::ready()`）。
+    ///
+    /// 【为什么激活不在这里】新 lease/fence 的铸造属于 DEP-23 `restore_activation`；宿主只
+    /// 消费它给出的 `ActivationState`。在这里再造一个 lease/fence 会成为第二个权威。
+    ///
+    /// 【重启语义】重启后调用方拿不到 `Activated` 状态时应使用
+    /// [`DaemonHost::restore_gate_after_restart`]：没有证据就保持 `prepared`，不凭进程内
+    /// 状态放行。
+    ///
+    /// 【输出】成功只表示合同检查通过；宿主仍不会复制文件、取得锁或把 root 标记为 active。
+    pub fn restore_gate(
+        &self,
+        manifest: &kiana_domain::SnapshotManifest,
+        fact: &kiana_domain::RestoreVerificationFact,
+        activation: &kiana_core::ActivationState,
+        evidence: &[(
+            &kiana_core::EffectReconciliationRequest,
+            &kiana_core::EffectReconciliationReceipt,
+            &kiana_domain::EffectObservation,
+        )],
+    ) -> Result<(), String> {
+        restore_verifier::verify_restore_ready(manifest, fact, activation, evidence)
+    }
+
+    /// 重启后的恢复门：只有 `ActivationState::ready()` 才允许继续。
+    ///
+    /// 与 [`DaemonHost::restore_gate`] 相同的结构/证据检查，但不假定激活存在；`prepared`
+    /// 状态返回 `restore_activation_not_ready`，这是重启时从磁盘读到「已准备未激活」的
+    /// 正常拒绝，而不是错误路径。
+    pub fn restore_gate_after_restart(
+        &self,
+        manifest: &kiana_domain::SnapshotManifest,
+        fact: &kiana_domain::RestoreVerificationFact,
+        activation: &kiana_core::ActivationState,
+        evidence: &[(
+            &kiana_core::EffectReconciliationRequest,
+            &kiana_core::EffectReconciliationReceipt,
+            &kiana_domain::EffectObservation,
+        )],
+    ) -> Result<(), String> {
+        restore_verifier::verify_restore_ready(manifest, fact, activation, evidence)?;
+        restore_verifier::require_activated_after_restart(activation).map_err(str::to_owned)
+    }
+
+    /// 恢复后唯一允许的命令入口：先过 [`DaemonHost::restore_gate`]，再走 Core 的
+    /// `admit_command_after_activation`。
+    ///
+    /// 顺序固定：结构/证据/就绪门全部通过之后，才检查命令自身的 root/instance/fence/epoch。
+    /// 这样未激活（`prepared`）或未 `Verified` 的恢复不会因为命令字段「看起来对」而被放行。
+    /// 旧 root 的写入由 Core 以 `restore_activation_superseded_root_write` 拒绝。
+    pub fn admit_restored_command(
+        &self,
+        manifest: &kiana_domain::SnapshotManifest,
+        fact: &kiana_domain::RestoreVerificationFact,
+        activation: &kiana_core::ActivationState,
+        evidence: &[(
+            &kiana_core::EffectReconciliationRequest,
+            &kiana_core::EffectReconciliationReceipt,
+            &kiana_domain::EffectObservation,
+        )],
+        command_root: &kiana_domain::StorageRootId,
+        command_instance_id: &kiana_domain::InstanceId,
+        command_fence_token: kiana_domain::FenceTokenId,
+        command_authority_epoch: u64,
+        command_data_epoch: u64,
+    ) -> Result<(), String> {
+        self.restore_gate(manifest, fact, activation, evidence)?;
+        kiana_core::admit_restored_command(
+            fact,
+            activation,
+            command_root,
+            command_instance_id,
+            command_fence_token,
+            command_authority_epoch,
+            command_data_epoch,
+        )
     }
 
     /// Return the daemon-resolved principal without exposing a credential value.
