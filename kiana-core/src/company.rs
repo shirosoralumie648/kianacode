@@ -346,6 +346,15 @@ impl ControlPlane {
                 return self.reject_company(&context, reason).await;
             }
         }
+        // CO-11: freezing the criterion coverage is a Sponsor approval that must match the
+        // server-side frozen Charter baseline of this exact project. The boundary revalidates the
+        // typed graph/approval before the transition, so a forged or drifted coverage cannot
+        // change a related object.
+        if let CompanyCommand::FreezeCriterionCoverage { coverage } = &request.command {
+            if let Err(reason) = state.coverage_freeze_verdict(coverage) {
+                return self.reject_company(&context, reason).await;
+            }
+        }
         let command_id = CompanyCommandReceipt::command_id(
             &company_aggregate_id(&context),
             &request.idempotency_key,
@@ -1933,6 +1942,11 @@ fn company_references(state: &CompanyState, c: &CompanyCommand) -> Vec<String> {
         } => vec![handoff_receipt_ref.clone()],
         CompanyCommand::DecideAcceptance { waiver_ref, .. } => waiver_ref.iter().cloned().collect(),
         CompanyCommand::DecideChange { decision_ref, .. } => vec![decision_ref.clone()],
+        // CO-11: the coverage approval must cite a verifiable planning/review record, so the
+        // proof resolves the same typed reference the transition re-checks.
+        CompanyCommand::FreezeCriterionCoverage { coverage } => {
+            vec![coverage.approval.decision_ref.clone()]
+        }
         CompanyCommand::RecordOutcome { observation, .. } => observation.evidence_refs.clone(),
         CompanyCommand::OpenIncident { incident }
         | CompanyCommand::MarkDeliveryUnknown { incident, .. } => incident.evidence_refs.clone(),

@@ -58,6 +58,8 @@ fn criteria() -> CriteriaSnapshot {
         milestone_criteria: Vec::new(),
         packet_criteria: Vec::new(),
         criterion_refs: Vec::new(),
+        coverage_digest: None,
+        coverage_baseline_version: None,
     }
 }
 

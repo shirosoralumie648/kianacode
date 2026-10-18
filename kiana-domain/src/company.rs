@@ -5,7 +5,7 @@ use crate::{
     WorkPacketStatus,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const COMPANY_COMMAND_SCHEMA: &str = "kiana.company-command.v1";
 pub const COMPANY_EVENT_SCHEMA: &str = "kiana.company-event.v1";
@@ -551,6 +551,13 @@ pub struct CriteriaSnapshot {
     /// Versioned criterion objects; legacy text lists remain for replay compatibility.
     #[serde(default)]
     pub criterion_refs: Vec<crate::Criterion>,
+    /// CO-11: digest of the frozen coverage graph the typed criteria were read from. When set,
+    /// text-set inference is never a substitute.
+    #[serde(default)]
+    pub coverage_digest: Option<String>,
+    /// CO-11: origin baseline version of the frozen coverage graph.
+    #[serde(default)]
+    pub coverage_baseline_version: Option<u64>,
 }
 impl CriteriaSnapshot {
     pub fn validate(&self) -> CompanyResult<()> {
@@ -561,10 +568,40 @@ impl CriteriaSnapshot {
         list(&self.project_criteria)?;
         list(&self.milestone_criteria)?;
         list(&self.packet_criteria)?;
+        let mut identities = BTreeSet::new();
         for criterion in &self.criterion_refs {
             criterion
                 .validate()
                 .map_err(|_| "criteria_snapshot_criterion_invalid")?;
+            ensure(
+                identities.insert(criterion.criterion_id),
+                "criteria_snapshot_duplicate_identity",
+            )?;
+            if let Some(baseline) = self.coverage_baseline_version {
+                ensure(
+                    criterion.source_version <= baseline,
+                    "criteria_snapshot_source_version_drift",
+                )?;
+            }
+        }
+        if self.coverage_digest.is_some() || self.coverage_baseline_version.is_some() {
+            let digest = self
+                .coverage_digest
+                .as_deref()
+                .ok_or("criteria_snapshot_coverage_invalid")?;
+            let baseline = self
+                .coverage_baseline_version
+                .ok_or("criteria_snapshot_coverage_invalid")?;
+            ensure(
+                digest.starts_with("sha256:") && baseline > 0,
+                "criteria_snapshot_coverage_invalid",
+            )?;
+            // A coverage-bound snapshot always carries typed identities; falling back to the
+            // legacy text lists here would reintroduce the inference CO-11 removes.
+            ensure(
+                !self.criterion_refs.is_empty(),
+                "criteria_snapshot_coverage_requires_typed_criteria",
+            )?;
         }
         Ok(())
     }
@@ -579,6 +616,10 @@ impl CriteriaSnapshot {
             ids.sort();
             ids.dedup();
             return ids;
+        }
+        // Fail closed: a snapshot bound to a frozen coverage never infers criteria from text.
+        if self.coverage_digest.is_some() {
+            return Vec::new();
         }
         let mut all = self
             .project_criteria
@@ -928,6 +969,12 @@ pub enum CompanyCommand {
     PlanProject {
         project_id: String,
     },
+    /// CO-11: explicit Sponsor approval of the exact Project→Milestone→Packet criterion coverage
+    /// graph. The frozen graph replaces the legacy text-set criteria inference for every later
+    /// acceptance snapshot; it grants no capability, path, budget or runtime lease.
+    FreezeCriterionCoverage {
+        coverage: crate::FrozenCriterionCoverage,
+    },
     AcknowledgeHandoff {
         handoff_id: String,
         accept: bool,
@@ -1085,6 +1132,7 @@ impl CompanyCommand {
             Self::ApprovePacket { .. } => "PacketApproved",
             Self::ReworkPacket { .. } => "PacketReworkApproved",
             Self::PlanProject { .. } => "ProjectPlanned",
+            Self::FreezeCriterionCoverage { .. } => "CriterionCoverageFrozen",
             Self::AcknowledgeHandoff { .. } => "HandoffAcknowledged",
             Self::ReviewPacket { .. } => "PacketReviewed",
             Self::ConfigureBudget { .. } => "ProjectBudgetConfigured",
@@ -1155,6 +1203,9 @@ impl CompanyCommand {
             | Self::ResumeProject { .. }
             | Self::RequestChange { .. } => &["sponsor", "pm"],
             Self::RecordDirectIntake { .. } => &["sponsor", "pm"],
+            // CO-11: only the Sponsor approves the exact coverage graph; the planning roles can
+            // propose it but cannot sign the freeze.
+            Self::FreezeCriterionCoverage { .. } => &["sponsor"],
             // CO-10: the chartering role drafts; the Sponsor (or an assigned PM) records it, and
             // only the Sponsor can approve the exact draft version.
             Self::DraftCharter { .. } => &["sponsor", "pm"],
@@ -1272,6 +1323,10 @@ pub struct CompanyState {
     /// state revisions continue to advance independently after this snapshot.
     #[serde(default)]
     pub charter_baselines: BTreeMap<String, ProjectCharterBaseline>,
+    /// CO-11 Sponsor-approved criterion coverage graphs, keyed by project. Absent on legacy
+    /// projects, which keep the readable text-list snapshot path.
+    #[serde(default)]
+    pub criterion_coverages: BTreeMap<String, crate::FrozenCriterionCoverage>,
     pub revision: u64,
     pub objectives: BTreeMap<String, Objective>,
     pub initiatives: BTreeMap<String, Initiative>,
@@ -1778,6 +1833,139 @@ impl CompanyState {
         }
         Err("project_intake_provenance_required")
     }
+
+    /// CO-11: boundary verdict for freezing a coverage graph. The ControlPlane revalidates it
+    /// against the server-side state before the transition, so a forged or drifted approval
+    /// cannot change the project.
+    pub fn coverage_freeze_verdict(
+        &self,
+        coverage: &crate::FrozenCriterionCoverage,
+    ) -> CompanyResult<()> {
+        coverage.validate()?;
+        let project = self.project(&coverage.graph.project_id)?;
+        ensure(
+            matches!(
+                project.status,
+                ProjectStatus::Approved | ProjectStatus::Planned | ProjectStatus::Active
+            ),
+            "company_project_not_approved_or_active",
+        )?;
+        let baseline = self
+            .charter_baselines
+            .get(&project.project_id)
+            .ok_or("criteria_coverage_baseline_missing")?;
+        ensure(
+            baseline.version == coverage.graph.baseline_version,
+            "criteria_coverage_baseline_mismatch",
+        )?;
+        if let Some(existing) = self.criterion_coverages.get(&project.project_id) {
+            ensure(
+                existing.digest == coverage.digest,
+                "criteria_coverage_already_frozen",
+            )?;
+        }
+        Ok(())
+    }
+
+    /// CO-11 freeze transition: only this project's Sponsor approves the exact graph, the cited
+    /// planning/review record must be a verified fact, and repeating the same freeze is
+    /// idempotent while a different graph for the same project is denied.
+    fn freeze_criterion_coverage(
+        &mut self,
+        coverage: &crate::FrozenCriterionCoverage,
+        a: &CompanyAuthority,
+        p: &CompanyProof,
+    ) -> CompanyResult<()> {
+        self.coverage_freeze_verdict(coverage)?;
+        let project = self.project(&coverage.graph.project_id)?.clone();
+        ensure(
+            project.sponsor_id == a.actor_id,
+            "criteria_coverage_sponsor_mismatch",
+        )?;
+        Self::evidence(p, std::slice::from_ref(&coverage.approval.decision_ref))?;
+        if self
+            .criterion_coverages
+            .get(&coverage.graph.project_id)
+            .is_some()
+        {
+            return Ok(());
+        }
+        self.criterion_coverages
+            .insert(coverage.graph.project_id.clone(), coverage.clone());
+        Ok(())
+    }
+
+    /// CO-11: server-derived acceptance criteria snapshot.
+    ///
+    /// With a frozen coverage the snapshot carries typed criterion identities and the coverage
+    /// digest, so review/acceptance checks address stable IDs instead of inferred text. Projects
+    /// without a frozen coverage keep the legacy text lists for replay compatibility.
+    pub fn acceptance_snapshot(
+        &self,
+        project_id: &str,
+        packet_id: &str,
+    ) -> CompanyResult<CriteriaSnapshot> {
+        let project = self.project(project_id)?.clone();
+        let packet = self
+            .packets
+            .get(packet_id)
+            .ok_or("company_packet_not_found")?
+            .clone();
+        ensure(
+            packet.project_id == project.project_id,
+            "acceptance_packet_project_mismatch",
+        )?;
+        let milestone = self
+            .milestones
+            .get(&packet.milestone_id)
+            .ok_or("milestone_not_found")?
+            .clone();
+        let frozen = self.criterion_coverages.get(project_id);
+        let snapshot = CriteriaSnapshot {
+            project_version: project.version,
+            milestone_version: milestone.version,
+            packet_version: packet.version,
+            milestone_versions: self
+                .milestones
+                .values()
+                .filter(|m| m.project_id == project.project_id)
+                .map(|m| (m.milestone_id.clone(), m.version))
+                .collect(),
+            packet_versions: self
+                .packets
+                .values()
+                .filter(|p| p.project_id == project.project_id)
+                .map(|p| (p.packet.id.clone(), p.version))
+                .collect(),
+            project_criteria: project.success_criteria.clone(),
+            milestone_criteria: self
+                .milestones
+                .values()
+                .filter(|m| m.project_id == project.project_id)
+                .flat_map(|m| m.acceptance_criteria.clone())
+                .collect(),
+            packet_criteria: self
+                .packets
+                .values()
+                .filter(|p| p.project_id == project.project_id)
+                .flat_map(|p| {
+                    if p.packet.acceptance.is_empty() {
+                        p.packet.acceptance_tests.clone()
+                    } else {
+                        p.packet.acceptance.clone()
+                    }
+                })
+                .collect(),
+            criterion_refs: frozen
+                .map(crate::FrozenCriterionCoverage::frozen_criteria)
+                .unwrap_or_default(),
+            coverage_digest: frozen.map(|coverage| coverage.graph.digest.clone()),
+            coverage_baseline_version: frozen.map(|coverage| coverage.graph.baseline_version),
+        };
+        snapshot.validate()?;
+        Ok(snapshot)
+    }
+
     fn require_project_writable(&self, id: &str) -> CompanyResult<()> {
         ensure(
             matches!(
@@ -2547,6 +2735,9 @@ impl CompanyState {
                 )?;
                 self.set_project(project_id, ProjectStatus::Planned)?;
             }
+            CompanyCommand::FreezeCriterionCoverage { coverage } => {
+                self.freeze_criterion_coverage(coverage, a, p)?;
+            }
             CompanyCommand::AcknowledgeHandoff {
                 handoff_id,
                 accept,
@@ -2976,48 +3167,7 @@ impl CompanyState {
                         }),
                     "project_packets_incomplete",
                 )?;
-                let milestone = self
-                    .milestones
-                    .get(&packet.milestone_id)
-                    .ok_or("milestone_not_found")?
-                    .clone();
-                let snapshot = CriteriaSnapshot {
-                    project_version: project.version,
-                    milestone_version: milestone.version,
-                    packet_version: packet.version,
-                    milestone_versions: self
-                        .milestones
-                        .values()
-                        .filter(|m| m.project_id == *project_id)
-                        .map(|m| (m.milestone_id.clone(), m.version))
-                        .collect(),
-                    packet_versions: self
-                        .packets
-                        .values()
-                        .filter(|p| p.project_id == *project_id)
-                        .map(|p| (p.packet.id.clone(), p.version))
-                        .collect(),
-                    project_criteria: project.success_criteria.clone(),
-                    milestone_criteria: self
-                        .milestones
-                        .values()
-                        .filter(|m| m.project_id == *project_id)
-                        .flat_map(|m| m.acceptance_criteria.clone())
-                        .collect(),
-                    packet_criteria: self
-                        .packets
-                        .values()
-                        .filter(|p| p.project_id == *project_id)
-                        .flat_map(|p| {
-                            if p.packet.acceptance.is_empty() {
-                                p.packet.acceptance_tests.clone()
-                            } else {
-                                p.packet.acceptance.clone()
-                            }
-                        })
-                        .collect(),
-                    criterion_refs: Vec::new(),
-                };
+                let snapshot = self.acceptance_snapshot(project_id, packet_id)?;
                 let mut refs = evidence_refs.clone();
                 refs.extend(observed.evidence_refs.clone());
                 for run in self.runs.values().filter(|r| r.project_id == *project_id) {

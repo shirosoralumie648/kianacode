@@ -33,6 +33,8 @@ fn criteria() -> CriteriaSnapshot {
         milestone_criteria: vec!["criterion".to_owned()],
         packet_criteria: vec!["criterion".to_owned()],
         criterion_refs: Vec::new(),
+        coverage_digest: None,
+        coverage_baseline_version: None,
     }
 }
 
