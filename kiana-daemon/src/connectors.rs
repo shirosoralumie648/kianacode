@@ -8,14 +8,15 @@ use kiana_capability_broker::{
 };
 use kiana_domain::{
     connector_bindings, connector_fixture_hash_matches, connector_fixture_hash_valid,
-    AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult, ConnectorBindingSnapshot,
-    ConnectorCredentialEvidence, ConnectorCredentialInvocation, ConnectorDispatchLifecycle,
-    ConnectorDispatchStage, ConnectorFixture, ConnectorHealthFact, ConnectorHealthStatus,
-    ConnectorReconciliationCase, ConnectorReconciliationReason, ConnectorReconciliationSource,
-    EffectObservation, ExecutionId, InvocationId, ProviderOutcome, ProviderReceipt, RuntimeEvent,
-    CONNECTOR_CREDENTIAL_MAX_TTL_MS, CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
-    CONNECTOR_FIXTURE_MAX_BYTES, CONNECTOR_HEALTH_EVENT_KIND, CONNECTOR_HEALTH_OPERATION,
-    CONNECTOR_INVOKE_OPERATION, CONNECTOR_MANAGE_OPERATION, CONNECTOR_MCP_HANDSHAKE_EVENT_KIND,
+    connector_payload_sha256, AuthorizedCapabilityRequest, CapabilityKind, CapabilityResult,
+    ConnectorBindingSnapshot, ConnectorCredentialEvidence, ConnectorCredentialInvocation,
+    ConnectorDispatchLifecycle, ConnectorDispatchStage, ConnectorFixture, ConnectorHealthFact,
+    ConnectorHealthStatus, ConnectorReconciliationCase, ConnectorReconciliationReason,
+    ConnectorReconciliationSource, EffectObservation, ExecutionId, InvocationId, ProviderOutcome,
+    ProviderReceipt, ProviderReceiptBinding, RuntimeEvent, CONNECTOR_CREDENTIAL_MAX_TTL_MS,
+    CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND, CONNECTOR_FIXTURE_MAX_BYTES,
+    CONNECTOR_HEALTH_EVENT_KIND, CONNECTOR_HEALTH_OPERATION, CONNECTOR_INVOKE_OPERATION,
+    CONNECTOR_MANAGE_OPERATION, CONNECTOR_MCP_HANDSHAKE_EVENT_KIND,
     CONNECTOR_MCP_HANDSHAKE_OPERATION, CONNECTOR_STREAM,
 };
 use kiana_ports::{
@@ -480,7 +481,32 @@ impl ConnectorRegistry {
             }
         };
         let observer = LocalFixtureEffectObserver;
-        let observation = match observer.observe(&receipt, request, project, actor, attempt, now) {
+        let observation_binding = ProviderReceiptBinding::new(
+            adapter.binding.definition.connector_id.clone(),
+            adapter.binding.binding.binding_id.clone(),
+            adapter.binding.binding.account_id.clone(),
+            adapter.operation.clone(),
+            InvocationId::from_uuid(request.request.request_id.as_uuid()),
+            attempt,
+            kiana_domain::json_digest(&json!({"idempotency_key": &adapter.idempotency_key})),
+            Some(connector_payload_sha256(&adapter.payload)),
+            Some(kiana_domain::json_digest(&json!({
+                "project_root": project,
+                "actor_id": actor,
+            }))),
+            Some(kiana_domain::json_digest(&json!({
+                "connector_id": adapter.binding.definition.connector_id,
+                "binding_id": adapter.binding.binding.binding_id,
+                "account_id": adapter.binding.binding.account_id,
+            }))),
+        )
+        .map_err(failed)?;
+        let observation = match observer.observe(
+            &receipt,
+            ExecutionId::from_uuid(request.request.request_id.as_uuid()),
+            &observation_binding,
+            now,
+        ) {
             Ok(observation) => observation,
             Err(error) => {
                 let unknown = dispatching
@@ -1043,8 +1069,25 @@ impl ConnectorRegistry {
                     ..receipt
                 };
                 let now = now_ms()?;
-                let observation = LocalFixtureEffectObserver
-                    .observe(&receipt, request, project, actor, 1, now)?;
+                let observation_binding = ProviderReceiptBinding::new(
+                    pending_case.connector_id.clone(),
+                    pending_case.binding_id.clone(),
+                    pending_case.account_id.clone(),
+                    pending_case.operation.clone(),
+                    pending_case.invocation_id,
+                    pending_case.attempt,
+                    pending_case.idempotency_key_digest.clone(),
+                    Some(pending_case.payload_sha256.clone()),
+                    Some(pending_case.owner_digest.clone()),
+                    Some(pending_case.audience_digest.clone()),
+                )
+                .map_err(failed)?;
+                let observation = LocalFixtureEffectObserver.observe(
+                    &receipt,
+                    ExecutionId::from_uuid(request.request.request_id.as_uuid()),
+                    &observation_binding,
+                    now,
+                )?;
                 let evidence_ref = kiana_domain::json_digest(&json!({
                     "receipt_sha256": args["receipt_sha256"],
                 }));
@@ -1169,46 +1212,27 @@ impl LocalFixtureAdapter {
 }
 
 /// Observation is a distinct phase and projection. It never writes the journal and cannot
-/// authorize, retry or mutate the connector binding.
+/// authorize, retry or mutate the connector binding. It consumes a server-owned
+/// `ProviderReceiptBinding` so owner/audience/invocation/attempt/key/payload are the admitted
+/// expectation, not values re-derived from the receipt under observation.
 struct LocalFixtureEffectObserver;
 
 impl LocalFixtureEffectObserver {
     fn observe(
         &self,
         receipt: &ProviderReceipt,
-        request: &AuthorizedCapabilityRequest,
-        project: &str,
-        actor: &str,
-        attempt: u32,
+        execution_id: ExecutionId,
+        binding: &ProviderReceiptBinding,
         observed_at_unix_ms: u64,
     ) -> Result<EffectObservation, PortError> {
-        let owner_digest = kiana_domain::json_digest(&json!({
-            "project_root": project,
-            "actor_id": actor,
-        }));
-        let audience_digest = kiana_domain::json_digest(&json!({
-            "connector_id": receipt.connector_id,
-            "binding_id": receipt.binding_id,
-            "account_id": receipt.account_id,
-        }));
-        let observation = EffectObservation::from_provider_receipt(
+        EffectObservation::from_provider_receipt_for_binding(
             receipt,
-            ExecutionId::from_uuid(request.request.request_id.as_uuid()),
-            InvocationId::from_uuid(request.request.request_id.as_uuid()),
-            attempt,
-            owner_digest,
-            audience_digest,
+            binding,
+            execution_id,
             observed_at_unix_ms,
+            Vec::new(),
         )
-        .map_err(failed)?;
-        observation
-            .validate_for_receipt(
-                receipt,
-                &observation.owner_digest,
-                &observation.audience_digest,
-            )
-            .map_err(failed)?;
-        Ok(observation)
+        .map_err(failed)
     }
 }
 

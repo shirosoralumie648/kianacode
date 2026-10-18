@@ -65,10 +65,11 @@
 use crate::PortError;
 use async_trait::async_trait;
 use kiana_domain::{
-    connector_credential_audience, effect_target_digest, json_digest, provider_payload_hash_valid,
-    valid_extension_identifier, ConnectorBindingSnapshot, CredentialLease, EffectObservation,
-    InvocationId, McpCapabilityHandshake, ProviderReceipt, StopReport, WorkflowEventIngress,
-    WorkflowEventOccurrence, WorkflowEventSourcePolicy, CONNECTOR_CREDENTIAL_PURPOSE,
+    connector_credential_audience, effect_target_digest, json_digest, valid_extension_identifier,
+    ConnectorBindingSnapshot, CredentialLease, EffectObservation, InvocationId,
+    McpCapabilityHandshake, ProviderReceipt, ProviderReceiptBinding, StopReport,
+    WorkflowEventIngress, WorkflowEventOccurrence, WorkflowEventSourcePolicy,
+    CONNECTOR_CREDENTIAL_PURPOSE,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -808,6 +809,26 @@ pub struct EffectObservationRequest {
 }
 
 impl EffectObservationRequest {
+    /// Server-owned expectation for this observation: the permit supplies connector, binding,
+    /// account, operation, invocation, attempt and idempotency key; the request supplies the
+    /// already-admitted owner/audience scope.  The receipt being observed is never used to build
+    /// its own expectation.
+    pub fn binding(&self) -> Result<ProviderReceiptBinding, PortError> {
+        ProviderReceiptBinding::new(
+            self.permit.connector_id.clone(),
+            self.permit.binding_id.clone(),
+            self.permit.account_id.clone(),
+            self.permit.operation.clone(),
+            self.permit.invocation_id,
+            self.permit.attempt,
+            self.permit.idempotency_key_digest.clone(),
+            None,
+            Some(self.owner_digest.clone()),
+            Some(self.audience_digest.clone()),
+        )
+        .map_err(|_| PortError::Conflict("connector_observation_binding_mismatch".to_owned()))
+    }
+
     /// 校验观测请求是否合法。
     ///
     pub fn validate(&self) -> Result<(), PortError> {
@@ -815,22 +836,27 @@ impl EffectObservationRequest {
             || !valid_digest(&self.owner_digest)
             || !valid_digest(&self.audience_digest)
             || self.observed_at_unix_ms == 0
-            || self.receipt.connector_id != self.permit.connector_id
-            || self.receipt.binding_id != self.permit.binding_id
-            || self.receipt.account_id != self.permit.account_id
-            || self.receipt.operation != self.permit.operation
-            || json_digest(&serde_json::json!({
-                "idempotency_key": self.receipt.idempotency_key
-            })) != self.permit.idempotency_key_digest
         {
             return Err(PortError::Conflict(
                 "connector_observation_binding_mismatch".to_owned(),
             ));
         }
-        self.receipt.validate().map_err(|error| {
-            PortError::Failed(format!("connector_provider_receipt_invalid:{error}"))
-        })?;
-        self.permit.validate(None)
+        self.permit.validate(None)?;
+        let binding = self.binding()?;
+        self.receipt
+            .validate_for_binding(&binding)
+            .map_err(|error| {
+                if matches!(
+                    error.as_str(),
+                    "provider_receipt_binding_mismatch"
+                        | "provider_receipt_idempotency_mismatch"
+                        | "provider_receipt_payload_mismatch"
+                ) {
+                    PortError::Conflict("connector_observation_binding_mismatch".to_owned())
+                } else {
+                    PortError::Failed(format!("connector_provider_receipt_invalid:{error}"))
+                }
+            })
     }
 }
 
@@ -1155,29 +1181,20 @@ pub trait EffectObserver: Send + Sync {
             ));
         }
         request.validate()?;
-        let expected_attempt = request.permit.attempt;
-        let expected_invocation_id = request.permit.invocation_id;
+        let expected_binding = request.binding()?;
         let expected_receipt = request.receipt.clone();
-        let expected_owner_digest = request.owner_digest.clone();
-        let expected_audience_digest = request.audience_digest.clone();
         let observation = self.observe(request).await?;
         observation
             .validate()
             .map_err(|error| PortError::Failed(error.to_owned()))?;
         observation
-            .validate_for_receipt(
-                &expected_receipt,
-                &expected_owner_digest,
-                &expected_audience_digest,
-            )
-            .map_err(|error| PortError::Conflict(error.to_owned()))?;
-        if observation.attempt != expected_attempt
-            || observation.invocation_id != expected_invocation_id
-        {
-            return Err(PortError::Conflict(
-                "connector_observation_attempt_mismatch".to_owned(),
-            ));
-        }
+            .validate_for_receipt_binding(&expected_receipt, &expected_binding)
+            .map_err(|error| match error.as_str() {
+                "effect_observation_attempt_mismatch" => {
+                    PortError::Conflict("connector_observation_attempt_mismatch".to_owned())
+                }
+                _ => PortError::Conflict(error),
+            })?;
         Ok(observation)
     }
 }
@@ -1336,20 +1353,36 @@ pub(crate) fn validate_receipt_for_permit(
     receipt
         .validate()
         .map_err(|_| PortError::Failed("connector_provider_receipt_invalid".to_owned()))?;
-    if receipt.schema != "kiana.provider-receipt.v1"
-        || receipt.connector_id != binding.definition.connector_id
-        || receipt.binding_id != binding.binding.binding_id
-        || receipt.account_id != binding.binding.account_id
-        || receipt.operation != permit.operation
-        || json_digest(&serde_json::json!({
-            "idempotency_key": receipt.idempotency_key
-        })) != permit.idempotency_key_digest
-        || !provider_payload_hash_valid(&receipt.final_payload_sha256)
-    {
-        return Err(PortError::Conflict(
-            "connector_provider_receipt_binding_invalid".to_owned(),
+    if receipt.schema != "kiana.provider-receipt.v1" {
+        return Err(PortError::Failed(
+            "connector_provider_receipt_invalid".to_owned(),
         ));
     }
+    // The expectation is built from the binding and the prepared permit only; the receipt cannot
+    // widen its own identity, operation or idempotency key.
+    let expectation = ProviderReceiptBinding::new(
+        binding.definition.connector_id.clone(),
+        binding.binding.binding_id.clone(),
+        binding.binding.account_id.clone(),
+        permit.operation.clone(),
+        permit.invocation_id,
+        permit.attempt,
+        permit.idempotency_key_digest.clone(),
+        None,
+        None,
+        None,
+    )
+    .map_err(|_| PortError::Failed("connector_provider_receipt_invalid".to_owned()))?;
+    receipt
+        .validate_for_binding(&expectation)
+        .map_err(|error| match error.as_str() {
+            "provider_receipt_binding_mismatch"
+            | "provider_receipt_idempotency_mismatch"
+            | "provider_receipt_payload_mismatch" => {
+                PortError::Conflict("connector_provider_receipt_binding_invalid".to_owned())
+            }
+            _ => PortError::Failed("connector_provider_receipt_invalid".to_owned()),
+        })?;
     if !valid_extension_identifier(&receipt.provider_receipt_id)
         || receipt.source.trim().is_empty()
         || receipt.source.len() > 128

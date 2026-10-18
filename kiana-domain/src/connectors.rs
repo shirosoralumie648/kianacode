@@ -35,6 +35,23 @@ pub const CONNECTOR_HEALTH_MAX_LIMITATIONS: usize = 16;
 pub const CONNECTOR_HEALTH_REDACTED_ERROR_CODE: &str = "connector_probe_failed";
 pub const PROVIDER_RECEIPT_SCHEMA: &str = "kiana.provider-receipt.v1";
 pub const PROVIDER_RECEIPT_MAX_RESULT_BYTES: usize = 64 * 1024;
+/// Server-owned expectation that a receipt and its effect observation must satisfy.  It is built
+/// from the authorized binding/permit (never from the receipt under validation) so a receipt that
+/// belongs to another binding, account, operation, attempt or idempotency key fails closed.
+pub const PROVIDER_RECEIPT_BINDING_SCHEMA: &str = "kiana.provider-receipt-binding.v1";
+/// Digest-only, released view of a receipt.  Raw provider response material and free-form result
+/// values stay out of receipts, events, logs and this projection.
+pub const PROVIDER_RECEIPT_PROJECTION_SCHEMA: &str = "kiana.provider-receipt-projection.v1";
+const PROVIDER_RECEIPT_FORBIDDEN_RESULT_KEYS: &[&str] = &[
+    "authorization",
+    "headers",
+    "provider_response",
+    "raw_error",
+    "raw_provider_response",
+    "raw_response",
+    "raw_response_body",
+    "response_body",
+];
 
 /// Safe status vocabulary shared by adapter probes, EventLog facts and query/UI projections.
 /// No variant carries provider response material or credential values.
@@ -439,7 +456,7 @@ pub enum ProviderOutcome {
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderReceipt {
     pub schema: String,
@@ -455,10 +472,210 @@ pub struct ProviderReceipt {
     pub result: Value,
 }
 
+/// Receipts are released through `projection()`; `Debug` must not publish the free-form result or
+/// any raw provider material that slipped past the constructor.
+impl std::fmt::Debug for ProviderReceipt {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProviderReceipt")
+            .field("schema", &self.schema)
+            .field("connector_id", &self.connector_id)
+            .field("binding_id", &self.binding_id)
+            .field("account_id", &self.account_id)
+            .field("operation", &self.operation)
+            .field(
+                "idempotency_key_digest",
+                &json_digest(&serde_json::json!({"idempotency_key": self.idempotency_key})),
+            )
+            .field("final_payload_sha256", &self.final_payload_sha256)
+            .field("provider_receipt_id", &self.provider_receipt_id)
+            .field("outcome", &self.outcome)
+            .field("source", &self.source)
+            .field("result_digest", &json_digest(&self.result))
+            .finish()
+    }
+}
+
+/// Server-owned expectation for one connector attempt.  Every field is derived from the authorized
+/// binding/permit/invocation, never from the receipt or observation under validation; the digest
+/// self-proof makes a caller-computed expectation detectable.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderReceiptBinding {
+    pub schema: String,
+    pub connector_id: String,
+    pub binding_id: String,
+    pub account_id: String,
+    pub operation: String,
+    pub invocation_id: InvocationId,
+    pub attempt: u32,
+    pub idempotency_key_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audience_digest: Option<String>,
+    pub binding_digest: String,
+}
+
+impl ProviderReceiptBinding {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        connector_id: impl Into<String>,
+        binding_id: impl Into<String>,
+        account_id: impl Into<String>,
+        operation: impl Into<String>,
+        invocation_id: InvocationId,
+        attempt: u32,
+        idempotency_key_digest: impl Into<String>,
+        payload_sha256: Option<String>,
+        owner_digest: Option<String>,
+        audience_digest: Option<String>,
+    ) -> Result<Self, String> {
+        let payload_sha256 = match payload_sha256 {
+            Some(value) => Some(
+                normalize_provider_payload_hash(&value)
+                    .ok_or_else(|| "provider_receipt_binding_header_invalid".to_owned())?,
+            ),
+            None => None,
+        };
+        let mut binding = Self {
+            schema: PROVIDER_RECEIPT_BINDING_SCHEMA.to_owned(),
+            connector_id: connector_id.into(),
+            binding_id: binding_id.into(),
+            account_id: account_id.into(),
+            operation: operation.into(),
+            invocation_id,
+            attempt,
+            idempotency_key_digest: idempotency_key_digest.into(),
+            payload_sha256,
+            owner_digest,
+            audience_digest,
+            binding_digest: String::new(),
+        };
+        binding.binding_digest = binding.digest();
+        binding.validate()?;
+        Ok(binding)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_RECEIPT_BINDING_SCHEMA
+            || !valid_extension_identifier(&self.connector_id)
+            || !valid_extension_identifier(&self.binding_id)
+            || !valid_extension_identifier(&self.account_id)
+            || !valid_extension_identifier(&self.operation)
+            || self.invocation_id.as_uuid().is_nil()
+            || self.attempt == 0
+            || !valid_prefixed_digest(&self.idempotency_key_digest)
+            || !valid_prefixed_digest(&self.binding_digest)
+            || self.payload_sha256.as_deref().is_some_and(|value| {
+                normalize_provider_payload_hash(value).as_deref() != Some(value)
+            })
+            || self
+                .owner_digest
+                .as_deref()
+                .is_some_and(|value| !valid_prefixed_digest(value))
+            || self
+                .audience_digest
+                .as_deref()
+                .is_some_and(|value| !valid_prefixed_digest(value))
+        {
+            return Err("provider_receipt_binding_header_invalid".to_owned());
+        }
+        if self.binding_digest != self.digest() {
+            return Err("provider_receipt_binding_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "connector_id": self.connector_id,
+            "binding_id": self.binding_id,
+            "account_id": self.account_id,
+            "operation": self.operation,
+            "invocation_id": self.invocation_id,
+            "attempt": self.attempt,
+            "idempotency_key_digest": self.idempotency_key_digest,
+            "payload_sha256": self.payload_sha256,
+            "owner_digest": self.owner_digest,
+            "audience_digest": self.audience_digest,
+        }))
+    }
+}
+
+/// Digest-only released view of a validated receipt.  It never carries `result` or raw provider
+/// response material, and the projection digest is recomputed after every release.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderReceiptProjection {
+    pub schema: String,
+    pub connector_id: String,
+    pub binding_id: String,
+    pub account_id: String,
+    pub operation: String,
+    pub idempotency_key_digest: String,
+    pub payload_sha256: String,
+    pub provider_receipt_id: String,
+    pub outcome: ProviderOutcome,
+    pub source: String,
+    pub result_digest: String,
+    pub projection_digest: String,
+}
+
+impl ProviderReceiptProjection {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != PROVIDER_RECEIPT_PROJECTION_SCHEMA
+            || !valid_extension_identifier(&self.connector_id)
+            || !valid_extension_identifier(&self.binding_id)
+            || !valid_extension_identifier(&self.account_id)
+            || !valid_extension_identifier(&self.operation)
+            || !valid_prefixed_digest(&self.idempotency_key_digest)
+            || normalize_provider_payload_hash(&self.payload_sha256).as_deref()
+                != Some(self.payload_sha256.as_str())
+            || !valid_extension_identifier(&self.provider_receipt_id)
+            || !valid_extension_identifier(&self.source)
+            || !valid_prefixed_digest(&self.result_digest)
+            || !valid_prefixed_digest(&self.projection_digest)
+        {
+            return Err("provider_receipt_projection_invalid".to_owned());
+        }
+        if self.projection_digest != self.digest() {
+            return Err("provider_receipt_projection_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "connector_id": self.connector_id,
+            "binding_id": self.binding_id,
+            "account_id": self.account_id,
+            "operation": self.operation,
+            "idempotency_key_digest": self.idempotency_key_digest,
+            "payload_sha256": self.payload_sha256,
+            "provider_receipt_id": self.provider_receipt_id,
+            "outcome": self.outcome,
+            "source": self.source,
+            "result_digest": self.result_digest,
+        }))
+    }
+}
+
 /// Accept the historical unprefixed hash and the newer `sha256:` envelope spelling while keeping
 /// the payload hash strictly hex and fixed-width.
 pub fn provider_payload_hash_valid(value: &str) -> bool {
     is_sha256_hex(value) || value.strip_prefix("sha256:").is_some_and(is_sha256_hex)
+}
+
+/// Canonical lowercase, unprefixed spelling of a valid payload hash.  Every binding/projection
+/// compare uses this form so the historical spelling variants cannot be used to evade binding.
+pub fn normalize_provider_payload_hash(value: &str) -> Option<String> {
+    let hex = value.strip_prefix("sha256:").unwrap_or(value);
+    is_sha256_hex(hex).then(|| hex.to_ascii_lowercase())
 }
 
 impl ProviderReceipt {
@@ -477,6 +694,23 @@ impl ProviderReceipt {
         {
             return Err("provider_receipt_header_invalid".to_owned());
         }
+        if !self.result.is_object() {
+            return Err("provider_receipt_result_invalid".to_owned());
+        }
+        if contains_forbidden_provider_result_key(&self.result) {
+            return Err("provider_receipt_raw_response_forbidden".to_owned());
+        }
+        let header = serde_json::json!({
+            "connector_id": self.connector_id,
+            "binding_id": self.binding_id,
+            "account_id": self.account_id,
+            "operation": self.operation,
+            "idempotency_key": self.idempotency_key,
+            "provider_receipt_id": self.provider_receipt_id,
+            "source": self.source,
+        });
+        crate::scan_secret_value(SecretScanChannel::Receipt, &header)
+            .map_err(|_| "provider_receipt_raw_response_forbidden".to_owned())?;
         let result_bytes = serde_json::to_vec(&self.result)
             .map_err(|_| "provider_receipt_result_invalid".to_owned())?;
         if result_bytes.len() > PROVIDER_RECEIPT_MAX_RESULT_BYTES {
@@ -485,6 +719,76 @@ impl ProviderReceipt {
         crate::scan_secret_value(SecretScanChannel::Receipt, &self.result)
             .map_err(|_| "provider_receipt_raw_response_forbidden".to_owned())?;
         Ok(())
+    }
+
+    /// Canonical payload hash without the optional `sha256:` envelope spelling.
+    pub fn canonical_payload_sha256(&self) -> Result<String, String> {
+        normalize_provider_payload_hash(&self.final_payload_sha256)
+            .ok_or_else(|| "provider_receipt_header_invalid".to_owned())
+    }
+
+    /// Bind a receipt to the server-owned expectation for this attempt.  Cross-binding, account,
+    /// operation, idempotency and payload evidence each fail with a distinct stable code.
+    pub fn validate_for_binding(&self, binding: &ProviderReceiptBinding) -> Result<(), String> {
+        self.validate()?;
+        binding.validate()?;
+        if self.connector_id != binding.connector_id
+            || self.binding_id != binding.binding_id
+            || self.account_id != binding.account_id
+            || self.operation != binding.operation
+        {
+            return Err("provider_receipt_binding_mismatch".to_owned());
+        }
+        if json_digest(&serde_json::json!({"idempotency_key": self.idempotency_key}))
+            != binding.idempotency_key_digest
+        {
+            return Err("provider_receipt_idempotency_mismatch".to_owned());
+        }
+        if let Some(expected) = &binding.payload_sha256 {
+            if &self.canonical_payload_sha256()? != expected {
+                return Err("provider_receipt_payload_mismatch".to_owned());
+            }
+        }
+        Ok(())
+    }
+
+    /// Release the digest-only projection.  The raw result never leaves this method.
+    pub fn projection(&self) -> Result<ProviderReceiptProjection, String> {
+        self.validate()?;
+        let mut projection = ProviderReceiptProjection {
+            schema: PROVIDER_RECEIPT_PROJECTION_SCHEMA.to_owned(),
+            connector_id: self.connector_id.clone(),
+            binding_id: self.binding_id.clone(),
+            account_id: self.account_id.clone(),
+            operation: self.operation.clone(),
+            idempotency_key_digest: json_digest(
+                &serde_json::json!({"idempotency_key": self.idempotency_key}),
+            ),
+            payload_sha256: self.canonical_payload_sha256()?,
+            provider_receipt_id: self.provider_receipt_id.clone(),
+            outcome: self.outcome,
+            source: self.source.clone(),
+            result_digest: json_digest(&self.result),
+            projection_digest: String::new(),
+        };
+        projection.projection_digest = projection.digest();
+        projection.validate()?;
+        Ok(projection)
+    }
+}
+
+fn valid_prefixed_digest(value: &str) -> bool {
+    value.strip_prefix("sha256:").is_some_and(is_sha256_hex)
+}
+
+fn contains_forbidden_provider_result_key(value: &Value) -> bool {
+    match value {
+        Value::Object(object) => object.iter().any(|(key, nested)| {
+            PROVIDER_RECEIPT_FORBIDDEN_RESULT_KEYS.contains(&key.as_str())
+                || contains_forbidden_provider_result_key(nested)
+        }),
+        Value::Array(items) => items.iter().any(contains_forbidden_provider_result_key),
+        _ => false,
     }
 }
 
