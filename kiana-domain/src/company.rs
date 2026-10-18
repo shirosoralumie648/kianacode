@@ -983,6 +983,15 @@ pub enum CompanyCommand {
     FreezePlanGraph {
         plan: crate::PlanProposal,
     },
+    /// CO-13: admit one versioned department work contract (intake analysis, initiative
+    /// assessment, Charter/Plan draft, implementation, verification, delivery preparation or
+    /// knowledge capture). The admission binds the responsible department, the appointed target
+    /// role and the approved input basis (intake record, Initiative assessment lane, approved
+    /// Charter baseline or frozen Plan revision). It creates no capability, path grant, budget,
+    /// lease or run; runtime authority stays derived by the ControlPlane.
+    AdmitDepartmentPacket {
+        packet: crate::DepartmentPacket,
+    },
     AcknowledgeHandoff {
         handoff_id: String,
         accept: bool,
@@ -1142,6 +1151,7 @@ impl CompanyCommand {
             Self::PlanProject { .. } => "ProjectPlanned",
             Self::FreezeCriterionCoverage { .. } => "CriterionCoverageFrozen",
             Self::FreezePlanGraph { .. } => "PlanGraphFrozen",
+            Self::AdmitDepartmentPacket { .. } => "DepartmentPacketAdmitted",
             Self::AcknowledgeHandoff { .. } => "HandoffAcknowledged",
             Self::ReviewPacket { .. } => "PacketReviewed",
             Self::ConfigureBudget { .. } => "ProjectBudgetConfigured",
@@ -1218,6 +1228,9 @@ impl CompanyCommand {
             // CO-12: the plan graph is a planning-side proposal; the assigned PM and the Sponsor
             // may freeze it, while Builder/Reviewer/Closer subjects are denied by the role gate.
             Self::FreezePlanGraph { .. } => &["pm", "sponsor"],
+            // CO-13: admitting a department work contract is a planning-side act; the assigned PM
+            // and the Sponsor admit it, while a Builder subject is denied by the role gate.
+            Self::AdmitDepartmentPacket { .. } => &["pm", "sponsor"],
             // CO-10: the chartering role drafts; the Sponsor (or an assigned PM) records it, and
             // only the Sponsor can approve the exact draft version.
             Self::DraftCharter { .. } => &["sponsor", "pm"],
@@ -1343,6 +1356,11 @@ pub struct CompanyState {
     /// project. Absent on legacy projects, which never had a plan proposal admitted.
     #[serde(default)]
     pub plan_graphs: BTreeMap<String, crate::FrozenPlanGraph>,
+    /// CO-13 admitted department work contracts, keyed by packet id, together with the
+    /// server-derived admission evidence (appointment version, approved input basis and plan
+    /// binding). An admission conveys no capability, path, budget or lease authority.
+    #[serde(default)]
+    pub department_packets: BTreeMap<String, crate::DepartmentPacketAdmission>,
     pub revision: u64,
     pub objectives: BTreeMap<String, Objective>,
     pub initiatives: BTreeMap<String, Initiative>,
@@ -1952,6 +1970,128 @@ impl CompanyState {
             plan.project_id.clone(),
             crate::FrozenPlanGraph::from_plan(plan)?,
         );
+        Ok(())
+    }
+
+    /// CO-13 server-derived approval stage of one project, read by the department packet
+    /// admission.
+    ///
+    /// The packet author's claims about the approval stage are never trusted: the intake fact,
+    /// the assessment lane, the approved Charter baseline and the frozen Plan revision all come
+    /// from the aggregate's own records. A project in a terminal or rejected state has no
+    /// admissible stage at all.
+    pub fn department_stage_facts(
+        &self,
+        project_id: &str,
+    ) -> CompanyResult<crate::DepartmentStageFacts> {
+        let project = self.project(project_id)?;
+        ensure(
+            !matches!(
+                project.status,
+                ProjectStatus::Rejected
+                    | ProjectStatus::Cancelled
+                    | ProjectStatus::ResultUnknown
+                    | ProjectStatus::Failed
+                    | ProjectStatus::Closed
+                    | ProjectStatus::Archived
+            ),
+            "department_packet_project_terminal",
+        )?;
+        let mut facts = crate::DepartmentStageFacts::new(project_id);
+        facts.intake_authorized = self.project_intake_provenance(project_id).is_ok();
+        facts.initiative_in_assessment = self.initiatives.values().any(|initiative| {
+            initiative.organization_id == project.organization_id
+                && matches!(
+                    initiative.status,
+                    InitiativeStatus::Intake
+                        | InitiativeStatus::Triaged
+                        | InitiativeStatus::Assessed
+                        | InitiativeStatus::Approved
+                )
+        });
+        facts.charter_baseline_version = self
+            .charter_baselines
+            .get(project_id)
+            .map(|baseline| baseline.version)
+            .unwrap_or(0);
+        facts.frozen_plan = self.plan_graphs.get(project_id).cloned();
+        facts.validate()?;
+        Ok(facts)
+    }
+
+    /// CO-13 server-derived target-role appointment of one department packet.
+    ///
+    /// The admitted CO-05 business assignment is the only appointment source; a packet can never
+    /// bring its own appointment, and an assignment that does not cover the packet's project is
+    /// refused before the role is mapped.
+    pub fn department_role_appointment(
+        &self,
+        packet: &crate::DepartmentPacket,
+    ) -> CompanyResult<crate::DepartmentRoleAppointment> {
+        let assignment = self
+            .business
+            .assignments
+            .get(&packet.assignment_ref)
+            .ok_or("department_packet_appointment_required")?;
+        ensure(
+            assignment
+                .project_ids
+                .iter()
+                .any(|id| id == &packet.project_id),
+            "department_packet_appointment_mismatch",
+        )?;
+        crate::DepartmentRoleAppointment::new(
+            assignment.assignment_id.clone(),
+            packet.project_id.clone(),
+            assignment.role_id.clone(),
+            assignment.owner_principal_id.clone(),
+            assignment.expires_at,
+            assignment.revoked,
+            assignment.version,
+        )
+    }
+
+    /// CO-13 boundary verdict for admitting one department work contract.
+    ///
+    /// The packet body, the server-derived stage facts and the exact CO-05 appointment are
+    /// revalidated here before the transition, so a forged digest, an inactive appointment, a
+    /// mismatched project/role/department or an input basis the project stage does not yet
+    /// support cannot change any related object. Repeating the exact admitted contract is
+    /// idempotent while a different contract under the same packet id is refused. Admission
+    /// returns evidence only; it grants no capability, path, budget or lease.
+    pub fn department_packet_admission_verdict(
+        &self,
+        packet: &crate::DepartmentPacket,
+        now_unix_ms: u64,
+    ) -> CompanyResult<()> {
+        let stage = self.department_stage_facts(&packet.project_id)?;
+        let appointment = self.department_role_appointment(packet)?;
+        packet.admit(&stage, &appointment, now_unix_ms)?;
+        if let Some(admitted) = self.department_packets.get(&packet.packet_id) {
+            ensure(
+                admitted.packet_digest == packet.digest(),
+                "department_packet_already_admitted",
+            )?;
+        }
+        Ok(())
+    }
+
+    /// CO-13 admission transition: the exact contract is admitted once per packet id together
+    /// with its server-derived admission evidence. Repeating the same contract is idempotent and
+    /// grants no runtime authority.
+    fn admit_department_packet(
+        &mut self,
+        packet: &crate::DepartmentPacket,
+        now_unix_ms: u64,
+    ) -> CompanyResult<()> {
+        let stage = self.department_stage_facts(&packet.project_id)?;
+        let appointment = self.department_role_appointment(packet)?;
+        let admission = packet.admit(&stage, &appointment, now_unix_ms)?;
+        if self.department_packets.contains_key(&packet.packet_id) {
+            return Ok(());
+        }
+        self.department_packets
+            .insert(packet.packet_id.clone(), admission);
         Ok(())
     }
 
@@ -2800,6 +2940,9 @@ impl CompanyState {
             }
             CompanyCommand::FreezePlanGraph { plan } => {
                 self.freeze_plan_graph(plan)?;
+            }
+            CompanyCommand::AdmitDepartmentPacket { packet } => {
+                self.admit_department_packet(packet, a.now_ms)?;
             }
             CompanyCommand::AcknowledgeHandoff {
                 handoff_id,
