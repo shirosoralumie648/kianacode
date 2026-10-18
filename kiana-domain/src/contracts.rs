@@ -803,6 +803,14 @@ pub const SCHEMA_CONTRACTS: &[SchemaContract] = &[
         allow_unknown_fields: false,
     },
     SchemaContract {
+        name: "kiana.deployment-compatibility.v1",
+        version: SchemaVersion::new(1, 0),
+        layer: SchemaLayer::Domain,
+        owner_crate: "kiana-domain",
+        compatibility: CompatibilityPolicy::BackwardCompatible,
+        allow_unknown_fields: false,
+    },
+    SchemaContract {
         name: "kiana.deployment-startup-fact.v1",
         version: SchemaVersion::new(1, 0),
         layer: SchemaLayer::Domain,
