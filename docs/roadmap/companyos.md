@@ -223,7 +223,7 @@
 
 
 
-#### CO-11 · 建立标准覆盖图，替换文本集合推断　🔄
+#### CO-11 · 建立标准覆盖图，替换文本集合推断　✅
 
 - **归属**：`P3-I-04`、`P1-D-01`。
 - **依赖**：CO-06、CO-10。
@@ -231,6 +231,7 @@
 - **实现顺序**：①标准用 ID 和 origin baseline 定位；②Project→Milestone→Packet 的 covers/refines 关系显式批准；③每个必需上层标准都有覆盖安排，机器验证引用/完整性，语义充分性由独立规划或评审记录支撑。
 - **先拒绝**：`criteria_coverage_rejects_missing_parent_duplicate_identity_and_silent_weakening`；相同文字不同来源不得合并，一条通用“测试通过”不能覆盖所有标准。
 - **再成功 / 退出**：`criterion_trace_links_project_requirement_to_specific_test_evidence`；能从项目目标追到具体验证，又能说明尚未覆盖的部分。
+- **2026-10-17 收口切片（CI-only）**：`CriterionCoverageApproval`（Sponsor 签名、绑定 graph/plan digest 与 `artifact:`/`event:` 决策记录）、`FrozenCriterionCoverage` 冻结与漂移拒绝、`bind_plan` 机器校验 typed Plan coverage（digest/baseline/project/节点引用/必需 Milestone 标准指派）、`resolve_origin` 以 ID+origin baseline 定位、`criteria_evidence_ref_reused`/`criteria_evidence_reused`（一条通用证据不能覆盖所有标准）、`CompanyCommand::FreezeCriterionCoverage` + `CompanyState::criterion_coverages` + core `coverage_freeze_verdict` 边界校验（Sponsor/冻结 Charter baseline/已验证决策记录/幂等）、`CompanyState::acceptance_snapshot` 用 typed criterion 身份替换文本集合推断（coverage-bound 快照 fail-closed）、4 条新增先拒绝优先夹具 + 2 条既有卡命名夹具、core guard 1→2 条与手动 lane 补齐 `cargo fetch --locked`/`--no-run`；proof 上限 source，CI 回执未等待。
 
 <a id="co-12"></a>
 

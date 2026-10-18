@@ -641,6 +641,9 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         // CO-10: the versioned Charter draft is recorded by the chartering role before the
         // Sponsor approves the exact version.
         CompanyCommand::DraftCharter { .. } => &["sponsor", "pm"],
+        // CO-11: the coverage graph is proposed through the planning path but only the Sponsor
+        // approves the exact frozen graph.
+        CompanyCommand::FreezeCriterionCoverage { .. } => &["sponsor"],
         CompanyCommand::RequestCancelProject { .. }
         | CompanyCommand::ConfirmCancelProject { .. }
         | CompanyCommand::FailProject { .. }
@@ -819,6 +822,7 @@ impl CompanyMutationClass {
             | CompanyCommand::RejectProject { .. }
             | CompanyCommand::CreateMilestone { .. }
             | CompanyCommand::PlanProject { .. }
+            | CompanyCommand::FreezeCriterionCoverage { .. }
             | CompanyCommand::PauseProject { .. }
             | CompanyCommand::ResumeProject { .. }
             | CompanyCommand::RequestCancelProject { .. }
@@ -1055,6 +1059,16 @@ impl CompanyMutationPermission {
                 "direct_intake_project_not_pending",
                 "direct_intake_initiative_ancestry_conflict",
                 "direct_intake_conflict",
+                // CO-11 frozen criterion coverage: the Sponsor approves one exact graph against
+                // the frozen Charter baseline, and the cited planning/review record must resolve.
+                "criteria_coverage_invalid",
+                "criteria_coverage_baseline_missing",
+                "criteria_coverage_baseline_mismatch",
+                "criteria_coverage_sponsor_mismatch",
+                "criteria_coverage_already_frozen",
+                "criteria_coverage_project_mismatch",
+                "criteria_coverage_graph_digest_mismatch",
+                "criteria_coverage_freeze_digest_mismatch",
             ],
             CompanyMutationClass::Budget => &[
                 "company_project_not_budgetable",
