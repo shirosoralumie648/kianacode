@@ -118,6 +118,14 @@ const MAX_WEB_HISTORY_PAGE: usize = 64;
 const MAX_WEB_PAGE_CURSORS: usize = 256;
 const MAX_WEB_PAGE_CURSOR_BYTES: usize = 256;
 const MAX_WEB_TAB_BYTES: usize = 128;
+/// Browser hydrate trace contract.
+///
+/// The trace is a bounded, credential-free record of the canonical bootstrap order: the first
+/// read is a server-owned snapshot, the history page follows that snapshot, and the display feed
+/// is installed only afterwards. It is descriptive: it creates no lease, holds no payload bytes
+/// and grants no authority.
+pub const WEB_HYDRATE_TRACE_SCHEMA: &str = "kiana.web-hydrate-trace.v1";
+const MAX_WEB_HYDRATE_TRACE_STEPS: usize = 4;
 /// Schema for transport-only SSE control events.  Run deltas retain the versioned
 /// `kiana.protocol.v1` envelope; heartbeat/gap/error frames use this additive wrapper.
 pub const WEB_SSE_SCHEMA: &str = "kiana.web-sse.v1";
@@ -1654,7 +1662,19 @@ impl WebApp {
             "feed_ready": false,
             "cache": "memory_only",
             "status": "ready",
-            "limitations": ["snapshot_is_disposable_projection"]
+            "limitations": ["snapshot_is_disposable_projection"],
+            // The canonical bootstrap order.  A browser cache or a persisted local value can
+            // never stand in for the first server snapshot, and the feed listener is installed
+            // only after that snapshot is accepted.
+            "trace": {
+                "schema": WEB_HYDRATE_TRACE_SCHEMA,
+                "max_steps": MAX_WEB_HYDRATE_TRACE_STEPS,
+                "steps": [
+                    {"step": "snapshot", "schema": WEB_HYDRATE_SCHEMA, "requires": "none"},
+                    {"step": "history", "schema": WEB_HISTORY_SCHEMA, "requires": "snapshot"},
+                    {"step": "feed", "schema": WEB_SSE_SCHEMA, "requires": "snapshot"}
+                ]
+            }
         });
         let parity = harness_run::parity_envelope_on_host(
             Arc::clone(&self.host),
@@ -1781,7 +1801,7 @@ impl WebApp {
                 }
                 (Vec::new(), false)
             };
-        let (offset, cursor_limit) = self.consume_page_cursor(
+        let (offset, _cursor_limit) = self.consume_page_cursor(
             after,
             "history",
             session_id,
@@ -1789,10 +1809,8 @@ impl WebApp {
             &instance_id,
             &epoch,
             source_cursor,
+            limit,
         )?;
-        if after.is_some() && cursor_limit != limit {
-            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
-        }
         if offset > turns.len() {
             return Err(ApiError::bad("web_page_cursor_offset_invalid"));
         }
@@ -1827,10 +1845,7 @@ impl WebApp {
         } else {
             "ready"
         };
-        let (_, current_epoch, current_cursor) = self.page_context()?;
-        if current_epoch != epoch || current_cursor != source_cursor {
-            return Err(ApiError::conflict("web_page_source_changed"));
-        }
+        self.ensure_page_source_unchanged(&epoch, source_cursor)?;
         Ok(json!({
             "schema": WEB_HISTORY_SCHEMA,
             "instance_id": instance_id,
@@ -1881,7 +1896,7 @@ impl WebApp {
             } else {
                 return Err(ApiError::bad("session_unknown"));
             };
-        let (offset, cursor_limit) = self.consume_page_cursor(
+        let (offset, _cursor_limit) = self.consume_page_cursor(
             after,
             "artifact",
             session_id,
@@ -1889,10 +1904,8 @@ impl WebApp {
             &instance_id,
             &epoch,
             source_cursor,
+            limit,
         )?;
-        if after.is_some() && cursor_limit != limit {
-            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
-        }
         if offset > entries.len() {
             return Err(ApiError::bad("web_page_cursor_offset_invalid"));
         }
@@ -1921,10 +1934,7 @@ impl WebApp {
         } else {
             "ready"
         };
-        let (_, current_epoch, current_cursor) = self.page_context()?;
-        if current_epoch != epoch || current_cursor != source_cursor {
-            return Err(ApiError::conflict("web_page_source_changed"));
-        }
+        self.ensure_page_source_unchanged(&epoch, source_cursor)?;
         Ok(json!({
             "schema": WEB_ARTIFACT_SCHEMA,
             "instance_id": instance_id,
@@ -1977,7 +1987,7 @@ impl WebApp {
             // Do not turn a private/nonexistent reference into an enumerable empty page.
             return Err(ApiError::bad("artifact_not_found"));
         }
-        let (offset, cursor_limit) = self.consume_page_cursor(
+        let (offset, _cursor_limit) = self.consume_page_cursor(
             after,
             "artifact_detail",
             session_id,
@@ -1985,10 +1995,8 @@ impl WebApp {
             &instance_id,
             &epoch,
             source_cursor,
+            limit,
         )?;
-        if after.is_some() && cursor_limit != limit {
-            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
-        }
         if offset > entries.len() {
             return Err(ApiError::bad("web_page_cursor_offset_invalid"));
         }
@@ -2071,10 +2079,7 @@ impl WebApp {
             "next_cursor": next_cursor,
             "limitations": ["artifact_content_requires_authorized_server_page"]
         });
-        let (_, current_epoch, current_cursor) = self.page_context()?;
-        if current_epoch != epoch || current_cursor != source_cursor {
-            return Err(ApiError::conflict("web_page_source_changed"));
-        }
+        self.ensure_page_source_unchanged(&epoch, source_cursor)?;
         Ok(json!({
             "schema": WEB_ARTIFACT_DETAIL_SCHEMA,
             "scope": page["scope"],
@@ -2213,6 +2218,22 @@ impl WebApp {
         Ok(token)
     }
 
+    /// Re-read the server cursor after a page was built.
+    ///
+    /// A commit between the read and the response must not be reported as a complete page: the
+    /// caller has to hydrate a fresh snapshot instead of mixing a stale page with newer state.
+    fn ensure_page_source_unchanged(
+        &self,
+        epoch: &str,
+        source_cursor: u64,
+    ) -> Result<(), ApiError> {
+        let (_, current_epoch, current_cursor) = self.page_context()?;
+        if current_epoch != epoch || current_cursor != source_cursor {
+            return Err(ApiError::conflict("web_page_source_changed"));
+        }
+        Ok(())
+    }
+
     fn consume_page_cursor(
         &self,
         token: Option<&str>,
@@ -2222,6 +2243,7 @@ impl WebApp {
         instance_id: &str,
         epoch: &str,
         source_cursor: u64,
+        limit: usize,
     ) -> Result<(usize, usize), ApiError> {
         let Some(token) = token else {
             return Ok((0, 0));
@@ -2259,6 +2281,11 @@ impl WebApp {
             || cursor.source_cursor != source_cursor
         {
             return Err(ApiError::conflict("web_page_cursor_scope_mismatch"));
+        }
+        if cursor.limit != limit {
+            // A malformed follow-up limit must not burn the owner's cursor: reject it before the
+            // token is consumed so the same page can be retried with its issued bound.
+            return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
         }
         // Validate the full scope before consuming the token. A foreign tab or stale source
         // cursor must fail closed without burning a still-valid cursor for its owner.
@@ -2394,9 +2421,23 @@ async fn bootstrap(
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
-    claim_session_tab(&app, &session_id, &tab_id)?;
+    // Only a live in-memory session has a mutable lease to claim. A session that exists only as
+    // committed history is a read-only EventLog projection: hydrate it without creating or
+    // stealing a lease so a fresh page can open any known session, while an unknown id still
+    // fails closed in `resolve_human_session`.
+    let live_session = app
+        .sessions
+        .lock()
+        .map_err(|_| ApiError::fail("web_state_poisoned"))?
+        .contains_key(&session_id);
+    if live_session {
+        claim_session_tab(&app, &session_id, &tab_id)?;
+    }
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_hydrate_tab(&mut snapshot, &tab_id)?;
+    if !live_session {
+        mark_historical_hydrate(&mut snapshot);
+    }
     snapshot["bootstrap"] = json!({
         "schema": WEB_HYDRATE_SCHEMA,
         "snapshot_first": true,
@@ -4444,6 +4485,27 @@ fn attach_optional_hydrate_tab(snapshot: &mut Value, headers: &HeaderMap) -> Res
     Ok(())
 }
 
+/// Mark a hydrate envelope that projects a closed EventLog session.
+///
+/// `attach_hydrate_tab` relabels a lease, but a historical session has no live lease, no mutable
+/// draft and no observer relationship. Restore the closed disposition, keep the response
+/// feed-only and expose the projection source so a browser cannot mistake history for an active
+/// session it could resume from this snapshot.
+fn mark_historical_hydrate(snapshot: &mut Value) {
+    if let Some(lease) = snapshot.get_mut("lease").and_then(Value::as_object_mut) {
+        lease.insert("disposition".to_owned(), Value::String("closed".to_owned()));
+        lease.insert("feed_only".to_owned(), Value::Bool(true));
+    }
+    snapshot["human_actions_allowed"] = Value::Bool(false);
+    if let Some(hydrate) = snapshot.get_mut("hydrate").and_then(Value::as_object_mut) {
+        hydrate.insert("historical".to_owned(), Value::Bool(true));
+        hydrate.insert(
+            "source".to_owned(),
+            Value::String("event_log_projection".to_owned()),
+        );
+    }
+}
+
 fn validate_web_page_limit(limit: usize) -> Result<(), ApiError> {
     if limit == 0 || limit > MAX_WEB_HISTORY_PAGE {
         return Err(ApiError::bad("web_page_limit_invalid"));
@@ -6233,5 +6295,659 @@ mod tests {
             "a tab must not observe another tab's local draft identity"
         );
         assert!(!first.to_string().contains("tab-2"));
+    }
+
+    // ------------------------------------------------------------------
+    // UI-17: Web snapshot hydrate, history and pagination (completion slice).
+    //
+    // These fixtures drive the real loopback router on a host whose EventLog was seeded *before*
+    // the host opened it: the seeded sessions exist only as committed history, and the active
+    // in-memory session is empty.  Hydrate order, server-cursor pagination and the replay /
+    // foreign-tab / stale-cursor fences are HTTP boundary behaviour, so they are exercised here
+    // rather than asserted as source markers.
+    // ------------------------------------------------------------------
+
+    const UI17_HISTORY_TURNS: usize = 3;
+    const UI17_ARTIFACT_DIGEST: &str =
+        "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+    const UI17_SECOND_SESSION: &str = "ui17-second-session";
+
+    struct Ui17SeedSession {
+        session_id: &'static str,
+        run_id: String,
+        turns: usize,
+        artifacts: Vec<&'static str>,
+    }
+
+    fn ui17_push_event(events: &mut Vec<Value>, sequence: &mut u64, kind: &str, data: Value) {
+        events.push(ledger_event(*sequence, kind, data));
+        *sequence += 1;
+    }
+
+    /// Seed committed history for one or more sessions.  Every session gets its own authorized
+    /// run, bounded turns and artifact references so the history/artifact pages can prove that a
+    /// page is both cursor-scoped and run-scoped.
+    fn ui17_seeded_events(root: &Path, sessions: &[Ui17SeedSession]) -> Vec<Value> {
+        let mut events = Vec::new();
+        let mut sequence = 1u64;
+        for session in sessions {
+            ui17_push_event(
+                &mut events,
+                &mut sequence,
+                "run.authorized",
+                json!({
+                    "run_id": session.run_id.as_str(),
+                    "session_id": session.session_id,
+                    "actor_id": "local-user",
+                    "project_root": root.to_string_lossy(),
+                    "role_id": ROLE_BUILDER,
+                    "department_id": kiana_protocol::DEPARTMENT_EXECUTING,
+                    "sandbox": "read-only",
+                }),
+            );
+            for index in 0..session.turns {
+                ui17_push_event(
+                    &mut events,
+                    &mut sequence,
+                    "run.prompt",
+                    json!({
+                        "run_id": session.run_id.as_str(),
+                        "session_id": session.session_id,
+                        "text": format!("ui17 turn {index}"),
+                    }),
+                );
+                ui17_push_event(
+                    &mut events,
+                    &mut sequence,
+                    "run.delta",
+                    json!({
+                        "run_id": session.run_id.as_str(),
+                        "text": format!("ui17 delta {index} "),
+                    }),
+                );
+                ui17_push_event(
+                    &mut events,
+                    &mut sequence,
+                    "run.completed",
+                    json!({
+                        "run_id": session.run_id.as_str(),
+                        "text": format!("ui17 answer {index}"),
+                    }),
+                );
+            }
+            for artifact_id in &session.artifacts {
+                ui17_push_event(
+                    &mut events,
+                    &mut sequence,
+                    "run.artifact",
+                    json!({
+                        "run_id": session.run_id.as_str(),
+                        "session_id": session.session_id,
+                        "artifact_id": artifact_id,
+                        "artifact_schema": "kiana.ui-artifact-ref.v1",
+                        "content_hash": UI17_ARTIFACT_DIGEST,
+                    }),
+                );
+            }
+        }
+        events
+    }
+
+    struct Ui17Server {
+        addr: SocketAddr,
+        host: Arc<DaemonHost>,
+        root: PathBuf,
+        home: PathBuf,
+        active: String,
+        session: String,
+        run_id: String,
+        options: HashMap<String, Value>,
+        _env: crate::test_support::ScopedEnv<'static>,
+    }
+
+    async fn ui17_server() -> Ui17Server {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("ui17-home");
+        let root = unique_dir("ui17-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script = unique_dir("ui17-script").join("script.json");
+        fs::write(&script, r#"[{"text":"ui17 hydrated answer"}]"#).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        env.set_var("KIANA_PROVIDER", "");
+        env.set_var("KIANA_STREAMING", "off");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+
+        let session = "ui17-history-session".to_owned();
+        let run_id = RunId::new().to_string();
+        let second_run = RunId::new().to_string();
+        let events = ui17_seeded_events(
+            &root,
+            &[
+                Ui17SeedSession {
+                    session_id: "ui17-history-session",
+                    run_id: run_id.clone(),
+                    turns: UI17_HISTORY_TURNS,
+                    artifacts: vec!["ui17-artifact-a", "ui17-artifact-b"],
+                },
+                Ui17SeedSession {
+                    session_id: UI17_SECOND_SESSION,
+                    run_id: second_run,
+                    turns: 1,
+                    artifacts: vec!["ui17-artifact-c"],
+                },
+            ],
+        );
+        write_ledger(&home, &events);
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::local().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        let active = lock_string(&app.active).unwrap();
+        let options = app.options().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        Ui17Server {
+            addr,
+            host,
+            root,
+            home,
+            active,
+            session,
+            run_id,
+            options,
+            _env: env,
+        }
+    }
+
+    struct Ui17Client {
+        client: reqwest::Client,
+        base: String,
+        token: String,
+    }
+
+    async fn ui17_client(server: &Ui17Server) -> Ui17Client {
+        let client = reqwest::Client::new();
+        let token = ui16_page_token(&client, server.addr).await;
+        Ui17Client {
+            client,
+            base: format!("http://{}", server.addr),
+            token,
+        }
+    }
+
+    impl Ui17Client {
+        fn get(&self, path: &str, tab: &str) -> reqwest::RequestBuilder {
+            self.client
+                .get(format!("{}{path}", self.base))
+                .header("x-kiana-web-token", &self.token)
+                .header("x-kiana-ui-tab", tab)
+        }
+    }
+
+    async fn ui17_json(response: reqwest::Response) -> (StatusCode, Value) {
+        let status = response.status();
+        let body = response.json().await.unwrap_or(Value::Null);
+        (status, body)
+    }
+
+    /// Drive one real harness turn through the daemon host (not through the Web action route) so a
+    /// fixture can advance the committed source cursor deterministically.
+    async fn ui17_advance_cursor(server: &Ui17Server, prompt: &str) -> u64 {
+        let before = server.host.ui_cursor();
+        let response = harness_run::run_envelope_on_host(
+            Arc::clone(&server.host),
+            server.active.clone(),
+            prompt,
+            &server.options,
+        )
+        .await
+        .expect("fixture harness turn");
+        assert_eq!(
+            response.status,
+            kiana_protocol::ExecutionStatus::Completed,
+            "{response:?}"
+        );
+        let after = server.host.ui_cursor();
+        assert!(
+            after.sequence > before.sequence,
+            "a committed turn must advance the display cursor"
+        );
+        after.sequence
+    }
+
+    #[tokio::test]
+    async fn ui17_bootstrap_hydrates_before_feed_and_matches_the_cli_parity_snapshot() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+        let cursor = server.host.ui_cursor();
+
+        // A fresh page hydrates a known historical session without creating a lease, and the
+        // hydrate envelope declares the canonical order: snapshot, then history, then feed.
+        let (status, body) = ui17_json(
+            client
+                .get(
+                    &format!("/api/bootstrap?session_id={}", server.session),
+                    "ui17-tab-a",
+                )
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["bootstrap"]["schema"], json!(WEB_HYDRATE_SCHEMA));
+        assert_eq!(body["bootstrap"]["snapshot_first"], json!(true));
+        assert_eq!(body["bootstrap"]["feed_after_hydrate"], json!(true));
+        assert_eq!(body["bootstrap"]["tab_id"], json!("ui17-tab-a"));
+        let hydrate = &body["hydrate"];
+        assert_eq!(hydrate["schema"], json!(WEB_HYDRATE_SCHEMA));
+        assert_eq!(hydrate["tab_id"], json!("ui17-tab-a"));
+        assert_eq!(hydrate["cache"], json!("memory_only"));
+        assert_eq!(hydrate["source"], json!("event_log_projection"));
+        assert_eq!(hydrate["historical"], json!(true));
+        assert_eq!(hydrate["feed_ready"], json!(false));
+        assert_eq!(hydrate["session_id"], json!(server.session.as_str()));
+        assert_eq!(
+            hydrate["instance_id"],
+            json!(server.host.feed_instance_id())
+        );
+        assert_eq!(hydrate["epoch"], json!(cursor.epoch.as_str()));
+        assert_eq!(hydrate["snapshot_cursor"], json!(cursor.sequence));
+        assert_eq!(hydrate["trace"]["schema"], json!(WEB_HYDRATE_TRACE_SCHEMA));
+        assert_eq!(
+            hydrate["trace"]["max_steps"],
+            json!(MAX_WEB_HYDRATE_TRACE_STEPS)
+        );
+        let steps = hydrate["trace"]["steps"].as_array().expect("trace steps");
+        let names: Vec<&str> = steps
+            .iter()
+            .map(|step| step["step"].as_str().expect("step name"))
+            .collect();
+        assert_eq!(names, ["snapshot", "history", "feed"]);
+        assert_eq!(steps[0]["requires"], json!("none"));
+        assert_eq!(steps[1]["requires"], json!("snapshot"));
+        assert_eq!(steps[1]["schema"], json!(WEB_HISTORY_SCHEMA));
+        assert_eq!(steps[2]["requires"], json!("snapshot"));
+        assert_eq!(steps[2]["schema"], json!(WEB_SSE_SCHEMA));
+
+        // A closed EventLog projection stays feed-only: no lease, no action authority.
+        assert_eq!(body["read_only"], json!(true));
+        assert_eq!(body["lease"]["disposition"], json!("closed"));
+        assert_eq!(body["lease"]["feed_only"], json!(true));
+        assert_eq!(body["human_actions_allowed"], json!(false));
+        assert_eq!(body["history"]["status"], json!("ready"));
+        assert_eq!(body["history"]["cache"], json!("memory_only"));
+        assert_eq!(
+            body["thread"]["turns"].as_array().unwrap().len(),
+            UI17_HISTORY_TURNS
+        );
+
+        // Re-hydrating reports the same server-owned status projection the CLI reads for the same
+        // session/run: only the entrypoint label differs.
+        let cli = harness_run::parity_envelope_on_host(
+            Arc::clone(&server.host),
+            server.session.clone(),
+            Some(RunId::parse_str(&server.run_id).expect("seeded run id")),
+            EntryPointKind::Cli,
+            &server.options,
+        )
+        .await
+        .unwrap();
+        assert_eq!(cli.status, kiana_protocol::ExecutionStatus::Completed);
+        assert_eq!(body["parity_response_status"], json!("completed"));
+        let web_parity = &body["parity"];
+        let cli_parity = &cli.output;
+        assert_eq!(web_parity["entrypoint"], json!("web"));
+        assert_eq!(cli_parity["entrypoint"], json!("cli"));
+        for field in [
+            "status",
+            "source_cursor",
+            "source_event_ids",
+            "projection_version",
+            "receipt_digest",
+            "audit_digest",
+            "health_digest",
+            "limitations",
+        ] {
+            assert_eq!(
+                web_parity[field], cli_parity[field],
+                "the hydrated Web status must match the CLI projection: {field}"
+            );
+        }
+
+        // An empty live session is a known session with `empty` history, never a missing one.
+        let (status, empty) = ui17_json(client.get("/api/bootstrap").send().await.unwrap()).await;
+        assert_eq!(status, StatusCode::OK, "{empty}");
+        assert_eq!(empty["session_id"], json!(server.active.as_str()));
+        assert_eq!(empty["read_only"], json!(false));
+        assert_eq!(empty["history"]["status"], json!("empty"));
+        assert_eq!(empty["thread"]["turns"].as_array().unwrap().len(), 0);
+        assert_eq!(empty["hydrate"]["historical"], Value::Null);
+        assert_eq!(
+            empty["hydrate"]["trace"]["steps"].as_array().unwrap().len(),
+            3
+        );
+
+        // An id that is in neither memory nor the ledger fails closed.
+        let (status, unknown) = ui17_json(
+            client
+                .get("/api/bootstrap?session_id=ui17-unknown-session")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(unknown["error"], json!("session_unknown"));
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui17_history_pages_follow_one_server_cursor_and_refuse_replay_and_foreign_tabs() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+        let cursor = server.host.ui_cursor();
+        let page = |query: &str| format!("/api/history?session_id={}{query}", server.session);
+
+        // The first page is bounded by the requested limit and reports `partial` plus a
+        // single-use server cursor with the instance/epoch/source identity of the snapshot.
+        let (status, first) = ui17_json(
+            client
+                .get(&page("&limit=2"), "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{first}");
+        assert_eq!(first["schema"], json!(WEB_HISTORY_SCHEMA));
+        assert_eq!(first["cache"], json!("memory_only"));
+        assert_eq!(first["status"], json!("partial"));
+        assert_eq!(first["entries"].as_array().unwrap().len(), 2);
+        assert_eq!(first["instance_id"], json!(server.host.feed_instance_id()));
+        assert_eq!(first["epoch"], json!(cursor.epoch.as_str()));
+        assert_eq!(first["source_cursor"], json!(cursor.sequence));
+        let next_page = first["next_page"]
+            .as_str()
+            .expect("a partial page issues a next page cursor")
+            .to_owned();
+
+        // A cursor is bound to its tab: a foreign tab is refused and the owner's cursor survives.
+        let (status, foreign) = ui17_json(
+            client
+                .get(&page(&format!("&limit=2&after={next_page}")), "ui17-tab-b")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(foreign["error"], json!("web_page_cursor_scope_mismatch"));
+
+        // A follow-up with the wrong limit is refused before the cursor is consumed.
+        let (status, wrong_limit) = ui17_json(
+            client
+                .get(&page(&format!("&limit=1&after={next_page}")), "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            wrong_limit["error"],
+            json!("web_page_cursor_limit_mismatch")
+        );
+
+        // The owner consumes it exactly once, and the final page reports `ready` with no cursor.
+        let (status, second) = ui17_json(
+            client
+                .get(&page(&format!("&limit=2&after={next_page}")), "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{second}");
+        assert_eq!(second["status"], json!("ready"));
+        assert_eq!(second["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(second["next_page"], Value::Null);
+        let (status, replayed) = ui17_json(
+            client
+                .get(&page(&format!("&limit=2&after={next_page}")), "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(replayed["error"], json!("web_page_cursor_replayed"));
+
+        // Empty pages are explicit: unknown sessions fail closed, a known live session without
+        // turns is `empty`, and neither is confused with the other.
+        let (status, unknown) = ui17_json(
+            client
+                .get("/api/history?session_id=ui17-unknown-session&limit=8")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(unknown["error"], json!("session_unknown"));
+        let (status, empty) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/history?session_id={}&limit=8",
+                    server.active
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{empty}");
+        assert_eq!(empty["status"], json!("empty"));
+        assert_eq!(empty["entries"].as_array().unwrap().len(), 0);
+        assert_eq!(empty["next_page"], Value::Null);
+
+        // A page cursor issued before a new committed action must not replay that old action view.
+        let (status, stale_page) = ui17_json(
+            client
+                .get(&page("&limit=1"), "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{stale_page}");
+        let stale = stale_page["next_page"]
+            .as_str()
+            .expect("next page")
+            .to_owned();
+        let advanced = ui17_advance_cursor(&server, "ui17 stale cursor turn").await;
+        assert!(advanced > cursor.sequence);
+        let (status, stale) = ui17_json(
+            client
+                .get(&page(&format!("&limit=1&after={stale}")), "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(stale["error"], json!("web_page_cursor_scope_mismatch"));
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui17_artifact_page_is_run_scoped_and_never_returns_bytes() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+
+        let (status, page) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact?session_id={}&limit=8",
+                    server.session
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert_eq!(page["schema"], json!(WEB_ARTIFACT_SCHEMA));
+        assert_eq!(page["cache"], json!("memory_only"));
+        assert_eq!(page["status"], json!("ready"));
+        assert_eq!(
+            page["limitations"][0],
+            json!("artifact_content_requires_server_ref")
+        );
+        let entries = page["entries"].as_array().expect("artifact entries");
+        let ids: Vec<&str> = entries
+            .iter()
+            .map(|entry| entry["artifact_id"].as_str().expect("artifact id"))
+            .collect();
+        assert_eq!(ids, ["ui17-artifact-a", "ui17-artifact-b"]);
+        assert!(
+            entries.iter().all(|entry| entry["content"].is_null()),
+            "the reference page must not inline artifact bytes"
+        );
+        assert!(entries.iter().all(|entry| entry["digest"]
+            .as_str()
+            .is_some_and(|digest| digest.starts_with("sha256:"))));
+        assert!(
+            !page.to_string().contains("ui17-artifact-c"),
+            "a run-scoped page must not enumerate another session's references"
+        );
+
+        // A reference that is not in this run is an explicit empty page, never a private listing.
+        let (status, filtered) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact?session_id={}&artifact_id=ui17-artifact-missing&limit=8",
+                    server.session
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{filtered}");
+        assert_eq!(filtered["status"], json!("empty"));
+        assert_eq!(filtered["entries"].as_array().unwrap().len(), 0);
+
+        // Multi-session browsing: the second historical session hydrates read-only with its own
+        // single turn and its own artifact reference.
+        let (status, other) = ui17_json(
+            client
+                .get(&format!("/api/bootstrap?session_id={UI17_SECOND_SESSION}"))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{other}");
+        assert_eq!(other["read_only"], json!(true));
+        assert_eq!(other["thread"]["turns"].as_array().unwrap().len(), 1);
+        assert_eq!(other["lease"]["disposition"], json!("closed"));
+        let session_ids: Vec<&str> = other["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|session| session["id"].as_str().unwrap())
+            .collect();
+        assert!(session_ids.contains(&server.session.as_str()));
+        assert!(session_ids.contains(&UI17_SECOND_SESSION));
+
+        let (status, own) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact?session_id={UI17_SECOND_SESSION}&limit=8"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{own}");
+        assert_eq!(own["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(own["entries"][0]["artifact_id"], json!("ui17-artifact-c"));
+        assert_eq!(own["entries"][0]["content"], Value::Null);
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui17_source_change_fence_rejects_a_cursor_that_moved_mid_read() {
+        let server = ui17_server().await;
+        let app = WebApp::new(
+            Arc::clone(&server.host),
+            server.root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            "127.0.0.1:0".parse().unwrap(),
+        );
+        let cursor = app.host.ui_cursor();
+        assert!(cursor.sequence >= 1, "the seeded ledger commits events");
+        assert!(app
+            .ensure_page_source_unchanged(&cursor.epoch, cursor.sequence)
+            .is_ok());
+        assert_eq!(
+            app.ensure_page_source_unchanged("ui17-stale-epoch", cursor.sequence)
+                .unwrap_err()
+                .error,
+            "web_page_source_changed"
+        );
+        assert_eq!(
+            app.ensure_page_source_unchanged(&cursor.epoch, cursor.sequence.saturating_sub(1))
+                .unwrap_err()
+                .error,
+            "web_page_source_changed"
+        );
+
+        // The fence is not vacuous: a committed turn really moves the source cursor, and the
+        // pre-commit identity is then refused.
+        let advanced = ui17_advance_cursor(&server, "ui17 source change turn").await;
+        assert!(advanced > cursor.sequence);
+        assert_eq!(
+            app.ensure_page_source_unchanged(&cursor.epoch, cursor.sequence)
+                .unwrap_err()
+                .error,
+            "web_page_source_changed"
+        );
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
     }
 }

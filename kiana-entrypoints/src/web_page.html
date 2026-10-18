@@ -249,11 +249,32 @@
     const WEB_HISTORY_SCHEMA = 'kiana.web-history-page.v1';
     const MAX_HYDRATE_CACHE = 8;
     const MAX_HISTORY_CACHE_ENTRIES = 256;
+    const MAX_HISTORY_SESSIONS = 8;
+    const MAX_HYDRATE_TRACE = 16;
     const tabOwnerId = crypto.randomUUID();
     const hydrateCache = new Map();
     const historyPages = new Map();
     const tabDrafts = new Map();
     const submissionIds = new Map();
+    // The hydrate trace is a bounded, credential-free record of the canonical bootstrap order:
+    // the first read is a server snapshot, the display feed is installed only afterwards, and
+    // history pages follow that snapshot. It carries scope ids and cursors only — never the Web
+    // token, a prompt/draft, an approval payload or artifact bytes.
+    const hydrateTrace = [];
+    function recordHydrateTrace(step, reason) {
+      hydrateTrace.push({
+        step: String(step || '').slice(0, 64),
+        reason: reason ? sanitizeDisplayText(reason, 64) : null,
+        status: hydrateState,
+        session_id: sessionId || null,
+        epoch: (stateCache && stateCache.hydrate && stateCache.hydrate.epoch) || null,
+        instance_id: (stateCache && stateCache.hydrate && stateCache.hydrate.instance_id) || null,
+        cursor: (stateCache && stateCache.hydrate && stateCache.hydrate.snapshot_cursor) || null
+      });
+      while (hydrateTrace.length > MAX_HYDRATE_TRACE) hydrateTrace.shift();
+      return hydrateTrace[hydrateTrace.length - 1];
+    }
+    window.__KIANA_HYDRATE_TRACE__ = hydrateTrace;
     let hydrateState = 'loading';
     let desktopNotificationBindingPromise = null;
 
@@ -367,12 +388,25 @@
       if (!envelope || envelope.schema !== WEB_HYDRATE_SCHEMA || !envelope.instance_id ||
         !envelope.epoch || !envelope.session_id || envelope.session_id !== snapshot.session_id ||
         envelope.tab_id && envelope.tab_id !== tabOwnerId) {
+        recordHydrateTrace('hydrate_reject', 'hydrate_snapshot_invalid');
         throw new Error('hydrate_snapshot_invalid');
       }
-      if (snapshot.read_only && !snapshot.thread) throw new Error('hydrate_session_missing');
+      if (envelope.cache !== 'memory_only') {
+        // The server owns the snapshot contract, so a cache scope without the memory-only fence
+        // is refused: a persisted local value may never stand in for the server snapshot.
+        recordHydrateTrace('hydrate_reject', 'hydrate_cache_scope_invalid');
+        throw new Error('hydrate_cache_scope_invalid');
+      }
+      if (snapshot.read_only && !snapshot.thread) {
+        recordHydrateTrace('hydrate_reject', 'hydrate_session_missing');
+        throw new Error('hydrate_session_missing');
+      }
       const key = cacheKeyFor(snapshot.session_id);
       const previous = hydrateCache.get(key);
       if (previous && (previous.instance_id !== envelope.instance_id || previous.epoch !== envelope.epoch)) {
+        // An instance/epoch change invalidates the cached history and stream cursor for the scope;
+        // the next paint has to come from the new server snapshot.
+        recordHydrateTrace('hydrate_scope_reset', 'epoch_or_instance_changed');
         historyPages.delete(snapshot.session_id);
         streamCursors.delete(snapshot.session_id);
         if (sessionId === snapshot.session_id) clearStreamProjection();
@@ -391,7 +425,11 @@
         epoch: envelope.epoch,
         sequence: envelope.snapshot_cursor || 0
       });
-      while (hydrateCache.size > MAX_HYDRATE_CACHE) hydrateCache.delete(hydrateCache.keys().next().value);
+      while (hydrateCache.size > MAX_HYDRATE_CACHE) {
+        hydrateCache.delete(hydrateCache.keys().next().value);
+        recordHydrateTrace('hydrate_evict');
+      }
+      recordHydrateTrace('hydrate_snapshot');
       const turns = snapshot.thread && snapshot.thread.turns || [];
       const history = snapshot.history || {};
       const status = history.status || (turns.length ? 'ready' : 'empty');
@@ -409,11 +447,25 @@
       }
       const cache = hydrateCache.get(cacheKeyFor(requested));
       if (!cache || cache.instance_id !== page.instance_id || cache.epoch !== page.epoch) {
+        recordHydrateTrace('history_reject', 'history_page_scope_mismatch');
         throw new Error('history_page_scope_mismatch');
       }
-      if (page.source_cursor !== cache.snapshot_cursor) throw new Error('history_page_cursor_stale');
+      if (page.source_cursor !== cache.snapshot_cursor) {
+        recordHydrateTrace('history_reject', 'history_page_cursor_stale');
+        throw new Error('history_page_cursor_stale');
+      }
       if (!Array.isArray(page.entries)) throw new Error('history_page_entries_invalid');
       return page;
+    }
+
+    // The history cache is bounded across sessions as well as within one session; the page the
+    // presenter is currently reading is never evicted underneath it.
+    function evictHistorySessions() {
+      if (historyPages.size <= MAX_HISTORY_SESSIONS) return;
+      const removable = Array.from(historyPages.keys()).filter(key => key !== sessionId);
+      while (historyPages.size > MAX_HISTORY_SESSIONS && removable.length) {
+        historyPages.delete(removable.shift());
+      }
     }
 
     async function loadHistoryPage(after = null) {
@@ -422,7 +474,10 @@
       const state = historyPages.get(requested) || {status:'loading', next_page:null};
       if (after === null && state.loaded) return state;
       if (state.requested) return state;
-      if (after && state.next_page !== after) throw new Error('history_cursor_replayed');
+      if (after && state.next_page !== after) {
+        recordHydrateTrace('history_replay_reject', 'history_cursor_replayed');
+        throw new Error('history_cursor_replayed');
+      }
       state.status = 'loading';
       state.requested = true;
       historyPages.set(requested, state);
@@ -436,6 +491,7 @@
         state.requested = false;
         state.status = 'offline';
         historyPages.set(requested, state);
+        recordHydrateTrace('history_offline', 'history_page_unavailable');
         throw error;
       }
       if (requested !== sessionId) return page;
@@ -451,6 +507,8 @@
         state.entries = state.entries.slice(-MAX_HISTORY_CACHE_ENTRIES);
       }
       historyPages.set(requested, state);
+      evictHistorySessions();
+      recordHydrateTrace('history_page');
       document.getElementById('historyStatus').textContent = 'history ' + page.status +
         ' · ' + state.entries.length + ' items' +
         (page.limitations && page.limitations.length ? ' · limited' : '');
@@ -1217,6 +1275,7 @@
         return eventSourceOpen || Promise.resolve();
       }
       closeEventStream(false);
+      recordHydrateTrace('install_feed_listener');
       eventSourceSession = session;
       sseCloseRequested = false;
       streamRunId = (stateCache && stateCache.last && stateCache.last.run_id) || session;
@@ -1392,6 +1451,7 @@
         document.getElementById('historyStatus').textContent = sanitizeDisplayText('history offline · ' + String(error.message || error), 2048);
       });
       syncPolling();
+      recordHydrateTrace('resume_or_render');
     }
     async function refresh() {
       const requested = sessionId;
@@ -1406,6 +1466,7 @@
         data = await api(path);
       } catch (error) {
         setHydrateStatus('offline', 'snapshot offline · ' + String(error.message || error));
+        recordHydrateTrace('hydrate_offline', 'snapshot_unavailable');
         throw error;
       }
       if (requested && data && data.session_id && data.session_id !== requested) {

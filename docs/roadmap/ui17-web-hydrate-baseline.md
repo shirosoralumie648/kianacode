@@ -59,3 +59,78 @@ proof-level change: feature_status=implemented; proof_level=source only
 limitations: no local HTTP/browser behavior, no durable cross-process cursor/cache, no artifact bytes or filesystem freshness proof, no live provider/transport/physical proof; CI result not awaited
 reviewer: Codex UI-17 source review; independent GitHub CI reviewer pending
 ```
+
+## 2026-10-17 completion slice (CI-only)
+
+The completion slice turns the source-only contracts above into a deny-first behaviour boundary. It
+keeps the original guarantee — snapshot first, feed after hydrate — and closes the remaining card
+exits: multi-session/refresh hydration, bounded pagination, cache eviction and visible states.
+
+Server (`kiana-entrypoints/src/web.rs`):
+
+- The hydrate envelope declares a bounded `kiana.web-hydrate-trace.v1` trace whose steps are
+  `snapshot` → `history` → `feed`; a trace step carries schema/requirement names only, so the
+  hydrate trace is bounded and credential-free.
+- `bootstrap` hydrates a session that exists only as committed history without claiming a lease:
+  the response stays `read_only`, `lease.disposition=closed`, `feed_only=true` and no action is
+  allowed. An unknown session id still fails closed with `session_unknown`, so a known empty
+  session is not a missing session.
+- `consume_page_cursor` validates kind/session/tab/instance/epoch/source scope **and the issued
+  limit** before removing the token: a foreign tab, a stale source cursor or a malformed follow-up
+  cannot burn the owner's cursor, and server cursor pages are single-use (a replay reports
+  `web_page_cursor_replayed`). The post-read source check is one shared
+  `ensure_page_source_unchanged` fence (`web_page_source_changed`).
+
+Browser (`kiana-entrypoints/src/web_page.html`):
+
+- `recordHydrateTrace` keeps a bounded (`MAX_HYDRATE_TRACE=16`) trace of the canonical order and
+  exposes it as `window.__KIANA_HYDRATE_TRACE__`; it records scope ids and cursors only, never the
+  Web token, a prompt/draft, an approval payload or artifact bytes.
+- A snapshot whose hydrate envelope is not `memory_only` is refused
+  (`hydrate_cache_scope_invalid`); an instance/epoch change resets the scope cache
+  (`hydrate_scope_reset`); history pages are deduplicated and bounded per session
+  (`MAX_HISTORY_CACHE_ENTRIES=256`) and across sessions (`MAX_HISTORY_SESSIONS=8`,
+  `evictHistorySessions`).
+- loading/empty/partial/limited/ready/offline stay explicit: the hydrate and history status lines
+  report the server status, `limited`/`offline` are visible, and an empty reply is never rendered as
+  a missing session.
+
+Acceptance fixtures (deny-first first):
+
+| Fixture | Assertion |
+|---|---|
+| `ui17_bootstrap_hydrates_before_feed_and_matches_the_cli_parity_snapshot` | real loopback router over a seeded ledger: hydrate schema/tab/cache/instance/epoch/cursor, the 3-step trace, a closed historical lease, an empty live session that stays `empty`, `session_unknown` for an unknown id, and re-hydrated status matching the CLI parity projection (`EntryPointKind::Cli`) field by field |
+| `ui17_history_pages_follow_one_server_cursor_and_refuse_replay_and_foreign_tabs` | `partial` → `ready` pagination by one server cursor; foreign tab → `web_page_cursor_scope_mismatch`; wrong limit → `web_page_cursor_limit_mismatch` without burning the cursor; replay → `web_page_cursor_replayed`; a cursor issued before a new committed action is refused |
+| `ui17_artifact_page_is_run_scoped_and_never_returns_bytes` | server refs only (`content: null`), run/session-scoped enumeration, explicit `empty` for a non-matching ref, multi-session hydrate and per-session pages |
+| `ui17_source_change_fence_rejects_a_cursor_that_moved_mid_read` | `ensure_page_source_unchanged` accepts the current identity and refuses a stale epoch/cursor, including one that a real committed turn moved |
+| `ui17_fixture_binds_hydrate_cache_and_page_cursor_contract` | declarative fixture ↔ server/browser constants, routes, deny codes, browser markers and forbidden persisted state |
+| `ui17_page_hydrates_before_feed_and_keeps_cache_tab_scoped` | page order (snapshot → feed → render), trace order, credential-free trace body, tab-scoped/bounded cache |
+| `ui17_runtime_fixtures_are_wired_to_the_web_module` / `ui17_completion_slice_stays_wired_to_the_fixture_lane_and_shard` | runtime fixture names ↔ `web.rs`, required markers ↔ this baseline, lane commands and the whole-crate `kiana-entrypoints` shard |
+
+Required markers (bound by the declarative fixture and `ui17_web_hydrate_guard.rs`):
+
+- snapshot first, feed after hydrate
+- server cursor pages are single-use
+- a known empty session is not a missing session
+- the hydrate trace is bounded and credential-free
+- tab-local caches are bounded and memory-only
+- visible loading/empty/partial/limited/offline states
+- re-hydrated status matches the CLI parity projection
+- no second execution path
+
+CI wiring: manual `.github/workflows/ui17-web-hydrate.yml` (`workflow_dispatch`-only,
+`permissions: contents: read`) runs `cargo fetch --locked`, the `cargo fmt --all --check` gate, the
+`ui17_web_hydrate` / `ui17_web_hydrate_guard` targets, the `web::tests::ui17_` loopback fixtures and
+`cargo test -p kiana-entrypoints --no-run --locked`. The automatic gate remains the unified
+`ci.yml` `kiana-entrypoints` whole-crate shard (`scripts/ci/test-shards.json` unchanged), which
+discovers the new targets without a second dispatch. There is no second execution path: the
+hydrate/history/artifact handlers stay read-only projections over the existing
+`DaemonHost → ControlPlane → Broker → EventStore` spine.
+
+Status: the UI-17 card exits are covered at the source level and the fixtures are wired to CI, so
+the roadmap row moves 🔄 → ✅ (CI pending, receipt not awaited). `proof_level` stays `source`.
+
+Limitations: the runtime fixtures run only on the CI Linux loopback process — no real browser
+matrix, no durable cross-process cursor/cache, no artifact bytes or filesystem freshness proof, no
+live provider/transport/physical evidence. The browser trace/order guarantees are source-level
+bindings, not a browser execution receipt. CI results are not awaited.
