@@ -88,7 +88,8 @@ pub use evidence::{
 pub use experiment::{
     replay_experiment, EvalExperiment, EvalResultIndex, ExperimentEvent, ExperimentEventKind,
     ExperimentReplayError, ExperimentReplayEvaluator, ExperimentReplayInput, ExperimentStatus,
-    EXPERIMENT_REPLAY_EVALUATOR_ID, EXPERIMENT_REPLAY_INPUT_SCHEMA,
+    EXPERIMENT_EVENT_SCHEMA, EXPERIMENT_REPLAY_EVALUATOR_ID, EXPERIMENT_REPLAY_INPUT_SCHEMA,
+    EXPERIMENT_SCHEMA, MAX_EXPERIMENT_EVENTS, MAX_EXPERIMENT_TEXT_BYTES,
 };
 pub use fixtures::{
     core_negative_fixture_matrix, validate_core_negative_fixture_matrix, FixtureError,
