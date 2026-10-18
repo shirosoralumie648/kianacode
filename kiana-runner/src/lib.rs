@@ -8,7 +8,7 @@
 //! 脚本和 fake provider 可证明本地行为，不代表已验证 live provider 或 UI token
 //! streaming。`reference/` 仅供审计对照，不是 workspace 成员或运行时依赖。
 //!
-//! ## 13 个私有模块
+//! ## 14 个私有模块
 //!
 //! 模块路径保持私有；下方 `pub use` 集中导出类型、函数和常量。内部可以调整文件组织，
 //! 但导出签名、协议字段和可观察行为仍需保持兼容。
@@ -28,6 +28,7 @@
 //! | `retry` | 重试条件、次数/deadline 检查与退避计算，不另起重试循环 |
 //! | `tool_batch_scheduler` | 有界并行只读组与独占屏障的批次执行器；只调度调用方闭包，不执行工具 |
 //! | `protocol_runner` | 无状态命令到事件的 helper；不调用 `KianaHarness` |
+//! | `signal` | 纯 pause/resume 边界：把已提交 signal 事实折叠成模型循环下一步动作；不发起模型/工具调用 |
 //!
 //! ## 阅读顺序与依赖
 //!
@@ -51,6 +52,7 @@ mod model;
 mod progress;
 mod protocol_runner;
 mod retry;
+mod signal;
 mod state_driver;
 mod step_context;
 mod stream_normalizer;
@@ -123,6 +125,13 @@ pub use progress::{
 // Cancel 报取消；CapabilityResult 只按传入结果回传。它不调用模型，不做 wire 反序列化，
 // 不持有运行状态，也不代替 KianaHarness 的 RunnerPort 实现。
 pub use protocol_runner::ProtocolRunner;
+
+// ■ pause/resume 边界
+// fold 是纯函数：比较 runner 身份与已提交 signal 事实的 execution/owner/definition/action/path、
+// 序号连续性、状态转移白名单、authority epoch 与 checkpoint 绑定，输出 Continue/Hold/Resume/Closed。
+// Hold/Closed 时 model_calls_permitted 为 false；模块不发起模型请求、不执行工具、不消费审批、
+// 不创建 checkpoint，也不授予任何授权。失败返回稳定静态错误码，调用方必须按不放行处理。
+pub use signal::{RunnerSignalDirective, RunnerSignalGate, RunnerSignalIdentity};
 
 // ■ 状态机
 // transition 接收旧帧与输入，返回新帧及意图；RunDriver 的便捷方法更新帧并丢弃意图列表，

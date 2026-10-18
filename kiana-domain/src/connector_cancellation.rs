@@ -9,6 +9,13 @@
 //! `validate_for_stop_report`, so an unconfirmed stop can never be recorded as `NotExecuted` or
 //! `StopConfirmed`, a started effect can never release its lease, and the typed `ConnectorLateResult`
 //! envelope is fenced for every terminal settlement with invocation/attempt/time binding.
+//!
+//! The completion slice adds the durable [`ConnectorCancellationRecord`]: a cancellation has no
+//! constructor without a [`StopReport`], `reconstruct_outcome` re-derives the terminal
+//! `not_executed` / `stop_confirmed` / `unknown` state from the lifecycle and that report instead of
+//! trusting the stored settlement, and a late provider result can only be recorded as
+//! [`ConnectorLateResultDisposition::Fenced`] evidence — it can never move the terminal state, the
+//! lease settlement or the settlement digest.
 
 use crate::{
     json_digest, ConnectorDispatchLifecycle, ConnectorDispatchStage, InvocationId,
@@ -20,6 +27,7 @@ use serde_json::json;
 pub const CONNECTOR_CANCELLATION_SCHEMA: &str = "kiana.connector-cancellation-settlement.v1";
 pub const CONNECTOR_LEASE_SETTLEMENT_SCHEMA: &str = "kiana.connector-lease-settlement.v1";
 pub const CONNECTOR_LATE_RESULT_SCHEMA: &str = "kiana.connector-late-result.v1";
+pub const CONNECTOR_CANCELLATION_RECORD_SCHEMA: &str = "kiana.connector-cancellation-record.v1";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -119,6 +127,173 @@ impl ConnectorLateResult {
             return Err("connector_late_result_invalid".to_owned());
         }
         Ok(())
+    }
+}
+
+/// The only possible disposition of a late provider result: fenced evidence.
+///
+/// A terminal settlement has exactly one answer to "may this result move the attempt?".  Making
+/// any other answer unrepresentable is stronger than rejecting it at runtime, so the enum carries
+/// a single variant.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectorLateResultDisposition {
+    Fenced,
+}
+
+/// The durable cancellation record of one connector attempt.
+///
+/// A cancellation cannot be recorded without the stop evidence that produced it: the record carries
+/// the [`StopReport`], and every validation re-derives the settlement from the lifecycle and that
+/// report.  A started effect keeps its lease held unless a confirmed stop was recorded before any
+/// effect could start, and every late provider result is retained only as fenced evidence.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorCancellationRecord {
+    pub schema: String,
+    pub settlement: ConnectorCancellationSettlement,
+    pub stop_report: StopReport,
+    pub fenced_late_results: Vec<ConnectorLateResult>,
+    pub record_digest: String,
+}
+
+impl ConnectorCancellationRecord {
+    /// Build the record from the server-owned stop evidence of one attempt.
+    ///
+    /// There is no constructor that takes a lifecycle alone or a caller-declared cancellation
+    /// state, so "cancelled without a stop" cannot be recorded: an unconfirmed report settles as
+    /// `Unknown` with the lease held, and a started effect can never release its lease.
+    pub fn from_stop_report(
+        lifecycle: &ConnectorDispatchLifecycle,
+        permit_digest: impl Into<String>,
+        lease_digest: impl Into<String>,
+        report: &StopReport,
+        requested_at_unix_ms: u64,
+        settled_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let settlement = ConnectorCancellationSettlement::from_stop_report(
+            lifecycle,
+            permit_digest,
+            lease_digest,
+            report,
+            requested_at_unix_ms,
+            settled_at_unix_ms,
+        )?;
+        let mut record = Self {
+            schema: CONNECTOR_CANCELLATION_RECORD_SCHEMA.to_owned(),
+            settlement,
+            stop_report: report.clone(),
+            fenced_late_results: Vec::new(),
+            record_digest: String::new(),
+        };
+        record.record_digest = record.digest();
+        record.validate()?;
+        Ok(record)
+    }
+
+    /// Reconstruct the terminal outcome of the settled attempt from server-owned evidence.
+    ///
+    /// This is the single reconstruction entry point: the lifecycle and the stored stop report are
+    /// re-read, the outcome is re-derived from them, and the stored settlement must be exactly that
+    /// outcome, so the returned state and lease settlement are reconstructed rather than remembered.
+    /// A record that drifted from its attempt, claimed a stop that the report does not confirm, or
+    /// released the lease of a started effect is refused here.
+    pub fn reconstruct_outcome(
+        &self,
+        lifecycle: &ConnectorDispatchLifecycle,
+    ) -> Result<(ConnectorCancellationState, ConnectorLeaseSettlement), String> {
+        self.validate_for_lifecycle(lifecycle)?;
+        let outcome = expected_settlement(lifecycle, &self.stop_report)?;
+        if self.settlement.state != outcome.0 || self.settlement.lease_settlement != outcome.1 {
+            return Err("connector_cancellation_settlement_mismatch".to_owned());
+        }
+        Ok(outcome)
+    }
+
+    /// Validate the record against the lifecycle it claims to settle.
+    pub fn validate_for_lifecycle(
+        &self,
+        lifecycle: &ConnectorDispatchLifecycle,
+    ) -> Result<(), String> {
+        self.validate()?;
+        self.settlement.validate_for_lifecycle(lifecycle)?;
+        if self.stop_report.execution_id != lifecycle.invocation_id.to_string() {
+            return Err("connector_cancellation_stop_report_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// Record a late provider result as fenced evidence.
+    ///
+    /// The result must be addressed to this settled attempt and must have arrived after the
+    /// settlement; anything else is a structured refusal.  The only disposition is `Fenced`, so
+    /// recording keeps evidence and never moves the terminal state, the lease settlement or the
+    /// settlement digest.
+    pub fn record_late_result(
+        &mut self,
+        result: ConnectorLateResult,
+    ) -> Result<ConnectorLateResultDisposition, String> {
+        self.validate()?;
+        let disposition = self.settlement.late_result_disposition(&result)?;
+        self.fenced_late_results.push(result);
+        self.record_digest = self.digest();
+        self.validate()?;
+        Ok(disposition)
+    }
+
+    /// A late result that is not addressed to this settled attempt or arrived before it was
+    /// settled cannot even be kept as fenced evidence.
+    fn validate_fenced_late_results(
+        &self,
+        invocation_id: InvocationId,
+        attempt: u32,
+        settled_at_unix_ms: u64,
+    ) -> Result<(), String> {
+        for result in &self.fenced_late_results {
+            result.validate()?;
+            if result.invocation_id != invocation_id {
+                return Err("connector_cancellation_late_result_invocation_mismatch".to_owned());
+            }
+            if result.attempt != attempt {
+                return Err("connector_cancellation_late_result_attempt_mismatch".to_owned());
+            }
+            if result.observed_at_unix_ms < settled_at_unix_ms {
+                return Err("connector_cancellation_late_result_not_late".to_owned());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != CONNECTOR_CANCELLATION_RECORD_SCHEMA || !valid_digest(&self.record_digest)
+        {
+            return Err("connector_cancellation_record_invalid".to_owned());
+        }
+        self.settlement.validate()?;
+        self.stop_report.validate()?;
+        if self.settlement.stop_report_digest != self.stop_report.report_digest
+            || self.settlement.invocation_id.to_string() != self.stop_report.execution_id
+        {
+            return Err("connector_cancellation_stop_report_mismatch".to_owned());
+        }
+        self.validate_fenced_late_results(
+            self.settlement.invocation_id,
+            self.settlement.attempt,
+            self.settlement.settled_at_unix_ms,
+        )?;
+        if self.record_digest != self.digest() {
+            return Err("connector_cancellation_record_digest_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "settlement": &self.settlement,
+            "stop_report": &self.stop_report,
+            "fenced_late_results": &self.fenced_late_results,
+        }))
     }
 }
 
@@ -227,6 +402,20 @@ impl ConnectorCancellationSettlement {
     /// terminal settlement. Identity and arrival bind the envelope to this attempt before the fence
     /// verdict is returned.
     pub fn fence_late_result(&self, result: &ConnectorLateResult) -> Result<(), String> {
+        self.late_result_disposition(result)?;
+        Err("connector_cancellation_late_result_fenced".to_owned())
+    }
+
+    /// The disposition of a late provider result addressed to this attempt.
+    ///
+    /// A result that is not addressed to this settled attempt (invocation, attempt, arrival time)
+    /// is refused with a structured reason; every result that is addressed to it is `Fenced`.
+    /// There is no accepted answer, so accepting a recorded late result can never resurrect the
+    /// attempt or release its lease.
+    pub fn late_result_disposition(
+        &self,
+        result: &ConnectorLateResult,
+    ) -> Result<ConnectorLateResultDisposition, String> {
         self.validate()?;
         result.validate()?;
         if result.invocation_id != self.invocation_id {
@@ -238,7 +427,10 @@ impl ConnectorCancellationSettlement {
         if result.observed_at_unix_ms < self.settled_at_unix_ms {
             return Err("connector_cancellation_late_result_not_late".to_owned());
         }
-        self.reject_late_result(&result.result_digest)
+        if !self.late_result_fenced {
+            return Err("connector_cancellation_settlement_invalid".to_owned());
+        }
+        Ok(ConnectorLateResultDisposition::Fenced)
     }
 
     pub fn reject_late_result(&self, result_digest: &str) -> Result<(), String> {
@@ -321,10 +513,18 @@ fn expected_settlement(
             ConnectorCancellationState::NotExecuted,
             ConnectorLeaseSettlement::Released,
         )),
-        ConnectorDispatchStage::Dispatching => Ok((
-            ConnectorCancellationState::StopConfirmed,
-            ConnectorLeaseSettlement::HeldForReconciliation,
-        )),
+        ConnectorDispatchStage::Dispatching => {
+            // A started effect can only be called stopped when a stop signal was actually
+            // recorded.  A "confirmed" report without any stop attempt is incomplete evidence:
+            // claiming a stop that never happened is refused instead of releasing the lease.
+            if !(report.term_sent || report.kill_sent) {
+                return Err("connector_cancellation_stop_attempt_missing".to_owned());
+            }
+            Ok((
+                ConnectorCancellationState::StopConfirmed,
+                ConnectorLeaseSettlement::HeldForReconciliation,
+            ))
+        }
         ConnectorDispatchStage::Observed
         | ConnectorDispatchStage::ResultCommitted
         | ConnectorDispatchStage::Unknown => {

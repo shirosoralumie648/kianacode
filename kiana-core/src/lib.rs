@@ -149,6 +149,7 @@ mod model_attempt_projection;
 mod notification_action;
 mod notification_delivery;
 mod notification_external;
+mod notification_fault_harness;
 mod notification_faults;
 mod notification_materializer;
 mod notification_parity;
@@ -246,7 +247,9 @@ pub use automation_retry_attempt::{
     AUTOMATION_RETRY_COMMAND_NOT_FAILED, AUTOMATION_RETRY_COMMAND_OUTCOME_UNKNOWN,
     AUTOMATION_RETRY_COMMAND_REQUEST_SCHEMA, AUTOMATION_RETRY_COMMAND_SUCCEEDED,
 };
-pub use automation_signal::validate_automation_signal_fact;
+pub use automation_signal::{
+    apply_automation_signal, validate_automation_signal_fact, AutomationSignalOutcome,
+};
 pub use automation_snapshot::validate_automation_snapshot;
 pub use automation_surface_uat::validate_automation_surface_uat;
 pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
@@ -384,6 +387,11 @@ pub use notification_external::{
     admit_external_notification, observe_external_notification_receipt,
     ExternalNotificationAdmission, ExternalNotificationDisposition,
     ExternalNotificationReceiptObservation,
+};
+pub use notification_fault_harness::{
+    Nm20FaultCase, Nm20FaultFamily, Nm20FaultHarnessRun, Nm20FaultObservation, Nm20FaultSeam,
+    Nm20LibrarySeam, NM20_FAULT_CASES_SCHEMA, NM20_FAULT_HARNESS_SCHEMA, NM20_FAULT_MAX_CASES,
+    NM20_FAULT_MAX_TEXT_BYTES,
 };
 pub use notification_faults::{
     notification_fault_matrix, NotificationFaultCase, NotificationFaultDisposition,

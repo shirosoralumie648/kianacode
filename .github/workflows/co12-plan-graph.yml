@@ -17,9 +17,19 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
       - name: Run kiana-core co12_plan_graph_guard
         run: cargo test -p kiana-core --test co12_plan_graph_guard --locked -- --test-threads=1
       - name: Run kiana-domain co12_plan_graph
         run: cargo test -p kiana-domain --test co12_plan_graph --locked -- --test-threads=1
+      - name: Run kiana-daemon co12_plan_graph_transactions
+        run: cargo test -p kiana-daemon --test co12_plan_graph_transactions --locked -- --test-threads=1
+      - name: Compile kiana-core co12_plan_graph_guard target
+        run: cargo test -p kiana-core --test co12_plan_graph_guard --no-run --locked
+      - name: Compile kiana-domain co12_plan_graph target
+        run: cargo test -p kiana-domain --test co12_plan_graph --no-run --locked
+      - name: Compile kiana-daemon co12_plan_graph_transactions target
+        run: cargo test -p kiana-daemon --test co12_plan_graph_transactions --no-run --locked

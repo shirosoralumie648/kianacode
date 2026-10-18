@@ -49,8 +49,10 @@ pub use baseline::{
     BASELINE_REGISTRY_SCHEMA, MAX_BASELINE_ENTRIES, MAX_BASELINE_TEXT_BYTES, MAX_BASELINE_TTL_MS,
 };
 pub use candidate::{
+    evaluate_candidate_admission, CandidateAdmissionEvaluator, CandidateAdmissionInput,
     CandidateDimension, CandidateEvaluator, CandidateInput, CandidateStatus, QualityCandidate,
-    CANDIDATE_EVALUATOR_ID, CANDIDATE_INPUT_SCHEMA,
+    CANDIDATE_ADMISSION_EVALUATOR_ID, CANDIDATE_ADMISSION_INPUT_SCHEMA, CANDIDATE_EVALUATOR_ID,
+    CANDIDATE_INPUT_SCHEMA, CANDIDATE_SCHEMA, MAX_CANDIDATE_DIMENSIONS, MAX_CANDIDATE_TEXT_BYTES,
 };
 pub use canonical::{
     canonical_json, ArrayPolicy, CanonicalEvent, CanonicalEventTrace, CanonicalizationError,

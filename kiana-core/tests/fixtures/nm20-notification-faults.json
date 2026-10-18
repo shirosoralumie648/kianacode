@@ -21,5 +21,37 @@
     "secret_sentinel_quarantine",
     "projection_loss_rebuild_required"
   ],
+  "harness_schema": "kiana.nm20-fault-harness-run.v1",
+  "harness_cases": [
+    "duplicate_replay",
+    "cursor_regression",
+    "cursor_gap",
+    "lease_reclaim_fence",
+    "disk_full_write_refusal",
+    "secret_sentinel",
+    "projection_loss",
+    "critical_query_fallback",
+    "crash_after_claim",
+    "bounded_queue_shed",
+    "slow_subscriber",
+    "multi_subscriber_isolation"
+  ],
+  "harness_families": [
+    "duplicate",
+    "out_of_order",
+    "cursor_gap",
+    "crash_window",
+    "slow_consumer",
+    "queue_full",
+    "disk_full",
+    "secret_sentinel",
+    "projection_loss"
+  ],
+  "seam_split": [
+    "kiana-core tests: ten cases (library + EventLog adapter)",
+    "kiana-daemon tests: ten cases (library + channel/UI bridge)",
+    "slow_subscriber and multi_subscriber_isolation are driven by the daemon bridge target",
+    "crash_after_claim and bounded_queue_shed are driven by the EventLog outbox store target"
+  ],
   "proof_ceiling": "source"
 }

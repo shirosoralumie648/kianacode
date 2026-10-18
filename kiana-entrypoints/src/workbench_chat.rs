@@ -38,12 +38,16 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::harness_run;
+use crate::notification_cli::{
+    self, CliApprovalBinding, CliInboxIntent, CliInboxRoute, CliInboxVerb, CliNotificationView,
+    CliSessionBadgeView,
+};
 use crate::tty_input::{InputTransition, TtyInputState};
 use crate::workbench::WORKBENCH_USAGE;
 use crate::workbench_render::{TimelineDisplayRole, TimelineRenderer};
 
 const SLASH_HELP: &str =
-    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /connector-health <binding_id>  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /approve <id>  /deny <id>  /resume  /command name JSON  /cancel  /quit";
+    "Slash: /trust  /sandbox read-only|workspace-write  /receipt  /parity  /connector-health <binding_id>  /extensions [list|search <query>|inspect <id>]  /governance <project_id>  /approvals  /inbox  /read <id>  /ack <id>  /approve <id>  /deny <id>  /review <id>  /reconcile <id>  /snooze <id>  /resume  /command name JSON  /cancel  /quit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRole {
@@ -115,6 +119,17 @@ pub enum ChatAction {
         id: String,
         approve: bool,
     },
+    /// Display the server-issued inbox page for this session (read-only).
+    Inbox,
+    /// Presentation-only read state for one inbox row; never consumes the action.
+    InboxRead {
+        target: String,
+    },
+    /// A registered inbox action candidate; the ControlPlane re-admits it.
+    InboxAction {
+        verb: CliInboxVerb,
+        target: String,
+    },
     Resume,
     Command {
         name: String,
@@ -151,6 +166,9 @@ pub struct WorkbenchView {
     last_terminal: Option<(RunId, ExecutionStatus)>,
     last_status: Option<ExecutionStatus>,
     stream_cursor: UiCursor,
+    /// 本 CLI 进程持有的服务端 inbox 路由（每个 session 一条），用于把 `/read`、`/ack`、
+    /// `/approve` 等动作绑定到服务端页面/挑战；它们不是事实源，重新启动即重建。
+    inbox_routes: Vec<CliInboxRoute>,
 }
 
 impl WorkbenchView {
@@ -169,11 +187,75 @@ impl WorkbenchView {
             last_terminal: None,
             last_status: None,
             stream_cursor: UiCursor::default(),
+            inbox_routes: Vec::new(),
         };
         view.push_system(format!(
             "Conversation surface on DaemonHost. {SLASH_HELP}. Esc/Ctrl-C cancels a running turn."
         ));
         view
+    }
+
+    /// Upsert the server-issued inbox route for one CLI session.
+    ///
+    /// 路由只能来自服务端页面（`CliInboxRoute::from_view`）或服务端待批列表；超过
+    /// `CLI_INBOX_MAX_SESSIONS` 时不再记录，避免把本地列表当成无界状态。
+    pub fn set_inbox_route(&mut self, route: CliInboxRoute) {
+        match self
+            .inbox_routes
+            .iter_mut()
+            .find(|existing| existing.session_id == route.session_id)
+        {
+            Some(existing) => *existing = route,
+            None if self.inbox_routes.len() < notification_cli::CLI_INBOX_MAX_SESSIONS => {
+                self.inbox_routes.push(route);
+            }
+            None => {}
+        }
+    }
+
+    /// Store the server-issued approval challenges just listed for this session.
+    pub fn set_inbox_approvals(&mut self, session_id: &str, approvals: Vec<CliApprovalBinding>) {
+        if let Some(existing) = self
+            .inbox_routes
+            .iter_mut()
+            .find(|route| route.session_id == session_id)
+        {
+            existing.approvals = approvals;
+            return;
+        }
+        if self.inbox_routes.len() >= notification_cli::CLI_INBOX_MAX_SESSIONS {
+            return;
+        }
+        if let Ok(mut route) = CliInboxRoute::for_session(session_id) {
+            route.approvals = approvals;
+            self.inbox_routes.push(route);
+        }
+    }
+
+    pub fn inbox_route(&self, session_id: &str) -> Option<&CliInboxRoute> {
+        self.inbox_routes
+            .iter()
+            .find(|route| route.session_id == session_id)
+    }
+
+    pub fn inbox_routes(&self) -> &[CliInboxRoute] {
+        &self.inbox_routes
+    }
+
+    /// Plan one already-parsed inbox intent for the active session, or refuse with a stable code.
+    ///
+    /// 这是 CLI/TTY 动作的唯一入口：伪造 scope、别的 session、以及把已读当成决定都会在这里
+    /// 被拒绝，绝不落到 daemon。
+    fn plan_inbox(
+        &self,
+        session_id: &str,
+        intent: &CliInboxIntent,
+    ) -> std::result::Result<notification_cli::CliInboxPlan, String> {
+        if let Some(route) = self.inbox_route(session_id) {
+            return notification_cli::plan_cli_inbox_intent(route, session_id, intent);
+        }
+        let route = CliInboxRoute::for_session(session_id)?;
+        notification_cli::plan_cli_inbox_intent(&route, session_id, intent)
     }
 
     /// 生成可扫描的状态栏文本。
@@ -241,14 +323,14 @@ impl WorkbenchView {
                 }
                 "extension" | "extensions" => interpret_extensions(args),
                 "approvals" => ChatAction::Approvals,
-                "inbox" => ChatAction::Command {
-                    name: "human.inbox".to_owned(),
-                    arguments: serde_json::json!({}),
-                },
-                "approve" | "deny" if !args.trim().is_empty() => ChatAction::Approval {
-                    id: args.trim().to_owned(),
-                    approve: name == "approve",
-                },
+                "inbox" if args.trim().is_empty() => ChatAction::Inbox,
+                "approve" | "deny" if !args.trim().is_empty() => interpret_inbox_line(name, args),
+                "read" | "ack" | "acknowledge" | "review" | "reconcile" | "snooze" | "escalate"
+                | "delegate" | "withdraw"
+                    if !args.trim().is_empty() =>
+                {
+                    interpret_inbox_line(name, args)
+                }
                 "resume" => ChatAction::Resume,
                 "command" => {
                     let (name, arguments) = args.split_once(' ').unwrap_or((args, "{}"));
@@ -555,6 +637,52 @@ fn interpret_sandbox(args: &str) -> ChatAction {
     }
 }
 
+/// 把一行 inbox 动作文本交给共享的 CLI/TTY 路由解析。
+///
+/// 解析是唯一入口：`parse_cli_inbox_line` 会先拒绝伪造的 scope（多余 token、`key=value`、
+/// `--flag`、`scope:` 前缀），再按 verb 分派；这里不构造任何权限材料，也不提交动作。
+fn interpret_inbox_line(name: &str, args: &str) -> ChatAction {
+    let line = format!("/{name} {}", args.trim());
+    match notification_cli::parse_cli_inbox_line(&line) {
+        Ok(CliInboxIntent::Act {
+            verb: CliInboxVerb::Read,
+            target,
+        }) => ChatAction::InboxRead { target },
+        Ok(CliInboxIntent::Act { verb, target }) if verb.is_approval_decision() => {
+            ChatAction::Approval {
+                id: target,
+                approve: verb == CliInboxVerb::Approve,
+            }
+        }
+        Ok(CliInboxIntent::Act { verb, target }) => ChatAction::InboxAction { verb, target },
+        Ok(_) => ChatAction::Error(notification_cli::CLI_INBOX_PLAN_INVALID.to_owned()),
+        Err(error) => ChatAction::Error(error),
+    }
+}
+
+/// Render the multi-session badges from the pages this CLI holds.
+///
+/// The server clock comes from a bound page (the daemon binds it when it builds the page); this
+/// entrypoint has no clock of its own and refuses to invent one. Routes that do not hold a page
+/// (approval-only routes) take no part in the badges.
+fn render_badges_for_view(
+    view: &WorkbenchView,
+    active_session_id: &str,
+) -> std::result::Result<CliSessionBadgeView, String> {
+    let routes: Vec<CliInboxRoute> = view
+        .inbox_routes
+        .iter()
+        .filter(|route| route.has_page())
+        .cloned()
+        .collect();
+    let server_time_unix_ms = routes
+        .iter()
+        .filter_map(|route| route.server_time_unix_ms)
+        .max()
+        .ok_or_else(|| notification_cli::CLI_INBOX_SERVER_TIME_REQUIRED.to_owned())?;
+    notification_cli::present_session_badges(active_session_id, server_time_unix_ms, &routes)
+}
+
 /// 将用户友好的沙箱别名规范化为 runner 协议使用的名称。
 ///
 /// 只接受 `read-only` 和 `workspace-write` 两个档位；明确拒绝
@@ -734,6 +862,12 @@ pub async fn run(
                     if let InputTransition::Rejected(code) = input.eof() {
                         view.push_system(code);
                     }
+                    // 连接结束是 detach，不是 cancel/resume：只提示重新查询原始事实，
+                    // 绝不隐式结束或恢复任何运行。
+                    match view.plan_inbox(&session_id, &CliInboxIntent::Detach) {
+                        Ok(plan) => view.push_system(plan.describe()),
+                        Err(error) => view.push_system(error),
+                    }
                     break;
                 };
                 let Ok(event) = event else { continue };
@@ -890,6 +1024,78 @@ async fn handle_action(
             view.push_system(serde_json::to_string_pretty(&projection)?);
             Ok(LoopControl::Continue)
         }
+        ChatAction::Inbox => {
+            // 服务端页面是唯一来源：行、cursor、page digest 全部来自 daemon 的
+            // committed-only 投影；本入口只渲染，不提交、不改状态。
+            let page = host
+                .notification_page(
+                    notification_cli::CLI_NOTIFICATION_MAX_ITEMS as u16,
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|error| anyhow!("{}", error))?;
+            let value = serde_json::to_value(&page)?;
+            let presented =
+                notification_cli::present_notification_page(&value).map_err(anyhow::Error::msg)?;
+            let route =
+                CliInboxRoute::from_view(session_id, &presented).map_err(anyhow::Error::msg)?;
+            let lines = notification_cli::render_inbox_lines(&presented);
+            view.set_inbox_route(route);
+            match render_badges_for_view(view, session_id) {
+                Ok(badge_view) => {
+                    for line in notification_cli::render_badge_lines(&badge_view) {
+                        view.push_system(line);
+                    }
+                }
+                Err(error) => view.push_system(error),
+            }
+            for line in lines {
+                view.push_system(line);
+            }
+            view.push_system(
+                "/read <id> 只看；动作必须来自服务端页面（/ack /approve /deny /review /reconcile）。"
+                    .to_owned(),
+            );
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::InboxRead { target } => {
+            let intent = CliInboxIntent::Act {
+                verb: CliInboxVerb::Read,
+                target,
+            };
+            match view.plan_inbox(session_id, &intent) {
+                Ok(plan) => {
+                    // 读是展示状态：本入口没有写 read-state 的 daemon 路由，所以既不写也不
+                    // 消费动作，只把计划的边界说清楚。
+                    view.push_system(plan.describe());
+                    view.push_system(
+                        "server read-state route is not wired in this entrypoint; nothing changed"
+                            .to_owned(),
+                    );
+                }
+                Err(error) => view.push_system(error),
+            }
+            Ok(LoopControl::Continue)
+        }
+        ChatAction::InboxAction { verb, target } => {
+            let intent = CliInboxIntent::Act { verb, target };
+            match view.plan_inbox(session_id, &intent) {
+                Ok(plan) => {
+                    // 候选动作必须由 ControlPlane 重新准入；本入口不自己执行，也不自己记账。
+                    view.push_system(format!(
+                        "{} (candidate only; not submitted)",
+                        plan.describe()
+                    ));
+                    view.push_system(
+                        "notification action submission route is not wired in this entrypoint yet"
+                            .to_owned(),
+                    );
+                }
+                Err(error) => view.push_system(error),
+            }
+            Ok(LoopControl::Continue)
+        }
         ChatAction::Approvals => {
             let response = harness_run::pending_approvals_envelope_on_host(
                 host.clone(),
@@ -898,6 +1104,16 @@ async fn handle_action(
                 options,
             )
             .await?;
+            let mut bindings = Vec::new();
+            if response.status == ExecutionStatus::Completed {
+                match CliApprovalBinding::from_listing(&response.output) {
+                    Ok(parsed) => bindings = parsed,
+                    Err(error) => view.push_system(error),
+                }
+            }
+            let pending = bindings.len();
+            view.set_inbox_approvals(session_id, bindings);
+            view.push_system(format!("pending approvals: {pending}"));
             view.push_system(serde_json::to_string_pretty(&response.output)?);
             view.push_system("/approve <approval_id> 或 /deny <approval_id>；重启后先 /resume。");
             Ok(LoopControl::Continue)
@@ -954,22 +1170,62 @@ async fn handle_action(
                 options,
             )
             .await?;
-            let decision = if approve { "approve" } else { "deny" };
+            // 服务端投影是唯一的审批绑定来源：先把本次列出的挑战解析成服务端签发的绑定并
+            // 过共享规划器，再谈提交。伪造的 id、未提供的决定和漂移的请求摘要都在这里被
+            // 拒绝，绝不带着自造的审批材料落到 daemon。
+            let bindings = match CliApprovalBinding::from_listing(&listed.output) {
+                Ok(bindings) => bindings,
+                Err(error) => {
+                    view.push_system(error);
+                    return Ok(LoopControl::Continue);
+                }
+            };
+            view.set_inbox_approvals(session_id, bindings);
+            let verb = if approve {
+                CliInboxVerb::Approve
+            } else {
+                CliInboxVerb::Deny
+            };
+            let planned_hash = match view.plan_inbox(
+                session_id,
+                &CliInboxIntent::Act {
+                    verb,
+                    target: id.clone(),
+                },
+            ) {
+                Ok(notification_cli::CliInboxPlan::Approval { request_hash, .. }) => request_hash,
+                Ok(_) => {
+                    view.push_system(notification_cli::CLI_INBOX_PLAN_INVALID.to_owned());
+                    return Ok(LoopControl::Continue);
+                }
+                Err(error) => {
+                    view.push_system(format!("{error}：刷新 /approvals 后重试。"));
+                    return Ok(LoopControl::Continue);
+                }
+            };
             let entry = listed.output["approvals"].as_array().and_then(|items| {
-                items.iter().find(|item| {
-                    item["challenge"]["approval_id"].as_str() == Some(id.as_str())
-                        && item["available_decisions"]
-                            .as_array()
-                            .is_some_and(|decisions| {
-                                decisions.iter().any(|item| item.as_str() == Some(decision))
-                            })
-                })
+                items
+                    .iter()
+                    .find(|item| item["challenge"]["approval_id"].as_str() == Some(id.as_str()))
             });
             let Some(entry) = entry else {
-                view.push_system("approval_not_available：刷新 /approvals 后重试。");
+                view.push_system(format!(
+                    "{}：刷新 /approvals 后重试。",
+                    notification_cli::CLI_INBOX_ACTION_NOT_IN_PROJECTION
+                ));
                 return Ok(LoopControl::Continue);
             };
-            let challenge = serde_json::from_value(entry["challenge"].clone())?;
+            let challenge: kiana_protocol::ApprovalChallenge =
+                serde_json::from_value(entry["challenge"].clone())?;
+            if challenge.request_hash != planned_hash {
+                // 规划时绑定的请求摘要必须与即将提交的挑战一致；不一致说明页面在这两步之间
+                // 漂移了，宁可拒绝也不批准一个已经变化的请求。
+                view.push_system(format!(
+                    "{}：approval listing changed; refresh /approvals",
+                    notification_cli::CLI_INBOX_ACTION_NOT_IN_PROJECTION
+                ));
+                return Ok(LoopControl::Continue);
+            }
             let decision = if approve {
                 kiana_protocol::ApprovalDecision::Approve
             } else {

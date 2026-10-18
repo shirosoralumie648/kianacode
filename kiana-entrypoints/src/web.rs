@@ -55,10 +55,13 @@ use kiana_client::web_timeline::{
     WebTimelineMigration, WEB_TIMELINE_RENDERER_TEXT_GUESS, WEB_TIMELINE_RENDERER_TYPED_INLINE,
 };
 use kiana_daemon::{DaemonHost, StreamingRedactor};
+use kiana_domain::SessionId;
 use kiana_protocol::{
     EntryPointKind, ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent,
     SignalStatus, UiAction, UiCursor, UiFeedCursorV1, UiFeedFrameV1, UiInstanceRecord,
-    PROTOCOL_SCHEMA, ROLE_BUILDER,
+    UiTabRelationGraphV1, UiTabRelationKind, UiTabRelationV1, UiTabSessionDisposition,
+    UiTabSessionV1, PROTOCOL_SCHEMA, ROLE_BUILDER, UI_TAB_RELATION_GRAPH_SCHEMA,
+    UI_TAB_SESSION_SCHEMA,
 };
 use kiana_types::{write_project_trust, ProjectTrust};
 use serde::{Deserialize, Serialize};
@@ -117,10 +120,19 @@ const WEB_PAGE_CURSOR_SCHEMA: &str = "kiana.web-page-cursor.v1";
 /// authority; these values only fence tab-local mutable state and replay.
 pub const WEB_TAB_SESSION_SCHEMA: &str = "kiana.ui-tab-session.v1";
 pub const WEB_ACTION_SUBMISSION_SCHEMA: &str = "kiana.ui-action-submission.v1";
+/// Versioned server-owned tab/session relation graph published with every snapshot.
+pub const WEB_TAB_RELATIONS_SCHEMA: &str = "kiana.ui-tab-relations.v1";
+/// Payload binding for the Web action registry: every claimed action id is bound to a canonical
+/// digest of the submitted intent, so an idempotency key can only ever replay the exact request it
+/// was claimed with.  A second payload under one key is refused before any effect.
+pub const WEB_ACTION_PAYLOAD_SCHEMA: &str = "kiana.web-action-payload.v1";
 const MAX_WEB_HISTORY_PAGE: usize = 64;
 const MAX_WEB_PAGE_CURSORS: usize = 256;
 const MAX_WEB_PAGE_CURSOR_BYTES: usize = 256;
 const MAX_WEB_TAB_BYTES: usize = 128;
+/// Bounded roster of tabs the server has observed for one session.  The owner edge is always
+/// retained; older observer edges are evicted first, so a flood of tabs cannot grow the projection.
+const MAX_WEB_SESSION_TABS: usize = 16;
 /// Browser hydrate trace contract.
 ///
 /// The trace is a bounded, credential-free record of the canonical bootstrap order: the first
@@ -647,6 +659,11 @@ pub const WEB_ERROR_MATRIX: &[WebErrorContract] = &[
         class: "conflict",
     },
     WebErrorContract {
+        code: "ui_action_payload_mismatch",
+        status: 409,
+        class: "conflict",
+    },
+    WebErrorContract {
         code: "ui_action_submission_expired",
         status: 409,
         class: "conflict",
@@ -670,6 +687,11 @@ pub const WEB_ERROR_MATRIX: &[WebErrorContract] = &[
         code: "web_session_limit_exceeded",
         status: 409,
         class: "conflict",
+    },
+    WebErrorContract {
+        code: "web_action_replay_unavailable",
+        status: 500,
+        class: "internal",
     },
     WebErrorContract {
         code: "web_action_state_unavailable",
@@ -718,6 +740,11 @@ pub const WEB_ERROR_MATRIX: &[WebErrorContract] = &[
     },
     WebErrorContract {
         code: "web_state_poisoned",
+        status: 500,
+        class: "internal",
+    },
+    WebErrorContract {
+        code: "web_tab_projection_invalid",
         status: 500,
         class: "internal",
     },
@@ -826,6 +853,16 @@ struct WebSession {
     owner_tab_id: Option<String>,
     lease_epoch: u64,
     owner_active: bool,
+    /// Bounded tab/session relation roster.  The owner edge is retained; observer edges are
+    /// dropped oldest-first once the roster is full.
+    tabs: Vec<WebTabRelation>,
+}
+
+#[derive(Clone, Debug)]
+struct WebTabRelation {
+    tab_id: String,
+    relation: UiTabRelationKind,
+    lease_epoch: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -835,6 +872,9 @@ struct WebActionSubmission {
     tab_id: String,
     principal_id: String,
     target_id: String,
+    /// Canonical digest of the submitted intent.  A repeated key with a different payload is
+    /// refused instead of replaying a result that belongs to another request.
+    payload_digest: String,
     created_at: Instant,
     response: Option<Value>,
 }
@@ -1673,6 +1713,56 @@ impl WebApp {
             .load(std::sync::atomic::Ordering::Acquire);
         let lease_owner_tab = owner_tab_id.clone().unwrap_or_else(|| "history".to_owned());
         let lease_disposition = if owner_active { "observer" } else { "closed" };
+        // UI-19: publish the same server-owned lease as a typed, versioned projection.  The legacy
+        // `lease` object stays byte-compatible for existing clients; the typed values are the
+        // reviewed contract a presenter validates before rendering owner-only controls.  The
+        // session-level default is deliberately unbound to a requesting tab: `attach_hydrate_tab`
+        // re-derives it per tab and a closed projection stays closed.
+        let tab_session = UiTabSessionV1 {
+            schema: UI_TAB_SESSION_SCHEMA.to_owned(),
+            principal: self.host.authenticated_principal(),
+            session_id: SessionId::new(session_id),
+            tab_id: lease_owner_tab.clone(),
+            owner_tab_id: lease_owner_tab.clone(),
+            lease_epoch,
+            token_generation,
+            disposition: if owner_active {
+                UiTabSessionDisposition::Observer
+            } else {
+                UiTabSessionDisposition::Closed
+            },
+            feed_only: true,
+        };
+        let tab_edges = current
+            .as_ref()
+            .map(|session| {
+                session
+                    .tabs
+                    .iter()
+                    .map(|tab| UiTabRelationV1 {
+                        tab_id: tab.tab_id.clone(),
+                        relation: tab.relation,
+                        lease_epoch: tab.lease_epoch,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let observers = tab_edges
+            .iter()
+            .filter(|edge| edge.relation == UiTabRelationKind::Observer)
+            .count();
+        let tab_relations = UiTabRelationGraphV1 {
+            schema: UI_TAB_RELATION_GRAPH_SCHEMA.to_owned(),
+            session_id: SessionId::new(session_id),
+            owner_tab_id: owner_tab_id.clone(),
+            lease_epoch,
+            token_generation,
+            max_tabs: MAX_WEB_SESSION_TABS,
+            observers,
+            tabs: tab_edges,
+        };
+        let tab_session_value = encode_tab_projection(&tab_session, tab_session.validate())?;
+        let tab_relations_value = encode_tab_projection(&tab_relations, tab_relations.validate())?;
         let hydrate = json!({
             "schema": WEB_HYDRATE_SCHEMA,
             "instance_id": self.host.feed_instance_id(),
@@ -1733,6 +1823,8 @@ impl WebApp {
                 "disposition": lease_disposition,
                 "feed_only": true
             },
+            "tab_session": tab_session_value,
+            "tab_relations": tab_relations_value,
             "sessions": session_views,
             "threads": threads,
             "thread": thread,
@@ -2362,7 +2454,37 @@ impl WebSession {
             owner_tab_id: None,
             lease_epoch: 1,
             owner_active: true,
+            tabs: Vec::new(),
         }
+    }
+}
+
+/// Record one tab/session edge.  A tab that already owns the lease keeps its owner edge; a tab that
+/// was observed before keeps its original position so the roster stays stable across requests.
+fn register_session_tab(session: &mut WebSession, tab_id: &str, relation: UiTabRelationKind) {
+    if let Some(existing) = session.tabs.iter_mut().find(|tab| tab.tab_id == tab_id) {
+        if relation == UiTabRelationKind::Owner {
+            existing.relation = relation;
+            existing.lease_epoch = session.lease_epoch;
+        }
+        return;
+    }
+    session.tabs.push(WebTabRelation {
+        tab_id: tab_id.to_owned(),
+        relation,
+        lease_epoch: session.lease_epoch,
+    });
+    while session.tabs.len() > MAX_WEB_SESSION_TABS {
+        // The owner edge is the only one that may never be evicted: dropping it would let a later
+        // observer look like the first tab of the session.
+        let Some(index) = session
+            .tabs
+            .iter()
+            .position(|tab| tab.relation == UiTabRelationKind::Observer)
+        else {
+            break;
+        };
+        session.tabs.remove(index);
     }
 }
 
@@ -2466,7 +2588,7 @@ async fn bootstrap(
     let mut snapshot = app.snapshot(&session_id).await?;
     attach_hydrate_tab(&mut snapshot, &tab_id)?;
     if !live_session {
-        mark_historical_hydrate(&mut snapshot);
+        mark_historical_hydrate(&mut snapshot)?;
     }
     snapshot["bootstrap"] = json!({
         "schema": WEB_HYDRATE_SCHEMA,
@@ -3071,11 +3193,16 @@ fn claim_ui_headers(app: &WebApp, headers: &HeaderMap) -> Result<(), ApiError> {
 /// Claim one tab/session mutation after the server has resolved the session owner.  The browser
 /// generated action id is only an idempotency handle; principal, tab lease and UI cursor remain
 /// server-owned.  A replay returns the exact cached command response and never reaches a runner.
+///
+/// The claim is bound to a canonical digest of the submitted payload: a repeated key with the same
+/// payload replays the original result (marked as a replay), while a repeated key with a different
+/// payload is refused before any handler runs.
 fn claim_action_submission(
     app: &WebApp,
     headers: &HeaderMap,
     session_id: &str,
     tab_id: &str,
+    payload: &Value,
 ) -> Result<WebActionClaim, ApiError> {
     validate_web_session_id(session_id)?;
     validate_web_tab_id(tab_id)?;
@@ -3099,6 +3226,7 @@ fn claim_action_submission(
     if target_id != session_id && target_id != "workspace" {
         return Err(ApiError::conflict("ui_action_target_mismatch"));
     }
+    let payload_digest = kiana_domain::json_digest(payload);
     let now = Instant::now();
     let mut submissions = app
         .action_submissions
@@ -3116,8 +3244,17 @@ fn claim_action_submission(
         {
             return Err(ApiError::conflict("ui_action_owner_mismatch"));
         }
+        if original.payload_digest != payload_digest {
+            // Same key, different intent.  The cached response belongs to another request, so
+            // returning it (or running the new payload) would both be wrong.
+            return Err(ApiError::conflict("ui_action_payload_mismatch"));
+        }
         if let Some(response) = &original.response {
-            return Ok(WebActionClaim::Replay(response.clone()));
+            return Ok(WebActionClaim::Replay(web_action_replay_payload(
+                response,
+                id,
+                &payload_digest,
+            )?));
         }
         return Err(ApiError::conflict("ui_action_in_flight"));
     }
@@ -3132,6 +3269,7 @@ fn claim_action_submission(
             tab_id: tab_id.to_owned(),
             principal_id,
             target_id: target_id.to_owned(),
+            payload_digest,
             created_at: now,
             response: None,
         },
@@ -3148,6 +3286,31 @@ fn claim_action_submission(
         }
     }
     Ok(WebActionClaim::New { id: id.to_owned() })
+}
+
+/// Annotate the cached original response that a repeated submission receives.
+///
+/// The projection stays byte-identical apart from one additive, server-owned marker, so a browser
+/// can show "this is the original command result" without this tab ever sending a second effect.
+fn web_action_replay_payload(
+    response: &Value,
+    action_id: &str,
+    payload_digest: &str,
+) -> Result<Value, ApiError> {
+    let Value::Object(mut object) = response.clone() else {
+        return Err(ApiError::fail("web_action_replay_unavailable"));
+    };
+    object.insert(
+        "web_action_replay".to_owned(),
+        json!({
+            "schema": WEB_ACTION_PAYLOAD_SCHEMA,
+            "action_id": action_id,
+            "payload_digest": payload_digest,
+            "replayed": true,
+            "retry": "query_original",
+        }),
+    );
+    Ok(Value::Object(object))
 }
 
 fn complete_action_submission(
@@ -3374,7 +3537,13 @@ async fn run_turn(
     let prompt = validate_web_prompt(body.prompt)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({"action": "run", "session_id": session_id, "prompt": prompt}),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3428,7 +3597,13 @@ async fn cancel_turn(
     let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_mutable_session(&app, body.session_id.as_deref()).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({"action": "cancel", "session_id": session_id}),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3473,7 +3648,13 @@ async fn trust_folder(
     // 随后的校验仍会以 `session_owner_required` 拒绝。
     claim_session_tab(&app, &session_id, &tab_id)?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({"action": "trust", "session_id": session_id}),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3493,12 +3674,18 @@ async fn set_sandbox(
     let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
+        .map_err(|error| ApiError::bad(error.to_string()))?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({"action": "sandbox", "session_id": session_id, "sandbox": sandbox}),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
-    let sandbox = workbench_chat::normalize_sandbox(&body.sandbox)
-        .map_err(|error| ApiError::bad(error.to_string()))?;
     *app.sandbox
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))? = sandbox;
@@ -3515,7 +3702,13 @@ async fn new_session(
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
     let action_scope = lock_string(&app.active)?;
-    let action_id = claim_action_submission(&app, &headers, &action_scope, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &action_scope,
+        &tab_id,
+        &json!({"action": "session.new"}),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3614,7 +3807,18 @@ async fn command_action(
     .map_err(ApiError::bad)?;
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({
+            "action": "command",
+            "session_id": session_id,
+            "name": surface_command.name,
+            "arguments": &surface_command.arguments,
+        }),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3757,7 +3961,18 @@ async fn decide_approval(
     let tab_id = require_web_tab(&headers)?;
     let session_id = resolve_human_session(&app, Some(&body.session_id)).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({
+            "action": "approval",
+            "session_id": session_id,
+            "challenge": body.challenge,
+            "decision": body.decision,
+        }),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3833,8 +4048,21 @@ async fn steer_turn(
         .ok_or_else(|| ApiError::bad("web_turn_id_invalid"))?;
     let session_id = resolve_human_session(&app, Some(body.session_id.as_str())).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    // 先校验形状再占用幂等槽：畸形请求不能消费重放键。
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    // 先校验形状再占用幂等槽：畸形请求不能消费重放键。幂等键绑定提交载荷的规范摘要，
+    // 同一把键换一份载荷会被拒绝，不会重放别人的结果。
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({
+            "action": "steer",
+            "session_id": session_id,
+            "run_id": body.run_id,
+            "turn_id": body.turn_id,
+            "text": body.text,
+        }),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3878,7 +4106,20 @@ async fn inject_turn(
     let target = body.target.unwrap_or_else(|| "next-step".to_owned());
     let session_id = resolve_human_session(&app, Some(body.session_id.as_str())).await?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({
+            "action": "inject",
+            "session_id": session_id,
+            "run_id": body.run_id,
+            "turn_id": target_turn_id,
+            "target": target,
+            "text": body.text,
+        }),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -3911,7 +4152,13 @@ async fn resume_turn(
     let session_id = resolve_human_session(&app, body.session_id.as_deref()).await?;
     let tab_id = require_web_tab(&headers)?;
     require_session_owner(&app, &session_id, &tab_id)?;
-    let action_id = claim_action_submission(&app, &headers, &session_id, &tab_id)?;
+    let action_id = claim_action_submission(
+        &app,
+        &headers,
+        &session_id,
+        &tab_id,
+        &json!({"action": "resume", "session_id": session_id}),
+    )?;
     if let WebActionClaim::Replay(response) = &action_id {
         return Ok(Json(response.clone()));
     }
@@ -4481,6 +4728,18 @@ fn require_web_tab(headers: &HeaderMap) -> Result<String, ApiError> {
     optional_web_tab(headers)?.ok_or_else(|| ApiError::bad("web_tab_required"))
 }
 
+/// Encode one server-derived tab projection for the wire, refusing to publish anything that fails
+/// the typed contract.  A malformed projection is replaced by a closed failure, so a browser can
+/// never render a lease the server itself considers invalid.
+fn encode_tab_projection<T: Serialize>(
+    value: &T,
+    validation: Result<(), String>,
+) -> Result<Value, ApiError> {
+    validation
+        .and_then(|_| serde_json::to_value(value).map_err(|error| error.to_string()))
+        .map_err(|_| ApiError::fail("web_tab_projection_invalid"))
+}
+
 fn attach_hydrate_tab(snapshot: &mut Value, tab_id: &str) -> Result<(), ApiError> {
     validate_web_tab_id(tab_id)?;
     let hydrate = snapshot
@@ -4510,6 +4769,23 @@ fn attach_hydrate_tab(snapshot: &mut Value, tab_id: &str) -> Result<(), ApiError
                     .is_none_or(|read_only| !read_only),
         );
     }
+    // UI-19: re-derive the typed tab/session view for the requesting tab from the server-owned
+    // lease.  A closed projection stays closed for every tab; otherwise the tab is told exactly
+    // whether it currently owns the mutation lease.  The wire tab header is an observation scope,
+    // so it may only narrow this projection, never widen it.
+    let mut tab_session: UiTabSessionV1 =
+        serde_json::from_value(snapshot.get("tab_session").cloned().unwrap_or(Value::Null))
+            .map_err(|_| ApiError::fail("web_tab_projection_invalid"))?;
+    tab_session.tab_id = tab_id.to_owned();
+    if tab_session.disposition != UiTabSessionDisposition::Closed {
+        tab_session.disposition = if tab_session.owner_tab_id == tab_id {
+            UiTabSessionDisposition::Owner
+        } else {
+            UiTabSessionDisposition::Observer
+        };
+    }
+    tab_session.feed_only = tab_session.disposition != UiTabSessionDisposition::Owner;
+    snapshot["tab_session"] = encode_tab_projection(&tab_session, tab_session.validate())?;
     Ok(())
 }
 
@@ -4526,7 +4802,7 @@ fn attach_optional_hydrate_tab(snapshot: &mut Value, headers: &HeaderMap) -> Res
 /// draft and no observer relationship. Restore the closed disposition, keep the response
 /// feed-only and expose the projection source so a browser cannot mistake history for an active
 /// session it could resume from this snapshot.
-fn mark_historical_hydrate(snapshot: &mut Value) {
+fn mark_historical_hydrate(snapshot: &mut Value) -> Result<(), ApiError> {
     if let Some(lease) = snapshot.get_mut("lease").and_then(Value::as_object_mut) {
         lease.insert("disposition".to_owned(), Value::String("closed".to_owned()));
         lease.insert("feed_only".to_owned(), Value::Bool(true));
@@ -4539,6 +4815,15 @@ fn mark_historical_hydrate(snapshot: &mut Value) {
             Value::String("event_log_projection".to_owned()),
         );
     }
+    // UI-19: every tab sees the same closed disposition for a committed EventLog projection, so a
+    // historical hydrate can never be read as a live lease or as an owner tab.
+    let mut tab_session: UiTabSessionV1 =
+        serde_json::from_value(snapshot.get("tab_session").cloned().unwrap_or(Value::Null))
+            .map_err(|_| ApiError::fail("web_tab_projection_invalid"))?;
+    tab_session.disposition = UiTabSessionDisposition::Closed;
+    tab_session.feed_only = true;
+    snapshot["tab_session"] = encode_tab_projection(&tab_session, tab_session.validate())?;
+    Ok(())
 }
 
 fn validate_web_page_limit(limit: usize) -> Result<(), ApiError> {
@@ -4865,10 +5150,19 @@ fn claim_session_tab(app: &WebApp, session_id: &str, tab_id: &str) -> Result<(),
             session.owner_tab_id = Some(tab_id.to_owned());
             session.owner_active = true;
             session.lease_epoch = session.lease_epoch.saturating_add(1).max(1);
+            register_session_tab(session, tab_id, UiTabRelationKind::Owner);
             Ok(())
         }
-        Some(owner) if owner == tab_id && session.owner_active => Ok(()),
-        Some(_) => Ok(()),
+        Some(owner) if owner == tab_id && session.owner_active => {
+            register_session_tab(session, tab_id, UiTabRelationKind::Owner);
+            Ok(())
+        }
+        Some(_) => {
+            // An observer tab never steals or promotes the lease; it only becomes visible to the
+            // server-owned relation graph.
+            register_session_tab(session, tab_id, UiTabRelationKind::Observer);
+            Ok(())
+        }
     }
 }
 
@@ -4893,11 +5187,11 @@ fn require_session_owner(app: &WebApp, session_id: &str, tab_id: &str) -> Result
 fn authorize_feed_tab(app: &WebApp, session_id: &str, tab_id: &str) -> Result<(), ApiError> {
     validate_web_tab_id(tab_id)?;
     let principal_id = app.host.authenticated_principal().principal_id;
-    let sessions = app
+    let mut sessions = app
         .sessions
         .lock()
         .map_err(|_| ApiError::fail("web_state_poisoned"))?;
-    let Some(session) = sessions.get(session_id) else {
+    let Some(session) = sessions.get_mut(session_id) else {
         // Historical sessions have already been filtered through the authenticated EventLog
         // projection in resolve_human_session; they have no mutable in-memory tab lease.
         return Ok(());
@@ -4906,7 +5200,14 @@ fn authorize_feed_tab(app: &WebApp, session_id: &str, tab_id: &str) -> Result<()
         return Err(ApiError::conflict("session_principal_mismatch"));
     }
     // Owner and observer tabs both receive the immutable feed. Only owner tabs may submit an
-    // action; observer state never gets copied into a mutable draft or lease.
+    // action; observer state never gets copied into a mutable draft or lease.  Opening the feed is
+    // also the moment an observer becomes visible to the server-owned relation graph.
+    let relation = if session.owner_tab_id.as_deref() == Some(tab_id) && session.owner_active {
+        UiTabRelationKind::Owner
+    } else {
+        UiTabRelationKind::Observer
+    };
+    register_session_tab(session, tab_id, relation);
     Ok(())
 }
 
@@ -8720,6 +9021,608 @@ mod tests {
             ui21_command(&client, &base, &token, &server, action_id, &intent).await;
         assert_eq!(replay_status, StatusCode::OK);
         assert_eq!(replay, denied, "the legitimate decision is replayed once");
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    /// Bootstrap the active session as one tab through the canonical route.
+    async fn ui19_bootstrap(
+        server: &Ui17Server,
+        client: &Ui17Client,
+        tab: &str,
+    ) -> (StatusCode, Value) {
+        ui17_json(
+            client
+                .get(&format!("/api/bootstrap?session_id={}", server.active), tab)
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await
+    }
+
+    /// Build one real sandbox mutation with an explicit action id and the current daemon cursor.
+    /// Callers may override the cursor or action-id headers to exercise stale and replay paths.
+    fn ui19_sandbox_request(
+        server: &Ui17Server,
+        client: &Ui17Client,
+        tab: &str,
+        action_id: &str,
+        sandbox: &str,
+    ) -> reqwest::RequestBuilder {
+        let cursor = server.host.ui_cursor();
+        client
+            .client
+            .post(format!("{}/api/sandbox", client.base))
+            .header("x-kiana-web-token", &client.token)
+            .header("x-kiana-ui-tab", tab)
+            .header("x-kiana-ui-epoch", cursor.epoch)
+            .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+            .header("x-kiana-action-id", action_id)
+            .json(&json!({"sandbox": sandbox, "session_id": server.active}))
+    }
+
+    /// UI-19 runtime fixture: one tab claims the session lease, a second tab opens the same feed
+    /// and stays read-only.  The host publishes one typed tab/session projection plus one server
+    /// owned relation graph; neither carries another tab's draft or submission identity.
+    #[tokio::test]
+    async fn ui19_owner_and_observer_share_one_snapshot_without_leaking_drafts() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+        let owner_tab = "ui19-owner-tab";
+        let observer_tab = "ui19-observer-tab";
+
+        // The first tab claims the lease through the canonical bootstrap route.  The typed
+        // projection is the only value that tells a presenter it owns the mutation lease.
+        let (status, bootstrap) = ui19_bootstrap(&server, &client, owner_tab).await;
+        assert_eq!(status, StatusCode::OK, "{bootstrap}");
+        let typed: UiTabSessionV1 = serde_json::from_value(bootstrap["tab_session"].clone())
+            .expect("typed tab session projection");
+        typed.validate().expect("valid tab session");
+        assert_eq!(typed.session_id.as_str(), server.active);
+        assert_eq!(typed.tab_id, owner_tab);
+        assert_eq!(typed.owner_tab_id, owner_tab);
+        assert_eq!(typed.disposition, UiTabSessionDisposition::Owner);
+        assert!(!typed.feed_only);
+        assert_eq!(typed.principal.principal_id, "local-user");
+        assert!(typed.lease_epoch >= 2, "claiming a lease bumps the epoch");
+        assert_eq!(
+            typed.lease_epoch,
+            bootstrap["lease"]["lease_epoch"].as_u64().unwrap()
+        );
+        assert_eq!(
+            typed.token_generation,
+            bootstrap["lease"]["token_generation"].as_u64().unwrap()
+        );
+        assert_eq!(bootstrap["human_actions_allowed"], json!(true));
+
+        let relations: UiTabRelationGraphV1 =
+            serde_json::from_value(bootstrap["tab_relations"].clone())
+                .expect("typed tab relation graph");
+        relations.validate().expect("valid relation graph");
+        assert_eq!(relations.schema, UI_TAB_RELATION_GRAPH_SCHEMA);
+        assert_eq!(relations.session_id.as_str(), server.active);
+        assert_eq!(relations.owner_tab_id.as_deref(), Some(owner_tab));
+        assert_eq!(relations.observers, 0);
+        assert_eq!(relations.max_tabs, MAX_WEB_SESSION_TABS);
+        assert_eq!(relations.tabs.len(), 1);
+        assert_eq!(relations.tabs[0].tab_id, owner_tab);
+        assert_eq!(relations.tabs[0].relation, UiTabRelationKind::Owner);
+        // A relation edge is an id plus a relation: no draft, prompt, receipt or credential.
+        let edge = serde_json::to_value(&relations.tabs[0]).unwrap();
+        let mut keys: Vec<String> = edge.as_object().unwrap().keys().cloned().collect();
+        keys.sort();
+        assert_eq!(keys, ["lease_epoch", "relation", "tab_id"]);
+
+        // The owner performs one real mutation through the action registry.
+        let (status, owner_mutation) = ui17_json(
+            ui19_sandbox_request(
+                &server,
+                &client,
+                owner_tab,
+                "ui19-owner-action-1",
+                "workspace-write",
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{owner_mutation}");
+        assert_eq!(owner_mutation["sandbox"], json!("workspace-write"));
+        assert!(
+            owner_mutation.get("web_action_replay").is_none(),
+            "a first submission is never a replay"
+        );
+
+        // A second tab opens the same feed.  Opening the feed is the only way an observer becomes
+        // visible to the server-owned relation graph, and it grants no mutation authority.
+        let feed = client
+            .get(
+                &format!("/api/events?session_id={}", server.active),
+                observer_tab,
+            )
+            .query(&[("tab_id", observer_tab)])
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(feed.status(), StatusCode::OK);
+        drop(feed);
+
+        // The observer's snapshot names only its own tab, is explicitly feed-only, and carries no
+        // submission identity of the owner.
+        let (status, observer_state) = ui17_json(
+            client
+                .get(
+                    &format!("/api/state?session_id={}", server.active),
+                    observer_tab,
+                )
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{observer_state}");
+        assert_eq!(
+            observer_state["tab_session"]["schema"],
+            json!(WEB_TAB_SESSION_SCHEMA)
+        );
+        assert_eq!(observer_state["tab_session"]["tab_id"], json!(observer_tab));
+        assert_eq!(
+            observer_state["tab_session"]["disposition"],
+            json!("observer")
+        );
+        assert_eq!(observer_state["tab_session"]["feed_only"], json!(true));
+        assert_eq!(observer_state["human_actions_allowed"], json!(false));
+        assert_eq!(observer_state["sandbox"], json!("workspace-write"));
+        let observer_relations: UiTabRelationGraphV1 =
+            serde_json::from_value(observer_state["tab_relations"].clone())
+                .expect("observer relation graph");
+        observer_relations.validate().expect("valid observer graph");
+        assert_eq!(observer_relations.observers, 1);
+        assert_eq!(observer_relations.tabs.len(), 2);
+        assert_eq!(observer_relations.owner_tab_id.as_deref(), Some(owner_tab));
+        let printed = observer_state.to_string();
+        assert!(
+            !printed.contains("ui19-owner-action-1"),
+            "the observer view must not carry the owner's submission identity"
+        );
+        assert!(!printed.contains("x-kiana-action-id"));
+
+        // An observer mutation is refused on ownership; it never reaches a handler.
+        let (status, refusal) = ui17_json(
+            ui19_sandbox_request(
+                &server,
+                &client,
+                observer_tab,
+                "ui19-observer-action-1",
+                "read-only",
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{refusal}");
+        assert_eq!(refusal["error"], json!("session_owner_required"));
+        assert!(refusal.get("web_action_replay").is_none());
+
+        // The refused observer changed no server fact, and the owner still sees both edges.
+        let (status, owner_state) = ui17_json(
+            client
+                .get(
+                    &format!("/api/state?session_id={}", server.active),
+                    owner_tab,
+                )
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{owner_state}");
+        assert_eq!(owner_state["sandbox"], json!("workspace-write"));
+        assert_eq!(owner_state["tab_session"]["disposition"], json!("owner"));
+        let owner_relations: UiTabRelationGraphV1 =
+            serde_json::from_value(owner_state["tab_relations"].clone())
+                .expect("owner relation graph");
+        owner_relations.validate().expect("valid owner graph");
+        assert_eq!(owner_relations.observers, 1);
+        assert_eq!(owner_relations.tabs.len(), 2);
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    /// UI-19 runtime fixture: a duplicated click replays the original command receipt, while the
+    /// same action id with a different payload, or from another tab, is refused before any effect.
+    #[tokio::test]
+    async fn ui19_duplicate_click_replays_the_original_result_and_refuses_a_changed_payload() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+        let owner_tab = "ui19-owner-tab";
+        let owner_action = "ui19-owner-action-1";
+
+        let (status, bootstrap) = ui19_bootstrap(&server, &client, owner_tab).await;
+        assert_eq!(status, StatusCode::OK, "{bootstrap}");
+
+        // The cursor the first submission is claimed with.  A duplicate click repeats exactly this
+        // envelope, so the replay path must work even though the cursor has moved on.
+        let before_first = server.host.ui_cursor();
+        let (status, first) = ui17_json(
+            ui19_sandbox_request(&server, &client, owner_tab, owner_action, "workspace-write")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{first}");
+        assert_eq!(first["sandbox"], json!("workspace-write"));
+        assert!(first.get("web_action_replay").is_none());
+        let after_first = server.host.ui_cursor().sequence;
+
+        // Duplicate click: the identical request (stale cursor included) receives the cached
+        // response with one additive replay marker and never reaches the daemon fence again.
+        let (status, replayed) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/sandbox", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .header("x-kiana-ui-epoch", &before_first.epoch)
+                .header("x-kiana-ui-cursor", before_first.sequence.to_string())
+                .header("x-kiana-action-id", owner_action)
+                .json(&json!({"sandbox": "workspace-write", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{replayed}");
+        assert_eq!(replayed["web_action_replay"]["replayed"], json!(true));
+        assert_eq!(
+            replayed["web_action_replay"]["schema"],
+            json!(WEB_ACTION_PAYLOAD_SCHEMA)
+        );
+        assert_eq!(
+            replayed["web_action_replay"]["action_id"],
+            json!(owner_action)
+        );
+        assert_eq!(
+            replayed["web_action_replay"]["retry"],
+            json!("query_original")
+        );
+        let expected_digest = kiana_domain::json_digest(&json!({
+            "action": "sandbox",
+            "session_id": server.active,
+            "sandbox": "workspace-write",
+        }));
+        assert_eq!(
+            replayed["web_action_replay"]["payload_digest"],
+            json!(expected_digest)
+        );
+        // Byte-identical apart from the additive replay marker.
+        let mut replayed_without_marker = replayed.clone();
+        replayed_without_marker
+            .as_object_mut()
+            .unwrap()
+            .remove("web_action_replay");
+        assert_eq!(replayed_without_marker, first);
+        // No second effect: the daemon cursor did not move again.
+        assert_eq!(server.host.ui_cursor().sequence, after_first);
+
+        // Same key, different intent: refused before the daemon fence and before any handler.
+        let (status, mismatch) = ui17_json(
+            ui19_sandbox_request(&server, &client, owner_tab, owner_action, "read-only")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{mismatch}");
+        assert_eq!(mismatch["error"], json!("ui_action_payload_mismatch"));
+        assert_eq!(server.host.ui_cursor().sequence, after_first);
+
+        // Another tab reusing the owner's action id is refused on ownership before the registry is
+        // consulted, so it never receives the owner's cached result.
+        let (status, cross_tab) = ui17_json(
+            ui19_sandbox_request(
+                &server,
+                &client,
+                "ui19-observer-tab",
+                owner_action,
+                "workspace-write",
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{cross_tab}");
+        assert_eq!(cross_tab["error"], json!("session_owner_required"));
+        assert!(cross_tab.get("web_action_replay").is_none());
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    /// UI-19 runtime fixture: missing, malformed, stale and mistargeted action envelopes are all
+    /// refused with zero server facts, and a refused envelope never consumes the retry key.
+    #[tokio::test]
+    async fn ui19_missing_or_stale_action_envelopes_are_refused_without_consuming_the_key() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+        let owner_tab = "ui19-owner-tab";
+
+        let (status, bootstrap) = ui19_bootstrap(&server, &client, owner_tab).await;
+        assert_eq!(status, StatusCode::OK, "{bootstrap}");
+
+        // No action identity at all: a click the server cannot tell apart from a duplicate one.
+        let cursor = server.host.ui_cursor();
+        let (status, missing) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/sandbox", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .header("x-kiana-ui-epoch", &cursor.epoch)
+                .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+                .json(&json!({"sandbox": "workspace-write", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{missing}");
+        assert_eq!(missing["error"], json!("ui_action_required"));
+
+        // An action id without the optimistic-concurrency position is malformed.
+        let (status, invalid) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/sandbox", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .header("x-kiana-action-id", "ui19-invalid-envelope")
+                .json(&json!({"sandbox": "workspace-write", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{invalid}");
+        assert_eq!(invalid["error"], json!("ui_action_invalid"));
+
+        // A stale card names a cursor the server has already moved past.
+        let stale_cursor = server.host.ui_cursor().sequence.saturating_add(1);
+        let (status, stale) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/sandbox", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .header("x-kiana-ui-epoch", &cursor.epoch)
+                .header("x-kiana-ui-cursor", stale_cursor.to_string())
+                .header("x-kiana-action-id", "ui19-stale-card")
+                .json(&json!({"sandbox": "workspace-write", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{stale}");
+        let stale_error = stale["error"].as_str().unwrap_or_default();
+        assert!(stale_error.contains("ui_action_stale"), "{stale}");
+
+        // The refused stale card did not consume its key: the same action id with the fresh
+        // cursor is still a first submission and still applies exactly once.
+        let (status, retried) = ui17_json(
+            ui19_sandbox_request(
+                &server,
+                &client,
+                owner_tab,
+                "ui19-stale-card",
+                "workspace-write",
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{retried}");
+        assert!(retried.get("web_action_replay").is_none());
+        assert_eq!(retried["sandbox"], json!("workspace-write"));
+
+        // A target outside this session is refused before any claim.
+        let cursor = server.host.ui_cursor();
+        let (status, wrong_target) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/sandbox", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .header("x-kiana-ui-epoch", &cursor.epoch)
+                .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+                .header("x-kiana-action-id", "ui19-wrong-target")
+                .header("x-kiana-action-target", UI17_SECOND_SESSION)
+                .json(&json!({"sandbox": "read-only", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{wrong_target}");
+        assert_eq!(wrong_target["error"], json!("ui_action_target_mismatch"));
+
+        // A committed EventLog session is read-only: it never becomes mutable through a mutation
+        // route, and the refusal happens before any action identity is claimed.
+        let (status, read_only) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/run", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .json(&json!({"prompt": "ui19 historical mutation", "session_id": server.session}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{read_only}");
+        assert_eq!(read_only["error"], json!("session_read_only"));
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    /// UI-19 runtime fixture: closing the owner tab is not a cancel, and a credential rotation
+    /// re-hydrates the same lease without ever promoting an observer.
+    #[tokio::test]
+    async fn ui19_owner_exit_and_token_rotation_keep_observers_read_only() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+        let owner_tab = "ui19-owner-tab";
+        let observer_tab = "ui19-observer-tab";
+
+        let (status, bootstrap) = ui19_bootstrap(&server, &client, owner_tab).await;
+        assert_eq!(status, StatusCode::OK, "{bootstrap}");
+        let lease_epoch = bootstrap["lease"]["lease_epoch"].as_u64().unwrap();
+
+        // One completed turn through the Web action route, recorded as exactly one turn.
+        let cursor = server.host.ui_cursor();
+        let (status, run) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/run", client.base))
+                .header("x-kiana-web-token", &client.token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .header("x-kiana-ui-epoch", &cursor.epoch)
+                .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+                .header("x-kiana-action-id", "ui19-run-1")
+                .json(&json!({"prompt": "ui19 owner turn", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{run}");
+        assert_eq!(run["response"]["status"], json!("completed"));
+        assert_eq!(run["thread"]["turns"].as_array().unwrap().len(), 1);
+        assert_eq!(run["running"], json!(false));
+
+        // The owner closes its tab: the feed stream is dropped and no cancel request is sent.
+        drop(
+            client
+                .get(
+                    &format!("/api/events?session_id={}", server.active),
+                    owner_tab,
+                )
+                .query(&[("tab_id", owner_tab)])
+                .send()
+                .await
+                .unwrap(),
+        );
+
+        // Token rotation is a credential change, not a lease change, and never echoes the old
+        // credential.
+        let rotated = client
+            .client
+            .post(format!("{}/api/token/rotate", client.base))
+            .header("x-kiana-web-token", &client.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(rotated.status(), StatusCode::OK);
+        let rotation: Value = rotated.json().await.unwrap();
+        assert_eq!(rotation["token_generation"], json!(2));
+        assert!(
+            !rotation.to_string().contains(&client.token),
+            "rotation must not echo the credential"
+        );
+
+        // The old credential is dead on every protected route.
+        let stale = client
+            .client
+            .get(format!("{}/api/state?session_id={}", server.active))
+            .header("x-kiana-web-token", &client.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::UNAUTHORIZED);
+
+        // Re-hydrating through the host-only page hands out the new credential, and the owner tab
+        // still holds the same lease epoch: rotation never re-claims or promotes a tab.
+        let token = ui16_page_token(&client.client, server.addr).await;
+        let (status, rehydrated) = ui17_json(
+            client
+                .client
+                .get(format!(
+                    "{}/api/bootstrap?session_id={}",
+                    client.base, server.active
+                ))
+                .header("x-kiana-web-token", &token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{rehydrated}");
+        assert_eq!(rehydrated["tab_session"]["disposition"], json!("owner"));
+        assert_eq!(rehydrated["tab_session"]["token_generation"], json!(2));
+        assert_eq!(
+            rehydrated["lease"]["lease_epoch"].as_u64().unwrap(),
+            lease_epoch,
+            "rotation must not move the lease epoch"
+        );
+
+        // An observer with the new credential still cannot mutate: rotation promotes nobody.
+        let cursor = server.host.ui_cursor();
+        let (status, refusal) = ui17_json(
+            client
+                .client
+                .post(format!("{}/api/sandbox", client.base))
+                .header("x-kiana-web-token", &token)
+                .header("x-kiana-ui-tab", observer_tab)
+                .header("x-kiana-ui-epoch", &cursor.epoch)
+                .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+                .header("x-kiana-action-id", "ui19-observer-after-rotation")
+                .json(&json!({"sandbox": "read-only", "session_id": server.active}))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT, "{refusal}");
+        assert_eq!(refusal["error"], json!("session_owner_required"));
+
+        // Closing the feed never cancelled the run: still exactly one turn, no cancel fact.
+        let (status, after) = ui17_json(
+            client
+                .client
+                .get(format!("{}/api/state?session_id={}", server.active))
+                .header("x-kiana-web-token", &token)
+                .header("x-kiana-ui-tab", owner_tab)
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{after}");
+        assert_eq!(
+            after["sandbox"],
+            json!("read-only"),
+            "the refused observer changed nothing"
+        );
+        assert_eq!(
+            after["thread"]["turns"].as_array().unwrap().len(),
+            1,
+            "closing the feed must not add a cancel turn"
+        );
+        assert!(
+            !after.to_string().contains("(cancel)"),
+            "no cancel fact may follow a closed tab"
+        );
 
         let _ = fs::remove_dir_all(&server.root);
         let _ = fs::remove_dir_all(&server.home);

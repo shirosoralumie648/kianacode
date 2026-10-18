@@ -116,6 +116,13 @@ pub const UI_HUMAN_ACTION_INTENT_SCHEMA: &str = "kiana.ui-human-action-intent.v1
 /// Versioned server-owned relationship between one browser tab and a session.  The tab value is
 /// an observation scope, never a principal credential or a new authorization authority.
 pub const UI_TAB_SESSION_SCHEMA: &str = "kiana.ui-tab-session.v1";
+/// Versioned server-owned tab/session relation graph.  It lists which tabs the server has observed
+/// for one session and which one owns the mutation lease; a browser can render it but can never
+/// extend it, promote itself to owner or read another tab's local draft through it.
+pub const UI_TAB_RELATION_GRAPH_SCHEMA: &str = "kiana.ui-tab-relations.v1";
+/// Upper bound on the tabs one session may keep in its relation graph.  The bound is part of the
+/// contract, so a presenter can refuse an oversized graph instead of rendering it.
+pub const MAX_UI_TAB_RELATIONS: usize = 16;
 /// Versioned client submission envelope.  The server still rechecks principal, lease, CAS and
 /// idempotency through the existing ControlPlane/UI action path.
 pub const UI_ACTION_SUBMISSION_SCHEMA: &str = "kiana.ui-action-submission.v1";
@@ -372,6 +379,107 @@ impl UiActionSubmissionV1 {
         required(&self.tab_id, "ui_action_submission_tab", 256)?;
         required(&self.expected_epoch, "ui_action_submission_epoch", 256)?;
         digest(&self.payload_digest, "ui_action_submission_payload_digest")
+    }
+}
+
+/// How one tab relates to one session.  `Owner` is the single tab that may submit a mutation;
+/// `Observer` may consume the read-only feed of the same session without inheriting any mutation
+/// authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiTabRelationKind {
+    Owner,
+    Observer,
+}
+
+impl UiTabRelationKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Owner => "owner",
+            Self::Observer => "observer",
+        }
+    }
+}
+
+/// One edge of the tab/session relation graph.  The tab id is an observation scope label only:
+/// it is not a credential and grants nothing by itself.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiTabRelationV1 {
+    pub tab_id: String,
+    pub relation: UiTabRelationKind,
+    pub lease_epoch: u64,
+}
+
+impl UiTabRelationV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.lease_epoch == 0 {
+            return Err("ui_tab_relation_epoch_invalid".to_owned());
+        }
+        required(&self.tab_id, "ui_tab_relation_id", 256)
+    }
+}
+
+/// Server-owned relation graph for one session.  Every field is derived by the server from its own
+/// lease state; a wire value can never add an edge, and the graph deliberately carries no draft,
+/// prompt, approval payload or credential.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiTabRelationGraphV1 {
+    pub schema: String,
+    pub session_id: SessionId,
+    /// The tab that currently holds the mutation lease; `None` for a session that only exists as a
+    /// closed EventLog projection or has no active owner.
+    pub owner_tab_id: Option<String>,
+    pub lease_epoch: u64,
+    pub token_generation: u64,
+    pub max_tabs: usize,
+    /// Number of `Observer` edges, stated explicitly so a truncated or hand-built graph cannot
+    /// claim a different observer count than it carries.
+    pub observers: usize,
+    pub tabs: Vec<UiTabRelationV1>,
+}
+
+impl UiTabRelationGraphV1 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != UI_TAB_RELATION_GRAPH_SCHEMA
+            || self.lease_epoch == 0
+            || self.token_generation == 0
+            || self.max_tabs == 0
+            || self.max_tabs > MAX_UI_TAB_RELATIONS
+            || self.tabs.len() > self.max_tabs
+        {
+            return Err("ui_tab_relations_header_invalid".to_owned());
+        }
+        required(self.session_id.as_str(), "ui_tab_relations_session", 256)?;
+        if let Some(owner) = &self.owner_tab_id {
+            required(owner, "ui_tab_relations_owner", 256)?;
+        }
+        let mut seen = BTreeSet::new();
+        let mut owners = 0usize;
+        let mut observers = 0usize;
+        for tab in &self.tabs {
+            tab.validate()?;
+            if !seen.insert(tab.tab_id.as_str()) {
+                return Err("ui_tab_relations_duplicate_tab".to_owned());
+            }
+            match tab.relation {
+                UiTabRelationKind::Owner => {
+                    owners += 1;
+                    if self.owner_tab_id.as_deref() != Some(tab.tab_id.as_str()) {
+                        return Err("ui_tab_relations_owner_mismatch".to_owned());
+                    }
+                }
+                UiTabRelationKind::Observer => observers += 1,
+            }
+        }
+        if owners > 1 {
+            return Err("ui_tab_relations_owner_conflict".to_owned());
+        }
+        if observers != self.observers {
+            return Err("ui_tab_relations_observers_mismatch".to_owned());
+        }
+        Ok(())
     }
 }
 

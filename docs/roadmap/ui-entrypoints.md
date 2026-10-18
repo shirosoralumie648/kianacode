@@ -828,7 +828,7 @@ receipt 真值与 physical 证据仍开放。
 
 
 
-#### UI-19 · Web session ownership 与多 tab 并发　🔄
+#### UI-19 · Web session ownership 与多 tab 并发　✅
 
 - 依赖：UI-04/08/16–18。代码：session lease/tab identity、action coordinator。
 - 步骤：每 tab 独立 draft/submission；服务端按 principal/session owner 授权；同一 action 的重复提交显示原 command 结果；跨 tab 通过 feed 观察而非共享可变状态。
@@ -836,10 +836,27 @@ receipt 真值与 physical 证据仍开放。
 - 成功/回归：双 tab approve/cancel/edit、刷新、浏览器睡眠、竞态 CAS、token 轮换和 owner 退出。
 - 完成产物：多 tab e2e、tab/session 关系图和冲突文案。
 
-实现基线：[UI-19 Web session ownership and multi-tab baseline](ui19-session-tabs-baseline.md)。当前
-source slice 在既有 loopback Web 与 `DaemonHost`/ControlPlane 路径上补充 server-owned principal/session/tab
-lease、tab-local draft/submission、stale/CAS deny、重复提交原响应、跨 tab feed-only observation 与
-close-without-cancel fence；GitHub-only fixture/workflow 已接入，证明等级为 `source`，CI 结果未等待。
+实现基线：[UI-19 Web session ownership and multi-tab baseline](ui19-session-tabs-baseline.md)。完成切片（2026-10-17）
+把该基线补成卡片退出条件：tab/session 关系从自由字段收敛为 typed 契约 `kiana.ui-tab-relations.v1`
+（`UiTabRelationGraphV1`/`UiTabRelationV1`/`UiTabRelationKind`、`MAX_UI_TAB_RELATIONS = 16`，边只含 tab id、
+`owner`/`observer` 与 lease epoch，校验拒绝头部非法、重复 tab、owner 不一致/冲突与伪造 observer 计数，图里不携
+带 draft/载荷/凭据），`/api/state` 输出本人 `tab_session`（owner/observer/revoked/closed + `feed_only` 不变式）
+与共享 id-only `tab_relations` 投影并对非法投影 fail closed（`web_tab_projection_invalid`）；同一 action key 现在
+绑定 payload 摘要，改载荷复用被拒（`ui_action_payload_mismatch`，409）而幂等重放只返回原响应加
+`web_action_replay` 标记，绝不产生第二个 effect；冲突文案收敛为有界展示目录 `kiana.web-tab-conflicts.v1`
+（16 个稳定拒绝码含 `web_auth_required`、`WEB_TAB_CONFLICT_MAX_REASONS = 8`，按 stage/retry 固定「查询原
+command / 刷新快照 / 转交 owner tab / 不许重试」，展示目录不授予能力也不自动重试）；`WEB_ERROR_MATRIX` 与
+ui16 路由夹具等长增至 68 条；验收新增 4 条真实 loopback `DaemonHost` 运行时夹具（`web::tests::ui19_*`：
+owner/observer 共享同一 snapshot 且不泄漏 draft、重复点击回放原结果且改载荷被拒且不消耗 key、缺失/过期
+action envelope 先拒零事实、owner 退出与 token 轮换后 observer 保持只读），`ui19-session-tabs.json` 升级为
+`kiana.ui19-session-tabs.v1` 声明式矩阵（13 条先拒绝 + 8 条成功用例逐条绑定运行时夹具或守卫函数），
+`ui19_session_tabs.rs`/`ui19_session_tabs_guard.rs` 重写为 fixture ↔ 源码常量 ↔ 页面契约 ↔ 运行时夹具名 ↔ lane
+双向绑定，重建手动 `.github/workflows/ui19-session-tabs.yml`（`workflow_dispatch`-only、
+`permissions: contents: read`、fetch/fmt 门 + 两个 target + `--lib web::tests::ui19_` + `--no-run`），自动覆盖
+仍是统一 `ci.yml` 的 `kiana-entrypoints` 整 crate 分片（`scripts/ci/test-shards.json` 未改）。无
+Cargo.toml/Cargo.lock/package.json 变化、无新依赖/新 test target/第二执行循环，五个模型可见工具面不变、
+未触碰冻结项；本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt`），CI 回执未等待，proof 上限
+`source`；真实浏览器多 tab 时序与截图、跨进程/多进程 lease、durable replay、provider/live 与 physical 证据仍开放。
 
 <a id="step-ui-20"></a>
 

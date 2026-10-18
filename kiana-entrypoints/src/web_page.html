@@ -439,6 +439,139 @@
       return submissionIds.get(key);
     }
 
+    // UI-19: multi-tab ownership contract. The server publishes one typed tab/session projection
+    // (`tab_session`) and one tab/session relation graph (`tab_relations`) with every snapshot;
+    // this tab renders owner-only controls only when those server values match its own tab id.
+    // The conflict copy below is display copy only: it can never retry a command, promote this tab
+    // or decide that an unknown result succeeded. A retry that repeats an action id receives the
+    // original command receipt (`web_action_replay`) instead of a second effect.
+    const TAB_SESSION_SCHEMA = 'kiana.ui-tab-session.v1';
+    const TAB_RELATIONS_SCHEMA = 'kiana.ui-tab-relations.v1';
+    const MAX_TAB_RELATIONS = 16;
+    const MAX_TAB_CONFLICT_REASONS = 8;
+    const TAB_CONFLICT_COPY = Object.freeze([
+      { code:'session_owner_required', stage:'session', retry:'switch_to_owner_tab',
+        message:'此 tab 只观察该 session，不能提交变更。',
+        recovery:'请在 session owner tab 中提交这条操作；观察 tab 只能读同一 feed。' },
+      { code:'session_principal_mismatch', stage:'session', retry:'do_not_retry',
+        message:'该 session 属于另一个主体，本 tab 无权读写。',
+        recovery:'换回自己的 session 或工作区；本 tab 不会借用其它主体的租约。' },
+      { code:'session_unknown', stage:'session', retry:'do_not_retry',
+        message:'服务端不认识这个 session。',
+        recovery:'从服务端 session 列表里重新选择；不要凭本地缓存猜 session。' },
+      { code:'session_read_only', stage:'session', retry:'do_not_retry',
+        message:'历史 session 只读，不能直接继续执行。',
+        recovery:'先显式恢复该 session，再在新 turn 里提交；本 tab 不会隐式 resume。' },
+      { code:'web_auth_required', stage:'session', retry:'refresh_snapshot',
+        message:'当前凭据已失效（例如服务端轮换了 token）。',
+        recovery:'刷新页面重新获取凭据后再提交；不要重放旧 tab 里的请求。' },
+      { code:'web_tab_required', stage:'session', retry:'do_not_retry',
+        message:'请求缺少 tab 作用域。',
+        recovery:'用页面生成的 tab 标识重试；服务端不接受无作用域的变更请求。' },
+      { code:'web_tab_invalid', stage:'session', retry:'do_not_retry',
+        message:'tab 标识非法。',
+        recovery:'重新加载页面以获得新的 tab 标识；不要伪造 tab id。' },
+      { code:'ui_action_required', stage:'submission', retry:'do_not_retry',
+        message:'这次提交没有动作身份，无法与重复点击区分。',
+        recovery:'由页面用稳定的 action id 重新提交；服务端不会为无身份请求创建事实。' },
+      { code:'ui_action_invalid', stage:'submission', retry:'do_not_retry',
+        message:'动作身份或期望位置不可用。',
+        recovery:'重新从服务端快照取值后再提交；本地构造的位置不是协商标识。' },
+      { code:'ui_action_owner_mismatch', stage:'submission', retry:'do_not_retry',
+        message:'同一个 action id 已被别的 tab 或主体使用。',
+        recovery:'新 tab 必须使用自己的 action id；原 command 的结果只回给提交它的 tab。' },
+      { code:'ui_action_payload_mismatch', stage:'submission', retry:'do_not_retry',
+        message:'同一个 action id 带着不同的内容提交。',
+        recovery:'内容变了就必须换新的 action id；原 command 的结果不能替代新的意图。' },
+      { code:'ui_action_in_flight', stage:'submission', retry:'query_original',
+        message:'上一次提交还在处理中。',
+        recovery:'等待并查询原 command 的状态；不要用新 action id 再发一次。' },
+      { code:'ui_action_submission_expired', stage:'submission', retry:'query_original',
+        message:'这次提交的记录已过期。',
+        recovery:'查询原 command 的最终结果；如果它从未产生事实，再由操作者决定是否重新提交。' },
+      { code:'ui_action_target_mismatch', stage:'submission', retry:'do_not_retry',
+        message:'动作目标和 session 不一致。',
+        recovery:'只对当前 session 提交动作；跨 session 的目标不会被执行。' },
+      { code:'ui_action_stale', stage:'submission', retry:'refresh_snapshot',
+        message:'页面看到的投影已经过期（stale card）。',
+        recovery:'刷新服务端快照后，用新的 action id 重新提交这条操作。' },
+      { code:'ui_action_replayed', stage:'submission', retry:'query_original',
+        message:'这个 action id 已经被服务端受理过。',
+        recovery:'查询原 command 的结果，并显示当时返回的同一份回执。' }
+    ]);
+    function tabConflictCopy(code) {
+      const wanted = String(code || '');
+      if (!wanted) return null;
+      return TAB_CONFLICT_COPY.find(entry =>
+        wanted === entry.code || wanted.endsWith(entry.code) || wanted.includes(entry.code)) || null;
+    }
+    function tabConflictText(code) {
+      const copy = tabConflictCopy(code);
+      return copy ? copy.message + ' ' + copy.recovery : null;
+    }
+    // Bounded, credential-free tab state published for tests and diagnostics: dispositions,
+    // server-owned relation ids, the last conflict reasons and the last replay marker — never the
+    // Web token, a prompt/draft, an approval payload or artifact bytes.
+    const tabState = {
+      schema: 'kiana.web-tab-state.v1',
+      owner_tab_id: null,
+      disposition: 'unverified',
+      lease_epoch: 0,
+      relations: [],
+      conflict_reasons: [],
+      replay: null,
+      updated_at: null
+    };
+    window.__KIANA_TAB_STATE__ = tabState;
+    function recordTabConflict(code) {
+      const copy = tabConflictCopy(code);
+      tabState.conflict_reasons.push(copy ? copy.code : 'unknown_refusal');
+      while (tabState.conflict_reasons.length > MAX_TAB_CONFLICT_REASONS) tabState.conflict_reasons.shift();
+      tabState.updated_at = new Date().toISOString();
+      return copy;
+    }
+    // The typed tab/session projection is the only value that may mark this tab as the session
+    // owner; a bare `lease` object is never sufficient. The server relation graph must agree:
+    // this tab is listed as the owner edge and the graph names the same owner tab. A mismatched
+    // or missing projection degrades to `unverified`, which renders no owner-only controls.
+    function tabSessionDisposition(snapshot) {
+      const session = snapshot && snapshot.tab_session;
+      const lease = snapshot && snapshot.lease;
+      const relations = snapshot && snapshot.tab_relations;
+      if (!session || session.schema !== TAB_SESSION_SCHEMA ||
+          !['owner', 'observer', 'revoked', 'closed'].includes(session.disposition) ||
+          session.session_id !== snapshot.session_id || session.tab_id !== tabOwnerId ||
+          !session.principal || typeof session.principal.principal_id !== 'string' ||
+          !session.principal.principal_id.length ||
+          session.feed_only !== (session.disposition !== 'owner')) {
+        return 'unverified';
+      }
+      if (session.disposition !== 'owner') return session.disposition;
+      if (!lease || lease.owner_tab_id !== tabOwnerId || lease.disposition !== 'owner') return 'unverified';
+      if (!relations || relations.schema !== TAB_RELATIONS_SCHEMA ||
+          relations.session_id !== session.session_id || relations.owner_tab_id !== tabOwnerId ||
+          !Array.isArray(relations.tabs) || relations.tabs.length > MAX_TAB_RELATIONS) {
+        return 'unverified';
+      }
+      const observed = relations.tabs.some(edge => edge && edge.tab_id === tabOwnerId && edge.relation === 'owner');
+      return observed ? 'owner' : 'unverified';
+    }
+    function tabSessionTrusted(snapshot) { return tabSessionDisposition(snapshot) === 'owner'; }
+    function recordTabSession(snapshot, disposition) {
+      const relations = snapshot && snapshot.tab_relations;
+      tabState.owner_tab_id = (relations && relations.owner_tab_id) || null;
+      tabState.disposition = disposition;
+      tabState.lease_epoch = Number(snapshot && snapshot.tab_session && snapshot.tab_session.lease_epoch) || 0;
+      const tabs = relations && relations.tabs;
+      tabState.relations = Array.isArray(tabs)
+        ? tabs.slice(0, MAX_TAB_RELATIONS).map(edge => ({
+            tab_id: String((edge && edge.tab_id) || '').slice(0, 128),
+            relation: (edge && edge.relation) === 'owner' ? 'owner' : 'observer'
+          }))
+        : [];
+      tabState.updated_at = new Date().toISOString();
+    }
+
     function setHydrateStatus(status, detail) {
       hydrateState = status;
       const value = sanitizeDisplayText(detail || ('snapshot ' + status), 2048);
@@ -1322,8 +1455,21 @@
       const res = await fetch(path, opts);
       const data = await res.json();
       if (!res.ok) {
+        const conflictCopy = recordTabConflict(data.error);
         if (data.error && data.error.includes('ui_action_stale')) refresh().catch(() => {});
+        if (conflictCopy) announce(conflictCopy.message + ' ' + conflictCopy.recovery);
         throw new Error(data.error || res.statusText);
+      }
+      const replay = data && data.web_action_replay;
+      if (replay && replay.replayed === true && replay.action_id) {
+        // A repeated action id never runs a second effect: the server returned the original
+        // command receipt, so this tab only records and reports the replay.
+        tabState.replay = {
+          action_id: sanitizeDisplayText(replay.action_id, 128),
+          at: new Date().toISOString()
+        };
+        tabState.updated_at = new Date().toISOString();
+        announce('已重放原 command 的结果（original command receipt）。');
       }
       return data;
     }
@@ -1662,12 +1808,15 @@
       restoreDraft(sessionId);
       running = !!s.running;
       readOnly = !!s.read_only;
+      const tabDisposition = tabSessionDisposition(s);
+      recordTabSession(s, tabDisposition);
       const lease = s.lease || {};
-      const ownsSession = lease.disposition === 'owner' && !lease.feed_only &&
-        lease.owner_tab_id === tabOwnerId;
+      const ownsSession = tabSessionTrusted(s) &&
+        lease.owner_tab_id === tabOwnerId && lease.feed_only !== true;
       humanActionsAllowed = !!s.human_actions_allowed && ownsSession;
       if (!ownsSession && !readOnly) {
-        announce('此 tab 仅观察该 session；请在 session owner tab 中提交操作。');
+        announce(tabConflictText('session_owner_required') ||
+          '此 tab 仅观察该 session；请在 session owner tab 中提交操作。');
       }
       promptEl.disabled = readOnly;
       document.getElementById('send').disabled = readOnly;
