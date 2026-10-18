@@ -4114,3 +4114,43 @@ pub trait AutomationWorkerStopController: Send + Sync {
         request: &kiana_domain::AutomationCancelRequest,
     ) -> Result<kiana_domain::AutomationStopReport, PortError>;
 }
+
+/// AUT-18 pause/resume signal store: the append-only signal history of one execution.
+///
+/// A committed signal fact is re-fetchable per execution, so a crash after the commit returns the
+/// same authoritative history instead of letting the caller re-derive a pause/resume decision from a
+/// local snapshot. Implementations must make the commit atomic with respect to their own state and
+/// must enforce, in this order: signal-id dedupe (an identical-content re-commit is a safe replay
+/// that returns the stored copy with `replayed = true`, a different digest for a recorded
+/// `signal_id` is a conflict), a content CAS on `expected_digest` (`None` means "no fact recorded
+/// yet"), contiguous per-execution `signal_sequence` starting at 1, the transition whitelist from
+/// [`kiana_domain::automation_signal_transition_allowed`], identity binding
+/// (owner/definition/action/path scope must not drift inside one execution), monotonic
+/// `authority_epoch` where an advance is only legal on a `Resumed` fact that was admitted against a
+/// matching checkpoint, and single consumption of an `approval_digest` (a `Consumed` fact may only
+/// reference the approval digest of its own `Resumed` predecessor).
+/// The store never pauses or resumes a worker, never dispatches an effect, never authorizes a
+/// signal and never turns an uncertain commit into a success; admission and execution stay on the
+/// existing ControlPlane/Broker spine. An in-memory implementation is CI semantics and must not be
+/// called durable or cross-process recovery evidence.
+#[async_trait]
+pub trait AutomationSignalStore: Send + Sync {
+    async fn fetch_signals(
+        &self,
+        _execution_id: &str,
+    ) -> Result<Vec<kiana_domain::AutomationSignalFact>, PortError> {
+        Err(PortError::Unavailable(
+            "automation_signal_fetch_unsupported".to_owned(),
+        ))
+    }
+
+    async fn commit_signal(
+        &self,
+        _fact: kiana_domain::AutomationSignalFact,
+        _expected_digest: Option<&str>,
+    ) -> Result<kiana_domain::AutomationSignalCommit, PortError> {
+        Err(PortError::Unavailable(
+            "automation_signal_commit_unsupported".to_owned(),
+        ))
+    }
+}

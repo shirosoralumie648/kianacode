@@ -246,7 +246,9 @@ pub use automation_retry_attempt::{
     AUTOMATION_RETRY_COMMAND_NOT_FAILED, AUTOMATION_RETRY_COMMAND_OUTCOME_UNKNOWN,
     AUTOMATION_RETRY_COMMAND_REQUEST_SCHEMA, AUTOMATION_RETRY_COMMAND_SUCCEEDED,
 };
-pub use automation_signal::validate_automation_signal_fact;
+pub use automation_signal::{
+    apply_automation_signal, validate_automation_signal_fact, AutomationSignalOutcome,
+};
 pub use automation_snapshot::validate_automation_snapshot;
 pub use automation_surface_uat::validate_automation_surface_uat;
 pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
