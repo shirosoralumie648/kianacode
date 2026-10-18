@@ -1,0 +1,45 @@
+name: "INT-21 connector retry classifier baseline"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int21-connector-retry:
+    name: "INT-21 connector retry classifier baseline"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Domain classifier: unknown/non-idempotent/authority classes never retry, the bounded
+      # attempt/deadline/backoff/timeout window fails closed, foreign or forged retry material is
+      # refused, decisions cannot be replayed across bindings/attempts/policies, and only
+      # known-no-effect or declared-idempotent evidence retries as a new bound attempt.
+      - name: Run domain retry classifier fixtures
+        run: cargo test -p kiana-domain --test int21_connector_retry --locked -- --test-threads=1
+      # Daemon boundary: wire-supplied retry material is refused before any dispatch, and a
+      # completed attempt is never auto-retried or turned into retry material in durable facts.
+      - name: Run daemon retry boundary fixtures
+        run: cargo test -p kiana-daemon --test int21_connector_retry --locked -- --test-threads=1
+      # Source guard: the classifier is a pure server-bound value contract and the deny-first
+      # fixtures stay wired to this lane and the automatic shards.
+      - name: Run core retry guard
+        run: cargo test -p kiana-core --test int21_connector_retry_guard --locked -- --test-threads=1
+
+      - name: Compile domain retry classifier target
+        run: cargo test -p kiana-domain --test int21_connector_retry --no-run --locked
+      - name: Compile daemon retry boundary target
+        run: cargo test -p kiana-daemon --test int21_connector_retry --no-run --locked
+      - name: Compile core retry guard target
+        run: cargo test -p kiana-core --test int21_connector_retry_guard --no-run --locked
