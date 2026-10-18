@@ -4452,6 +4452,9 @@ mod tests {
                 "kiana-daemon",
                 "kiana-policy",
                 "kiana-skills",
+                // The client owns the entity-store snapshot projection DTO locked by UI-09; it is
+                // a workspace member and a real schema owner, not an external publisher.
+                "kiana-client",
             ];
             for contract in SCHEMA_CONTRACTS {
                 assert!(
