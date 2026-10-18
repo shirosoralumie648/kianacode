@@ -5,8 +5,8 @@
 //! successor fact; it never edits the original Unknown receipt or grants an automatic retry.
 
 use crate::{
-    json_digest, provider_payload_hash_valid, EffectObservation, InvocationId, ProviderOutcome,
-    ProviderReceipt,
+    json_digest, provider_payload_hash_valid, EffectObservation, EffectObservationState,
+    InvocationId, ProviderOutcome, ProviderReceipt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -14,6 +14,8 @@ use serde_json::json;
 pub const CONNECTOR_RECONCILIATION_SCHEMA: &str = "kiana.connector-reconciliation-case.v1";
 pub const CONNECTOR_RECONCILIATION_EVIDENCE_SCHEMA: &str =
     "kiana.connector-reconciliation-evidence.v1";
+pub const CONNECTOR_RECONCILIATION_SUCCESSOR_SCHEMA: &str =
+    "kiana.connector-reconciliation-successor.v1";
 pub const CONNECTOR_HUMAN_INBOX_SCHEMA: &str = "kiana.connector-human-inbox-item.v1";
 const MAX_ACTIONS: usize = 8;
 const MAX_EVIDENCE_REFS: usize = 32;
@@ -149,6 +151,26 @@ impl ConnectorReconciliationEvidence {
         if self.evidence_digest != self.digest() {
             return Err("connector_reconciliation_evidence_digest_mismatch".to_owned());
         }
+        self.validate_source_evidence()
+    }
+
+    /// Closing a quarantine needs a concrete artifact, never a bare statement.  Manual evidence
+    /// must carry at least one hash-pinned reference; a provider query must carry the recorded
+    /// query digest of the observation it produced.  A quarantine therefore cannot be closed by
+    /// re-asserting the outcome, and an unknown result can never be retried without evidence.
+    fn validate_source_evidence(&self) -> Result<(), String> {
+        match self.source {
+            ConnectorReconciliationSource::ManualEvidence => {
+                if self.evidence_ref_digests.is_empty() {
+                    return Err("connector_reconciliation_manual_evidence_required".to_owned());
+                }
+            }
+            ConnectorReconciliationSource::ProviderQuery => {
+                if self.observation.query_digest.is_none() {
+                    return Err("connector_reconciliation_query_evidence_required".to_owned());
+                }
+            }
+        }
         Ok(())
     }
 
@@ -200,6 +222,12 @@ impl ConnectorReconciliationCase {
         receipt.validate()?;
         if receipt.outcome != ProviderOutcome::Unknown {
             return Err("connector_reconciliation_unknown_receipt_required".to_owned());
+        }
+        // A timeout may only ever be recorded as Unknown.  A quarantine case built from a
+        // confirmed failure would let a timeout be hidden as a plain failure, and a retry would
+        // then be justified without evidence.
+        if observation.state != EffectObservationState::Unknown {
+            return Err("connector_reconciliation_unknown_observation_required".to_owned());
         }
         observation.validate_for_receipt(
             receipt,
@@ -279,6 +307,9 @@ impl ConnectorReconciliationCase {
 
     pub fn commit_reconciled(&self) -> Result<Self, String> {
         self.validate()?;
+        if self.state == ConnectorReconciliationState::Reconciled {
+            return Err("connector_reconciliation_case_already_reconciled".to_owned());
+        }
         if self.state != ConnectorReconciliationState::EvidenceAttached {
             return Err("connector_reconciliation_evidence_required".to_owned());
         }
@@ -289,6 +320,51 @@ impl ConnectorReconciliationCase {
         Ok(next)
     }
 
+    /// The quarantine never authorizes a retry, in any state.  Closing a case is evidence work; a
+    /// fresh attempt must be a *new* invocation admitted through the ordinary policy/permit path,
+    /// so this denies with one stable code for Pending, EvidenceAttached and Reconciled.
+    pub fn authorize_automatic_retry(&self) -> Result<(), String> {
+        self.validate()?;
+        Err("connector_reconciliation_automatic_retry_forbidden".to_owned())
+    }
+
+    /// Digest-bound description of the successor fact an explicit reconciliation appends.  It
+    /// pins the original invocation/receipt digests and states, structurally, that the original
+    /// fact is never rewritten (`replaces_original_fact = false`).
+    pub fn successor(&self) -> Result<ConnectorReconciliationSuccessor, String> {
+        self.validate()?;
+        if self.state != ConnectorReconciliationState::Reconciled {
+            return Err("connector_reconciliation_successor_requires_reconciled_case".to_owned());
+        }
+        let evidence = self
+            .evidence
+            .as_ref()
+            .ok_or_else(|| "connector_reconciliation_evidence_missing".to_owned())?;
+        let mut successor = ConnectorReconciliationSuccessor {
+            schema: CONNECTOR_RECONCILIATION_SUCCESSOR_SCHEMA.to_owned(),
+            case_digest: self.case_digest.clone(),
+            original_invocation_id: self.invocation_id,
+            attempt: self.attempt,
+            connector_id: self.connector_id.clone(),
+            binding_id: self.binding_id.clone(),
+            account_id: self.account_id.clone(),
+            operation: self.operation.clone(),
+            original_receipt_digest: self.original_receipt_digest.clone(),
+            reconciled_receipt_digest: json_digest(
+                &serde_json::to_value(&evidence.receipt)
+                    .map_err(|_| "connector_reconciliation_receipt_encode_failed")?,
+            ),
+            reconciled_observation_digest: evidence.observation.observation_digest.clone(),
+            observed_outcome: evidence.receipt.outcome,
+            appends_new_fact: true,
+            replaces_original_fact: false,
+            successor_digest: String::new(),
+        };
+        successor.successor_digest = successor.digest();
+        successor.validate()?;
+        Ok(successor)
+    }
+
     pub fn human_inbox_item(&self) -> Result<ConnectorHumanInboxItem, String> {
         self.validate()?;
         let mut item = ConnectorHumanInboxItem {
@@ -296,6 +372,14 @@ impl ConnectorReconciliationCase {
             case_digest: self.case_digest.clone(),
             state: self.state,
             reason: self.reason,
+            invocation_id: self.invocation_id,
+            attempt: self.attempt,
+            connector_id: self.connector_id.clone(),
+            binding_id: self.binding_id.clone(),
+            account_id: self.account_id.clone(),
+            operation: self.operation.clone(),
+            payload_sha256: self.payload_sha256.clone(),
+            observed_outcome: self.observed_outcome,
             safe_actions: self.safe_actions.clone(),
             forbidden_actions: self.forbidden_actions.clone(),
             item_digest: String::new(),
@@ -401,11 +485,100 @@ impl ConnectorReconciliationCase {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ConnectorReconciliationSuccessor {
+    pub schema: String,
+    pub case_digest: String,
+    pub original_invocation_id: InvocationId,
+    pub attempt: u32,
+    pub connector_id: String,
+    pub binding_id: String,
+    pub account_id: String,
+    pub operation: String,
+    pub original_receipt_digest: String,
+    pub reconciled_receipt_digest: String,
+    pub reconciled_observation_digest: String,
+    pub observed_outcome: ProviderOutcome,
+    pub appends_new_fact: bool,
+    pub replaces_original_fact: bool,
+    pub successor_digest: String,
+}
+
+impl ConnectorReconciliationSuccessor {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != CONNECTOR_RECONCILIATION_SUCCESSOR_SCHEMA
+            || self.original_invocation_id.as_uuid().is_nil()
+            || self.attempt == 0
+            || !valid_digest(&self.case_digest)
+            || !valid_digest(&self.original_receipt_digest)
+            || !valid_digest(&self.reconciled_receipt_digest)
+            || !valid_digest(&self.reconciled_observation_digest)
+            || self.observed_outcome == ProviderOutcome::Unknown
+            || !self.appends_new_fact
+            || self.replaces_original_fact
+            || !valid_digest(&self.successor_digest)
+        {
+            return Err("connector_reconciliation_successor_invalid".to_owned());
+        }
+        for (value, field) in [
+            (&self.connector_id, "connector_reconciliation_connector_id"),
+            (&self.binding_id, "connector_reconciliation_binding_id"),
+            (&self.account_id, "connector_reconciliation_account_id"),
+            (&self.operation, "connector_reconciliation_operation"),
+        ] {
+            required(value, field, 256)?;
+        }
+        if self.successor_digest != self.digest() {
+            return Err("connector_reconciliation_successor_invalid".to_owned());
+        }
+        Ok(())
+    }
+
+    /// A successor is only valid for the exact reconciled case it was derived from; this is what
+    /// makes "reconcile never rewrites the original fact" checkable at the fact boundary.
+    pub fn validate_for_case(&self, case: &ConnectorReconciliationCase) -> Result<(), String> {
+        self.validate()?;
+        if self != &case.successor()? {
+            return Err("connector_reconciliation_successor_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&json!({
+            "schema": self.schema,
+            "case_digest": self.case_digest,
+            "original_invocation_id": self.original_invocation_id,
+            "attempt": self.attempt,
+            "connector_id": self.connector_id,
+            "binding_id": self.binding_id,
+            "account_id": self.account_id,
+            "operation": self.operation,
+            "original_receipt_digest": self.original_receipt_digest,
+            "reconciled_receipt_digest": self.reconciled_receipt_digest,
+            "reconciled_observation_digest": self.reconciled_observation_digest,
+            "observed_outcome": self.observed_outcome,
+            "appends_new_fact": self.appends_new_fact,
+            "replaces_original_fact": self.replaces_original_fact,
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConnectorHumanInboxItem {
     pub schema: String,
     pub case_digest: String,
     pub state: ConnectorReconciliationState,
     pub reason: ConnectorReconciliationReason,
+    pub invocation_id: InvocationId,
+    pub attempt: u32,
+    pub connector_id: String,
+    pub binding_id: String,
+    pub account_id: String,
+    pub operation: String,
+    pub payload_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observed_outcome: Option<ProviderOutcome>,
     pub safe_actions: Vec<ConnectorReconciliationAction>,
     pub forbidden_actions: Vec<ConnectorReconciliationAction>,
     pub item_digest: String,
@@ -415,12 +588,34 @@ impl ConnectorHumanInboxItem {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != CONNECTOR_HUMAN_INBOX_SCHEMA
             || !valid_digest(&self.case_digest)
+            || self.invocation_id.as_uuid().is_nil()
+            || self.attempt == 0
+            || !provider_payload_hash_valid(&self.payload_sha256)
             || self.safe_actions != safe_actions()
             || self.forbidden_actions != forbidden_actions()
             || !valid_digest(&self.item_digest)
-            || self.item_digest != self.digest()
         {
             return Err("connector_human_inbox_item_invalid".to_owned());
+        }
+        for (value, field) in [
+            (&self.connector_id, "connector_reconciliation_connector_id"),
+            (&self.binding_id, "connector_reconciliation_binding_id"),
+            (&self.account_id, "connector_reconciliation_account_id"),
+            (&self.operation, "connector_reconciliation_operation"),
+        ] {
+            required(value, field, 256)?;
+        }
+        if self.item_digest != self.digest() {
+            return Err("connector_human_inbox_item_invalid".to_owned());
+        }
+        Ok(())
+    }
+
+    /// The item is a projection: it must be exactly the item of the case it claims to describe.
+    pub fn validate_for_case(&self, case: &ConnectorReconciliationCase) -> Result<(), String> {
+        self.validate()?;
+        if self != &case.human_inbox_item()? {
+            return Err("connector_human_inbox_item_mismatch".to_owned());
         }
         Ok(())
     }
@@ -431,6 +626,14 @@ impl ConnectorHumanInboxItem {
             "case_digest": self.case_digest,
             "state": self.state,
             "reason": self.reason,
+            "invocation_id": self.invocation_id,
+            "attempt": self.attempt,
+            "connector_id": self.connector_id,
+            "binding_id": self.binding_id,
+            "account_id": self.account_id,
+            "operation": self.operation,
+            "payload_sha256": self.payload_sha256,
+            "observed_outcome": self.observed_outcome,
             "safe_actions": self.safe_actions,
             "forbidden_actions": self.forbidden_actions,
         }))

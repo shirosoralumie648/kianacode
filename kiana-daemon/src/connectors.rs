@@ -631,7 +631,7 @@ impl ConnectorRegistry {
                                 && other.data["invocation_event_id"] == event.event_id.to_string()
                         })
                 })
-                .map(|event| json!({"event_id":event.event_id,"receipt":event.data["receipt"]}))
+                .map(unresolved_invocation_entry)
                 .collect::<Vec<_>>();
             let health = kiana_query::project_connector_health(&history).map_err(failed)?;
             return Ok(json!({
@@ -997,6 +997,15 @@ impl ConnectorRegistry {
                     )
                     .await?;
                 let mut output = receipt_output(&dispatch.receipt, dispatch.version);
+                if dispatch.receipt.outcome == ProviderOutcome::Unknown {
+                    // INT-22: an Unknown provider outcome is quarantined, not failed and not
+                    // retried.  The explicit reconcile command is the only way to close it.
+                    attach_quarantine_projection(
+                        &mut output,
+                        &dispatch.receipt,
+                        &dispatch.observation,
+                    )?;
+                }
                 if let Some(evidence) = &dispatch.credential_evidence {
                     output["credential_evidence"] = serde_json::to_value(evidence)
                         .map_err(|_| failed("connector_credential_evidence_encode_failed"))?;
@@ -1101,16 +1110,27 @@ impl ConnectorRegistry {
                     .map_err(failed)?
                     .commit_reconciled()
                     .map_err(failed)?;
+                // INT-22: the reconciliation appends a successor fact.  The successor pins the
+                // original invocation/receipt digests and states that the original Unknown fact
+                // is never rewritten, and the Human Inbox item publishes the safe/forbidden
+                // actions for the closed case.
+                let reconciliation_successor = reconciliation_case.successor().map_err(failed)?;
+                let human_inbox_item = reconciliation_case.human_inbox_item().map_err(failed)?;
                 let mut output = receipt_output(&receipt, next_version);
                 output["effect_observation"] = serde_json::to_value(&observation)
                     .map_err(|_| failed("effect_observation_encode_failed"))?;
                 output["reconciliation_case"] = serde_json::to_value(&reconciliation_case)
                     .map_err(|_| failed("connector_reconciliation_case_encode_failed"))?;
+                output["reconciliation_successor"] =
+                    serde_json::to_value(&reconciliation_successor)
+                        .map_err(|_| failed("connector_reconciliation_successor_encode_failed"))?;
+                output["human_inbox_item"] = serde_json::to_value(&human_inbox_item)
+                    .map_err(|_| failed("connector_human_inbox_item_encode_failed"))?;
                 output["reconciled"] = json!(true);
                 output["invocation_event_id"] = json!(invocation);
                 (
                     "connector.reconciled",
-                    json!({"receipt":receipt,"effect_observation":observation,"reconciliation_case":reconciliation_case,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
+                    json!({"receipt":receipt,"effect_observation":observation,"reconciliation_case":reconciliation_case,"reconciliation_successor":reconciliation_successor,"invocation_event_id":invocation,"receipt_sha256":args["receipt_sha256"]}),
                     output,
                     next_version,
                     version,
@@ -1247,6 +1267,62 @@ fn receipt_output(receipt: &ProviderReceipt, version: u64) -> Value {
         }
     }
     output
+}
+
+/// Add the INT-22 quarantine projection to an invocation output whose outcome is Unknown.  The
+/// case is rebuilt from the stored receipt/observation only; the caller cannot supply it, and the
+/// unsafe actions (automatic retry, key reuse, replacing the original receipt) are published as
+/// forbidden so the Human Inbox shows the same contract the domain enforces.
+fn attach_quarantine_projection(
+    output: &mut Value,
+    receipt: &ProviderReceipt,
+    observation: &EffectObservation,
+) -> Result<(), PortError> {
+    let case = ConnectorReconciliationCase::from_unknown(
+        receipt,
+        observation,
+        ConnectorReconciliationReason::ProviderUnknown,
+    )
+    .map_err(failed)?;
+    output["reconciliation_state"] = json!(case.state);
+    output["reconciliation_required"] = json!(case.reconciliation_required);
+    output["automatic_retry_allowed"] = json!(case.automatic_retry_allowed);
+    output["human_inbox_item"] = serde_json::to_value(case.human_inbox_item().map_err(failed)?)
+        .map_err(|_| failed("connector_human_inbox_item_encode_failed"))?;
+    Ok(())
+}
+
+/// Projection for one quarantined Unknown invocation.  Reconciliation facts are appended, never
+/// overwritten, so an invocation with a committed `connector.reconciled` successor leaves the
+/// unresolved list; an older fact without a stored observation keeps the plain receipt entry
+/// instead of inventing an expectation.
+fn unresolved_invocation_entry(event: &RuntimeEvent) -> Value {
+    let mut entry = json!({"event_id":event.event_id,"receipt":event.data["receipt"]});
+    let Ok(receipt) = serde_json::from_value::<ProviderReceipt>(event.data["receipt"].clone())
+    else {
+        return entry;
+    };
+    let Ok(observation) = EffectObservation::from_json(&event.data["effect_observation"]) else {
+        return entry;
+    };
+    let Ok(case) = ConnectorReconciliationCase::from_unknown(
+        &receipt,
+        &observation,
+        ConnectorReconciliationReason::ProviderUnknown,
+    ) else {
+        return entry;
+    };
+    entry["reconciliation_required"] = json!(case.reconciliation_required);
+    entry["automatic_retry_allowed"] = json!(case.automatic_retry_allowed);
+    entry["reconciliation_state"] = json!(case.state);
+    entry["reconciliation_case_digest"] = json!(case.case_digest);
+    if let Ok(case_value) = serde_json::to_value(&case) {
+        entry["reconciliation_case"] = case_value;
+    }
+    if let Ok(Ok(item)) = case.human_inbox_item().map(serde_json::to_value) {
+        entry["human_inbox_item"] = item;
+    }
+    entry
 }
 
 async fn load_fixture(binding: &ConnectorBindingSnapshot) -> Result<ConnectorFixture, PortError> {
