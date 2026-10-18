@@ -5,8 +5,8 @@ use crate::{
     connector_fixture_hash_valid, is_sha256_hex, json_digest, scan_secret_sentinels,
     valid_extension_identifier, valid_extension_path, ConnectorDispatchLifecycle,
     ConnectorDispatchStage, ConnectorReconciliationCase, ConnectorReconciliationState,
-    EffectObservation, InvocationId, RiskLevel, SecretRef, SecretScanChannel,
-    CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
+    ConnectorReconciliationSuccessor, EffectObservation, InvocationId, RiskLevel, SecretRef,
+    SecretScanChannel, CONNECTOR_DISPATCH_LIFECYCLE_EVENT_KIND,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -899,6 +899,17 @@ pub fn connector_bindings(
                     })
                 {
                     return Err("connector_registry_event_invalid");
+                }
+                // INT-22: a successor is only valid for this exact reconciled case, and it must
+                // keep `replaces_original_fact = false`, so a reconciliation fact can never
+                // claim to have rewritten the original Unknown invocation.
+                if let Some(raw_successor) = event.data.get("reconciliation_successor") {
+                    let successor: ConnectorReconciliationSuccessor =
+                        serde_json::from_value(raw_successor.clone())
+                            .map_err(|_| "connector_registry_event_invalid")?;
+                    successor
+                        .validate_for_case(&case)
+                        .map_err(|_| "connector_registry_event_invalid")?;
                 }
             }
         } else if event.kind == CONNECTOR_HEALTH_EVENT_KIND {
