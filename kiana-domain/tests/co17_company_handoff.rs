@@ -20,7 +20,14 @@ fn packet() -> HandoffPacketRevision {
             max_bytes: 16_384,
         },
         write_scope: vec!["src/".to_owned()],
+        charter_baseline_version: 0,
         plan_ref: Some("plan:1".to_owned()),
+        plan_binding: Some(DepartmentPlanBinding {
+            plan_version: 1,
+            plan_digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+                .to_owned(),
+            charter_baseline_version: 1,
+        }),
         runtime_grant: None,
         budget_lease: None,
     };

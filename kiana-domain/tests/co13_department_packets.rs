@@ -46,20 +46,20 @@ fn analysis_packet() -> DepartmentPacket {
     }
 }
 
-fn charter_draft_packet(baseline_version: u64) -> DepartmentPacket {
+fn plan_draft_packet(baseline_version: u64) -> DepartmentPacket {
     DepartmentPacket {
         schema: DEPARTMENT_PACKET_SCHEMA.to_owned(),
-        packet_id: "department-packet-charter".to_owned(),
+        packet_id: "department-packet-plan".to_owned(),
         project_id: "project-1".to_owned(),
         version: 1,
-        kind: DepartmentPacketKind::CharterDraft,
-        from_department: "initiating".to_owned(),
-        target_role: "sponsor".to_owned(),
-        assignment_ref: "assignment:sponsor".to_owned(),
+        kind: DepartmentPacketKind::PlanDraft,
+        from_department: "planning".to_owned(),
+        target_role: "pm".to_owned(),
+        assignment_ref: "assignment:pm".to_owned(),
         input_basis: PacketInputBasis::Charter,
-        input_refs: vec!["artifact:intake".to_owned()],
-        result: result_contract("kiana.charter-draft-result.v1"),
-        write_scope: vec!["charter/".to_owned()],
+        input_refs: vec!["artifact:charter".to_owned()],
+        result: result_contract("kiana.plan-draft-result.v1"),
+        write_scope: vec!["plan/".to_owned()],
         charter_baseline_version: baseline_version,
         plan_ref: None,
         plan_binding: None,
@@ -300,10 +300,34 @@ fn department_packet_contract_refuses_role_department_and_input_basis_drift() {
         "department_packet_input_refs_required"
     );
 
-    let mut missing_charter_baseline = charter_draft_packet(0);
+    let missing_charter_baseline = plan_draft_packet(0);
     assert_eq!(
         missing_charter_baseline.validate().unwrap_err(),
         "department_packet_charter_baseline_required"
+    );
+
+    // A Charter-basis draft has to name the approved Charter version it plans against, and the
+    // Intake/Initiative bases may not bind an approved Charter or Plan reference at all.
+    let mut premature_charter_basis = analysis_packet();
+    premature_charter_basis.charter_baseline_version = 1;
+    assert_eq!(
+        premature_charter_basis.validate().unwrap_err(),
+        "department_packet_plan_reference_mismatch"
+    );
+
+    let mut duplicated_baseline = implementation_packet(
+        "project-1",
+        Some("p1"),
+        Some(DepartmentPlanBinding {
+            plan_version: 1,
+            plan_digest: coverage_digest(),
+            charter_baseline_version: 1,
+        }),
+    );
+    duplicated_baseline.charter_baseline_version = 1;
+    assert_eq!(
+        duplicated_baseline.validate().unwrap_err(),
+        "department_packet_plan_reference_mismatch"
     );
 }
 
@@ -363,10 +387,10 @@ fn department_packet_admission_refuses_unapproved_stage_and_inactive_appointment
     );
 
     assert_eq!(
-        charter_draft_packet(1)
+        plan_draft_packet(1)
             .admit(
                 &intake_stage("project-1"),
-                &appointment("sponsor", "project-1", u64::MAX - 1, false),
+                &appointment("pm", "project-1", u64::MAX - 1, false),
                 now
             )
             .unwrap_err(),
@@ -376,10 +400,10 @@ fn department_packet_admission_refuses_unapproved_stage_and_inactive_appointment
     let mut approved_other_baseline = intake_stage("project-1");
     approved_other_baseline.charter_baseline_version = 2;
     assert_eq!(
-        charter_draft_packet(1)
+        plan_draft_packet(1)
             .admit(
                 &approved_other_baseline,
-                &appointment("sponsor", "project-1", u64::MAX - 1, false),
+                &appointment("pm", "project-1", u64::MAX - 1, false),
                 now
             )
             .unwrap_err(),
@@ -497,16 +521,38 @@ fn admitted_department_packet_returns_digest_bound_evidence_without_runtime_auth
     assert_eq!(replay.admission_digest, admission.admission_digest);
 
     // A forged runtime authority flag cannot be validated back into a legal admission.
-    let mut forged = admission;
+    let mut forged = admission.clone();
     forged.runtime_authority = true;
     assert_eq!(
         forged.validate().unwrap_err(),
+        "department_packet_admission_invalid"
+    );
+
+    // The evidence has to stay consistent with its own input basis even when the self-digest is
+    // recomputed: an Intake admission may not record an approved Charter baseline, and a
+    // Plan-basis admission must record its plan node and revision.
+    let mut forged_baseline = admission.clone();
+    forged_baseline.charter_baseline_version = 7;
+    forged_baseline.admission_digest = forged_baseline.canonical_digest();
+    assert_eq!(
+        forged_baseline.validate().unwrap_err(),
+        "department_packet_admission_invalid"
+    );
+
+    let mut forged_plan = admission;
+    forged_plan.input_basis = PacketInputBasis::Plan;
+    forged_plan.admission_digest = forged_plan.canonical_digest();
+    assert_eq!(
+        forged_plan.validate().unwrap_err(),
         "department_packet_admission_invalid"
     );
 }
 
 #[test]
 fn analysis_and_implementation_packets_validate_through_versioned_contracts() {
+    // Intake investigation is admitted on the intake authorization alone: no Charter and no Plan
+    // exists yet, which is what removes the "a plan is required before a plan can be drafted"
+    // cycle. The same contract expresses the Charter draft that follows it.
     let analysis = analysis_packet();
     analysis.validate().expect("analysis packet");
     let analysis_admission = analysis
@@ -517,7 +563,44 @@ fn analysis_and_implementation_packets_validate_through_versioned_contracts() {
         )
         .expect("analysis admission");
     assert!(!analysis_admission.runtime_authority);
+    assert_eq!(analysis_admission.plan_digest, None);
 
+    let mut charter_draft = analysis_packet();
+    charter_draft.packet_id = "department-packet-charter".to_owned();
+    charter_draft.kind = DepartmentPacketKind::CharterDraft;
+    charter_draft.target_role = "sponsor".to_owned();
+    charter_draft.assignment_ref = "assignment:sponsor".to_owned();
+    charter_draft.result.output_schema = "kiana.charter-draft-result.v1".to_owned();
+    charter_draft.write_scope = vec!["charter/".to_owned()];
+    charter_draft.validate().expect("charter draft packet");
+    let charter_admission = charter_draft
+        .admit(
+            &intake_stage("project-1"),
+            &appointment("sponsor", "project-1", u64::MAX - 1, false),
+            1_000,
+        )
+        .expect("charter draft admission");
+    assert!(!charter_admission.runtime_authority);
+    assert_eq!(charter_admission.charter_baseline_version, 0);
+
+    // The Plan draft runs against the approved Charter baseline, still before any frozen Plan.
+    let mut charter_stage = intake_stage("project-1");
+    charter_stage.charter_baseline_version = 2;
+    let plan_draft = plan_draft_packet(2);
+    plan_draft.validate().expect("plan draft packet");
+    let plan_admission = plan_draft
+        .admit(
+            &charter_stage,
+            &appointment("pm", "project-1", u64::MAX - 1, false),
+            1_000,
+        )
+        .expect("plan draft admission");
+    assert!(!plan_admission.runtime_authority);
+    assert_eq!(plan_admission.charter_baseline_version, 2);
+    assert_eq!(plan_admission.plan_digest, None);
+
+    // Every Plan-basis kind validates through the same versioned contract against the exact
+    // frozen Plan revision and its appointed target role.
     let frozen = frozen_plan("project-1", 2, 2);
     let mut stage = intake_stage("project-1");
     stage.charter_baseline_version = 2;
@@ -537,11 +620,68 @@ fn analysis_and_implementation_packets_validate_through_versioned_contracts() {
     assert_eq!(admission.plan_node_ref.as_deref(), Some("p1"));
     assert_eq!(admission.charter_baseline_version, 2);
 
+    for (kind, role, output_schema, write_scope) in [
+        (
+            DepartmentPacketKind::Verification,
+            "qa",
+            "kiana.verification-result.v1",
+            "gate/report.json",
+        ),
+        (
+            DepartmentPacketKind::DeliveryPreparation,
+            "closer",
+            "kiana.delivery-preparation-result.v1",
+            "receipt/delivery.json",
+        ),
+        (
+            DepartmentPacketKind::KnowledgeCapture,
+            "librarian",
+            "kiana.knowledge-capture-result.v1",
+            "lessons/co13.md",
+        ),
+    ] {
+        let mut packet =
+            implementation_packet("project-1", Some("p1"), Some(plan_binding(&frozen)));
+        packet.packet_id = format!("department-packet-{}", kind.role_id());
+        packet.kind = kind;
+        packet.from_department = kind.department_id().to_owned();
+        packet.target_role = kind.role_id().to_owned();
+        packet.assignment_ref = format!("assignment:{}", kind.role_id());
+        packet.result.output_schema = output_schema.to_owned();
+        packet.write_scope = vec![write_scope.to_owned()];
+        packet.validate().expect("plan-basis department packet");
+        let admission = packet
+            .admit(
+                &stage,
+                &appointment(kind.role_id(), "project-1", u64::MAX - 1, false),
+                1_000,
+            )
+            .unwrap_or_else(|reason| panic!("{} admission: {reason}", kind.role_id()));
+        assert!(!admission.runtime_authority);
+        assert_eq!(admission.plan_node_ref.as_deref(), Some("p1"));
+        assert_eq!(
+            admission.plan_digest.as_deref(),
+            Some(frozen.plan_digest.as_str())
+        );
+    }
+
     let mut missing_binding = implementation.clone();
     missing_binding.plan_ref = None;
     assert_eq!(
         missing_binding.validate().unwrap_err(),
         "department_packet_plan_required"
+    );
+
+    // Before the Plan is frozen the implementation contract is still refused: the analysis lane
+    // above does not widen the executing lane.
+    let mut planless_stage = intake_stage("project-1");
+    planless_stage.charter_baseline_version = 2;
+    assert_eq!(
+        implementation
+            .clone()
+            .admit(&planless_stage, &builder_appointment("project-1"), 1_000)
+            .unwrap_err(),
+        "department_packet_plan_not_approved"
     );
 
     let mut unused_binding = implementation;
