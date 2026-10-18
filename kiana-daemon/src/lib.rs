@@ -51,6 +51,7 @@ mod apply_patch;
 #[cfg(test)]
 mod approval_store;
 mod authn;
+mod automation_cancellation;
 mod automation_dispatch;
 mod company_dispatch;
 mod connector_ingress;
@@ -134,6 +135,10 @@ mod workspace_checkpoints;
 // ---------------------------------------------------------------------------
 
 pub use authn::LocalAuthnAdapter;
+pub use automation_cancellation::{
+    AutomationCancellationService, AutomationCancellationShutdownReport,
+    AUTOMATION_CANCELLATION_CHANNEL_CAPACITY,
+};
 pub use automation_dispatch::{
     AutomationDispatchService, AutomationDispatchShutdownReport,
     AUTOMATION_DISPATCH_CHANNEL_CAPACITY,
@@ -442,6 +447,8 @@ fn loopback_authority(value: &str) -> bool {
 /// - `observability_queue`：有界观测投递队列，满了可观察地拒绝，不影响业务状态。
 /// - `workflow_service`：确定性 workflow 的队列服务。
 /// - `automation_dispatch_service`：AUT-15 的可重取 worker dispatch/observation 服务；默认未启动。
+/// - `automation_cancellation_service`：AUT-17 的取消编排服务（queued→not_executed、claimed→stop
+///   report、迟到结果→Fenced）；默认未启动，需显式注入 store/取消 store/stop 控制器。
 /// - `extensions`：**只能是 `Option`**。它只用来构建只读可见性投影；写操作和执行权仍然
 ///   属于 ControlPlane/Broker。宿主如果是被注入了外部 core 构造出来的，就报告「投影不可用」。
 ///
@@ -463,6 +470,8 @@ pub struct DaemonHost {
     workflow_service: WorkflowQueueService,
     /// AUT-15 worker dispatch/observation 服务；默认未启动，需显式注入 store 与 runner。
     automation_dispatch_service: AutomationDispatchService,
+    /// AUT-17 取消编排服务；默认未启动，需显式注入命令 store、取消事实 store 与 stop 控制器。
+    automation_cancellation_service: AutomationCancellationService,
     /// Optional registry handle used only to build read-only visibility projections. Mutation
     /// and execution remain owned by ControlPlane/Broker; hosts constructed around an injected
     /// core simply report the projection as unavailable.
@@ -757,6 +766,7 @@ impl DaemonHost {
             ),
             workflow_service: WorkflowQueueService::new(),
             automation_dispatch_service: AutomationDispatchService::new(),
+            automation_cancellation_service: AutomationCancellationService::new(),
             extensions: None,
         }
     }
@@ -1618,6 +1628,7 @@ impl DaemonHost {
     pub async fn shutdown(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
         let _ = self.workflow_service.shutdown().await?;
         let _ = self.automation_dispatch_service.shutdown().await?;
+        let _ = self.automation_cancellation_service.shutdown().await?;
         self.flush_event_store().await?;
         let _ = self.flush_observability().await;
         self.shutdown_observability();
@@ -1673,6 +1684,28 @@ impl DaemonHost {
 
     pub fn automation_dispatch_service(&self) -> AutomationDispatchService {
         self.automation_dispatch_service.clone()
+    }
+
+    /// Start the one AUT-17 cancellation service owned by this DaemonHost.
+    ///
+    /// The service only re-fetches committed dispatch commands, records cancel generations through the
+    /// injected cancellation store and asks the injected stop controller for a bounded stop report;
+    /// queued items become `NotExecuted`, unconfirmed stops stay in recovery and a late result can only
+    /// be fenced. Command admission, capability authorization and the concrete stop stay on the
+    /// existing ControlPlane/Broker/supervisor spine.
+    pub async fn start_automation_cancellation_service(
+        &self,
+        store: Arc<dyn kiana_ports::AutomationDispatchStore>,
+        cancellations: Arc<dyn kiana_ports::AutomationCancellationStore>,
+        stop: Arc<dyn kiana_ports::AutomationWorkerStopController>,
+    ) -> Result<(), PortError> {
+        self.automation_cancellation_service
+            .start(store, cancellations, stop)
+            .await
+    }
+
+    pub fn automation_cancellation_service(&self) -> AutomationCancellationService {
+        self.automation_cancellation_service.clone()
     }
 
     pub fn reopen_observability(&self) -> ObservabilityQueueStats {
