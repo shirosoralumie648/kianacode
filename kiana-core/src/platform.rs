@@ -308,19 +308,48 @@ impl ControlPlane {
         }))
     }
 
+    /// Decide whether one `failure.reconcile` evidence set actually binds an observation.
+    ///
+    /// 【为什么不再接受 `provider:` / `os:` / `file:` / `human:` 字符串】
+    /// 旧实现把「以某个前缀开头且包含 incident id」当成独立证据。前缀只是调用方对来源的
+    /// **自称**：任何能提交命令的人都可以写 `provider:<incident_id>:fake`，控制面却无法把它
+    /// 与真实观测区分开。删除前缀路径，是因为一个无法核验的字符串不构成证据，而不是因为它
+    /// 的措辞不准确。
+    ///
+    /// 【现在只接受什么】
+    /// - 源引用：`event:<source_event_id>`（可附加 `#<payload digest>`）；它只表示「我确认
+    ///   被对账的是哪条事实」，不参与独立证据计数。
+    /// - 独立证据：`event:<event_id>#sha256:<hex>`，且该事件必须
+    ///   1. 已提交在 EventLog 中；
+    ///   2. 属于本 actor/项目（`platform_owned_events`）；
+    ///   3. 位于源事件之后（事后观测，不是事发前的旧事实）；
+    ///   4. 与 incident run 绑定（无 run 的 incident 则要求同一 request）；
+    ///   5. 是对账可采信的结果类事件（`*.result_unknown` 只是换个说法重复不确定性，不算）；
+    ///   6. 其 payload digest 与引用里写明的值完全一致。
+    ///
+    /// 返回 `Required` 表示缺少最小形状（源引用 + 独立引用），`Unbound` 表示有一条引用无法
+    /// 绑定到上述事实。两者在 `reconcile_failure` 里映射为不同的稳定拒绝码。
     async fn reconciliation_evidence_exists(
         &self,
         context: &RequestContext,
         arguments: &Value,
         incident: &FailureIncident,
-    ) -> Result<bool, CoreError> {
+    ) -> Result<ReconciliationEvidenceVerdict, CoreError> {
         let Some(refs) = arguments["evidence_refs"]
             .as_array()
             .filter(|refs| !refs.is_empty() && refs.len() <= 64)
         else {
-            return Ok(false);
+            return Ok(ReconciliationEvidenceVerdict::Required);
         };
-        let source_ref = format!("event:{}", incident.source_event_id);
+        let events = self.events.read_all().await?;
+        let Some(source_index) = events
+            .iter()
+            .position(|event| event.event_id == incident.source_event_id)
+        else {
+            return Ok(ReconciliationEvidenceVerdict::Unbound);
+        };
+        let source = &events[source_index];
+        let source_id = incident.source_event_id.to_string();
         let owned_events = self.platform_owned_events(context).await?;
         let mut source_seen = false;
         let mut independent_seen = false;
@@ -329,36 +358,58 @@ impl ControlPlane {
                 .as_str()
                 .filter(|reference| !reference.trim().is_empty() && reference.len() <= 512)
             else {
-                return Ok(false);
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
             };
-            if reference == source_ref {
+            let Some((event_id, digest)) = parse_reconciliation_evidence_ref(reference) else {
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
+            };
+            if event_id == source_id {
+                // A source reference may omit the digest, but a supplied digest must match the
+                // committed fact; accepting a wrong digest would make the binding decorative.
+                if digest.is_some_and(|digest| digest != json_digest(&source.data)) {
+                    return Ok(ReconciliationEvidenceVerdict::Unbound);
+                }
                 source_seen = true;
                 continue;
             }
-            if let Some(event_id) = reference.strip_prefix("event:") {
-                let Some(event) = owned_events
-                    .iter()
-                    .find(|event| event.event_id.to_string() == event_id)
-                else {
-                    return Ok(false);
-                };
-                if incident.run_id.is_some()
-                    && event.data["run_id"].as_str().and_then(RunId::parse_str) != incident.run_id
-                {
-                    return Ok(false);
-                }
-                independent_seen = true;
-                continue;
-            }
-            let typed_external = ["provider:", "os:", "file:", "human:"]
+            // Independent evidence must be digest-bound: an event id alone can be pointed at by
+            // anyone who can read the log, while the digest pins the exact payload being cited.
+            let Some(digest) = digest else {
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
+            };
+            let Some(event) = owned_events
                 .iter()
-                .any(|prefix| reference.starts_with(prefix));
-            if !typed_external || !reference.contains(&incident.incident_id) {
-                return Ok(false);
+                .find(|event| event.event_id.to_string() == event_id)
+            else {
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
+            };
+            let Some(index) = events
+                .iter()
+                .position(|stored| stored.event_id == event.event_id)
+            else {
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
+            };
+            if index <= source_index || digest != json_digest(&event.data) {
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
+            }
+            let bound = match incident.run_id {
+                Some(run_id) => {
+                    event.data["run_id"].as_str().and_then(RunId::parse_str) == Some(run_id)
+                }
+                // An incident without a run can only be resolved by facts from the request that
+                // produced it; otherwise any other owned event would count as "independent".
+                None => event.request_id == source.request_id,
+            };
+            if !bound || !reconciliation_observation_kind(&event.kind) {
+                return Ok(ReconciliationEvidenceVerdict::Unbound);
             }
             independent_seen = true;
         }
-        Ok(source_seen && independent_seen)
+        Ok(if source_seen && independent_seen {
+            ReconciliationEvidenceVerdict::Accepted
+        } else {
+            ReconciliationEvidenceVerdict::Required
+        })
     }
 
     async fn reconciliation_epoch_current(
@@ -813,14 +864,29 @@ impl ControlPlane {
         if !matches!(
             arguments["resolution"].as_str(),
             Some("observed_succeeded" | "observed_failed" | "no_effect")
-        ) || !self
-            .reconciliation_evidence_exists(context, &arguments, &incident)
-            .await?
-        {
+        ) {
             return Ok(CoreResponse::blocked(
                 context.request_id,
                 "failure_reconciliation_evidence_required",
             ));
+        }
+        match self
+            .reconciliation_evidence_exists(context, &arguments, &incident)
+            .await?
+        {
+            ReconciliationEvidenceVerdict::Accepted => {}
+            ReconciliationEvidenceVerdict::Required => {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "failure_reconciliation_evidence_required",
+                ))
+            }
+            ReconciliationEvidenceVerdict::Unbound => {
+                return Ok(CoreResponse::blocked(
+                    context.request_id,
+                    "failure_reconciliation_evidence_unbound",
+                ))
+            }
         }
         if !self
             .reconciliation_epoch_current(context, &incident)
@@ -833,7 +899,7 @@ impl ControlPlane {
         }
         self.commit_platform(context,&history,"failure.reconciled",&arguments,json!({"incident_id":incident.incident_id,"source_event_id":incident.source_event_id,"resolution":arguments["resolution"],"evidence_refs":arguments["evidence_refs"],
             "authority_revision":authority_revision,"data_epoch":data_epoch,"evidence_scope":"incident_bound",
-            "runtime_outcome_unchanged":true,"automatic_retry_allowed":false})).await
+            "evidence_binding":"typed_event_digest","runtime_outcome_unchanged":true,"automatic_retry_allowed":false})).await
     }
 
     async fn record_feedback(
@@ -1353,6 +1419,62 @@ impl ControlPlane {
             )),
         }
     }
+}
+
+/// Outcome of validating one reconciliation evidence set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReconciliationEvidenceVerdict {
+    /// The source fact plus at least one bound, digest-matching observation.
+    Accepted,
+    /// No refs, or the source fact plus an independent observation is missing.
+    Required,
+    /// A ref is not an `event:` fact, cannot be found, is unowned, precedes the incident, is
+    /// bound to another run/request, restates uncertainty, or does not match its digest.
+    Unbound,
+}
+
+/// Parse `event:<event_id>` with an optional `#sha256:<hex>` payload digest.
+///
+/// No other scheme is accepted. In particular a bare `provider:`/`os:`/`file:`/`human:` prefix is
+/// just a caller-authored label, so it must never be parsed as evidence.
+fn parse_reconciliation_evidence_ref(reference: &str) -> Option<(&str, Option<&str>)> {
+    let rest = reference.strip_prefix("event:")?;
+    if rest.is_empty() {
+        return None;
+    }
+    match rest.split_once('#') {
+        Some((event_id, digest)) => (!event_id.is_empty() && sha256_digest_shape(digest))
+            .then_some((event_id, Some(digest))),
+        None => Some((rest, None)),
+    }
+}
+
+fn sha256_digest_shape(value: &str) -> bool {
+    value.len() == 71
+        && value.starts_with("sha256:")
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// Event kinds that can resolve an unknown outcome with an observed result.
+///
+/// Unknown/uncertain kinds (`run.result_unknown`, `capability.result_unknown`) are deliberately
+/// absent: citing a second "still unknown" fact is not independent evidence that the effect was
+/// observed.
+fn reconciliation_observation_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "run.completed"
+            | "run.failed"
+            | "run.cancelled"
+            | "capability.completed"
+            | "capability.failed"
+            | "capability.cancelled"
+            | "execution.result_committed"
+            | "connector.reconciled"
+            | "provider.receipt_observed"
+            | "os.process_observed"
+            | "human.observation_recorded"
+    )
 }
 
 fn feedback_candidates(history: &[RuntimeEvent]) -> Result<Vec<FeedbackCandidate>, CoreError> {

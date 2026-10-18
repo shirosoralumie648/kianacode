@@ -82,3 +82,58 @@ fn er29_separates_receipt_metadata_from_payload_and_fences_every_store() {
     assert!(!core.contains("CapabilityBroker::new"));
     assert!(!core.contains("KianaHarness::new"));
 }
+
+/// A source guard for the reconciliation-evidence repair in this completion slice.
+///
+/// The old rule accepted `provider:`/`os:`/`file:`/`human:` strings that merely contained the
+/// incident id. Nothing produced them, so the only thing they proved was that the caller could
+/// type. This guard fails if that branch or its wording comes back, and pins the typed-shape,
+/// digest-bound, post-incident, run-bound rules plus the stable refusal code.
+#[test]
+fn er29_reconciliation_evidence_is_typed_digest_bound_and_incident_scoped() {
+    let platform = include_str!("../src/platform.rs");
+    let fixture = include_str!("er29_reconciliation_evidence.rs");
+    let baseline = include_str!("../../docs/roadmap/er29-data-governance-baseline.md");
+
+    for marker in [
+        "fn reconciliation_evidence_exists",
+        "ReconciliationEvidenceVerdict",
+        "failure_reconciliation_evidence_unbound",
+        "parse_reconciliation_evidence_ref",
+        "reconciliation_observation_kind",
+        "evidence_binding",
+        "typed_event_digest",
+        "index <= source_index",
+        "json_digest(&event.data)",
+    ] {
+        assert!(
+            platform.contains(marker) || baseline.contains(marker),
+            "ER-29 reconciliation marker missing: {marker}"
+        );
+    }
+
+    // The label-only branch must be gone: a scheme prefix never counts as evidence.
+    for forbidden in [
+        "let typed_external",
+        "\"provider:\", \"os:\", \"file:\", \"human:\"",
+        "reference.contains(&incident.incident_id)",
+    ] {
+        assert!(
+            !platform.contains(forbidden),
+            "ER-29 caller-authored evidence branch returned: {forbidden}"
+        );
+    }
+
+    // Deny-first fixture naming: every refusal test appears before the success fixture.
+    let deny = fixture
+        .find("caller_authored_provider_label_is_not_reconciliation_evidence")
+        .expect("deny fixture missing");
+    let success = fixture
+        .find("a_digest_bound_owned_observation_reconciles_once_and_replays")
+        .expect("success fixture missing");
+    assert!(
+        deny < success,
+        "deny fixtures must precede the success fixture"
+    );
+    assert!(!fixture.contains(&format!("#[{}]", "ignore")));
+}
