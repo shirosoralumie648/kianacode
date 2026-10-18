@@ -173,7 +173,7 @@ fn quarantine_record_is_queryable_and_secret_free() {
 
     // 失败 cursor、事件 ID 与载荷摘要都必须可查询；未知摘要返回空。
     assert_eq!(snapshot.quarantine_for_cursor(3), vec![&record]);
-    assert_eq!(snapshot.quarantine_for_cursor(99), Vec::new());
+    assert!(snapshot.quarantine_for_cursor(99).is_empty());
     assert_eq!(
         snapshot
             .quarantine_for_event(event_id)

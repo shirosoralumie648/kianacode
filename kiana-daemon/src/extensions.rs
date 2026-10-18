@@ -304,6 +304,12 @@ impl ExtensionRegistry {
             lifecycle_mutation = Some(mutation);
             config_snapshot = snapshot;
         }
+        // Resolve the target extension before the idempotency replay path so a replayed command
+        // answers with the same typed receipt (which carries `extension_id`) as the original.
+        let extension_id = string(arguments, "extension_id")?;
+        if !kiana_domain::valid_extension_identifier(extension_id) {
+            return Err(failed("extension_id_invalid"));
+        }
         let key = string(arguments, "idempotency_key")?;
         if key.len() > 128 || key.chars().any(char::is_control) {
             return Err(failed("extension_idempotency_key_invalid"));
@@ -360,10 +366,7 @@ impl ExtensionRegistry {
         if reason.len() > 4096 {
             return Err(failed("extension_reason_too_large"));
         }
-        let extension_id = string(arguments, "extension_id")?;
-        if !kiana_domain::valid_extension_identifier(extension_id) {
-            return Err(failed("extension_id_invalid"));
-        }
+
         let current = states.get(extension_id);
         let mut migration_receipt = json!({"kind":"none"});
         let (next, package) = match action {

@@ -1543,7 +1543,7 @@ fn ui08_reducer_plan_and_trace_replay_deterministically() {
     );
     for kind in &plan.entity_kinds {
         let traced = traced_kind(kind);
-        assert_eq!(kind_name(traced), kind.as_str());
+        assert_eq!(kind_name(traced.clone()), kind.as_str());
         assert_eq!(serde_json::to_value(traced).unwrap(), json!(kind));
     }
 

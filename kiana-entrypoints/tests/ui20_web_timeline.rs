@@ -5,7 +5,7 @@
 //! the declarative fixture, the typed client contract, the DOM golden and the runtime-fixture
 //! wiring bound to the source.
 
-use kiana_client::web_timeline::{
+use kiana_client::{
     web_timeline_window_bounds, WebTimelineBundle, WebTimelineComponent, WebTimelineItem,
     WebTimelineItemKind, WebTimelineMigration, WebTimelineMigrationDisposition, WebTimelineWindow,
     WEB_TIMELINE_BUNDLE_SCHEMA, WEB_TIMELINE_COMPONENTS, WEB_TIMELINE_COMPONENT_MAX_BYTES,
@@ -332,7 +332,7 @@ fn ui20_typed_kind_and_window_contract_never_guess_from_text() {
     // Duplicate stable ids and an over-long cursor are refused by the window contract.
     let duplicate_window = WebTimelineWindow {
         schema: WEB_TIMELINE_SCHEMA.to_owned(),
-        state: kiana_client::web_timeline::WebTimelineViewState::Ready,
+        state: kiana_client::WebTimelineViewState::Ready,
         cursor: None,
         items: vec![
             item("dup", WebTimelineItemKind::Delta, false),
@@ -348,7 +348,7 @@ fn ui20_typed_kind_and_window_contract_never_guess_from_text() {
     // A recent window keeps every pending/unknown item even when older history is paged away.
     let protected_window = WebTimelineWindow {
         schema: WEB_TIMELINE_SCHEMA.to_owned(),
-        state: kiana_client::web_timeline::WebTimelineViewState::Partial,
+        state: kiana_client::WebTimelineViewState::Partial,
         cursor: Some("cursor-1".to_owned()),
         items: vec![
             item("delta-1", WebTimelineItemKind::Delta, false),
@@ -399,9 +399,9 @@ fn ui20_bundle_and_component_region_fail_closed() {
     // An over-budget component region is refused instead of being rendered anyway.
     let oversized = format!(
         "{}{}{}",
-        kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_START_MARKER,
+        kiana_client::WEB_TIMELINE_COMPONENT_START_MARKER,
         "x".repeat(WEB_TIMELINE_COMPONENT_MAX_BYTES + 1),
-        kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_END_MARKER
+        kiana_client::WEB_TIMELINE_COMPONENT_END_MARKER
     );
     let over = WebTimelineBundle::measure(&oversized).expect("marked region");
     assert!(!over.within_budget);
@@ -561,7 +561,7 @@ fn ui20_browser_component_directory_and_switch_stay_text_only() {
             "UI-20 migration switch marker missing: {marker}"
         );
     }
-    let unsupported = golden["unsupported_renderer"]["state"];
+    let unsupported = &golden["unsupported_renderer"]["state"];
     assert_eq!(unsupported, "partial");
     let fail = page
         .split("function failTimelineRenderer(")

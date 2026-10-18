@@ -311,13 +311,16 @@ fn downstream_token_mixing_across_account_audience_and_purpose_is_refused() {
     assert_eq!(report.reason, "route_attestation_downstream_token_missing");
 
     let other_token = context(PromptPackTrust::Product, None)
-        .with_downstream_token(DownstreamTokenAttestation::new(
-            C,
-            "account-fixture",
-            "audience:provider-fixture",
-            "code-generation",
-        ))
-        .expect("well-formed other token");
+        .with_downstream_token(
+            DownstreamTokenAttestation::new(
+                C,
+                "account-fixture",
+                "audience:provider-fixture",
+                "code-generation",
+            )
+            .expect("well-formed other token"),
+        )
+        .expect("token binding refused");
     let swapped =
         RouteAttestation::new(other_token, ProviderRouteClaim::from_route(&route()), true)
             .expect("swapped token attestation");

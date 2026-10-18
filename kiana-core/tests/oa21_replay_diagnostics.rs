@@ -11,8 +11,9 @@ use kiana_core::{
     ReplayExpectation,
 };
 use kiana_domain::{
-    ApprovalId, EventId, InvocationId, ReplayConsistencyBaseline, ReplayDivergenceKind, RequestId,
-    RunId, RuntimeEvent, TraceStatus,
+    ApprovalChallenge, ApprovalId, CapabilityRequest, EventId, InvocationId, PendingApproval,
+    ReplayConsistencyBaseline, ReplayDivergenceKind, RequestContext, RequestId, RunId,
+    RuntimeEvent, TraceStatus,
 };
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
@@ -431,8 +432,31 @@ struct UnusedApprovalStore;
 
 #[async_trait]
 impl ApprovalStorePort for UnusedApprovalStore {
+    /// Replay never stages an approval; being called at all must fail closed.
+    async fn stage(
+        &self,
+        _context: &RequestContext,
+        _request: CapabilityRequest,
+        _reason: &str,
+    ) -> Result<ApprovalChallenge, PortError> {
+        Err(PortError::Unavailable(
+            "oa21_fixture_approval_unused".to_owned(),
+        ))
+    }
+
     /// Replay never consumes an approval; being called at all must fail closed.
     async fn activate(&self, _approval_id: ApprovalId) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "oa21_fixture_approval_unused".to_owned(),
+        ))
+    }
+
+    /// Replay never consumes an approval; being called at all must fail closed.
+    async fn consume(
+        &self,
+        _context: &RequestContext,
+        _approval_id: ApprovalId,
+    ) -> Result<PendingApproval, PortError> {
         Err(PortError::Unavailable(
             "oa21_fixture_approval_unused".to_owned(),
         ))

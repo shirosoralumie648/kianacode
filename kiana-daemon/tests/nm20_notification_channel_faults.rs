@@ -48,13 +48,15 @@ fn frame(
         },
     )
     .expect("feed cursor");
+    // Read the terminal flag before `kind` is moved into the frame.
+    let terminal = kind == UiFeedFrameKind::Terminal;
     UiFeedFrameV1 {
         schema: UI_FEED_FRAME_SCHEMA.to_owned(),
         kind,
         cursor,
         event_id: format!("event-{sequence}"),
         replay: false,
-        terminal: kind == UiFeedFrameKind::Terminal,
+        terminal,
         event: None,
         gap: None,
     }

@@ -83,9 +83,9 @@ fn observation(
     if usage.state.is_not_started() {
         usage
     } else {
-        usage
-            .bind_envelope(envelope_for(&usage))
-            .expect("bound usage")
+        // The envelope borrows the observation, so it must be built before the move.
+        let envelope = envelope_for(&usage);
+        usage.bind_envelope(envelope).expect("bound usage")
     }
 }
 
@@ -435,7 +435,8 @@ fn per_fact_started_count_is_bounded_and_duplicate_attempts_are_rejected() {
         2,
     )
     .expect("second usage shape");
-    let second = second.bind_envelope(envelope_for(&second)).expect("bound");
+    let second_envelope = envelope_for(&second);
+    let second = second.bind_envelope(second_envelope).expect("bound");
     assert_eq!(
         EffectUsageReceipt::from_observations(run, [first, second]).unwrap_err(),
         "effect_usage_duplicate_attempt_usage"

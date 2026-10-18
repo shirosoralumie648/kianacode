@@ -293,7 +293,12 @@ fn observation_requires_a_claim_and_structured_failure() {
         },
     )
     .expect("structured failure");
-    let structured = failure.failure.expect("known failure must be structured");
+    // Borrow the structured failure so `failure` stays usable for the validation and
+    // observation assertions below.
+    let structured = failure
+        .failure
+        .as_ref()
+        .expect("known failure must be structured");
     assert_eq!(structured.code, "connector_timeout");
     assert!(structured.retryable);
     assert_eq!(failure.validate(), Ok(()));

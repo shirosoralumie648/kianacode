@@ -157,18 +157,18 @@ fn plane() -> ControlPlane {
 
 #[test]
 fn admission_refuses_unapproved_stale_or_foreign_commands() {
-    let target = target();
-    let approved = command(&target);
-    let admitted = CostCorrectionAdmission::authorize(&target, &approved).expect("admitted");
-    assert_eq!(admitted.target_entry_digest, target.entry_digest);
-    assert_eq!(admitted.target_source_cursor, target.source_cursor);
-    assert_eq!(admitted.target_revision, target.revision);
+    let entry = target();
+    let approved = command(&entry);
+    let admitted = CostCorrectionAdmission::authorize(&entry, &approved).expect("admitted");
+    assert_eq!(admitted.target_entry_digest, entry.entry_digest);
+    assert_eq!(admitted.target_source_cursor, entry.source_cursor);
+    assert_eq!(admitted.target_revision, entry.revision);
     assert_eq!(admitted.approver_id, "approver");
 
     // 有命令但没有审批：不得用布尔值或模型文本替代。
-    let draft = draft_command(&target);
+    let draft = draft_command(&entry);
     assert_eq!(
-        CostCorrectionAdmission::authorize(&target, &draft).unwrap_err(),
+        CostCorrectionAdmission::authorize(&entry, &draft).unwrap_err(),
         CostCorrectionAdmissionError::CommandInvalid(
             "cost_correction_approval_required".to_owned()
         )
@@ -179,7 +179,7 @@ fn admission_refuses_unapproved_stale_or_foreign_commands() {
     stale.target_revision += 1;
     stale.command_digest = stale.digest();
     assert_eq!(
-        CostCorrectionAdmission::authorize(&target, &stale).unwrap_err(),
+        CostCorrectionAdmission::authorize(&entry, &stale).unwrap_err(),
         CostCorrectionAdmissionError::CommandInvalid(
             "cost_correction_target_binding_mismatch".to_owned()
         )
@@ -195,7 +195,7 @@ fn admission_refuses_unapproved_stale_or_foreign_commands() {
     );
 
     // 目标自身不可信（摘要不自洽）时先拒绝目标，不进入命令评估。
-    let mut tampered_target = target.clone();
+    let mut tampered_target = entry.clone();
     tampered_target.created_at_unix_ms += 1;
     assert_eq!(
         CostCorrectionAdmission::authorize(&tampered_target, &approved).unwrap_err(),
@@ -207,7 +207,7 @@ fn admission_refuses_unapproved_stale_or_foreign_commands() {
     model_text.reason = "\nmodel transcript: raise the invoice".to_owned();
     model_text.command_digest = model_text.digest();
     assert_eq!(
-        CostCorrectionAdmission::authorize(&target, &model_text).unwrap_err(),
+        CostCorrectionAdmission::authorize(&entry, &model_text).unwrap_err(),
         CostCorrectionAdmissionError::CommandInvalid("cost_correction_reason_invalid".to_owned())
     );
 }

@@ -388,22 +388,22 @@ impl BillingLedgerProjector {
             COST_EVENT_ESTIMATED | COST_EVENT_MEASURED | COST_EVENT_UNKNOWN => {
                 // 某一账单事件内容损坏时保留它的身份和摘要，再继续本页后续事实。
                 if let Err(reason) = self.fold_usage(source_cursor, &event) {
-                    self.quarantine(source_cursor, &event, reason)?;
+                    self.record_quarantine(source_cursor, &event, reason)?;
                 }
             }
             COST_LEDGER_ENTRY_EVENT => {
                 if let Err(reason) = self.fold_ledger(source_cursor, &event) {
-                    self.quarantine(source_cursor, &event, reason)?;
+                    self.record_quarantine(source_cursor, &event, reason)?;
                 }
             }
             COST_CORRECTION_EVENT => {
                 if let Err(reason) = self.fold_correction(source_cursor, &event) {
-                    self.quarantine(source_cursor, &event, reason)?;
+                    self.record_quarantine(source_cursor, &event, reason)?;
                 }
             }
             COST_ALLOCATION_EVENT => {
                 if let Err(reason) = self.fold_allocation(source_cursor, &event) {
-                    self.quarantine(source_cursor, &event, reason)?;
+                    self.record_quarantine(source_cursor, &event, reason)?;
                 }
             }
             // Reservations, approval lifecycle and all other RuntimeEvents are not billing facts
@@ -596,7 +596,9 @@ impl BillingLedgerProjector {
     /// 【输出】快照 quarantine 增加一条记录，不会删除或改写来源事件。
     /// 【失败】达到 Domain 规定的隔离容量上限后返回投影错误；该错误会使当前整页回滚。
     /// 【为什么保留】直接跳过坏事件会让查询结果看似完整，却无法解释总额为什么与来源不符。
-    fn quarantine(
+    ///
+    /// 私有写方法；与公开只读方法 `quarantine()`（返回隔离记录切片）区分命名，避免同名遮蔽。
+    fn record_quarantine(
         &mut self,
         source_cursor: EventCursor,
         event: &RuntimeEvent,

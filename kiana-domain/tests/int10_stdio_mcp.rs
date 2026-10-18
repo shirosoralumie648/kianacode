@@ -396,17 +396,20 @@ fn handshake_evidence_binds_digests_without_session_or_scope_material() {
         .collect::<BTreeSet<_>>();
     assert_eq!(
         keys,
-        BTreeSet::from([
-            "schema",
-            "transport",
-            "protocol_version",
-            "server_info_digest",
-            "catalog_digest",
-            "session_digest",
-            "state",
-            "tools",
-            "handshake_digest",
-        ])
+        BTreeSet::from(
+            [
+                "schema",
+                "transport",
+                "protocol_version",
+                "server_info_digest",
+                "catalog_digest",
+                "session_digest",
+                "state",
+                "tools",
+                "handshake_digest",
+            ]
+            .map(str::to_owned),
+        )
     );
     assert_eq!(
         value["session_digest"],
@@ -431,16 +434,19 @@ fn handshake_evidence_binds_digests_without_session_or_scope_material() {
         .collect::<BTreeSet<_>>();
     assert_eq!(
         tool_keys,
-        BTreeSet::from([
-            "schema",
-            "tool_name",
-            "operation_id",
-            "input_schema_digest",
-            "binding_scope_digest",
-            "available",
-            "conditional",
-            "retracted",
-        ])
+        BTreeSet::from(
+            [
+                "schema",
+                "tool_name",
+                "operation_id",
+                "input_schema_digest",
+                "binding_scope_digest",
+                "available",
+                "conditional",
+                "retracted",
+            ]
+            .map(str::to_owned),
+        )
     );
 
     let rendered = serde_json::to_string(&handshake).expect("handshake serializes");

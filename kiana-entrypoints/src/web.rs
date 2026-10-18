@@ -51,8 +51,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
 use futures_util::Stream;
-use kiana_client::web_timeline::{
-    WebTimelineMigration, WEB_TIMELINE_RENDERER_TEXT_GUESS, WEB_TIMELINE_RENDERER_TYPED_INLINE,
+use kiana_client::{
+    WebTimelineMigration, WEB_TIMELINE_MIGRATION_SCHEMA, WEB_TIMELINE_RENDERER_TEXT_GUESS,
+    WEB_TIMELINE_RENDERER_TYPED_INLINE,
 };
 use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_domain::SessionId;
@@ -4863,7 +4864,7 @@ fn web_timeline_contract() -> Value {
     match serde_json::to_value(WebTimelineMigration::select(PAGE)) {
         Ok(value) => value,
         Err(_) => json!({
-            "schema": kiana_client::web_timeline::WEB_TIMELINE_MIGRATION_SCHEMA,
+            "schema": WEB_TIMELINE_MIGRATION_SCHEMA,
             "selected": "unavailable",
             "disposition": "unavailable",
             "reason": "web_timeline_contract_unencodable",
@@ -7014,7 +7015,14 @@ mod tests {
         }
 
         // An empty live session is a known session with `empty` history, never a missing one.
-        let (status, empty) = ui17_json(client.get("/api/bootstrap").send().await.unwrap()).await;
+        let (status, empty) = ui17_json(
+            client
+                .get("/api/bootstrap", "ui17-tab-a")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK, "{empty}");
         assert_eq!(empty["session_id"], json!(server.active.as_str()));
         assert_eq!(empty["read_only"], json!(false));
@@ -7029,7 +7037,10 @@ mod tests {
         // An id that is in neither memory nor the ledger fails closed.
         let (status, unknown) = ui17_json(
             client
-                .get("/api/bootstrap?session_id=ui17-unknown-session")
+                .get(
+                    "/api/bootstrap?session_id=ui17-unknown-session",
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -7127,7 +7138,10 @@ mod tests {
         // turns is `empty`, and neither is confused with the other.
         let (status, unknown) = ui17_json(
             client
-                .get("/api/history?session_id=ui17-unknown-session&limit=8")
+                .get(
+                    "/api/history?session_id=ui17-unknown-session&limit=8",
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -7137,10 +7151,10 @@ mod tests {
         assert_eq!(unknown["error"], json!("session_unknown"));
         let (status, empty) = ui17_json(
             client
-                .get(&format!(
-                    "/api/history?session_id={}&limit=8",
-                    server.active
-                ))
+                .get(
+                    &format!("/api/history?session_id={}&limit=8", server.active),
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -7189,10 +7203,10 @@ mod tests {
 
         let (status, page) = ui17_json(
             client
-                .get(&format!(
-                    "/api/artifact?session_id={}&limit=8",
-                    server.session
-                ))
+                .get(
+                    &format!("/api/artifact?session_id={}&limit=8", server.session),
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -7227,10 +7241,13 @@ mod tests {
         // A reference that is not in this run is an explicit empty page, never a private listing.
         let (status, filtered) = ui17_json(
             client
-                .get(&format!(
-                    "/api/artifact?session_id={}&artifact_id=ui17-artifact-missing&limit=8",
-                    server.session
-                ))
+                .get(
+                    &format!(
+                        "/api/artifact?session_id={}&artifact_id=ui17-artifact-missing&limit=8",
+                        server.session
+                    ),
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -7244,7 +7261,10 @@ mod tests {
         // single turn and its own artifact reference.
         let (status, other) = ui17_json(
             client
-                .get(&format!("/api/bootstrap?session_id={UI17_SECOND_SESSION}"))
+                .get(
+                    &format!("/api/bootstrap?session_id={UI17_SECOND_SESSION}"),
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -7265,9 +7285,10 @@ mod tests {
 
         let (status, own) = ui17_json(
             client
-                .get(&format!(
-                    "/api/artifact?session_id={UI17_SECOND_SESSION}&limit=8"
-                ))
+                .get(
+                    &format!("/api/artifact?session_id={UI17_SECOND_SESSION}&limit=8"),
+                    "ui17-tab-a",
+                )
                 .send()
                 .await
                 .unwrap(),
@@ -8188,17 +8209,17 @@ mod tests {
         let timeline = &body["timeline"];
         assert_eq!(
             timeline["schema"],
-            json!(kiana_client::web_timeline::WEB_TIMELINE_MIGRATION_SCHEMA)
+            json!(WEB_TIMELINE_MIGRATION_SCHEMA)
         );
         assert_eq!(
             timeline["selected"],
-            json!(kiana_client::web_timeline::WEB_TIMELINE_RENDERER_TYPED_INLINE)
+            json!(WEB_TIMELINE_RENDERER_TYPED_INLINE)
         );
         assert_eq!(timeline["disposition"], json!("active"));
         assert_eq!(timeline["reason"], json!("web_timeline_renderer_reviewed"));
         assert_eq!(
             timeline["renderers"],
-            json!([kiana_client::web_timeline::WEB_TIMELINE_RENDERER_TYPED_INLINE])
+            json!([WEB_TIMELINE_RENDERER_TYPED_INLINE])
         );
         assert_eq!(timeline["window"]["size"], json!(64));
         assert_eq!(timeline["window"]["max_items"], json!(512));
@@ -8232,16 +8253,16 @@ mod tests {
         let bundle = &timeline["bundle"];
         assert_eq!(
             bundle["schema"],
-            json!(kiana_client::web_timeline::WEB_TIMELINE_BUNDLE_SCHEMA)
+            json!(kiana_client::WEB_TIMELINE_BUNDLE_SCHEMA)
         );
         assert_eq!(bundle["page_bytes"], json!(PAGE.len()));
         assert_eq!(bundle["within_budget"], json!(true));
         assert!(bundle["component_bytes"].as_u64().unwrap() > 0, "{bundle}");
-        assert!(PAGE.len() <= kiana_client::web_timeline::WEB_TIMELINE_PAGE_MAX_BYTES);
+        assert!(PAGE.len() <= kiana_client::WEB_TIMELINE_PAGE_MAX_BYTES);
 
         // The typed contract still validates, and the migration switch never carried a credential,
         // a prompt or an item payload.
-        let migration: kiana_client::web_timeline::WebTimelineMigration =
+        let migration: kiana_client::WebTimelineMigration =
             serde_json::from_value(timeline.clone()).expect("typed timeline migration");
         assert_eq!(migration.validate(), Ok(()));
         assert_eq!(migration.components.len(), 5);
@@ -8280,15 +8301,15 @@ mod tests {
             .await
             .unwrap();
         for marker in [
-            kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_START_MARKER,
-            kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_END_MARKER,
+            kiana_client::WEB_TIMELINE_COMPONENT_START_MARKER,
+            kiana_client::WEB_TIMELINE_COMPONENT_END_MARKER,
             "TIMELINE_COMPONENT_DIRECTORY",
             "TIMELINE_ALLOWED_RENDERERS",
         ] {
             assert!(served.contains(marker), "served page lost: {marker}");
         }
         assert!(
-            served.len() <= kiana_client::web_timeline::WEB_TIMELINE_PAGE_MAX_BYTES,
+            served.len() <= kiana_client::WEB_TIMELINE_PAGE_MAX_BYTES,
             "the served page left its reviewed bundle budget: {} bytes",
             served.len()
         );
@@ -9543,7 +9564,7 @@ mod tests {
         // The old credential is dead on every protected route.
         let stale = client
             .client
-            .get(format!("{}/api/state?session_id={}", server.active))
+            .get(format!("{}/api/state?session_id={}", client.base, server.active))
             .header("x-kiana-web-token", &client.token)
             .send()
             .await
@@ -9600,7 +9621,7 @@ mod tests {
         let (status, after) = ui17_json(
             client
                 .client
-                .get(format!("{}/api/state?session_id={}", server.active))
+                .get(format!("{}/api/state?session_id={}", client.base, server.active))
                 .header("x-kiana-web-token", &token)
                 .header("x-kiana-ui-tab", owner_tab)
                 .send()

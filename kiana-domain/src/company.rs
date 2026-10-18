@@ -1951,9 +1951,9 @@ impl CompanyState {
             coverage.bind_plan(plan)?;
         }
         if let Some(frozen) = self.plan_graphs.get(&plan.project_id) {
-            ensure!(
+            ensure(
                 frozen.plan_digest == plan.digest,
-                "plan_graph_already_frozen"
+                "plan_graph_already_frozen",
             )?;
         }
         Ok(())

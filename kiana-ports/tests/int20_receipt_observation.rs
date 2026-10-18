@@ -141,7 +141,9 @@ fn observation_request_derives_its_binding_from_the_permit_only() {
 #[test]
 fn observation_projection_binds_attempt_scope_and_ordered_evidence() {
     let permit = permit();
-    let request = request(permit, receipt(&permit, ProviderOutcome::Succeeded));
+    // Build the receipt from a borrow of the permit before `request` takes it by value.
+    let receipt = receipt(&permit, ProviderOutcome::Succeeded);
+    let request = request(permit, receipt);
     let binding = request.binding().expect("binding");
     let observation = EffectObservation::from_provider_receipt_for_binding(
         &request.receipt,

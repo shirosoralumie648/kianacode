@@ -177,7 +177,7 @@ fn settled_then_released_projection_replays_states_and_settlement() {
     .unwrap();
 
     let events = vec![
-        reservation_event(CONNECTOR_QUOTA_EVENT_RESERVED, 1, &reserved),
+        reservation_event(CONNECTOR_QUOTA_EVENT_RESERVED, 1, &reserved_state),
         reservation_event(CONNECTOR_QUOTA_EVENT_CLAIMED, 2, &claimed),
         settled_event(3, &claimed, &settlement),
         reservation_event(CONNECTOR_QUOTA_EVENT_RELEASED, 4, &released),

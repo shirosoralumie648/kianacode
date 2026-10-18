@@ -257,14 +257,14 @@ fn builder_source_and_toolchain_drift_are_blocked_before_subject_binding() {
 #[test]
 fn subject_digest_mismatch_is_blocked_for_provenance_signature_and_artifact_bytes() {
     let manifest = manifest();
-    let signature = signature(&manifest, true, E);
+    let bound_signature = signature(&manifest, true, E);
 
     // Provenance and signature must repeat the exact manifest digest.
     assert_eq!(
         verify(
             &manifest,
             &provenance_with(SOURCE_REVISION, A, B, D, E),
-            &signature,
+            &bound_signature,
         )
         .reason,
         "release_verification_provenance_subject_mismatch"
@@ -349,10 +349,10 @@ fn release_contracts_stay_bounded_strict_and_digest_bound() {
     );
 
     // Header/schema drift and a rewritten body are refused by the self-digest.
-    let mut manifest = manifest();
-    manifest.schema = "kiana.release-manifest.v2".to_owned();
+    let mut header_drift = manifest();
+    header_drift.schema = "kiana.release-manifest.v2".to_owned();
     assert_eq!(
-        manifest.validate().unwrap_err(),
+        header_drift.validate().unwrap_err(),
         "release_manifest_header_invalid"
     );
     let mut digest_drift = manifest();

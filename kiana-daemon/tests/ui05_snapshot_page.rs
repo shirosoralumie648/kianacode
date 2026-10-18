@@ -98,6 +98,16 @@ impl EventStorePort for UnsupportedReadAllStore {
             "ui05_fixture_append_unsupported".to_owned(),
         ))
     }
+
+    /// 该夹具不提供按请求读取；显式拒绝，避免被当成「没有事实」。
+    async fn read_request(
+        &self,
+        _: &kiana_domain::RequestId,
+    ) -> Result<Vec<RuntimeEvent>, PortError> {
+        Err(PortError::Unavailable(
+            "ui05_fixture_read_request_unsupported".to_owned(),
+        ))
+    }
 }
 
 /// 组装组合根；快照读路径只经过 `persisted_events()`，不打开第二条执行循环。

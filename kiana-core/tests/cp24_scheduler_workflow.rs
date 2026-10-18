@@ -28,13 +28,14 @@ use kiana_core::{
     ControlPlane, WorkflowQueueReadyView,
 };
 use kiana_domain::{
-    AgentTemplate, AutomationCommand, AutomationCommandRequest, AutomationState, BudgetLeaseId,
-    CapabilityGrant, CapabilityGrantId, CapabilityKind, CapabilityRequest, CommandIntent,
-    CoreResponse, ExecutionStatus, PermissionProfile, PrincipalId, ProjectId, RequestContext,
-    RequestId, RiskLevel, RoleSpec, WorkPacket, WorkPacketStatus, WorkflowDefinition, WorkflowNode,
-    WorkflowNodeKind, WorkflowQueueClaimContract, WorkflowQueueClaimRequest,
-    WorkflowQueueClaimStatus, WorkflowQueueLeaseStatus, AUTOMATION_COMMAND, AUTOMATION_SCHEMA,
-    AUTOMATION_SNAPSHOT, CAPABILITY_GRANT_SCHEMA, SWARM_CHILD_TEMPLATE,
+    AgentTemplate, ApprovalChallenge, ApprovalId, AutomationCommand, AutomationCommandRequest,
+    AutomationState, BudgetLeaseId, CapabilityGrant, CapabilityGrantId, CapabilityKind,
+    CapabilityRequest, CommandIntent, CoreResponse, ExecutionStatus, PermissionProfile,
+    PrincipalId, ProjectId, RequestContext, RequestId, RiskLevel, RoleSpec, WorkPacket,
+    WorkPacketStatus, WorkflowDefinition, WorkflowNode, WorkflowNodeKind,
+    WorkflowQueueClaimContract, WorkflowQueueClaimRequest, WorkflowQueueClaimStatus,
+    WorkflowQueueLeaseStatus, AUTOMATION_COMMAND, AUTOMATION_SCHEMA, AUTOMATION_SNAPSHOT,
+    CAPABILITY_GRANT_SCHEMA, SWARM_CHILD_TEMPLATE,
 };
 use kiana_eventlog::{MemoryEventLog, MemoryWorkflowQueueStore};
 use kiana_gates::DefaultGateEngine;
@@ -183,7 +184,32 @@ async fn cp_two_schedulers_claim_one_packet_once() {
 struct NoApprovals;
 
 #[async_trait]
-impl ApprovalStorePort for NoApprovals {}
+impl ApprovalStorePort for NoApprovals {
+    async fn stage(
+        &self,
+        _: &RequestContext,
+        _: CapabilityRequest,
+        _: &str,
+    ) -> Result<ApprovalChallenge, PortError> {
+        Err(PortError::Unavailable(
+            "cp24_fixture_no_approval".to_owned(),
+        ))
+    }
+    async fn activate(&self, _: ApprovalId) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "cp24_fixture_no_approval".to_owned(),
+        ))
+    }
+    async fn consume(
+        &self,
+        _: &RequestContext,
+        _: ApprovalId,
+    ) -> Result<kiana_domain::PendingApproval, PortError> {
+        Err(PortError::Unavailable(
+            "cp24_fixture_no_approval".to_owned(),
+        ))
+    }
+}
 
 /// Runner stub proving the workflow command path never starts a model loop here.
 struct NoRunner;

@@ -38,10 +38,10 @@ fn code(error: kiana_ports::PortError) -> String {
 #[test]
 fn expired_lease_is_denied_before_injection() {
     let authority = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
     let mut lease = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -54,7 +54,7 @@ fn expired_lease_is_denied_before_injection() {
     authority
         .consume_lease(
             &mut lease,
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -65,7 +65,7 @@ fn expired_lease_is_denied_before_injection() {
 
     let mut expired = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -77,7 +77,7 @@ fn expired_lease_is_denied_before_injection() {
     let denied = authority
         .consume_lease(
             &mut expired,
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -91,10 +91,10 @@ fn expired_lease_is_denied_before_injection() {
 #[test]
 fn one_shot_lease_cannot_be_replayed() {
     let authority = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
     let mut lease = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -106,7 +106,7 @@ fn one_shot_lease_cannot_be_replayed() {
     authority
         .consume_lease(
             &mut lease,
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -117,7 +117,7 @@ fn one_shot_lease_cannot_be_replayed() {
     let replayed = authority
         .consume_lease(
             &mut lease,
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -131,10 +131,10 @@ fn one_shot_lease_cannot_be_replayed() {
 #[test]
 fn revoked_slot_denies_further_lease_consume_and_rotate() {
     let authority = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
     let mut lease = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -145,20 +145,20 @@ fn revoked_slot_denies_further_lease_consume_and_rotate() {
         .expect("issued lease");
 
     let receipt = authority
-        .revoke(&reference, 1, "operator requested", 1_001)
+        .revoke(&lease_ref, 1, "operator requested", 1_001)
         .expect("revocation receipt");
     assert_eq!(receipt.schema, SECRET_REVOCATION_RECEIPT_SCHEMA);
     assert_eq!(receipt.revoked_generation, 1);
     assert!(receipt.validate().is_ok());
     assert_eq!(
-        authority.slot_status(&reference).unwrap(),
+        authority.slot_status(&lease_ref).unwrap(),
         SecretLeaseStatus::Revoked
     );
 
     let consume_denied = authority
         .consume_lease(
             &mut lease,
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -170,7 +170,7 @@ fn revoked_slot_denies_further_lease_consume_and_rotate() {
 
     let issue_denied = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -183,7 +183,7 @@ fn revoked_slot_denies_further_lease_consume_and_rotate() {
 
     let rotate_denied = authority
         .rotate(
-            &reference,
+            &lease_ref,
             1,
             2,
             "fake-provider",
@@ -196,7 +196,7 @@ fn revoked_slot_denies_further_lease_consume_and_rotate() {
     assert!(code(rotate_denied).contains("secret_lease_revoked"));
 
     let already = authority
-        .revoke(&reference, 1, "again", 1_003)
+        .revoke(&lease_ref, 1, "again", 1_003)
         .expect_err("second revocation must be denied");
     assert!(code(already).contains("secret_lease_already_revoked"));
 }
@@ -204,10 +204,10 @@ fn revoked_slot_denies_further_lease_consume_and_rotate() {
 #[test]
 fn rotation_receipt_is_generation_fenced() {
     let authority = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
     authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -219,7 +219,7 @@ fn rotation_receipt_is_generation_fenced() {
 
     let receipt = authority
         .rotate(
-            &reference,
+            &lease_ref,
             1,
             2,
             "fake-provider",
@@ -234,13 +234,13 @@ fn rotation_receipt_is_generation_fenced() {
     assert_eq!(receipt.next_generation, 2);
     assert!(receipt.validate().is_ok());
     assert_eq!(
-        authority.slot_status(&reference).unwrap(),
+        authority.slot_status(&lease_ref).unwrap(),
         SecretLeaseStatus::Active
     );
 
     let stale = authority
         .rotate(
-            &reference,
+            &lease_ref,
             1,
             3,
             "fake-provider",
@@ -254,7 +254,7 @@ fn rotation_receipt_is_generation_fenced() {
 
     let rollback = authority
         .rotate(
-            &reference,
+            &lease_ref,
             2,
             2,
             "fake-provider",
@@ -296,16 +296,16 @@ fn rotation_receipt_is_generation_fenced() {
 #[test]
 fn unknown_slot_and_malformed_binding_are_denied() {
     let authority = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
 
     let missing = authority
-        .slot_status(&reference)
+        .slot_status(&lease_ref)
         .expect_err("unregistered slot must be denied");
     assert!(code(missing).contains("secret_lease_not_registered"));
 
     let mut unregistered = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -357,7 +357,7 @@ fn unknown_slot_and_malformed_binding_are_denied() {
 
     let binding_drift = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "audit",
             "fake-provider",
@@ -370,7 +370,7 @@ fn unknown_slot_and_malformed_binding_are_denied() {
 
     let malformed_digest = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -385,10 +385,10 @@ fn unknown_slot_and_malformed_binding_are_denied() {
 #[test]
 fn leases_and_receipts_stay_secret_free() {
     let authority = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
     let lease = authority
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -399,7 +399,7 @@ fn leases_and_receipts_stay_secret_free() {
         .expect("issued lease");
     let rotation = authority
         .rotate(
-            &reference,
+            &lease_ref,
             1,
             2,
             "fake-provider",
@@ -442,10 +442,10 @@ fn leases_and_receipts_stay_secret_free() {
 #[test]
 fn restore_rejects_plaintext_and_round_trips_secret_free() {
     let source = SecretLeaseAuthority::new();
-    let reference = reference(1);
+    let lease_ref = reference(1);
     source
         .issue_lease(
-            &reference,
+            &lease_ref,
             "fake-provider",
             "provider.request",
             "fake-provider",
@@ -456,7 +456,7 @@ fn restore_rejects_plaintext_and_round_trips_secret_free() {
         .expect("issued lease");
     source
         .rotate(
-            &reference,
+            &lease_ref,
             1,
             2,
             "fake-provider",

@@ -6,7 +6,10 @@
 //! that a failed page never advances the acknowledged cursor.
 
 use kiana_domain::*;
-use kiana_query::{project_billing_ledger, BillingLedgerProjectionError, BillingLedgerProjector};
+use kiana_query::{
+    project_billing_ledger, BillingLedgerProjectionError, BillingLedgerProjector,
+    BillingSourceEvent,
+};
 use serde_json::json;
 
 fn digest(seed: char) -> String {

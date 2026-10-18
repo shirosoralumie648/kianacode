@@ -244,7 +244,7 @@ mod tests {
 
     #[cfg(not(unix))]
     fn write_fixture(path: &Path, contents: impl AsRef<str>) {
-        fs::write(path, contents).unwrap();
+        fs::write(path, contents.as_ref().as_bytes()).unwrap();
     }
 
     #[tokio::test]

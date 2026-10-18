@@ -81,6 +81,7 @@ fn notification_priority_stays_a_server_time_projection_not_a_permission_path() 
 #[test]
 fn nm11_fixtures_stay_wired_to_the_lane_shards_and_baseline() {
     let fixtures = include_str!("nm11_notification_priority.rs");
+    let store = include_str!("../src/notification_store.rs");
     for fixture in [
         "client_clocks_and_preselected_answers_cannot_reprioritize_or_approve",
         "silence_cannot_hide_critical_or_unknown_items_or_approve_anything",

@@ -164,7 +164,7 @@ impl ProcessSupervisor {
         // leader 尚未回收，或 group 仍有成员/无法确认为空时，先尝试优雅 TERM。
         if !leader_reaped || group_state != ProcessGroupState::Empty {
             if let Some(group) = process_group_id {
-                if signal_process_group(group, libc::SIGTERM) {
+                if signal_process_group(group, STOP_SIGNAL_TERM) {
                     term_sent = true;
                 }
             } else if child.start_kill().is_ok() {
@@ -181,7 +181,7 @@ impl ProcessSupervisor {
         // Unknown 也走强制终止分支，因为“不知道是否为空”不能被当成安全停止。
         if group_state != ProcessGroupState::Empty {
             if let Some(group) = process_group_id {
-                if signal_process_group(group, libc::SIGKILL) {
+                if signal_process_group(group, STOP_SIGNAL_KILL) {
                     kill_sent = true;
                 }
             } else if child.start_kill().is_ok() {
@@ -248,10 +248,24 @@ impl Drop for ProcessGuard {
         }
         #[cfg(unix)]
         if let Some(pid) = self.pid {
-            let _ = signal_process_group(pid, libc::SIGKILL);
+            let _ = signal_process_group(pid, STOP_SIGNAL_KILL);
         }
     }
 }
+
+/// Platform-independent stop-signal values.
+///
+/// `libc::SIGTERM` / `libc::SIGKILL` only exist on Unix targets, while the stop sequence itself is
+/// compiled everywhere. On a non-Unix backend `signal_process_group` always reports "not sent", so
+/// these values are never handed to the OS there; they only keep the call sites type-checking.
+#[cfg(unix)]
+const STOP_SIGNAL_TERM: libc::c_int = libc::SIGTERM;
+#[cfg(unix)]
+const STOP_SIGNAL_KILL: libc::c_int = libc::SIGKILL;
+#[cfg(not(unix))]
+const STOP_SIGNAL_TERM: libc::c_int = 15;
+#[cfg(not(unix))]
+const STOP_SIGNAL_KILL: libc::c_int = 9;
 
 /// 在指定时限内等待 Tokio 直接 child；只报告 leader 是否可被 wait 回收。
 ///

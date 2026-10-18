@@ -877,45 +877,47 @@ fn denied_intents_leave_no_action_no_sequence_and_no_audit_entry() {
 
 #[test]
 fn window_close_detaches_without_implicit_cancel_or_resume() {
-    let mut controller = controller(true);
-    controller.observe_run_status(ExecutionStatus::Running);
-    let decision = controller.dispatch(WorkbenchIntent::WindowClose).unwrap();
+    let mut closing = controller(true);
+    closing.observe_run_status(ExecutionStatus::Running);
+    let decision = closing.dispatch(WorkbenchIntent::WindowClose).unwrap();
     assert_eq!(
         decision,
         ControllerDecision::WindowClosed { run_pending: true }
     );
-    assert_eq!(controller.state().connection, ConnectionStatus::Closed);
-    assert_eq!(controller.state().run, RunStatus::Running);
-    assert_eq!(controller.state().submission, SubmissionStatus::Idle);
+    assert_eq!(closing.state().connection, ConnectionStatus::Closed);
+    assert_eq!(closing.state().run, RunStatus::Running);
+    assert_eq!(closing.state().submission, SubmissionStatus::Idle);
     assert_eq!(
-        controller.audit().last().unwrap().command,
+        closing.audit().last().unwrap().command,
         WorkbenchCommand::WindowClose
     );
     assert_eq!(
-        controller.dispatch(WorkbenchIntent::Resume { run_id: None }),
+        closing.dispatch(WorkbenchIntent::Resume { run_id: None }),
         Err("workbench_controller_closed".to_owned())
     );
     assert_eq!(
-        controller.set_draft("after close"),
+        closing.set_draft("after close"),
         Err("workbench_controller_closed".to_owned())
     );
     assert_eq!(
-        controller.switch_session(SESSION_TWO),
+        closing.switch_session(SESSION_TWO),
         Err("workbench_controller_closed".to_owned())
     );
     // 关窗只留一条 WindowClose 记录：既没有 cancel，也没有 resume。
-    assert!(controller
+    assert!(closing
         .audit()
         .iter()
         .all(|entry| entry.command == WorkbenchCommand::WindowClose));
 
     // 没有 run 在跑时不声称 pending，也不改写 run 维度。
-    let mut idle = controller(true);
+    let mut idle_controller = controller(true);
     assert_eq!(
-        idle.dispatch(WorkbenchIntent::WindowClose).unwrap(),
+        idle_controller
+            .dispatch(WorkbenchIntent::WindowClose)
+            .unwrap(),
         ControllerDecision::WindowClosed { run_pending: false }
     );
-    assert_eq!(idle.state().run, RunStatus::Idle);
+    assert_eq!(idle_controller.state().run, RunStatus::Idle);
 }
 
 #[test]
@@ -1075,53 +1077,56 @@ fn connection_loss_marks_the_submission_unknown_with_its_original_identity() {
 
 #[test]
 fn response_loss_never_mints_a_second_command_and_survives_a_terminal_run() {
-    let mut controller = controller(true);
+    let mut lossy = controller(true);
     let prepared = action(
-        controller
+        lossy
             .dispatch(WorkbenchIntent::Run {
                 prompt: "lost".to_owned(),
-                draft_revision: controller.draft_revision(),
+                draft_revision: lossy.draft_revision(),
             })
             .unwrap(),
     );
-    controller.set_connection(ConnectionStatus::Degraded);
-    controller.set_connection(ConnectionStatus::Attached);
+    lossy.set_connection(ConnectionStatus::Degraded);
+    lossy.set_connection(ConnectionStatus::Attached);
     // run 走到终态并不能证明这次提交的结局已知。
-    controller.observe_run_status(ExecutionStatus::Completed);
-    assert_eq!(controller.state().run, RunStatus::Completed);
-    assert_eq!(controller.state().submission, SubmissionStatus::Unknown);
-    assert_eq!(controller.pending_identity(), Some(prepared.identity()));
+    lossy.observe_run_status(ExecutionStatus::Completed);
+    assert_eq!(lossy.state().run, RunStatus::Completed);
+    assert_eq!(lossy.state().submission, SubmissionStatus::Unknown);
+    assert_eq!(lossy.pending_identity(), Some(prepared.identity()));
     assert_eq!(
-        controller.dispatch(WorkbenchIntent::Run {
+        lossy.dispatch(WorkbenchIntent::Run {
             prompt: "second effect".to_owned(),
-            draft_revision: controller.draft_revision(),
+            draft_revision: lossy.draft_revision(),
         }),
         Err("duplicate_submission".to_owned())
     );
     // 对账本身仍然是未知：身份保留，继续挡着第二条变更。
-    controller
+    lossy
         .record_action_result(prepared.command_id, UiActionDisposition::Unknown)
         .unwrap();
-    assert_eq!(controller.pending_identity(), Some(prepared.identity()));
+    assert_eq!(lossy.pending_identity(), Some(prepared.identity()));
     assert_eq!(
-        controller.dispatch(WorkbenchIntent::Run {
+        lossy.dispatch(WorkbenchIntent::Run {
             prompt: "third effect".to_owned(),
-            draft_revision: controller.draft_revision(),
+            draft_revision: lossy.draft_revision(),
         }),
         Err("duplicate_submission".to_owned())
     );
-    assert_eq!(controller.audit().len(), 3);
+    assert_eq!(lossy.audit().len(), 3);
     // 原始命令给出确定结论后才放行。
-    controller
+    lossy
         .record_action_result(prepared.command_id, UiActionDisposition::Applied)
         .unwrap();
-    assert_eq!(controller.pending_identity(), None);
+    assert_eq!(lossy.pending_identity(), None);
 
     // 没有未结算提交时，终态观察仍然清掉提交显示。
-    let mut settled = controller(true);
-    settled.observe_run_status(ExecutionStatus::Completed);
-    assert_eq!(settled.state().submission, SubmissionStatus::Idle);
-    assert_eq!(settled.pending_identity(), None);
+    let mut settled_controller = controller(true);
+    settled_controller.observe_run_status(ExecutionStatus::Completed);
+    assert_eq!(
+        settled_controller.state().submission,
+        SubmissionStatus::Idle
+    );
+    assert_eq!(settled_controller.pending_identity(), None);
 }
 
 #[test]

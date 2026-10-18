@@ -141,7 +141,8 @@ pub async fn main_from_args(args: &[String]) -> Result<()> {
                 kiana_domain::ConnectorSurface::Cli,
                 name.as_deref().unwrap_or_default(),
                 arguments,
-            )?;
+            )
+            .map_err(|reason| anyhow!("{reason}"))?;
             RequestEnvelope::command(metadata, route.name, route.arguments)
         }
         "approvals" => RequestEnvelope::pending_approvals(metadata, None),

@@ -85,9 +85,9 @@ fn terminal_event(
     )
     .expect("usage");
     let usage = if bind_envelope && !usage.state.is_not_started() {
-        usage
-            .bind_envelope(envelope_for(&usage))
-            .expect("bound usage")
+        // envelope 只依赖 bound 之前的 observation，先在移动 `usage` 前导出。
+        let envelope = envelope_for(&usage);
+        usage.bind_envelope(envelope).expect("bound usage")
     } else {
         usage
     };

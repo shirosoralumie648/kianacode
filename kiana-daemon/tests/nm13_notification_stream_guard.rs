@@ -55,7 +55,7 @@ fn notification_stream_reuses_run_stream_without_a_second_bus() {
 fn notification_stream_lane_keeps_the_bridge_and_its_guard_wired() {
     let source = include_str!("../src/notification_stream.rs");
     let fixture = include_str!("nm13_notification_stream.rs");
-    let plan = include_str!("tests/fixtures/nm13-notification-stream.json");
+    let plan = include_str!("fixtures/nm13-notification-stream.json");
     let lane = include_str!("../../.github/workflows/nm13-notification-stream.yml");
     let baseline = include_str!("../../docs/roadmap/nm13-notification-stream-baseline.md");
     let shards = include_str!("../../scripts/ci/test-shards.json");

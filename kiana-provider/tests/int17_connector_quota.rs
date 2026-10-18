@@ -117,15 +117,15 @@ fn provider_rechecks_server_quota_and_capacity_without_dispatch() {
 
 #[test]
 fn stale_foreign_and_tampered_quota_leases_are_refused_before_transport() {
-    let policy = policy(9, 7);
-    let reservation = reservation_with(&policy, 125_000, 179_000);
+    let current = policy(9, 7);
+    let reservation = reservation_with(&current, 125_000, 179_000);
     let claim = claim(&reservation);
 
     // Success column: the exact server-owned triple plus the current capacity lease is accepted.
     assert!(validate_connector_quota_lease(
         &reservation,
         &claim,
-        &policy,
+        &current,
         Some(CAPACITY_LEASE),
         125_002,
     )
@@ -136,7 +136,7 @@ fn stale_foreign_and_tampered_quota_leases_are_refused_before_transport() {
         validate_connector_quota_lease(
             &reservation,
             &claim,
-            &policy,
+            &current,
             Some(CAPACITY_LEASE),
             179_000
         )
@@ -166,7 +166,7 @@ fn stale_foreign_and_tampered_quota_leases_are_refused_before_transport() {
         validate_connector_quota_lease(
             &reservation,
             &stale_claim,
-            &policy,
+            &current,
             Some(CAPACITY_LEASE),
             125_002
         )
@@ -179,7 +179,7 @@ fn stale_foreign_and_tampered_quota_leases_are_refused_before_transport() {
         validate_connector_quota_lease(
             &reservation,
             &claim,
-            &policy,
+            &current,
             Some("sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
             125_002,
         )
@@ -187,7 +187,7 @@ fn stale_foreign_and_tampered_quota_leases_are_refused_before_transport() {
         "connector_quota_capacity_lease_mismatch"
     );
     assert_eq!(
-        validate_connector_quota_lease(&reservation, &claim, &policy, None, 125_002).unwrap_err(),
+        validate_connector_quota_lease(&reservation, &claim, &current, None, 125_002).unwrap_err(),
         "connector_quota_capacity_lease_mismatch"
     );
 
@@ -195,7 +195,7 @@ fn stale_foreign_and_tampered_quota_leases_are_refused_before_transport() {
     let mut tampered = reservation.clone();
     tampered.reservation_digest = json_digest(&serde_json::json!({"forged": true}));
     assert_eq!(
-        validate_connector_quota_lease(&tampered, &claim, &policy, Some(CAPACITY_LEASE), 125_002)
+        validate_connector_quota_lease(&tampered, &claim, &current, Some(CAPACITY_LEASE), 125_002)
             .unwrap_err(),
         "connector_quota_reservation_invalid"
     );

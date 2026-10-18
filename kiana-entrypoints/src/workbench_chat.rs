@@ -200,13 +200,16 @@ impl WorkbenchView {
     /// 路由只能来自服务端页面（`CliInboxRoute::from_view`）或服务端待批列表；超过
     /// `CLI_INBOX_MAX_SESSIONS` 时不再记录，避免把本地列表当成无界状态。
     pub fn set_inbox_route(&mut self, route: CliInboxRoute) {
+        // Read the capacity bound before taking the mutable borrow: the `None` arm below must not
+        // re-borrow `inbox_routes` while `iter_mut()` is still live.
+        let at_capacity = self.inbox_routes.len() >= notification_cli::CLI_INBOX_MAX_SESSIONS;
         match self
             .inbox_routes
             .iter_mut()
             .find(|existing| existing.session_id == route.session_id)
         {
             Some(existing) => *existing = route,
-            None if self.inbox_routes.len() < notification_cli::CLI_INBOX_MAX_SESSIONS => {
+            None if !at_capacity => {
                 self.inbox_routes.push(route);
             }
             None => {}

@@ -1207,10 +1207,10 @@ fn receipt_keeps_estimated_measured_and_unknown_separate() {
 fn fallback_receipt_ledger_rejects_cross_attempt_reuse_and_conflict() {
     let first = admission();
     let rate_card = card_with_id(first.rate_card_id);
-    let usage = usage(&first, UsageConfidence::Known);
-    let cost = CostBreakdown::from_usage(&usage, Some(&rate_card), 2, 2_000).expect("cost");
+    let first_usage = usage(&first, UsageConfidence::Known);
+    let cost = CostBreakdown::from_usage(&first_usage, Some(&rate_card), 2, 2_000).expect("cost");
     let receipt =
-        FallbackAttemptReceipt::from_admission(&first, usage, cost, None).expect("receipt");
+        FallbackAttemptReceipt::from_admission(&first, first_usage, cost, None).expect("receipt");
     let mut ledger = FallbackReceiptLedger::default();
     assert!(ledger.is_empty());
     assert_eq!(

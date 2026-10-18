@@ -563,7 +563,9 @@ fn understated_class_and_protected_shed_are_refused() {
             .expect_err("a record without a delivery attempt cannot claim a delivery failure"),
         "notification_outbox_terminal_reason_invalid"
     );
-    let failed = record()
+    // `abandon_unclaimed` 原地推进记录状态；夹具保留同一实例再做断言。
+    let mut failed = record();
+    failed
         .abandon_unclaimed(
             NotificationOutboxTerminalReason::NotificationExpired,
             10_001,

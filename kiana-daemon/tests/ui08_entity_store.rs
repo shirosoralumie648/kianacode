@@ -319,7 +319,7 @@ async fn live_run(label: &str, chunks: usize) -> LiveRun {
     assert_eq!(response_run_id(&response), run_id);
     let mut frames = drain_frames(&mut live).await;
     assert_eq!(
-        frames.last().map(|frame| frame.kind),
+        frames.last().map(|frame| frame.kind.clone()),
         Some(UiFeedFrameKind::Terminal)
     );
     frames.insert(0, boundary);

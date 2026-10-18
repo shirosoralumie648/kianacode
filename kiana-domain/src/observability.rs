@@ -2303,6 +2303,9 @@ impl ObservabilityIncidentSnapshot {
 #[serde(rename_all = "snake_case")]
 pub enum ReplayDivergenceKind {
     SourceGap,
+    /// The source stream repeated a record identity.  Distinguished from `SourceGap` because the
+    /// cursor never advanced past the duplicate; the source is over-reporting, not missing data.
+    SourceDuplicate,
     SchemaConflict,
     TerminalConflict,
     ProjectionError,

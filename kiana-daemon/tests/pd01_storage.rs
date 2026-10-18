@@ -209,6 +209,7 @@ fn daemon_storage_lock_conflict_rejects_a_fifo_without_reading_it() {
     fs::remove_dir_all(path).unwrap();
 }
 
+#[cfg(unix)]
 #[test]
 fn daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly() {
     let (path, root) = fixture_root("lock-malformed");
@@ -225,6 +226,7 @@ fn daemon_storage_lock_conflict_rejects_a_malformed_record_distinctly() {
     fs::remove_dir_all(path).unwrap();
 }
 
+#[cfg(unix)]
 #[test]
 fn daemon_storage_lock_conflict_rejects_foreign_scope_with_invalid_digest_as_corrupt() {
     let (path, root) = fixture_root("lock-foreign-invalid-digest");
@@ -248,6 +250,7 @@ fn daemon_storage_lock_conflict_rejects_foreign_scope_with_invalid_digest_as_cor
     fs::remove_dir_all(path).unwrap();
 }
 
+#[cfg(unix)]
 #[test]
 fn daemon_storage_lock_conflict_rejects_foreign_scope_with_zero_time_as_corrupt() {
     let (path, root) = fixture_root("lock-foreign-zero-time");

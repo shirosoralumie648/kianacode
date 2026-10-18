@@ -115,15 +115,12 @@ fn unregistered_executions_and_scope_drift_are_refused() {
     );
 
     let mut ledger = ledger();
+    // This binding is well formed but conflicts with the already registered scope.
+    let conflicting =
+        AutomationExecutionBinding::new("execution-1", A, "shell", B, A, Some(A.to_owned()))
+            .expect("well-formed conflicting binding");
     assert_eq!(
-        ledger.register_execution(AutomationExecutionBinding::new(
-            "execution-1",
-            A,
-            "shell",
-            B,
-            A,
-            Some(A.to_owned()),
-        )),
+        ledger.register_execution(conflicting),
         Err("automation_effect_execution_binding_conflict")
     );
     assert_eq!(ledger.register_execution(binding()), Ok(()));

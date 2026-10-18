@@ -102,90 +102,101 @@ impl MemoryAutomationSignalStore {
         fact.validate()
             .map_err(|reason| PortError::Failed(reason.to_owned()))?;
         let mut state = self.state.lock().await;
-        let records = state.records.entry(fact.execution_id.clone()).or_default();
-        if let Some(existing) = records
-            .iter()
-            .find(|existing| existing.signal_id == fact.signal_id)
+        // 重放判定与全部校验先在不持有 `records` 可变借用的情况下完成（`records` 只按共享
+        // 借用读取），随后先把审批消费写入 `consumed_approvals`，最后才取 `records` 的可变
+        // 借用并 push。这样任何拒绝路径都发生在第一次状态写入之前，且两处可变借用不重叠。
         {
-            if existing.signal_digest == fact.signal_digest {
-                return Ok(AutomationSignalCommit {
-                    fact: existing.clone(),
-                    replayed: true,
-                });
+            let records = state.records.entry(fact.execution_id.clone()).or_default();
+            if let Some(existing) = records
+                .iter()
+                .find(|existing| existing.signal_id == fact.signal_id)
+            {
+                if existing.signal_digest == fact.signal_digest {
+                    return Ok(AutomationSignalCommit {
+                        fact: existing.clone(),
+                        replayed: true,
+                    });
+                }
+                return Err(Self::conflict("automation_signal_signal_conflict"));
             }
-            return Err(Self::conflict("automation_signal_signal_conflict"));
-        }
-        let Some(current) = records.last().cloned() else {
-            if expected_digest.is_some() {
+            let Some(current) = records.last().cloned() else {
+                if expected_digest.is_some() {
+                    return Err(Self::conflict("automation_signal_digest_conflict"));
+                }
+                if fact.signal_sequence != 1 {
+                    return Err(Self::conflict("automation_signal_sequence_gap"));
+                }
+                if fact.state != AutomationSignalState::Paused {
+                    return Err(Self::conflict("automation_signal_transition_refused"));
+                }
+                records.push(fact.clone());
+                return Ok(AutomationSignalCommit {
+                    fact,
+                    replayed: false,
+                });
+            };
+            if expected_digest != Some(current.signal_digest.as_str()) {
                 return Err(Self::conflict("automation_signal_digest_conflict"));
             }
-            if fact.signal_sequence != 1 {
+            if fact.signal_sequence < current.signal_sequence {
+                return Err(Self::conflict("automation_signal_sequence_regression"));
+            }
+            if fact.signal_sequence != current.signal_sequence + 1 {
                 return Err(Self::conflict("automation_signal_sequence_gap"));
             }
-            if fact.state != AutomationSignalState::Paused {
+            if current.state == fact.state
+                || !automation_signal_transition_allowed(current.state, fact.state)
+            {
                 return Err(Self::conflict("automation_signal_transition_refused"));
             }
-            records.push(fact.clone());
-            return Ok(AutomationSignalCommit {
-                fact,
-                replayed: false,
-            });
-        };
-        if expected_digest != Some(current.signal_digest.as_str()) {
-            return Err(Self::conflict("automation_signal_digest_conflict"));
-        }
-        if fact.signal_sequence < current.signal_sequence {
-            return Err(Self::conflict("automation_signal_sequence_regression"));
-        }
-        if fact.signal_sequence != current.signal_sequence + 1 {
-            return Err(Self::conflict("automation_signal_sequence_gap"));
-        }
-        if current.state == fact.state
-            || !automation_signal_transition_allowed(current.state, fact.state)
-        {
-            return Err(Self::conflict("automation_signal_transition_refused"));
-        }
-        if fact.owner_id != current.owner_id {
-            return Err(Self::conflict("automation_signal_owner_drift"));
-        }
-        if fact.definition_digest != current.definition_digest {
-            return Err(Self::conflict("automation_signal_definition_digest_drift"));
-        }
-        if fact.action_digest != current.action_digest {
-            return Err(Self::conflict("automation_signal_action_digest_drift"));
-        }
-        if fact.path_scope_digest != current.path_scope_digest {
-            return Err(Self::conflict("automation_signal_path_scope_drift"));
-        }
-        if fact.authority_epoch < current.authority_epoch {
-            return Err(Self::conflict("automation_signal_authority_epoch_stale"));
-        }
-        if fact.authority_epoch > current.authority_epoch
-            && fact.state != AutomationSignalState::Resumed
-        {
-            return Err(Self::conflict("automation_signal_authority_epoch_ahead"));
-        }
-        if fact.checkpoint_sequence < current.checkpoint_sequence {
-            return Err(Self::conflict(
-                "automation_signal_checkpoint_sequence_regression",
-            ));
-        }
-        let reuse_allowed = fact.state == AutomationSignalState::Consumed
-            && current.state == AutomationSignalState::Resumed
-            && current.approval_digest.is_some()
-            && current.approval_digest == fact.approval_digest;
-        if fact.state == AutomationSignalState::Consumed && !reuse_allowed {
-            return Err(Self::conflict("automation_signal_approval_digest_drift"));
-        }
-        if let Some(digest) = fact.approval_digest.as_deref() {
-            if state.consumed_approvals.contains(digest) && !reuse_allowed {
-                return Err(Self::conflict("automation_signal_approval_consumed"));
+            if fact.owner_id != current.owner_id {
+                return Err(Self::conflict("automation_signal_owner_drift"));
+            }
+            if fact.definition_digest != current.definition_digest {
+                return Err(Self::conflict("automation_signal_definition_digest_drift"));
+            }
+            if fact.action_digest != current.action_digest {
+                return Err(Self::conflict("automation_signal_action_digest_drift"));
+            }
+            if fact.path_scope_digest != current.path_scope_digest {
+                return Err(Self::conflict("automation_signal_path_scope_drift"));
+            }
+            if fact.authority_epoch < current.authority_epoch {
+                return Err(Self::conflict("automation_signal_authority_epoch_stale"));
+            }
+            if fact.authority_epoch > current.authority_epoch
+                && fact.state != AutomationSignalState::Resumed
+            {
+                return Err(Self::conflict("automation_signal_authority_epoch_ahead"));
+            }
+            if fact.checkpoint_sequence < current.checkpoint_sequence {
+                return Err(Self::conflict(
+                    "automation_signal_checkpoint_sequence_regression",
+                ));
+            }
+            let reuse_allowed = fact.state == AutomationSignalState::Consumed
+                && current.state == AutomationSignalState::Resumed
+                && current.approval_digest.is_some()
+                && current.approval_digest == fact.approval_digest;
+            if fact.state == AutomationSignalState::Consumed && !reuse_allowed {
+                return Err(Self::conflict("automation_signal_approval_digest_drift"));
+            }
+            // 审批单次消费判定：拒绝路径必须在写入 `consumed_approvals` 之前返回。
+            if let Some(digest) = fact.approval_digest.as_deref() {
+                if state.consumed_approvals.contains(digest) && !reuse_allowed {
+                    return Err(Self::conflict("automation_signal_approval_consumed"));
+                }
             }
         }
+        // 所有校验已通过：先写审批消费，再追加事实（此顺序保证失败不会留下半写状态）。
         if let Some(digest) = fact.approval_digest.clone() {
             state.consumed_approvals.insert(digest);
         }
-        records.push(fact.clone());
+        state
+            .records
+            .entry(fact.execution_id.clone())
+            .or_default()
+            .push(fact.clone());
         Ok(AutomationSignalCommit {
             fact,
             replayed: false,

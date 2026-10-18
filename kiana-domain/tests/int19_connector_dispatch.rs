@@ -234,9 +234,9 @@ fn skipped_phases_and_premature_artifacts_are_refused_before_any_dispatch() {
     }
 
     // Dispatching cannot become ResultCommitted without an observation fact.
-    let dispatching = dispatching();
+    let in_flight = dispatching();
     assert_eq!(
-        dispatching
+        in_flight
             .advance(
                 ConnectorDispatchStage::ResultCommitted,
                 Some(digest("receipt")),
@@ -250,7 +250,7 @@ fn skipped_phases_and_premature_artifacts_are_refused_before_any_dispatch() {
 
     // The two pre-effect phases must not carry any effect artifact.
     assert_eq!(
-        dispatching
+        in_flight
             .advance(
                 ConnectorDispatchStage::Dispatching,
                 Some(digest("receipt")),
@@ -264,7 +264,7 @@ fn skipped_phases_and_premature_artifacts_are_refused_before_any_dispatch() {
 
     // A committed result cannot be produced from an observed phase that dropped its evidence.
     assert_eq!(
-        dispatching
+        in_flight
             .advance(
                 ConnectorDispatchStage::Observed,
                 Some(digest("receipt")),
@@ -322,7 +322,7 @@ fn skipped_phases_and_premature_artifacts_are_refused_before_any_dispatch() {
 /// deserialized clone cannot move them, and an unknown phase cannot smuggle a result digest.
 #[test]
 fn late_results_cannot_resurrect_a_terminal_attempt() {
-    let committed = committed();
+    let terminal_committed = committed();
     for next in [
         ConnectorDispatchStage::Prepared,
         ConnectorDispatchStage::Dispatching,
@@ -330,12 +330,12 @@ fn late_results_cannot_resurrect_a_terminal_attempt() {
         ConnectorDispatchStage::Unknown,
     ] {
         assert_eq!(
-            committed
+            terminal_committed
                 .advance(
                     next,
-                    committed.receipt_digest.clone(),
-                    committed.observation_digest.clone(),
-                    committed.result_digest.clone(),
+                    terminal_committed.receipt_digest.clone(),
+                    terminal_committed.observation_digest.clone(),
+                    terminal_committed.result_digest.clone(),
                     Some("late_result".to_owned()),
                 )
                 .unwrap_err(),
@@ -343,7 +343,7 @@ fn late_results_cannot_resurrect_a_terminal_attempt() {
         );
     }
 
-    let unknown = unknown();
+    let terminal_unknown = unknown();
     for next in [
         ConnectorDispatchStage::Prepared,
         ConnectorDispatchStage::Dispatching,
@@ -351,7 +351,7 @@ fn late_results_cannot_resurrect_a_terminal_attempt() {
         ConnectorDispatchStage::ResultCommitted,
     ] {
         assert_eq!(
-            unknown
+            terminal_unknown
                 .advance(
                     next,
                     Some(digest("late_receipt")),

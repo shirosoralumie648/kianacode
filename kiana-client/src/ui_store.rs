@@ -909,9 +909,10 @@ impl UiEntityStore {
                 if next.gap.is_none() {
                     next.needs_snapshot = false;
                 }
+                let needs_snapshot = next.needs_snapshot;
                 return Ok(UiStoreTransition {
                     store: next,
-                    change: if next.needs_snapshot {
+                    change: if needs_snapshot {
                         UiStoreChange::SnapshotRequired
                     } else {
                         UiStoreChange::SnapshotHydrated

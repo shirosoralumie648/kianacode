@@ -726,6 +726,16 @@ impl ProviderReceiptRef {
 }
 
 impl CostBreakdown {
+    /// True when this breakdown carries a measured observation (a provider-issued amount).
+    pub fn is_measured(&self) -> bool {
+        self.kind.is_measured()
+    }
+
+    /// True when this breakdown carries an estimate rather than a measured amount.
+    pub fn is_estimated(&self) -> bool {
+        self.kind.is_estimated()
+    }
+
     /// Return the opaque provider receipt when this is a measured fact.
     pub fn provider_receipt(&self) -> Option<&ProviderReceiptRef> {
         match &self.kind {

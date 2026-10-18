@@ -9,7 +9,7 @@ fn oa21_replay_stays_read_only_and_compares_audit_receipt_health_against_a_basel
     let core = include_str!("../src/replay_diagnostics.rs");
     let lib = include_str!("../src/lib.rs");
     let fixture = include_str!("fixtures/oa21-replay-consistency.json");
-    let core_fixture = include_str!("tests/oa21_replay_diagnostics.rs");
+    let core_fixture = include_str!("oa21_replay_diagnostics.rs");
     let workflow = include_str!("../../.github/workflows/oa21-replay-diagnostics.yml");
     let baseline = include_str!("../../docs/roadmap/observability-audit-baseline.md");
     let shards = include_str!("../../scripts/ci/test-shards.json");

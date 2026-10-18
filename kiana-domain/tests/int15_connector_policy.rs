@@ -211,7 +211,8 @@ fn r2_requires_a_current_data_grant_and_never_widens_scope() {
     ] {
         assert!(
             matches!(
-                evaluate_connector_admission(&allowed.with_data_grant(Some(&mutated))),
+                // `with_data_grant` consumes the input by value, so clone the allowed baseline.
+                evaluate_connector_admission(&allowed.clone().with_data_grant(Some(&mutated))),
                 ConnectorAdmission::Denied { reason, broker_calls: 0, .. } if reason == expected
             ),
             "{label} was not refused with {expected}"
@@ -241,8 +242,9 @@ fn r3_is_one_shot_and_binds_the_final_payload_digest() {
         ConnectorAdmission::AwaitingApproval { risk: ConnectorOperationRisk::R3OnceApproval, reason, broker_calls: 0, .. } if reason == "connector_final_payload_approval_required"
     ));
 
-    let approval = approval(&digest, "binding-1", "send_message");
-    let approved = request.with_once_approval(Some(&approval));
+    let once = approval(&digest, "binding-1", "send_message");
+    // Binding the approval consumes the input, so the baseline is cloned.
+    let approved = request.clone().with_once_approval(Some(&once));
     let first = evaluate_connector_admission(&approved);
     let second = evaluate_connector_admission(&approved);
     assert_eq!(first, second);
@@ -256,7 +258,7 @@ fn r3_is_one_shot_and_binds_the_final_payload_digest() {
         .clone()
         .with_final_payload_digest(Some(&connector_payload_sha256(&json!({"to":"other"}))));
     assert!(matches!(
-        evaluate_connector_admission(&drifted_digest.with_once_approval(Some(&approval))),
+        evaluate_connector_admission(&drifted_digest.with_once_approval(Some(&once))),
         ConnectorAdmission::Denied { reason, broker_calls: 0, .. } if reason == "connector_final_payload_digest_mismatch"
     ));
     for (label, drifted, expected) in [
@@ -320,7 +322,7 @@ fn r3_is_one_shot_and_binds_the_final_payload_digest() {
     ] {
         assert!(
             matches!(
-                evaluate_connector_admission(&request.with_once_approval(Some(&drifted))),
+                evaluate_connector_admission(&request.clone().with_once_approval(Some(&drifted))),
                 ConnectorAdmission::Denied { reason, broker_calls: 0, .. } if reason == expected
             ),
             "{label} was not refused with {expected}"
@@ -331,7 +333,7 @@ fn r3_is_one_shot_and_binds_the_final_payload_digest() {
     let no_payload = input("send_message", ConnectorEffect::Write, None)
         .with_final_payload_digest(Some(&digest));
     assert!(matches!(
-        evaluate_connector_admission(&no_payload.with_once_approval(Some(&approval))),
+        evaluate_connector_admission(&no_payload.with_once_approval(Some(&once))),
         ConnectorAdmission::Denied { reason, broker_calls: 0, .. } if reason == "connector_final_payload_required"
     ));
 
@@ -340,9 +342,9 @@ fn r3_is_one_shot_and_binds_the_final_payload_digest() {
         .consume(100)
         .unwrap();
     assert!(consumed.consumed);
-    assert!(consumed.consume(100).is_err());
+    assert!(consumed.clone().consume(100).is_err());
     assert!(matches!(
-        evaluate_connector_admission(&request.with_once_approval(Some(&consumed))),
+        evaluate_connector_admission(&request.clone().with_once_approval(Some(&consumed))),
         ConnectorAdmission::Denied { reason, broker_calls: 0, .. } if reason == "connector_once_approval_consumed"
     ));
 }
@@ -417,10 +419,12 @@ fn declared_risk_can_only_raise_the_operation_class() {
         connector_risk_mapping("send_message", ConnectorEffect::Write, RiskLevel::ReadOnly).risk,
         ConnectorOperationRisk::R3OnceApproval
     );
+    // The admission input borrows its payload, so the fixture must outlive the input.
+    let downgraded_payload = json!({"a":1});
     let downgraded_write = input(
         "send_message",
         ConnectorEffect::Write,
-        Some(&json!({"a":1})),
+        Some(&downgraded_payload),
     );
     let mut request = downgraded_write
         .with_final_payload_digest(Some(&connector_payload_sha256(&json!({"a":1}))));

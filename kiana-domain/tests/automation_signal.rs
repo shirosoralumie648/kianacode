@@ -134,8 +134,8 @@ fn apply_signal(
 /// 记录一次 pause 并返回已提交事实，作为后续恢复/消费链的起点。
 fn pause(ledger: &mut AutomationSignalLedger) -> AutomationSignalFact {
     let request = pause_request();
-    let checkpoint = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
-    apply_signal(ledger, &request, None, Some(&checkpoint))
+    let bound = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
+    apply_signal(ledger, &request, None, Some(&bound))
         .expect("pause must be recorded")
         .fact
 }
@@ -269,9 +269,9 @@ fn ui_context_is_refused_before_any_plan() {
         Err("automation_signal_ui_context_forbidden")
     );
     let mut ledger = AutomationSignalLedger::new();
-    let checkpoint = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
+    let bound = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
     assert_eq!(
-        apply_signal(&mut ledger, &carried, None, Some(&checkpoint)).unwrap_err(),
+        apply_signal(&mut ledger, &carried, None, Some(&bound)).unwrap_err(),
         "automation_signal_ui_context_forbidden"
     );
     assert!(ledger.is_empty(), "拒绝路径不得写入任何事实");
@@ -399,13 +399,13 @@ fn owner_definition_action_and_path_drift_are_refused() {
 fn sequence_order_and_dedupe_are_stable() {
     let mut ledger = AutomationSignalLedger::new();
     let paused = pause(&mut ledger);
-    let checkpoint = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
+    let bound = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
     // 已被占用的序号（回退）必须拒绝。
     let mut regression = pause_request();
     regression.signal_id = "signal-0".to_owned();
     let regression = resign_request(regression);
     assert_eq!(
-        apply_signal(&mut ledger, &regression, None, Some(&checkpoint)).unwrap_err(),
+        apply_signal(&mut ledger, &regression, None, Some(&bound)).unwrap_err(),
         "automation_signal_sequence_regression"
     );
     // 跳号必须拒绝。
@@ -414,11 +414,11 @@ fn sequence_order_and_dedupe_are_stable() {
     gap.signal_sequence = 9;
     let gap = resign_request(gap);
     assert_eq!(
-        apply_signal(&mut ledger, &gap, None, Some(&checkpoint)).unwrap_err(),
+        apply_signal(&mut ledger, &gap, None, Some(&bound)).unwrap_err(),
         "automation_signal_sequence_gap"
     );
     // 同一 signal_id 同一内容：幂等重放，返回既有副本且不追加事实。
-    let commit = apply_signal(&mut ledger, &pause_request(), None, Some(&checkpoint)).unwrap();
+    let commit = apply_signal(&mut ledger, &pause_request(), None, Some(&bound)).unwrap();
     assert!(commit.replayed);
     assert_eq!(commit.fact.signal_digest, paused.signal_digest);
     assert_eq!(ledger.len(), 1);
@@ -1023,9 +1023,9 @@ fn consumed_fact_must_reuse_the_resume_approval_digest() {
 #[test]
 fn plan_never_permits_dispatch() {
     let ledger = AutomationSignalLedger::new();
-    let checkpoint = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
+    let bound = checkpoint(EPOCH, CHECKPOINT_SEQUENCE);
     let plan =
-        plan_automation_signal(&pause_request(), None, Some(&checkpoint), &ledger, 20).unwrap();
+        plan_automation_signal(&pause_request(), None, Some(&bound), &ledger, 20).unwrap();
     assert!(!plan.dispatch_permitted);
     assert!(plan.validate().is_ok());
     // 任何声称允许派发的计划都必须被拒绝，防止 signal 决策变成第二条执行入口。

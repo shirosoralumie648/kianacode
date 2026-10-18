@@ -452,7 +452,7 @@ fn policy_validation_refuses_unbounded_or_forged_policies_before_classification(
         "retry_observation_phase_invalid"
     );
     assert_eq!(
-        policy.classify(1, 1, 1_000, &empty_code).unwrap_err(),
+        forged.classify(1, 1, 1_000, &empty_code).unwrap_err(),
         "retry_observation_code_invalid"
     );
 }
@@ -704,24 +704,24 @@ fn cancellation_race_refuses_a_second_terminal_state() {
 
 #[test]
 fn reservation_usage_cannot_exceed_the_reserved_upper_bound() {
-    let mut reservation = reservation();
-    reservation.dispatch().expect("dispatch");
+    let mut over_bound = reservation();
+    over_bound.dispatch().expect("dispatch");
 
     assert_eq!(
-        reservation.settle(Some(257)).unwrap_err(),
+        over_bound.settle(Some(257)).unwrap_err(),
         "retry_attempt_usage_exceeds_reservation"
     );
-    assert_eq!(reservation.state, RetryAttemptState::Sent);
+    assert_eq!(over_bound.state, RetryAttemptState::Sent);
     assert_eq!(
-        reservation.mark_unknown(Some(257)).unwrap_err(),
+        over_bound.mark_unknown(Some(257)).unwrap_err(),
         "retry_attempt_usage_exceeds_reservation"
     );
-    assert_eq!(reservation.state, RetryAttemptState::Sent);
-    assert_eq!(reservation.observed_tokens, None);
+    assert_eq!(over_bound.state, RetryAttemptState::Sent);
+    assert_eq!(over_bound.observed_tokens, None);
 
     // The exact upper bound settles; the observed value is within the reservation.
-    reservation.settle(Some(256)).expect("settle at the bound");
-    assert_eq!(reservation.observed_tokens, Some(256));
+    over_bound.settle(Some(256)).expect("settle at the bound");
+    assert_eq!(over_bound.observed_tokens, Some(256));
 
     let mut unknown = reservation();
     unknown.dispatch().expect("dispatch");

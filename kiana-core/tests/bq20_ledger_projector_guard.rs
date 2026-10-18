@@ -6,7 +6,9 @@
 //! static guard: it pins markers, refusal codes, fixture names and the CI wiring (manual lane and
 //! `scripts/ci/test-shards.json`). `include_str!` hits are text checks, not runtime proof.
 
-use kiana_core::{BillingProjectionFence, BillingProjectionFenceError};
+use kiana_core::{
+    BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
+};
 use kiana_domain::*;
 use serde_json::json;
 

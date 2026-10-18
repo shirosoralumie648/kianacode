@@ -288,15 +288,15 @@ fn ui20_completion_slice_stays_wired_to_the_fixture_lane_and_shard() {
     }
     // The marked component region is the measured baseline, not an arbitrary slice of the page.
     for marker in [
-        kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_START_MARKER,
-        kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_END_MARKER,
+        kiana_client::WEB_TIMELINE_COMPONENT_START_MARKER,
+        kiana_client::WEB_TIMELINE_COMPONENT_END_MARKER,
     ] {
         assert!(
             page.contains(marker),
             "the served artifact must keep its component markers: {marker}"
         );
     }
-    let bundle = kiana_client::web_timeline::WebTimelineBundle::measure(page)
+    let bundle = kiana_client::WebTimelineBundle::measure(page)
         .expect("the served artifact keeps a marked component region");
     assert!(bundle.within_budget, "{bundle:?}");
     assert_eq!(bundle.page_bytes, page.len());

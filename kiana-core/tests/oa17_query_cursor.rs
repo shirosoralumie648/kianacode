@@ -8,8 +8,9 @@ use async_trait::async_trait;
 use kiana_capability_broker::CapabilityBroker;
 use kiana_core::{AuditProjectionError, AuditQueryInput, ControlPlane};
 use kiana_domain::{
-    ApprovalId, AuditActionKind, AuditDecision, AuditQueryCursor, EventLogCursorSnapshot,
-    EventStoreCapabilities, ExecutionStatus, RequestContext, RequestId, RuntimeEvent,
+    ApprovalChallenge, ApprovalId, AuditActionKind, AuditDecision, AuditQueryCursor,
+    CapabilityRequest, EventLogCursorSnapshot, EventStoreCapabilities, ExecutionStatus,
+    PendingApproval, RequestContext, RequestId, RuntimeEvent,
 };
 use kiana_gates::DefaultGateEngine;
 use kiana_policy::DefaultPolicyEngine;
@@ -221,8 +222,31 @@ struct UnusedApprovalStore;
 
 #[async_trait]
 impl ApprovalStorePort for UnusedApprovalStore {
+    /// 查询夹具从不暂存审批；若被调用必须 fail closed，而不是伪造 challenge。
+    async fn stage(
+        &self,
+        _context: &RequestContext,
+        _request: CapabilityRequest,
+        _reason: &str,
+    ) -> Result<ApprovalChallenge, PortError> {
+        Err(PortError::Unavailable(
+            "oa17_fixture_approval_unused".to_owned(),
+        ))
+    }
+
     /// 查询夹具不消费审批；若被调用必须 fail closed，而不是伪造成功。
     async fn activate(&self, _approval_id: ApprovalId) -> Result<(), PortError> {
+        Err(PortError::Unavailable(
+            "oa17_fixture_approval_unused".to_owned(),
+        ))
+    }
+
+    /// 查询夹具不消费审批；若被调用必须 fail closed，而不是伪造成功。
+    async fn consume(
+        &self,
+        _context: &RequestContext,
+        _approval_id: ApprovalId,
+    ) -> Result<PendingApproval, PortError> {
         Err(PortError::Unavailable(
             "oa17_fixture_approval_unused".to_owned(),
         ))
