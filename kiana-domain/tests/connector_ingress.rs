@@ -44,7 +44,7 @@ fn ingress_policy_binds_tenant_payload_nonce_and_occurrence() {
     let policy = policy();
     let event = event();
     policy.matches(&event, 1_050).unwrap();
-    let occurrence = ConnectorIngressOccurrence::from_verified(&event, &policy).unwrap();
+    let occurrence = ConnectorIngressOccurrence::from_verified(&event, &policy, 1_050).unwrap();
     occurrence.validate().unwrap();
     assert!(occurrence.signature_digest.starts_with("sha256:"));
     assert_eq!(

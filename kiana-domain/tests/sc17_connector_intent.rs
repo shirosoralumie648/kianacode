@@ -46,7 +46,7 @@ fn verified_occurrence() -> ConnectorIngressOccurrence {
         "ab".repeat(32),
     )
     .unwrap();
-    ConnectorIngressOccurrence::from_verified(&event, &policy()).unwrap()
+    ConnectorIngressOccurrence::from_verified(&event, &policy(), 1_050).unwrap()
 }
 
 fn snapshot(status: &str) -> ConnectorBindingSnapshot {
