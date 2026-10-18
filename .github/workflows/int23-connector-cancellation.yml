@@ -1,0 +1,46 @@
+name: "INT-23 connector cancellation stop report / late result fence"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  int23-connector-cancellation:
+    name: "INT-23 connector cancellation stop report / late result fence"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # Domain cancellation contract: a cancellation without confirmed stop evidence can never be
+      # recorded as `not_executed`, a started effect cannot release its lease, a late provider
+      # result can only be kept as fenced evidence, and the three terminal outcomes stay
+      # reconstructible from the stored stop report. Deny-first fixtures precede the success block.
+      - name: Run domain cancellation fixtures
+        run: cargo test -p kiana-domain --test int23_connector_cancellation --locked -- --test-threads=1
+      # Daemon boundary: wire-supplied cancellation material is refused before any fact, and a
+      # settled attempt reconstructs from durable `connector.dispatch.lifecycle` facts with the
+      # late result fenced instead of resurrecting the attempt.
+      - name: Run daemon cancellation boundary fixtures
+        run: cargo test -p kiana-daemon --test int23_connector_cancellation --locked -- --test-threads=1
+      # Source guard: the cancellation contract is a pure server-owned value workflow, and the
+      # deny-first fixtures stay wired to this lane and the automatic shards.
+      - name: Run core cancellation guard
+        run: cargo test -p kiana-core --test int23_connector_cancellation_guard --locked -- --test-threads=1
+
+      - name: Compile domain cancellation target
+        run: cargo test -p kiana-domain --test int23_connector_cancellation --no-run --locked
+      - name: Compile daemon cancellation target
+        run: cargo test -p kiana-daemon --test int23_connector_cancellation --no-run --locked
+      - name: Compile core cancellation guard target
+        run: cargo test -p kiana-core --test int23_connector_cancellation_guard --no-run --locked
