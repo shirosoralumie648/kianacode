@@ -3,6 +3,12 @@
 //! A stop acknowledgement is evidence about one attempt. It does not rewrite dispatch history,
 //! release a lease after an effect may have started, or allow a provider result to resurrect a
 //! cancelled attempt.
+//!
+//! 2026-10-17 completion slice (CI-only): the settlement is reconstructible from server-owned stop
+//! evidence. `expected_settlement` is the single derivation shared by `from_stop_report` and
+//! `validate_for_stop_report`, so an unconfirmed stop can never be recorded as `NotExecuted` or
+//! `StopConfirmed`, a started effect can never release its lease, and the typed `ConnectorLateResult`
+//! envelope is fenced for every terminal settlement with invocation/attempt/time binding.
 
 use crate::{
     json_digest, ConnectorDispatchLifecycle, ConnectorDispatchStage, InvocationId,
@@ -13,6 +19,7 @@ use serde_json::json;
 
 pub const CONNECTOR_CANCELLATION_SCHEMA: &str = "kiana.connector-cancellation-settlement.v1";
 pub const CONNECTOR_LEASE_SETTLEMENT_SCHEMA: &str = "kiana.connector-lease-settlement.v1";
+pub const CONNECTOR_LATE_RESULT_SCHEMA: &str = "kiana.connector-late-result.v1";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -22,12 +29,34 @@ pub enum ConnectorCancellationState {
     Unknown,
 }
 
+impl ConnectorCancellationState {
+    /// The canonical lease settlement of every cancellation outcome.
+    ///
+    /// Only a stop confirmed *before* the effect started proves the lease was never used and may be
+    /// released. A confirmed stop of a started effect and an unconfirmed stop both keep the lease
+    /// held for reconciliation. `Consumed` is reserved for a committed dispatch result and is never
+    /// a cancellation outcome.
+    pub const fn lease_settlement(self) -> ConnectorLeaseSettlement {
+        match self {
+            Self::NotExecuted => ConnectorLeaseSettlement::Released,
+            Self::StopConfirmed | Self::Unknown => ConnectorLeaseSettlement::HeldForReconciliation,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectorLeaseSettlement {
     Released,
     HeldForReconciliation,
     Consumed,
+}
+
+impl ConnectorLeaseSettlement {
+    /// Only `Released` gives the lease back.
+    pub const fn releases_lease(self) -> bool {
+        matches!(self, Self::Released)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -48,6 +77,51 @@ pub struct ConnectorCancellationSettlement {
     pub settlement_digest: String,
 }
 
+/// A provider result that surfaced after the attempt was settled.
+///
+/// The envelope is bound to the settled attempt and is rejected for every terminal settlement, so a
+/// late result can be recorded as evidence without ever resurrecting the attempt.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorLateResult {
+    pub schema: String,
+    pub invocation_id: InvocationId,
+    pub attempt: u32,
+    pub result_digest: String,
+    pub observed_at_unix_ms: u64,
+}
+
+impl ConnectorLateResult {
+    pub fn new(
+        invocation_id: InvocationId,
+        attempt: u32,
+        result_digest: impl Into<String>,
+        observed_at_unix_ms: u64,
+    ) -> Result<Self, String> {
+        let result = Self {
+            schema: CONNECTOR_LATE_RESULT_SCHEMA.to_owned(),
+            invocation_id,
+            attempt,
+            result_digest: result_digest.into(),
+            observed_at_unix_ms,
+        };
+        result.validate()?;
+        Ok(result)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != CONNECTOR_LATE_RESULT_SCHEMA
+            || self.invocation_id.as_uuid().is_nil()
+            || self.attempt == 0
+            || !valid_digest(&self.result_digest)
+            || self.observed_at_unix_ms == 0
+        {
+            return Err("connector_late_result_invalid".to_owned());
+        }
+        Ok(())
+    }
+}
+
 impl ConnectorCancellationSettlement {
     pub fn from_stop_report(
         lifecycle: &ConnectorDispatchLifecycle,
@@ -57,40 +131,10 @@ impl ConnectorCancellationSettlement {
         requested_at_unix_ms: u64,
         settled_at_unix_ms: u64,
     ) -> Result<Self, String> {
-        lifecycle.validate()?;
-        report.validate()?;
-        if requested_at_unix_ms == 0
-            || settled_at_unix_ms < requested_at_unix_ms
-            || report.execution_id != lifecycle.invocation_id.to_string()
-        {
+        if requested_at_unix_ms == 0 || settled_at_unix_ms < requested_at_unix_ms {
             return Err("connector_cancellation_identity_or_time_invalid".to_owned());
         }
-        if matches!(
-            lifecycle.stage,
-            ConnectorDispatchStage::Observed
-                | ConnectorDispatchStage::ResultCommitted
-                | ConnectorDispatchStage::Unknown
-        ) {
-            return Err("connector_cancellation_effect_already_observed".to_owned());
-        }
-        let (state, lease_settlement) = if report.confirmed {
-            match lifecycle.stage {
-                ConnectorDispatchStage::Prepared => (
-                    ConnectorCancellationState::NotExecuted,
-                    ConnectorLeaseSettlement::Released,
-                ),
-                ConnectorDispatchStage::Dispatching => (
-                    ConnectorCancellationState::StopConfirmed,
-                    ConnectorLeaseSettlement::HeldForReconciliation,
-                ),
-                _ => return Err("connector_cancellation_stage_invalid".to_owned()),
-            }
-        } else {
-            (
-                ConnectorCancellationState::Unknown,
-                ConnectorLeaseSettlement::HeldForReconciliation,
-            )
-        };
+        let (state, lease_settlement) = expected_settlement(lifecycle, report)?;
         let mut settlement = Self {
             schema: CONNECTOR_CANCELLATION_SCHEMA.to_owned(),
             invocation_id: lifecycle.invocation_id,
@@ -109,6 +153,92 @@ impl ConnectorCancellationSettlement {
         settlement.settlement_digest = settlement.digest();
         settlement.validate()?;
         Ok(settlement)
+    }
+
+    /// Re-derive the settlement identity against the lifecycle it claims to settle.
+    ///
+    /// This refuses a settlement that drifted from the attempt (invocation/attempt/command digest),
+    /// a settlement of an attempt that already produced an effect, and a release of a lease whose
+    /// effect may have started. It does not require the stop report, so it is the cheaper check used
+    /// before the report is re-read.
+    pub fn validate_for_lifecycle(
+        &self,
+        lifecycle: &ConnectorDispatchLifecycle,
+    ) -> Result<(), String> {
+        self.validate()?;
+        lifecycle.validate()?;
+        if self.invocation_id != lifecycle.invocation_id
+            || self.attempt != lifecycle.attempt
+            || self.command_digest != lifecycle.command_digest
+        {
+            return Err("connector_cancellation_lifecycle_mismatch".to_owned());
+        }
+        match lifecycle.stage {
+            ConnectorDispatchStage::Prepared => {
+                if self.state == ConnectorCancellationState::StopConfirmed {
+                    return Err("connector_cancellation_started_effect_required".to_owned());
+                }
+            }
+            ConnectorDispatchStage::Dispatching => {
+                if self.lease_settlement.releases_lease() {
+                    return Err(
+                        "connector_cancellation_started_effect_cannot_release_lease".to_owned()
+                    );
+                }
+                if self.state == ConnectorCancellationState::NotExecuted {
+                    return Err("connector_cancellation_settlement_mismatch".to_owned());
+                }
+            }
+            ConnectorDispatchStage::Observed
+            | ConnectorDispatchStage::ResultCommitted
+            | ConnectorDispatchStage::Unknown => {
+                return Err("connector_cancellation_effect_already_observed".to_owned());
+            }
+        }
+        Ok(())
+    }
+
+    /// Re-derive the exact outcome from the stop report that backs this settlement.
+    ///
+    /// An unconfirmed report can only settle as `Unknown` with the lease held, a confirmed stop
+    /// before dispatch as `NotExecuted` released, and a confirmed stop of a started effect as
+    /// `StopConfirmed` held. A hand-written settlement (or a deserialized replay) that claims any
+    /// other combination is refused even when its digests were recomputed.
+    pub fn validate_for_stop_report(
+        &self,
+        lifecycle: &ConnectorDispatchLifecycle,
+        report: &StopReport,
+    ) -> Result<(), String> {
+        self.validate_for_lifecycle(lifecycle)?;
+        report.validate()?;
+        if self.stop_report_digest != report.report_digest {
+            return Err("connector_cancellation_stop_report_mismatch".to_owned());
+        }
+        let (state, lease_settlement) = expected_settlement(lifecycle, report)?;
+        if self.state != state || self.lease_settlement != lease_settlement {
+            return Err("connector_cancellation_settlement_mismatch".to_owned());
+        }
+        Ok(())
+    }
+
+    /// Refuse a late provider result addressed to this attempt.
+    ///
+    /// `Err` is the fenced answer: the result may be recorded as evidence, but it can never move the
+    /// terminal settlement. Identity and arrival bind the envelope to this attempt before the fence
+    /// verdict is returned.
+    pub fn fence_late_result(&self, result: &ConnectorLateResult) -> Result<(), String> {
+        self.validate()?;
+        result.validate()?;
+        if result.invocation_id != self.invocation_id {
+            return Err("connector_cancellation_late_result_invocation_mismatch".to_owned());
+        }
+        if result.attempt != self.attempt {
+            return Err("connector_cancellation_late_result_attempt_mismatch".to_owned());
+        }
+        if result.observed_at_unix_ms < self.settled_at_unix_ms {
+            return Err("connector_cancellation_late_result_not_late".to_owned());
+        }
+        self.reject_late_result(&result.result_digest)
     }
 
     pub fn reject_late_result(&self, result_digest: &str) -> Result<(), String> {
@@ -138,17 +268,8 @@ impl ConnectorCancellationSettlement {
         {
             return Err("connector_cancellation_settlement_invalid".to_owned());
         }
-        match (self.state, self.lease_settlement) {
-            (ConnectorCancellationState::NotExecuted, ConnectorLeaseSettlement::Released)
-            | (
-                ConnectorCancellationState::StopConfirmed,
-                ConnectorLeaseSettlement::HeldForReconciliation,
-            )
-            | (
-                ConnectorCancellationState::Unknown,
-                ConnectorLeaseSettlement::HeldForReconciliation,
-            ) => {}
-            _ => return Err("connector_cancellation_lease_settlement_invalid".to_owned()),
+        if self.lease_settlement != self.state.lease_settlement() {
+            return Err("connector_cancellation_lease_settlement_invalid".to_owned());
         }
         Ok(())
     }
@@ -168,6 +289,47 @@ impl ConnectorCancellationSettlement {
             "requested_at_unix_ms": self.requested_at_unix_ms,
             "settled_at_unix_ms": self.settled_at_unix_ms,
         }))
+    }
+}
+
+/// The single server-owned derivation of a cancellation outcome.
+fn expected_settlement(
+    lifecycle: &ConnectorDispatchLifecycle,
+    report: &StopReport,
+) -> Result<(ConnectorCancellationState, ConnectorLeaseSettlement), String> {
+    lifecycle.validate()?;
+    report.validate()?;
+    if report.execution_id != lifecycle.invocation_id.to_string() {
+        return Err("connector_cancellation_identity_or_time_invalid".to_owned());
+    }
+    if matches!(
+        lifecycle.stage,
+        ConnectorDispatchStage::Observed
+            | ConnectorDispatchStage::ResultCommitted
+            | ConnectorDispatchStage::Unknown
+    ) {
+        return Err("connector_cancellation_effect_already_observed".to_owned());
+    }
+    if !report.confirmed {
+        return Ok((
+            ConnectorCancellationState::Unknown,
+            ConnectorLeaseSettlement::HeldForReconciliation,
+        ));
+    }
+    match lifecycle.stage {
+        ConnectorDispatchStage::Prepared => Ok((
+            ConnectorCancellationState::NotExecuted,
+            ConnectorLeaseSettlement::Released,
+        )),
+        ConnectorDispatchStage::Dispatching => Ok((
+            ConnectorCancellationState::StopConfirmed,
+            ConnectorLeaseSettlement::HeldForReconciliation,
+        )),
+        ConnectorDispatchStage::Observed
+        | ConnectorDispatchStage::ResultCommitted
+        | ConnectorDispatchStage::Unknown => {
+            Err("connector_cancellation_effect_already_observed".to_owned())
+        }
     }
 }
 
