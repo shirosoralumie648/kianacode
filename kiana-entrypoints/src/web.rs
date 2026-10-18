@@ -8055,4 +8055,673 @@ mod tests {
         let _ = fs::remove_dir_all(&server.root);
         let _ = fs::remove_dir_all(&server.home);
     }
+
+    // ------------------------------------------------------------------
+    // UI-21: Web Human Inbox annotation and authority-owned decisions.
+    //
+    // `human.inbox` gains display-only, server-owned metadata: a redacted effect scope, the audit
+    // fact the authority commits when the decision is applied, and the decision-only /
+    // effect-dispatch disposition.  None of it authorizes anything.  A forged intent carrying
+    // actor/scope/grant fields is refused before the idempotency slot is claimed, and a denied
+    // approval terminates the run through the existing ControlPlane path without executing the
+    // staged effect.
+    // ------------------------------------------------------------------
+
+    const UI21_TAB: &str = "ui21-tab";
+    const UI21_EFFECT_FILE: &str = "UI21_EFFECT.txt";
+    const UI21_CASSETTE: &str = r#"[{"text":"ui21 staged write","tool_calls":[{"id":"c1","name":"apply_patch","arguments":{"patch":"*** Begin Patch\n*** Add File: UI21_EFFECT.txt\n+hello\n*** End Patch\n"}}]},{"text":"ui21 staged write done"}]"#;
+    const UI21_STABLE_REVISION: &str =
+        "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
+    fn ui21_intent() -> Value {
+        json!({
+            "schema": "kiana.ui-human-action-intent.v1",
+            "item_id": "approval:ui21",
+            "action_id": "deny",
+            "inbox_revision": UI21_STABLE_REVISION,
+            "expected_revision": 3,
+            "fields": {},
+            "idempotency_key": "web-human:ui21-stable",
+            "payload_digest": UI21_STABLE_REVISION
+        })
+    }
+
+    fn ui21_inbox_item() -> Value {
+        json!({
+            "item_id": "approval:ui21",
+            "kind": "approval",
+            "title": "apply_patch",
+            "source_ref": "approval:ui21",
+            "run_id": Value::Null,
+            "detail": {
+                "challenge": {"approval_id": "ui21", "expires_at_unix_ms": 1_800_000_000_000u64},
+                "arguments": {
+                    "path_allow": ["src/app.rs", "https://evil.example/steal", "", "src/app.rs"],
+                    "path": "src/lib.rs"
+                },
+                "expected_version": 3
+            },
+            "actions": [
+                {"id": "approve", "label": "批准", "command": "approval",
+                 "arguments": {"approval_id": "ui21", "decision": "approve", "expected_version": 3},
+                 "required_fields": []},
+                {"id": "deny", "label": "拒绝", "command": "approval",
+                 "arguments": {"approval_id": "ui21", "decision": "deny", "expected_version": 3},
+                 "required_fields": []},
+                {"id": "publish", "label": "发布", "command": "unknown.command",
+                 "arguments": {}, "required_fields": []},
+                {"id": "dispatch", "label": "交付", "command": "company.business",
+                 "arguments": {"type": "closeout", "action": {"type": "dispatch_delivery"}},
+                 "required_fields": ["package_sha256"]}
+            ]
+        })
+    }
+
+    #[test]
+    fn ui21_annotation_publishes_server_owned_cards_and_audit_mapping() {
+        let mut response = json!({
+            "request_id": "ui21-request",
+            "status": "completed",
+            "output": {
+                "schema": "kiana.human-inbox.v1",
+                "revision": UI21_STABLE_REVISION,
+                "items": [ui21_inbox_item()],
+                "limitations": []
+            }
+        });
+        crate::web_inbox::annotate_human_inbox_response(&mut response);
+        let output = &response["output"];
+        assert_eq!(
+            output["schema"],
+            json!(kiana_protocol::UI_HUMAN_INBOX_SCHEMA)
+        );
+        assert_eq!(
+            output["action_card_schema"],
+            json!(kiana_protocol::UI_HUMAN_ACTION_CARD_SCHEMA)
+        );
+        assert_eq!(
+            output["audit_schema"],
+            json!(crate::web_inbox::WEB_HUMAN_AUDIT_SCHEMA)
+        );
+        let item = &output["items"][0];
+        // Annotation is additive: the server action arguments the authority re-resolves stay intact.
+        assert_eq!(item["actions"][1]["arguments"]["decision"], json!("deny"));
+        let cards = item["action_cards"].as_array().expect("cards");
+        assert_eq!(cards.len(), 4);
+        for card in cards {
+            let parsed: kiana_protocol::UiHumanActionCardV1 = serde_json::from_value(card.clone())
+                .expect("the served card must stay directly deserializable");
+            parsed
+                .validate()
+                .expect("the served card must satisfy its contract");
+        }
+        let approve = cards
+            .iter()
+            .find(|card| card["action_id"] == json!("approve"))
+            .expect("approve card");
+        assert_eq!(approve["expected_revision"], json!(3));
+        assert_eq!(approve["expires_at_unix_ms"], json!(1_800_000_000_000u64));
+        assert!(approve["scope"]["digest"]
+            .as_str()
+            .expect("scope digest")
+            .starts_with("sha256:"));
+        assert_eq!(approve["fields"], json!([]));
+        let dispatch = cards
+            .iter()
+            .find(|card| card["action_id"] == json!("dispatch"))
+            .expect("dispatch card");
+        assert_eq!(dispatch["fields"][0]["name"], json!("package_sha256"));
+        assert_eq!(dispatch["fields"][0]["field_type"], json!("string"));
+        assert_eq!(dispatch["fields"][0]["required"], json!(true));
+
+        let audit = item["action_audit"].as_array().expect("audit");
+        assert_eq!(audit.len(), cards.len());
+        let audit_for = |id: &str| {
+            audit
+                .iter()
+                .find(|entry| entry["action_id"] == json!(id))
+                .expect("audit entry")
+        };
+        assert_eq!(
+            audit_for("approve")["schema"],
+            json!(crate::web_inbox::WEB_HUMAN_AUDIT_SCHEMA)
+        );
+        assert_eq!(
+            audit_for("approve")["audit_event"],
+            json!("approval.approved")
+        );
+        assert_eq!(audit_for("approve")["dangerous"], json!(true));
+        assert_eq!(
+            audit_for("approve")["audit_disposition"],
+            json!("effect_dispatch")
+        );
+        assert_eq!(audit_for("deny")["audit_event"], json!("approval.denied"));
+        assert_eq!(audit_for("deny")["dangerous"], json!(false));
+        assert_eq!(
+            audit_for("deny")["audit_disposition"],
+            json!("decision_only")
+        );
+        assert_eq!(
+            audit_for("dispatch")["audit_event"],
+            json!("company.business.v2")
+        );
+        assert_eq!(audit_for("dispatch")["dangerous"], json!(true));
+        assert_eq!(audit_for("publish")["audit_event"], Value::Null);
+        assert_eq!(audit_for("publish")["dangerous"], json!(false));
+        assert_eq!(audit_for("publish")["audit_disposition"], json!("unmapped"));
+        // The effect scope is bounded and redacted: URL-looking and empty entries are dropped and
+        // one duplicate entry collapses, while the digest of the card payload stays server-owned.
+        assert_eq!(
+            audit_for("approve")["effect"]["paths"],
+            json!(["src/app.rs", "src/lib.rs"])
+        );
+        assert_eq!(audit_for("approve")["effect"]["truncated"], json!(false));
+
+        // A response that is not a completed inbox projection is never annotated.
+        let mut blocked = json!({"request_id": "ui21-blocked", "status": "blocked", "error": "x"});
+        crate::web_inbox::annotate_human_inbox_response(&mut blocked);
+        assert!(blocked.get("output").is_none());
+
+        // The effect scope keeps at most the reviewed bound and reports truncation.
+        let mut many = ui21_inbox_item();
+        many["actions"] = json!([
+            {"id": "publish", "label": "发布", "command": "failure.recovery",
+             "arguments": {}, "required_fields": []}
+        ]);
+        many["detail"]["arguments"] = json!({
+            "path_allow": (0..10)
+                .map(|index| format!("src/{index}.rs"))
+                .chain(std::iter::once("https://evil.example/x".to_owned()))
+                .collect::<Vec<_>>()
+        });
+        let mut response = json!({"status": "completed", "output": {"items": [many]}});
+        crate::web_inbox::annotate_human_inbox_response(&mut response);
+        let audit = &response["output"]["items"][0]["action_audit"][0];
+        assert_eq!(
+            audit["audit_event"],
+            json!("failure.recovery.transition"),
+            "a command-wide rule maps every action id of that command"
+        );
+        assert_eq!(audit["effect"]["paths"].as_array().unwrap().len(), 8);
+        assert_eq!(audit["effect"]["truncated"], json!(true));
+        assert!(!audit["effect"]["paths"]
+            .to_string()
+            .contains("evil.example"));
+
+        // `denied` is a rejection result class, not an unknown one.
+        assert_eq!(
+            crate::web_inbox::human_result_class(&json!({"status": "denied"})),
+            "rejected"
+        );
+        assert_eq!(
+            crate::web_inbox::human_result_class(&json!({"status": "failed"})),
+            "rejected"
+        );
+        assert_eq!(
+            crate::web_inbox::human_result_class(&json!({"status": "result_unknown"})),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn ui21_forged_intents_and_reserved_fields_fail_closed_before_any_transport() {
+        // A normal read command is untouched by the human-action boundary.
+        assert_eq!(
+            crate::web_inbox::validate_human_action_command("human.inbox", &json!({})),
+            Ok(())
+        );
+        // A well-formed intent is shape-accepted; authority is still re-resolved server-side.
+        assert_eq!(
+            crate::web_inbox::validate_human_action_command("human.resolve", &ui21_intent()),
+            Ok(())
+        );
+        // Every browser-supplied authority field is refused by its own stable code.
+        for field in crate::web_inbox::WEB_HUMAN_RESERVED_INTENT_FIELDS {
+            let mut forged = ui21_intent();
+            forged[field] = json!("forged");
+            assert_eq!(
+                crate::web_inbox::validate_human_action_command("human.resolve", &forged),
+                Err(format!("web_human_action_reserved_field:{field}"))
+            );
+        }
+        // Schema mismatch, unknown fields and a non-object intent all fail closed.
+        let mut wrong_schema = ui21_intent();
+        wrong_schema["schema"] = json!("kiana.ui-human-action-intent.v9");
+        assert_eq!(
+            crate::web_inbox::validate_human_action_command("human.resolve", &wrong_schema),
+            Err("web_human_action_intent_schema_invalid".to_owned())
+        );
+        let mut unknown = ui21_intent();
+        unknown["payload"] = json!({"exec": true});
+        assert_eq!(
+            crate::web_inbox::validate_human_action_command("human.resolve", &unknown),
+            Err("web_human_action_intent_invalid".to_owned())
+        );
+        assert_eq!(
+            crate::web_inbox::validate_human_action_command("human.resolve", &json!(["intent"])),
+            Err("web_human_action_intent_invalid".to_owned())
+        );
+    }
+
+    struct Ui21Server {
+        addr: SocketAddr,
+        host: Arc<DaemonHost>,
+        root: PathBuf,
+        home: PathBuf,
+        session: String,
+        _env: crate::test_support::ScopedEnv<'static>,
+    }
+
+    /// A live loopback Web server whose harness cassette stages one `apply_patch` under a
+    /// read-only sandbox, so the run stops awaiting a real human approval it never executes.
+    async fn ui21_server() -> Ui21Server {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("ui21-home");
+        let root = unique_dir("ui21-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script = unique_dir("ui21-script").join("script.json");
+        fs::write(&script, UI21_CASSETTE).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        std::env::remove_var("KIANA_PROVIDER");
+        std::env::remove_var("KIANA_STREAMING");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::with_env_harness().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        let session = lock_string(&app.active).unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        Ui21Server {
+            addr,
+            host,
+            root,
+            home,
+            session,
+            _env: env,
+        }
+    }
+
+    /// Browser-shaped request: the tab header plus one fresh server cursor claim.  The action id is
+    /// the only idempotency handle the browser owns; the cursor claim stays a display precondition.
+    fn ui21_auth_with_action_id(
+        server: &Ui21Server,
+        token: &str,
+        request: reqwest::RequestBuilder,
+        action_id: &str,
+    ) -> reqwest::RequestBuilder {
+        let cursor = server.host.ui_cursor();
+        request
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", UI21_TAB)
+            .header("x-kiana-ui-epoch", cursor.epoch)
+            .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+            .header("x-kiana-action-id", action_id)
+            .header("x-kiana-action-target", "workspace")
+    }
+
+    fn ui21_auth(
+        server: &Ui21Server,
+        token: &str,
+        request: reqwest::RequestBuilder,
+    ) -> reqwest::RequestBuilder {
+        ui21_auth_with_action_id(server, token, request, &uuid::Uuid::new_v4().to_string())
+    }
+
+    async fn ui21_claim(client: &reqwest::Client, base: &str, token: &str, server: &Ui21Server) {
+        let response = ui21_auth(
+            server,
+            token,
+            client
+                .get(format!("{base}/api/bootstrap"))
+                .query(&[("session_id", server.session.as_str())]),
+        )
+        .send()
+        .await
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// Stage one pending approval through the real `/api/run` route and assert the effect never
+    /// executed.
+    async fn ui21_stage_approval(
+        client: &reqwest::Client,
+        base: &str,
+        token: &str,
+        server: &Ui21Server,
+    ) {
+        let response = ui21_auth(
+            server,
+            token,
+            client
+                .post(format!("{base}/api/run"))
+                .json(&json!({"prompt": "create UI21_EFFECT.txt", "session_id": server.session})),
+        )
+        .send()
+        .await
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = response.json().await.unwrap();
+        assert_eq!(
+            body["response"]["status"],
+            json!("awaiting_approval"),
+            "{body}"
+        );
+        assert!(
+            !server.root.join(UI21_EFFECT_FILE).exists(),
+            "a staged approval must not execute its effect"
+        );
+    }
+
+    async fn ui21_inbox(
+        client: &reqwest::Client,
+        base: &str,
+        token: &str,
+        server: &Ui21Server,
+    ) -> Value {
+        let response = ui21_auth(
+            server,
+            token,
+            client.get(format!("{base}/api/query")).query(&[
+                ("name", "human.inbox"),
+                ("session_id", server.session.as_str()),
+            ]),
+        )
+        .send()
+        .await
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        response.json().await.unwrap()
+    }
+
+    /// Submit one typed `human.resolve` intent with an explicit browser action id so a replay can
+    /// reuse exactly that identity.
+    async fn ui21_command(
+        client: &reqwest::Client,
+        base: &str,
+        token: &str,
+        server: &Ui21Server,
+        action_id: &str,
+        intent: &Value,
+    ) -> (StatusCode, Value) {
+        let response = ui21_auth_with_action_id(
+            server,
+            token,
+            client.post(format!("{base}/api/command")).json(&json!({
+                "name": "human.resolve",
+                "session_id": server.session,
+                "arguments": intent
+            })),
+            action_id,
+        )
+        .send()
+        .await
+        .unwrap();
+        let status = response.status();
+        let body = response.json().await.unwrap_or(Value::Null);
+        (status, body)
+    }
+
+    #[tokio::test]
+    async fn ui21_human_inbox_query_and_deny_decision_stay_authority_owned() {
+        let server = ui21_server().await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        ui21_claim(&client, &base, &token, &server).await;
+        ui21_stage_approval(&client, &base, &token, &server).await;
+
+        // The read projection carries display-only metadata the browser can render, and every card
+        // remains directly deserializable as the versioned card contract.
+        let inbox = ui21_inbox(&client, &base, &token, &server).await;
+        assert_eq!(inbox["response"]["status"], json!("completed"), "{inbox}");
+        let output = &inbox["response"]["output"];
+        assert_eq!(
+            output["schema"],
+            json!(kiana_protocol::UI_HUMAN_INBOX_SCHEMA)
+        );
+        assert_eq!(
+            output["action_card_schema"],
+            json!(kiana_protocol::UI_HUMAN_ACTION_CARD_SCHEMA)
+        );
+        assert_eq!(
+            output["audit_schema"],
+            json!(crate::web_inbox::WEB_HUMAN_AUDIT_SCHEMA)
+        );
+        assert!(output["revision"]
+            .as_str()
+            .expect("inbox revision")
+            .starts_with("sha256:"));
+        let items = output["items"].as_array().expect("items");
+        let item = items
+            .iter()
+            .find(|item| item["kind"] == json!("approval"))
+            .expect("a staged approval must appear in the inbox");
+        assert!(item["item_id"]
+            .as_str()
+            .expect("item id")
+            .starts_with("approval:"));
+        let cards = item["action_cards"].as_array().expect("cards");
+        assert_eq!(cards.len(), 2);
+        for card in cards {
+            let parsed: kiana_protocol::UiHumanActionCardV1 = serde_json::from_value(card.clone())
+                .expect("the served card must stay directly deserializable");
+            parsed
+                .validate()
+                .expect("the served card must satisfy its contract");
+        }
+        let deny = cards
+            .iter()
+            .find(|card| card["action_id"] == json!("deny"))
+            .expect("deny card");
+        let audit = item["action_audit"].as_array().expect("audit");
+        let audit_for = |id: &str| {
+            audit
+                .iter()
+                .find(|entry| entry["action_id"] == json!(id))
+                .expect("audit entry")
+        };
+        assert_eq!(
+            audit_for("approve")["audit_event"],
+            json!("approval.approved")
+        );
+        assert_eq!(audit_for("approve")["dangerous"], json!(true));
+        assert_eq!(
+            audit_for("approve")["audit_disposition"],
+            json!("effect_dispatch")
+        );
+        assert_eq!(audit_for("deny")["audit_event"], json!("approval.denied"));
+        assert_eq!(audit_for("deny")["dangerous"], json!(false));
+        assert_eq!(
+            audit_for("deny")["audit_disposition"],
+            json!("decision_only")
+        );
+
+        // The browser submits a typed intent bound to the server revision and card payload digest;
+        // it cannot carry actor, scope or approval-grant material of its own.
+        let intent = json!({
+            "schema": kiana_protocol::UI_HUMAN_ACTION_INTENT_SCHEMA,
+            "item_id": item["item_id"].clone(),
+            "action_id": "deny",
+            "inbox_revision": output["revision"].clone(),
+            "expected_revision": deny["expected_revision"].clone(),
+            "fields": {},
+            "idempotency_key": "web-human:ui21-deny",
+            "payload_digest": deny["payload_digest"].clone()
+        });
+        for forbidden in ["actor", "scope", "path_allow", "approval_grant"] {
+            assert!(
+                intent.get(forbidden).is_none(),
+                "intent carried {forbidden}"
+            );
+        }
+        let action_id = uuid::Uuid::new_v4().to_string();
+        let (status, denied) =
+            ui21_command(&client, &base, &token, &server, &action_id, &intent).await;
+        assert_eq!(status, StatusCode::OK, "{denied}");
+        assert_eq!(denied["response"]["status"], json!("failed"), "{denied}");
+        assert_eq!(denied["response"]["error"], json!("approval_denied"));
+        assert_eq!(denied["response"]["output"]["not_executed"], json!(true));
+        assert_eq!(denied["response"]["web_result_class"], json!("rejected"));
+        assert!(
+            !server.root.join(UI21_EFFECT_FILE).exists(),
+            "a denied approval must never execute the staged effect"
+        );
+
+        // A lost response is reconciled by replaying the original command identity: the server
+        // returns the recorded result instead of creating a second decision.
+        let (replay_status, replay) =
+            ui21_command(&client, &base, &token, &server, &action_id, &intent).await;
+        assert_eq!(replay_status, StatusCode::OK);
+        assert_eq!(replay, denied, "replay must return the recorded result");
+
+        // The decision is now a committed fact: the inbox no longer offers the approval.
+        let after = ui21_inbox(&client, &base, &token, &server).await;
+        let remaining = after["response"]["output"]["items"]
+            .as_array()
+            .expect("items");
+        assert!(
+            !remaining
+                .iter()
+                .any(|item| item["kind"] == json!("approval")),
+            "a decided approval must leave the pending inbox: {after}"
+        );
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui21_forged_human_resolve_is_refused_before_the_idempotency_slot_is_claimed() {
+        let server = ui21_server().await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        ui21_claim(&client, &base, &token, &server).await;
+        ui21_stage_approval(&client, &base, &token, &server).await;
+
+        let inbox = ui21_inbox(&client, &base, &token, &server).await;
+        let output = &inbox["response"]["output"];
+        let item = output["items"]
+            .as_array()
+            .expect("items")
+            .iter()
+            .find(|item| item["kind"] == json!("approval"))
+            .expect("a staged approval must appear in the inbox");
+        let deny = item["action_cards"]
+            .as_array()
+            .expect("cards")
+            .iter()
+            .find(|card| card["action_id"] == json!("deny"))
+            .expect("deny card");
+        let intent = json!({
+            "schema": kiana_protocol::UI_HUMAN_ACTION_INTENT_SCHEMA,
+            "item_id": item["item_id"].clone(),
+            "action_id": "deny",
+            "inbox_revision": output["revision"].clone(),
+            "expected_revision": deny["expected_revision"].clone(),
+            "fields": {},
+            "idempotency_key": "web-human:ui21-forged",
+            "payload_digest": deny["payload_digest"].clone()
+        });
+
+        // Every forged attempt reuses one browser action id.  Each is refused by the typed boundary
+        // before the idempotency slot is claimed, so none may block the real decision.
+        let action_id = "ui21-forged-action";
+        for (field, value, expected) in [
+            (
+                "actor",
+                json!("local-user"),
+                "web_human_action_reserved_field:actor",
+            ),
+            (
+                "scope",
+                json!({"paths": ["/"]}),
+                "web_human_action_reserved_field:scope",
+            ),
+            (
+                "approval_grant",
+                json!({"approved": true}),
+                "web_human_action_reserved_field:approval_grant",
+            ),
+        ] {
+            let mut forged = intent.clone();
+            forged[field] = value;
+            let (status, body) =
+                ui21_command(&client, &base, &token, &server, action_id, &forged).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+            assert_eq!(body["error"], json!(expected), "{body}");
+        }
+        let mut forged_schema = intent.clone();
+        forged_schema["schema"] = json!("kiana.ui-human-action-intent.v9");
+        let (status, body) =
+            ui21_command(&client, &base, &token, &server, action_id, &forged_schema).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(
+            body["error"],
+            json!("web_human_action_intent_schema_invalid")
+        );
+        let mut forged_unknown = intent.clone();
+        forged_unknown["payload"] = json!({"exec": true});
+        let (status, body) =
+            ui21_command(&client, &base, &token, &server, action_id, &forged_unknown).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(body["error"], json!("web_human_action_intent_invalid"));
+
+        // No forged attempt decided anything: the approval is still pending.
+        let pending = ui21_inbox(&client, &base, &token, &server).await;
+        assert!(
+            pending["response"]["output"]["items"]
+                .as_array()
+                .expect("items")
+                .iter()
+                .any(|item| item["kind"] == json!("approval")),
+            "forged attempts must not consume the pending approval: {pending}"
+        );
+
+        // The same browser action id now carries the legitimate decision: the slot was never
+        // claimed by the refusals, so this is a new submission rather than an in-flight conflict.
+        let (status, denied) =
+            ui21_command(&client, &base, &token, &server, action_id, &intent).await;
+        assert_eq!(status, StatusCode::OK, "{denied}");
+        assert_eq!(denied["response"]["status"], json!("failed"), "{denied}");
+        assert_eq!(denied["response"]["error"], json!("approval_denied"));
+        assert_eq!(denied["response"]["output"]["not_executed"], json!(true));
+        assert_eq!(denied["response"]["web_result_class"], json!("rejected"));
+        assert!(
+            !server.root.join(UI21_EFFECT_FILE).exists(),
+            "the denied approval must never execute the staged effect"
+        );
+        let (replay_status, replay) =
+            ui21_command(&client, &base, &token, &server, action_id, &intent).await;
+        assert_eq!(replay_status, StatusCode::OK);
+        assert_eq!(replay, denied, "the legitimate decision is replayed once");
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
 }

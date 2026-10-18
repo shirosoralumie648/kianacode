@@ -144,6 +144,7 @@
       <h2 id="approvalsTitle">人工待办</h2>
       <div id="approvals" role="region" aria-labelledby="approvalsTitle">正在读取…</div>
       <pre id="humanActionResult" tabindex="0" aria-label="人工操作结果"></pre>
+      <div id="humanActionResultActions" role="group" aria-label="人工操作后续"></div>
       <button id="resume">恢复此会话</button>
       <button id="receiptBtn">查看回执</button>
       <pre id="receiptDetail" tabindex="0" aria-label="执行回执"></pre>
@@ -230,7 +231,12 @@
     const HUMAN_INBOX_SCHEMA = 'kiana.ui-human-inbox.v1';
     const HUMAN_ACTION_CARD_SCHEMA = 'kiana.ui-human-action-card.v1';
     const HUMAN_ACTION_INTENT_SCHEMA = 'kiana.ui-human-action-intent.v1';
+    const HUMAN_ACTION_AUDIT_SCHEMA = 'kiana.web-human-audit.v1';
     const HUMAN_ACTION_MAX_FIELDS = 32;
+    const HUMAN_ACTION_MAX_EFFECT_PATHS = 8;
+    const HUMAN_ACTION_MAX_FIELD_STRING_BYTES = 4096;
+    const HUMAN_ACTION_MAX_FIELD_LIST_ITEMS = 64;
+    const HUMAN_ACTION_FIELD_TYPES = ['json', 'string', 'boolean', 'string_list'];
     // Native EventSource sends Last-Event-ID automatically; the explicit query mirrors it for
     // loopback reconnects created by this wrapper without ever placing the token in event data.
     let sseReconnectAttempts = 0;
@@ -770,6 +776,28 @@
       // The server card, rather than button text or action.arguments, drives the form.
       return Object.freeze(Object.assign({}, card, {inbox_revision: inboxRevision}));
     }
+    function humanActionAuditFor(item, action) {
+      const audits = Array.isArray(item && item.action_audit) ? item.action_audit : [];
+      if (!action || typeof action !== 'object' || !action.id) return null;
+      const audit = audits.find(candidate => candidate && candidate.action_id === action.id);
+      if (!audit || audit.schema !== HUMAN_ACTION_AUDIT_SCHEMA) return null;
+      const effect = audit.effect && typeof audit.effect === 'object' && !Array.isArray(audit.effect) ? audit.effect : {};
+      const paths = Array.isArray(effect.paths)
+        ? effect.paths.filter(path => typeof path === 'string' && path).slice(0, HUMAN_ACTION_MAX_EFFECT_PATHS) : [];
+      // Display metadata only; it never widens the effect scope or authorizes the action.
+      return Object.freeze({
+        dangerous: audit.dangerous === true,
+        audit_event: typeof audit.audit_event === 'string' && audit.audit_event ? audit.audit_event : null,
+        audit_disposition: typeof audit.audit_disposition === 'string' ? audit.audit_disposition : 'unmapped',
+        effect_paths: paths,
+        effect_truncated: effect.truncated === true
+      });
+    }
+    function humanAuditDispositionText(disposition) {
+      if (disposition === 'effect_dispatch') return '记录决定并派发受审批的副作用';
+      if (disposition === 'decision_only') return '仅记录决定，不重新执行被拒绝的工具';
+      return '由服务端权威决定';
+    }
     function humanActionAllowed(card, action) {
       if (!card || !action || card.schema !== HUMAN_ACTION_CARD_SCHEMA) return false;
       if (!Array.isArray(card.allowed_decisions) || !card.allowed_decisions.includes(action.id)) return false;
@@ -795,8 +823,33 @@
         if (!allowed.has(key)) throw new Error('human_action_field_denied');
       }
       for (const field of descriptors) {
+        if (!HUMAN_ACTION_FIELD_TYPES.includes(field.field_type)) throw new Error('human_action_field_type_unknown');
         if (field.required && !Object.prototype.hasOwnProperty.call(fields, field.name)) {
           throw new Error('human_action_required_field_missing');
+        }
+      }
+      const byName = new Map(descriptors.map(field => [String(field.name || ''), field]));
+      for (const [key, value] of Object.entries(fields)) {
+        const field = byName.get(key);
+        if (!field || value === null) continue; // null explicitly clears an optional field
+        if (field.field_type === 'string') {
+          if (typeof value !== 'string') throw new Error('human_action_field_value_type_invalid');
+          if (value.length > HUMAN_ACTION_MAX_FIELD_STRING_BYTES) throw new Error('human_action_field_value_too_long');
+          if (field.required && !value.trim()) throw new Error('human_action_field_value_empty');
+        } else if (field.field_type === 'boolean') {
+          if (typeof value !== 'boolean') throw new Error('human_action_field_value_type_invalid');
+        } else if (field.field_type === 'string_list') {
+          if (!Array.isArray(value)) throw new Error('human_action_field_value_type_invalid');
+          if (value.length > HUMAN_ACTION_MAX_FIELD_LIST_ITEMS) throw new Error('human_action_field_value_limit');
+          for (const item of value) {
+            if (typeof item !== 'string' || item.length > HUMAN_ACTION_MAX_FIELD_STRING_BYTES) {
+              throw new Error('human_action_field_value_type_invalid');
+            }
+          }
+        }
+        const allowedValues = Array.isArray(field.allowed_values) ? field.allowed_values : [];
+        if (allowedValues.length && !(typeof value === 'string' && allowedValues.includes(value))) {
+          throw new Error('human_action_field_value_not_allowed');
         }
       }
       return fields;
@@ -839,6 +892,30 @@
       };
       const response = await submitCommand('human.resolve', intent, requested, submissionId);
       renderHumanActionResult(response);
+      const followUp = document.getElementById('humanActionResultActions');
+      if (followUp) {
+        followUp.replaceChildren();
+        const unknownResult = response && (response.web_result_class === 'unknown' ||
+          response.status === 'unknown' || response.status === 'result_unknown');
+        if (unknownResult) {
+          // The user explicitly queries the original command with the same stable idempotency
+          // key; the server replays the recorded result. Nothing here ever re-dispatches the
+          // effect or invents a second command identity.
+          const query = document.createElement('button');
+          query.textContent = '查询原 command（同一 idempotency key）';
+          query.setAttribute('aria-label', '查询原 command（同一 idempotency key）');
+          query.onclick = async () => {
+            query.disabled = true;
+            try {
+              const replay = await submitCommand('human.resolve', intent, requested, submissionId);
+              renderHumanActionResult(replay);
+              announce('已查询原 command 结果');
+            } catch (error) { reportError(error); }
+            finally { query.disabled = false; }
+          };
+          followUp.appendChild(query);
+        }
+      }
       return response;
     }
     async function refreshApprovals() {
@@ -870,19 +947,30 @@
           if (!actionCard) {
             const invalid = document.createElement('p'); invalid.textContent = sanitizeDisplayText(action.label + ' · action card unavailable or decision denied', 1024); card.appendChild(invalid); return;
           }
+          const audit = humanActionAuditFor(item, action);
           const reason = document.createElement('p');
           reason.textContent = sanitizeDisplayText('理由：' + actionCard.reason + ' · 范围：' + actionCard.scope.summary +
             (actionCard.expires_at_unix_ms ? ' · expiry: ' + new Date(Number(actionCard.expires_at_unix_ms)).toISOString() : '') +
             ' · allowed: ' + actionCard.allowed_decisions.join(', '), 4096);
           card.appendChild(reason);
+          if (audit) {
+            const impact = audit.effect_paths.length
+              ? ' · 影响范围：' + audit.effect_paths.join(', ') + (audit.effect_truncated ? ' 等（已截断，以服务端为准）' : '')
+              : '';
+            const auditLine = document.createElement('p'); auditLine.className = 'muted';
+            auditLine.textContent = sanitizeDisplayText('审计事件：' + (audit.audit_event || '由服务端权威决定') +
+              ' · 处置：' + humanAuditDispositionText(audit.audit_disposition) + impact, 2048);
+            card.appendChild(auditLine);
+          }
+          const controls = document.createElement('div');
           let fieldsInput = null;
           if ((actionCard.fields || []).length) {
             const label = document.createElement('label'); label.textContent = item.kind === 'question' ? action.label + '：输入回答（JSON）' : action.label + '：补充证据与决定（JSON）';
             fieldsInput = document.createElement('textarea');
             fieldsInput.setAttribute('aria-label', item.title + ' ' + action.label + ' 补充信息');
             const fields = {};
-            actionCard.fields.forEach(field => { const key = field.name; fields[key] = ['evidence_refs','reasons'].includes(key) ? [] : key === 'criterion_results' ? {} : key === 'waiver_ref' ? null : ''; });
-            fieldsInput.value = JSON.stringify(fields, null, 2); label.appendChild(fieldsInput); card.appendChild(label);
+            actionCard.fields.forEach(field => { const key = field.name; fields[key] = ['evidence_refs','reasons'].includes(key) ? [] : key === 'criterion_results' ? {} : key === 'waiver_ref' ? null : key === 'approve' ? false : ''; });
+            fieldsInput.value = JSON.stringify(fields, null, 2); label.appendChild(fieldsInput); controls.appendChild(label);
           }
           const button = document.createElement('button'); button.textContent = action.label;
           const actionAllowed = humanActionAllowed(actionCard, action);
@@ -897,7 +985,19 @@
             } catch (error) { reportError(error); }
             finally { button.disabled = !humanActionAllowed(actionCard, action); await refresh().catch(reportError); }
           };
-          card.appendChild(button);
+          controls.appendChild(button);
+          if (audit && audit.dangerous) {
+            // Dangerous actions stay collapsed until the operator expands the effect scope.
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = sanitizeDisplayText('危险动作：' + action.label + ' · 影响：' +
+              (audit.effect_paths.length ? audit.effect_paths.join(', ') : '由服务端在执行时决定'), 1024);
+            details.appendChild(summary);
+            details.appendChild(controls);
+            card.appendChild(details);
+          } else {
+            card.appendChild(controls);
+          }
         });
         if (!(item.actions || []).length) { const hint=document.createElement('p'); hint.textContent='此会话角色没有可用操作。'; card.appendChild(hint); }
         box.appendChild(card);
