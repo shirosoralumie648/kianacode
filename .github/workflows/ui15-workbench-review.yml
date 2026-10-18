@@ -1,0 +1,32 @@
+name: "UI-15 Workbench inbox, diff and receipt"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui15-workbench-review:
+    name: "UI-15 Workbench inbox, diff and receipt"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run the inbox, diff and receipt fixtures
+        run: cargo test -p kiana-entrypoints --test ui15_workbench_review --locked -- --test-threads=1
+      - name: Run the display boundary and completion-slice guards
+        run: cargo test -p kiana-entrypoints --test ui15_workbench_review_guard --locked -- --test-threads=1
+      - name: Compile the affected targets without running
+        run: cargo test -p kiana-entrypoints --no-run --locked

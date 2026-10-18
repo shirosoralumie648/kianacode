@@ -16,6 +16,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const WORKBENCH_REVIEW_SCHEMA: &str = "kiana.workbench-review.v1";
 pub const WORKBENCH_RECEIPT_SCHEMA: &str = "kiana.workbench-receipt.v1";
+pub const WORKBENCH_RECEIPT_GOLDEN_SCHEMA: &str = "kiana.workbench-receipt-golden.v1";
+pub const MAX_INBOX_PAYLOAD_BYTES: usize = 128 * 1024;
 pub const MAX_INBOX_CARDS: usize = 256;
 pub const MAX_INBOX_FIELDS: usize = 32;
 pub const MAX_INBOX_DECISIONS: usize = 16;
@@ -50,6 +52,105 @@ fn bounded_list(len: usize, max: usize, field: &str) -> Result<(), String> {
         Err(format!("{field}_limit"))
     } else {
         Ok(())
+    }
+}
+
+fn revision_rank(value: Option<u64>) -> (u8, u64) {
+    match value {
+        Some(revision) => (1, revision),
+        None => (0, 0),
+    }
+}
+
+/// The closed approval vocabulary a Workbench card may offer.  A decision name outside this list
+/// is not rendered as an action and cannot be submitted, so a server (or a forged card) cannot
+/// invent a verb the surface has no contract for.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkbenchDecision {
+    Approve,
+    Deny,
+    Edit,
+    Restore,
+    Continue,
+}
+
+impl WorkbenchDecision {
+    pub const ALL: [Self; 5] = [
+        Self::Approve,
+        Self::Deny,
+        Self::Edit,
+        Self::Restore,
+        Self::Continue,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Approve => "approve",
+            Self::Deny => "deny",
+            Self::Edit => "edit",
+            Self::Restore => "restore",
+            Self::Continue => "continue",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|decision| decision.as_str() == value)
+    }
+}
+
+/// What the Workbench may draw for one inbox card.  Expiry and revocation are server facts, not
+/// local display toggles: an expired or revoked card keeps its reason/scope/fields visible but
+/// never renders an actionable decision.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InboxCardState {
+    Actionable,
+    Expired,
+    Revoked,
+}
+
+impl InboxCardState {
+    pub const ALL: [Self; 3] = [Self::Actionable, Self::Expired, Self::Revoked];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Actionable => "actionable",
+            Self::Expired => "expired",
+            Self::Revoked => "revoked",
+        }
+    }
+
+    pub fn is_actionable(self) -> bool {
+        self == Self::Actionable
+    }
+}
+
+/// What the Workbench may draw for one server artifact: nothing yet, a verified subset of the
+/// declared pages, or the complete immutable content.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactViewState {
+    Empty,
+    Partial,
+    Complete,
+}
+
+impl ArtifactViewState {
+    pub const ALL: [Self; 3] = [Self::Empty, Self::Partial, Self::Complete];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Empty => "empty",
+            Self::Partial => "partial",
+            Self::Complete => "complete",
+        }
+    }
+
+    pub fn is_complete(self) -> bool {
+        self == Self::Complete
     }
 }
 
@@ -159,6 +260,9 @@ impl WorkbenchInboxCard {
         let mut decisions = BTreeSet::new();
         for decision in &self.allowed_decisions {
             required(decision, "inbox_decision", 64)?;
+            if WorkbenchDecision::parse(decision).is_none() {
+                return Err("inbox_allowed_decision_unsupported".to_owned());
+            }
             if !decisions.insert(decision) {
                 return Err("inbox_allowed_decision_duplicate".to_owned());
             }
@@ -171,7 +275,7 @@ impl WorkbenchInboxCard {
             return Err("inbox_payload_digest_mismatch".to_owned());
         }
         if serde_json::to_vec(&self.payload)
-            .map(|bytes| bytes.len() > 128 * 1024)
+            .map(|bytes| bytes.len() > MAX_INBOX_PAYLOAD_BYTES)
             .unwrap_or(true)
         {
             return Err("inbox_payload_limit".to_owned());
@@ -242,6 +346,19 @@ impl WorkbenchInboxCard {
         self.allowed_decisions.iter().any(|item| item == decision)
     }
 
+    /// Display state derived only from the server facts retained on the card.  The presenter draws
+    /// exactly this state; it is also the state `prepare_decision` refuses from, so a card shown as
+    /// expired or revoked can never produce an actionable decision.
+    pub fn display_state(&self, now_unix_ms: u64) -> InboxCardState {
+        if self.revoked {
+            InboxCardState::Revoked
+        } else if self.is_expired(now_unix_ms) {
+            InboxCardState::Expired
+        } else {
+            InboxCardState::Actionable
+        }
+    }
+
     /// Build a decision without executing it.  All server preconditions are repeated before the
     /// action crosses the typed client boundary.
     pub fn prepare_decision(
@@ -252,11 +369,10 @@ impl WorkbenchInboxCard {
         now_unix_ms: u64,
     ) -> Result<WorkbenchInboxDecision, String> {
         self.validate()?;
-        if self.revoked {
-            return Err("approval_revoked".to_owned());
-        }
-        if self.is_expired(now_unix_ms) {
-            return Err("approval_expired".to_owned());
+        match self.display_state(now_unix_ms) {
+            InboxCardState::Revoked => return Err("approval_revoked".to_owned()),
+            InboxCardState::Expired => return Err("approval_expired".to_owned()),
+            InboxCardState::Actionable => {}
         }
         if self.expected_revision != observed_revision {
             return Err("approval_revision_mismatch".to_owned());
@@ -301,10 +417,25 @@ impl WorkbenchInboxDecision {
         required(&self.command, "inbox_decision_command", 128)?;
         required(&self.target_id, "inbox_decision_target_id", 256)?;
         required(&self.decision, "inbox_decision_value", 64)?;
+        if WorkbenchDecision::parse(&self.decision).is_none() {
+            return Err("inbox_decision_value_unsupported".to_owned());
+        }
         if self.expected_revision == Some(0) {
             return Err("inbox_decision_revision_invalid".to_owned());
         }
-        digest(&self.payload_digest, "inbox_decision_payload_digest")
+        digest(&self.payload_digest, "inbox_decision_payload_digest")?;
+        if serde_json::to_vec(&self.payload)
+            .map(|bytes| bytes.len() > MAX_INBOX_PAYLOAD_BYTES)
+            .unwrap_or(true)
+        {
+            return Err("inbox_decision_payload_limit".to_owned());
+        }
+        // A locally edited payload may not ride on the original digest: the decision is only a
+        // request, but a mutated payload with a stale digest would hide the edit from review.
+        if self.payload_digest != json_digest(&self.payload) {
+            return Err("inbox_decision_payload_digest_mismatch".to_owned());
+        }
+        Ok(())
     }
 }
 
@@ -343,6 +474,56 @@ impl WorkbenchInbox {
 
     pub fn remove(&mut self, action_id: &str) -> Option<WorkbenchInboxCard> {
         self.cards.remove(action_id)
+    }
+
+    pub fn card_count(&self) -> usize {
+        self.cards.len()
+    }
+
+    /// Apply one server card update without duplicating a button.  Two facts never regress:
+    /// a revoked card cannot be resurrected by a later payload, and a card whose expected object
+    /// revision moved backwards is refused as stale instead of silently replacing the newer one.
+    pub fn upsert(
+        &mut self,
+        card: WorkbenchInboxCard,
+    ) -> Result<Option<WorkbenchInboxCard>, String> {
+        card.validate()?;
+        if let Some(held) = self.cards.get(&card.action_id) {
+            if held.revoked && !card.revoked {
+                return Err("inbox_card_revocation_regression".to_owned());
+            }
+            if revision_rank(card.expected_revision) < revision_rank(held.expected_revision) {
+                return Err("inbox_card_revision_stale".to_owned());
+            }
+        }
+        Ok(self.cards.insert(card.action_id.clone(), card))
+    }
+
+    /// Mark a retained card revoked.  An unknown action ID is refused instead of ignored so a
+    /// stale approval cannot disappear from the panel without a trace; revoking twice is harmless.
+    pub fn revoke(&mut self, action_id: &str) -> Result<(), String> {
+        required(action_id, "inbox_action_id", 256)?;
+        let card = self
+            .cards
+            .get_mut(action_id)
+            .ok_or_else(|| "inbox_action_unknown".to_owned())?;
+        card.revoke();
+        Ok(())
+    }
+
+    pub fn state_of(&self, action_id: &str, now_unix_ms: u64) -> Option<InboxCardState> {
+        self.cards
+            .get(action_id)
+            .map(|card| card.display_state(now_unix_ms))
+    }
+
+    /// The cards the presenter may draw as actionable right now.  Expired and revoked cards stay
+    /// visible through `cards()`; they are only removed from this list.
+    pub fn actionable(&self, now_unix_ms: u64) -> Vec<&WorkbenchInboxCard> {
+        self.cards
+            .values()
+            .filter(|card| card.display_state(now_unix_ms).is_actionable())
+            .collect()
     }
 }
 
@@ -424,6 +605,40 @@ impl ArtifactViewer {
 
     pub fn page_count(&self) -> usize {
         self.pages.len()
+    }
+
+    /// Presenter-visible state: empty, a verified subset, or the complete immutable content.
+    pub fn display_state(&self) -> ArtifactViewState {
+        if self.complete {
+            ArtifactViewState::Complete
+        } else if self.pages.is_empty() {
+            ArtifactViewState::Empty
+        } else {
+            ArtifactViewState::Partial
+        }
+    }
+
+    /// Bytes the viewer retained after the per-page and per-artifact digest checks.  It is the sum
+    /// of accepted pages only; a rejected page never contributes.
+    pub fn retained_bytes(&self) -> usize {
+        self.total_bytes
+    }
+
+    /// Page indexes the presenter still has to request from the server.  An unknown page count
+    /// yields an empty list: the viewer never guesses a total it was not told.
+    pub fn missing_pages(&self) -> Vec<u32> {
+        match self.expected_page_count {
+            Some(count) => (0..count)
+                .filter(|index| !self.pages.contains_key(index))
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
+    /// The accepted pages in server page order.  This is the only content a diff view may render;
+    /// the viewer never computes a replacement diff from filesystem or transcript state.
+    pub fn retained_pages(&self) -> Vec<&ArtifactPage> {
+        self.pages.values().collect()
     }
 
     pub fn accept_page(&mut self, page: ArtifactPage) -> Result<(), String> {
@@ -612,6 +827,117 @@ pub enum ReceiptDisplayState {
     ResultUnknown,
 }
 
+impl ReceiptDisplayState {
+    pub const ALL: [Self; 5] = [
+        Self::Completed,
+        Self::CompletedWithLimitations,
+        Self::Failed,
+        Self::Cancelled,
+        Self::ResultUnknown,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Completed => "completed",
+            Self::CompletedWithLimitations => "completed_with_limitations",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+            Self::ResultUnknown => "result_unknown",
+        }
+    }
+
+    /// Green means: a validated `Completed` receipt with no limitations and no unknown marker.
+    /// It never claims that an external file or provider effect really happened.
+    pub fn is_green(self) -> bool {
+        self == Self::Completed
+    }
+}
+
+/// Outcome of applying a server receipt to the retained projection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReceiptUpdate {
+    Applied,
+    Replayed,
+}
+
+impl ReceiptUpdate {
+    pub const ALL: [Self; 2] = [Self::Applied, Self::Replayed];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Applied => "applied",
+            Self::Replayed => "replayed",
+        }
+    }
+}
+
+/// One receipt file as it appears in the display golden.  `artifact_digest` is the normalized
+/// (bare, lowercase) content hash of the server artifact the file points at, if any.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptGoldenFile {
+    pub path: String,
+    pub status: String,
+    pub revision: u64,
+    #[serde(default)]
+    pub artifact_digest: Option<String>,
+}
+
+/// The receipt provenance shown next to the summary; the event IDs are sorted so the golden is
+/// independent of the caller's array order.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptGoldenProvenance {
+    pub receipt_digest: String,
+    pub source_cursor: u64,
+    pub source_event_ids: Vec<String>,
+    #[serde(default)]
+    pub producer: Option<String>,
+}
+
+/// Deterministic Workbench receipt summary.  Every field is a server fact projected for display;
+/// the golden is byte-stable for the same receipt and keeps `unknown`, limitations and provenance
+/// visible so no presenter can render a partially known result as a clean success.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptGolden {
+    pub schema: String,
+    pub run_id: String,
+    pub status: ExecutionStatus,
+    pub display: String,
+    pub green: bool,
+    pub unknown: bool,
+    pub file_count: usize,
+    pub files: Vec<ReceiptGoldenFile>,
+    pub currency: String,
+    pub amount_micros: Option<u64>,
+    pub usage_known: bool,
+    pub cost_known: bool,
+    pub limitations: Vec<String>,
+    pub provenance: ReceiptGoldenProvenance,
+}
+
+/// Receipt end states.  Derived from the complement of the non-terminal statuses so a status added
+/// to the domain enum defaults to terminal and cannot be silently drawn as still in flight.
+fn is_terminal_status(status: ExecutionStatus) -> bool {
+    !matches!(
+        status,
+        ExecutionStatus::Accepted
+            | ExecutionStatus::Queued
+            | ExecutionStatus::Cancelling
+            | ExecutionStatus::AwaitingApproval
+            | ExecutionStatus::Running
+    )
+}
+
+fn normalized_digest(value: &str) -> String {
+    value
+        .strip_prefix("sha256:")
+        .unwrap_or(value)
+        .to_ascii_lowercase()
+}
+
 /// Receipt projection used by Workbench.  It intentionally keeps unknown/limitations visible;
 /// a `ResultUnknown` run can never be represented as a green completed receipt.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -677,18 +1003,25 @@ impl WorkbenchReceipt {
     }
 
     pub fn is_green(&self) -> bool {
-        self.display_state() == ReceiptDisplayState::Completed
+        self.display_state().is_green()
+    }
+
+    /// True once the server declared an end state for this run.  The receipt never invents one.
+    pub fn is_terminal(&self) -> bool {
+        is_terminal_status(self.status)
     }
 
     /// Recompute a display projection from a fresh server snapshot without changing its facts.
-    /// The returned value remains untrusted until the new source receipt is validated.
+    /// The candidate is validated before it is returned, so a partial or inconsistent rebuild is
+    /// refused instead of being drawn; the retained receipt is only replaced by
+    /// `apply_server_receipt`, which fences replays and terminal regressions.
     pub fn recompute(
         &self,
         status: ExecutionStatus,
         files: Vec<ReceiptFile>,
         cost: ReceiptCost,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, String> {
+        let candidate = Self {
             schema: self.schema.clone(),
             run_id: self.run_id,
             status,
@@ -697,7 +1030,90 @@ impl WorkbenchReceipt {
             unknown: status == ExecutionStatus::ResultUnknown,
             limitations: self.limitations.clone(),
             provenance: self.provenance.clone(),
+        };
+        candidate.validate()?;
+        Ok(candidate)
+    }
+
+    /// Apply a receipt the server just returned.  A replay at the same source cursor must carry the
+    /// same receipt digest, status and unknown marker; a lower cursor is stale; and a newer cursor
+    /// may not move a terminal run back to a non-terminal one.  Only the server produces the new
+    /// value, and the Workbench keeps the unknown marker and limitations it was given.
+    pub fn apply_server_receipt(
+        &mut self,
+        next: WorkbenchReceipt,
+    ) -> Result<ReceiptUpdate, String> {
+        next.validate()?;
+        if next.run_id != self.run_id {
+            return Err("receipt_run_mismatch".to_owned());
         }
+        if next.provenance.source_cursor < self.provenance.source_cursor {
+            return Err("receipt_replay_stale".to_owned());
+        }
+        if next.provenance.source_cursor == self.provenance.source_cursor {
+            if next.provenance.receipt_digest != self.provenance.receipt_digest
+                || next.status != self.status
+                || next.unknown != self.unknown
+            {
+                return Err("receipt_replay_conflict".to_owned());
+            }
+            return Ok(ReceiptUpdate::Replayed);
+        }
+        if self.is_terminal() && !next.is_terminal() {
+            return Err("receipt_terminal_regression".to_owned());
+        }
+        *self = next;
+        Ok(ReceiptUpdate::Applied)
+    }
+
+    /// Deterministic display summary used as the receipt golden.  Files are sorted by
+    /// path/revision/status and digests are normalized, so the same server receipt always produces
+    /// the same bytes; the golden adds nothing the receipt did not already carry.
+    pub fn golden(&self) -> Result<ReceiptGolden, String> {
+        self.validate()?;
+        let mut files = self
+            .files
+            .iter()
+            .map(|file| ReceiptGoldenFile {
+                path: file.path.clone(),
+                status: file.status.clone(),
+                revision: file.revision,
+                artifact_digest: file
+                    .artifact_ref
+                    .as_ref()
+                    .map(|reference| normalized_digest(&reference.content_hash)),
+            })
+            .collect::<Vec<_>>();
+        files.sort_by(|left, right| {
+            left.path
+                .cmp(&right.path)
+                .then(left.revision.cmp(&right.revision))
+                .then(left.status.cmp(&right.status))
+        });
+        let mut source_event_ids = self.provenance.source_event_ids.clone();
+        source_event_ids.sort();
+        let display = self.display_state();
+        Ok(ReceiptGolden {
+            schema: WORKBENCH_RECEIPT_GOLDEN_SCHEMA.to_owned(),
+            run_id: self.run_id.to_string(),
+            status: self.status,
+            display: display.as_str().to_owned(),
+            green: display.is_green(),
+            unknown: self.unknown,
+            file_count: files.len(),
+            files,
+            currency: self.cost.currency.clone(),
+            amount_micros: self.cost.amount_micros,
+            usage_known: self.cost.usage_known,
+            cost_known: self.cost.cost_known,
+            limitations: self.limitations.clone(),
+            provenance: ReceiptGoldenProvenance {
+                receipt_digest: self.provenance.receipt_digest.clone(),
+                source_cursor: self.provenance.source_cursor,
+                source_event_ids,
+                producer: self.provenance.producer.clone(),
+            },
+        })
     }
 }
 
@@ -726,6 +1142,217 @@ fn artifact_content_digest(reference: &ArtifactRef, content: &[u8]) -> Result<St
     .map(|version| version.content_hash)
     .map_err(|_| "artifact_content_digest_failed".to_owned())
 }
+
+/// Stage of the review surface that refuses a request.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewRefusalStage {
+    Inbox,
+    Decision,
+    Artifact,
+    Receipt,
+}
+
+impl ReviewRefusalStage {
+    pub const ALL: [Self; 4] = [Self::Inbox, Self::Decision, Self::Artifact, Self::Receipt];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Inbox => "inbox",
+            Self::Decision => "decision",
+            Self::Artifact => "artifact",
+            Self::Receipt => "receipt",
+        }
+    }
+}
+
+/// Operator-facing recovery note for one stable refusal code.  Every note describes a read-only
+/// recovery step (reload, re-request, keep the current value); none of them resubmits a decision,
+/// retries a command, approves, restores or reconciles anything on the operator's behalf.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReviewRefusal {
+    pub code: &'static str,
+    pub stage: ReviewRefusalStage,
+    pub recovery: &'static str,
+}
+
+impl ReviewRefusal {
+    pub fn find(code: &str) -> Option<&'static ReviewRefusal> {
+        REVIEW_REFUSALS.iter().find(|refusal| refusal.code == code)
+    }
+
+    pub fn codes() -> Vec<&'static str> {
+        REVIEW_REFUSALS.iter().map(|refusal| refusal.code).collect()
+    }
+}
+
+/// The presenter-visible refusal catalogue: the recovery the operator can actually take for every
+/// refusal the inbox, diff viewer and receipt view raise.
+pub const REVIEW_REFUSALS: &[ReviewRefusal] = &[
+    ReviewRefusal {
+        code: "workbench_inbox_schema_invalid",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "reload the snapshot; the retained card is not the schema this Workbench renders",
+    },
+    ReviewRefusal {
+        code: "inbox_payload_digest_mismatch",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "discard the local card and reload it from the server; never re-sign a payload",
+    },
+    ReviewRefusal {
+        code: "inbox_payload_limit",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "open the action detail instead of rendering an oversized payload inline",
+    },
+    ReviewRefusal {
+        code: "inbox_allowed_decision_unsupported",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "reload the card; a decision outside the Workbench vocabulary is not actionable",
+    },
+    ReviewRefusal {
+        code: "inbox_allowed_decision_duplicate",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "reload the card; the server listed the same decision twice",
+    },
+    ReviewRefusal {
+        code: "inbox_action_duplicate",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "keep the first card; two cards with the same action ID cannot both be shown",
+    },
+    ReviewRefusal {
+        code: "inbox_action_unknown",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "reload the inbox; the action is no longer on the retained page",
+    },
+    ReviewRefusal {
+        code: "inbox_card_revocation_regression",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "keep the revocation; ask for a new approval if the request is still needed",
+    },
+    ReviewRefusal {
+        code: "inbox_card_revision_stale",
+        stage: ReviewRefusalStage::Inbox,
+        recovery: "reload the card; a newer revision of the target object already exists",
+    },
+    ReviewRefusal {
+        code: "approval_expired",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "request a new approval; an expired card may not be submitted again",
+    },
+    ReviewRefusal {
+        code: "approval_revoked",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "keep the request stopped; a new approval is required before it can continue",
+    },
+    ReviewRefusal {
+        code: "approval_revision_mismatch",
+        stage: ReviewRefusalStage::Decision,
+        recovery:
+            "reload the snapshot and re-read the conflict; do not retry with the old revision",
+    },
+    ReviewRefusal {
+        code: "approval_decision_not_allowed",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "choose one of the decisions the server allowed on this card",
+    },
+    ReviewRefusal {
+        code: "client_payload_mutation",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "drop the edited payload; only the server payload may be submitted",
+    },
+    ReviewRefusal {
+        code: "inbox_decision_payload_digest_mismatch",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "reload the card and build the decision again from the server payload",
+    },
+    ReviewRefusal {
+        code: "inbox_decision_value_unsupported",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "pick a decision the card declares instead of a free-form verb",
+    },
+    ReviewRefusal {
+        code: "inbox_decision_revision_invalid",
+        stage: ReviewRefusalStage::Decision,
+        recovery: "reload the card; the decision is missing the revision it must pin",
+    },
+    ReviewRefusal {
+        code: "artifact_reference_mismatch",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "request the page for the exact artifact reference shown on the card",
+    },
+    ReviewRefusal {
+        code: "artifact_revision_mismatch",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "reload the artifact reference; a newer revision exists for this target",
+    },
+    ReviewRefusal {
+        code: "artifact_page_digest_mismatch",
+        stage: ReviewRefusalStage::Artifact,
+        recovery:
+            "discard the page and request it again; never render bytes that fail their digest",
+    },
+    ReviewRefusal {
+        code: "artifact_page_bounds_invalid",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "request a page inside the declared count and size bounds",
+    },
+    ReviewRefusal {
+        code: "artifact_page_conflict",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "reload the artifact; two different pages claim the same index",
+    },
+    ReviewRefusal {
+        code: "artifact_page_count_mismatch",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "reload the artifact; the server page count changed under the viewer",
+    },
+    ReviewRefusal {
+        code: "artifact_digest_mismatch",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "re-request every page; the assembled content does not match the artifact hash",
+    },
+    ReviewRefusal {
+        code: "artifact_content_too_large",
+        stage: ReviewRefusalStage::Artifact,
+        recovery: "open the artifact detail instead of loading the whole artifact inline",
+    },
+    ReviewRefusal {
+        code: "workbench_receipt_schema_invalid",
+        stage: ReviewRefusalStage::Receipt,
+        recovery:
+            "reload the receipt from the server; the retained summary is not the expected schema",
+    },
+    ReviewRefusal {
+        code: "result_unknown_marker_missing",
+        stage: ReviewRefusalStage::Receipt,
+        recovery: "report the malformed receipt; an unknown result must keep its unknown marker",
+    },
+    ReviewRefusal {
+        code: "receipt_run_mismatch",
+        stage: ReviewRefusalStage::Receipt,
+        recovery: "reload this run's receipt; the displayed receipt belongs to another run",
+    },
+    ReviewRefusal {
+        code: "receipt_replay_stale",
+        stage: ReviewRefusalStage::Receipt,
+        recovery: "keep the current receipt; a replay below the retained cursor is not applied",
+    },
+    ReviewRefusal {
+        code: "receipt_replay_conflict",
+        stage: ReviewRefusalStage::Receipt,
+        recovery: "reload the receipt; the same server cursor now carries different facts",
+    },
+    ReviewRefusal {
+        code: "receipt_terminal_regression",
+        stage: ReviewRefusalStage::Receipt,
+        recovery: "keep the terminal receipt and ask the server for the next cursor",
+    },
+    ReviewRefusal {
+        code: "receipt_cost_known_mismatch",
+        stage: ReviewRefusalStage::Receipt,
+        recovery: "show the cost as unknown until the server reports both usage and cost",
+    },
+];
 
 /// Keep the protocol action digest validator close to this boundary for source guards and future
 /// client adapters.  It does not submit the action or grant approval.
