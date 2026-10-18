@@ -51,6 +51,7 @@ mod apply_patch;
 #[cfg(test)]
 mod approval_store;
 mod authn;
+mod automation_boot_recovery;
 mod automation_cancellation;
 mod automation_dispatch;
 mod billing_invoice_import;
@@ -136,6 +137,9 @@ mod workspace_checkpoints;
 // ---------------------------------------------------------------------------
 
 pub use authn::LocalAuthnAdapter;
+pub use automation_boot_recovery::{
+    boot_journal_from_health, AutomationBootRecoveryGate, AUTOMATION_BOOT_RECOVERY_PROJECTOR,
+};
 pub use automation_cancellation::{
     AutomationCancellationService, AutomationCancellationShutdownReport,
     AUTOMATION_CANCELLATION_CHANNEL_CAPACITY,
@@ -475,6 +479,8 @@ pub struct DaemonHost {
     automation_dispatch_service: AutomationDispatchService,
     /// AUT-17 取消编排服务；默认未启动，需显式注入命令 store、取消事实 store 与 stop 控制器。
     automation_cancellation_service: AutomationCancellationService,
+    /// AUT-21 启动恢复 gate：启动观测后默认 fenced，只有显式 operator resume 才允许 dispatch。
+    boot_recovery: std::sync::Mutex<automation_boot_recovery::BootRecoveryGate>,
     /// Optional registry handle used only to build read-only visibility projections. Mutation
     /// and execution remain owned by ControlPlane/Broker; hosts constructed around an injected
     /// core simply report the projection as unavailable.
@@ -770,6 +776,9 @@ impl DaemonHost {
             workflow_service: WorkflowQueueService::new(),
             automation_dispatch_service: AutomationDispatchService::new(),
             automation_cancellation_service: AutomationCancellationService::new(),
+            boot_recovery: std::sync::Mutex::new(
+                automation_boot_recovery::BootRecoveryGate::default(),
+            ),
             extensions: None,
         }
     }
@@ -1665,6 +1674,9 @@ impl DaemonHost {
         &self,
         store: Arc<dyn WorkflowQueueStore>,
     ) -> Result<(), PortError> {
+        // AUT-21：已完成启动观测但尚未显式 operator reconcile/resume 时，服务不得被启动。
+        self.ensure_boot_recovery_admits_dispatch("workflow_service")
+            .await?;
         self.workflow_service.start(store).await
     }
 
@@ -1682,6 +1694,9 @@ impl DaemonHost {
         store: Arc<dyn kiana_ports::AutomationDispatchStore>,
         runner: Arc<dyn kiana_ports::AutomationWorkerEffectRunner>,
     ) -> Result<(), PortError> {
+        // AUT-21：重启后的 dispatch 服务在显式 operator reconcile/resume 之前不得启动。
+        self.ensure_boot_recovery_admits_dispatch("automation_dispatch_service")
+            .await?;
         self.automation_dispatch_service.start(store, runner).await
     }
 
