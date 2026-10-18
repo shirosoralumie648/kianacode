@@ -188,7 +188,8 @@ use kiana_runner::{HarnessBudgetConfig, HarnessBudgetSource, KianaHarness, Runti
 pub use local_artifacts::LocalArtifactStore;
 pub use notification_stream::{
     NotificationStreamBridge, NotificationStreamCursor, NotificationStreamDisposition,
-    NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA,
+    NotificationStreamError, NOTIFICATION_STREAM_BRIDGE_SCHEMA, NOTIFICATION_STREAM_MERGE_WINDOW,
+    NOTIFICATION_STREAM_SEEN_EVENT_IDS,
 };
 pub use oauth_accounts::InMemoryOAuthAccountStore;
 pub use restore_verifier::verify_restore;
