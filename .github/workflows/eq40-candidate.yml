@@ -17,9 +17,13 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
       - name: Run kiana-quality eq40_candidate
         run: cargo test -p kiana-quality --test eq40_candidate --locked -- --test-threads=1
       - name: Run kiana-quality eq40_candidate_guard
         run: cargo test -p kiana-quality --test eq40_candidate_guard --locked -- --test-threads=1
+      - name: Compile the kiana-quality test targets
+        run: cargo test -p kiana-quality --no-run --locked
