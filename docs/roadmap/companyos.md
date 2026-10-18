@@ -239,7 +239,7 @@
 
 
 
-#### CO-12 · Milestone、Plan 与依赖图提案　🔄
+#### CO-12 · Milestone、Plan 与依赖图提案　✅
 
 - **归属**：`P3-I-01`、`P1-D-02`。
 - **依赖**：CO-10、CO-11。
@@ -247,6 +247,7 @@
 - **实现顺序**：①把目标拆成可独立验收的里程碑与输出；②分清 parent/child、阻塞依赖、资料引用及信息关联；③批量验证候选图，冻结依赖版本，提供稳定拓扑顺序、missing refs 和 cycle path。
 - **先拒绝**：`plan_rejects_missing_dependencies_cycles_and_cross_project_edges`；空必需里程碑、孤立标准和读取范围不足都返回具体原因。
 - **再成功 / 退出**：`two_milestone_plan_preserves_dependency_and_acceptance_boundaries`；先允许草稿批量创建，再在批准事务核验完整图，避免只能逐个插入造成顺序限制。
+- **2026-10-17 收口切片（CI-only）**：`PlanProposalDraft`（任意插入顺序的批量草稿，完整图只在 freeze 校验一次）、`PlanGraphReport`（稳定拓扑序/缺失端点含边下标/稳定 `cycle_path`/首个拒绝原因）、`FrozenPlanGraph`（冻结计划/Charter 版本、coverage digest 与逐节点依赖版本并逐条拒绝漂移）、`CompanyCommand::FreezePlanGraph` + `CompanyState::plan_graphs` + core `plan_graph_freeze_verdict`（服务端冻结 Charter baseline 与 CO-11 覆盖图绑定、同图幂等 / 异图拒绝、core 门在 transition 之前）、domain 6 条先拒绝优先夹具 + daemon 2 条真实脊柱夹具 + core guard 1→2 条与手动 lane 扩为 fetch/fmt/三 target/三 `--no-run`；proof 上限 source，CI 回执未等待。
 
 <a id="co-13"></a>
 
