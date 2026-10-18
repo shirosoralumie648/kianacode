@@ -43,7 +43,13 @@ fn frame(
         epoch,
         sequence,
         UiCursor {
-            epoch: epoch.to_owned(),
+            // Mirror `RunStreamBridge::feed_cursor`: an empty snapshot cursor (0) must not
+            // carry an epoch, or `ui_feed_cursor_snapshot_invalid` refuses the frame.
+            epoch: if snapshot_sequence == 0 {
+                String::new()
+            } else {
+                epoch.to_owned()
+            },
             sequence: snapshot_sequence,
         },
     )

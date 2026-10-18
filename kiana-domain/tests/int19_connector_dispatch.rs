@@ -248,9 +248,10 @@ fn skipped_phases_and_premature_artifacts_are_refused_before_any_dispatch() {
         "connector_dispatch_transition_invalid"
     );
 
-    // The two pre-effect phases must not carry any effect artifact.
+    // The two pre-effect phases must not carry any effect artifact. Entering `Dispatching`
+    // (itself a pre-effect phase) with a receipt is refused; `in_flight` is already past it.
     assert_eq!(
-        in_flight
+        prepared()
             .advance(
                 ConnectorDispatchStage::Dispatching,
                 Some(digest("receipt")),

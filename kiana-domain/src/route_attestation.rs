@@ -458,18 +458,30 @@ impl RouteDataUseDecision {
         if !self.allowed && !self.reason.starts_with("route_attestation_") {
             return Err("route_use_decision_reason_invalid".to_owned());
         }
-        if self.requested_classes.len() > MAX_ROUTE_ATTESTATION_CLASSES
+        // A refusal records the oversized request it refused (that is what
+        // `route_attestation_data_classes_invalid` reports); an allowance is held to the bound.
+        if (self.allowed && self.requested_classes.len() > MAX_ROUTE_ATTESTATION_CLASSES)
             || self.permitted_classes.len() > MAX_ROUTE_ATTESTATION_CLASSES
         {
             return Err("route_use_decision_scope_invalid".to_owned());
         }
-        for class in self
-            .requested_classes
-            .iter()
-            .chain(self.permitted_classes.iter())
-        {
+        // The permitted set comes from a validated policy and is always a known class. A refusal
+        // may legitimately echo the requested class it refused (that is how
+        // `route_attestation_data_class_unknown` and an oversized set stay reportable), so for a
+        // refusal the requested labels only need to be bounded. An allowance may only ever bind
+        // known classes.
+        for class in &self.permitted_classes {
             if !is_data_class(class) {
                 return Err("route_use_decision_data_class_invalid".to_owned());
+            }
+        }
+        for class in &self.requested_classes {
+            if self.allowed {
+                if !is_data_class(class) {
+                    return Err("route_use_decision_data_class_invalid".to_owned());
+                }
+            } else {
+                bounded(class, "route_use_decision_data_class")?;
             }
         }
         digest(&self.decision_digest, "route_use_decision_digest")?;

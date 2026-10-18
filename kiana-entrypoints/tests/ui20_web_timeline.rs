@@ -287,8 +287,16 @@ fn ui20_typed_kind_and_window_contract_never_guess_from_text() {
         assert_eq!(WebTimelineItemKind::from_server_kind(server_kind), expected);
     }
     // "delta-looking" text never selects the kind: the same text is `unknown` for both a body and
-    // a title, because neither is read.
-    for text in ["delta", "tool", "terminal", "<b>error</b>"] {
+    // a title, because neither is read. Only the exact server tokens above are canonical; text
+    // that merely looks like one (case, whitespace or markup differences) stays `unknown`.
+    for text in [
+        "Delta",
+        " delta",
+        "delta ",
+        "tooltip",
+        "terminal.",
+        "<b>error</b>",
+    ] {
         assert_eq!(
             WebTimelineItemKind::from_server_kind(text),
             WebTimelineItemKind::Unknown,

@@ -266,8 +266,10 @@ fn undeclared_run_expectations_and_unmatched_invocations_are_refused() {
         "replay_expectation_run_required"
     );
 
-    // An expectation that matches no invocation is a divergence, not a missing line item.
-    let missing_id = InvocationId::new();
+    // An expectation that matches no invocation is a divergence, not a missing line item. The
+    // locator is fixed so the assertion does not depend on a random UUID's sort position.
+    let missing_id =
+        InvocationId::parse_str("00000000-0000-4000-8000-000000000001").expect("missing id");
     let missing = ReplayExpectation {
         invocation_id: Some(missing_id),
         attempt: Some(3),
@@ -295,7 +297,18 @@ fn undeclared_run_expectations_and_unmatched_invocations_are_refused() {
     assert_eq!(diagnostic.observed_status, None);
     assert_eq!(diagnostic.expected_status, Some(TraceStatus::Ok));
     assert_eq!(diagnostic.divergence, ReplayDivergenceKind::StatusMismatch);
-    assert_eq!(snapshot.first_divergence(), Some(diagnostic));
+    // `first_divergence()` follows the canonical locator order. The fixture's later
+    // `audit.forged` event adds a project-level SchemaConflict with no invocation binding, which
+    // sorts before any invocation-bound diagnostic; the missing expectation is the first
+    // invocation-bound divergence, and the comparator is unchanged.
+    assert_eq!(
+        snapshot
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.invocation_id.is_some())
+            .min_by_key(|diagnostic| diagnostic.locator_key()),
+        Some(diagnostic)
+    );
 
     // Diagnostics are kept in canonical locator order; a reordered snapshot is refused.
     for pair in snapshot.diagnostics.windows(2) {

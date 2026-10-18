@@ -338,7 +338,7 @@ fn event_builders_are_append_only_stream_bound_and_validated() {
     validate_event_payload(COST_CORRECTION_EVENT, &correction_event.data).expect("payload");
 
     let payload = CostCorrectionAdmission::command_payload(&command(&target)).expect("payload");
-    assert_eq!(payload["approver_id"], "approver");
+    assert_eq!(payload["approval"]["approver_id"], "approver");
     assert_eq!(payload["requested_by"], "requester");
     assert!(payload.get("transcript").is_none());
     assert_eq!(

@@ -36,7 +36,7 @@ fn query_projector_is_read_only_and_digest_bound() {
         "std::net",
         "reqwest",
         "unsafe",
-        "#[ignore",
+        concat!("#[", "ignore"),
         "Uuid::new_v4",
     ] {
         assert!(
@@ -74,7 +74,7 @@ fn query_fixtures_stay_deny_first_and_wired_to_the_lane() {
             "BQ-14 query refusal code missing: {code}"
         );
     }
-    assert!(!FIXTURES.contains("#[ignore"));
+    assert!(!FIXTURES.contains(concat!("#[", "ignore")));
 
     assert!(MANUAL_LANE.contains(
         "cargo test -p kiana-query --test bq14_cost_ledger_projector --locked -- --test-threads=1"

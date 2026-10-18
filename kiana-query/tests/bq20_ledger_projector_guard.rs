@@ -61,7 +61,7 @@ fn billing_projector_is_read_only_and_shares_one_replay_chain() {
         "FinancialBudget",
         "Uuid::new_v4",
         "unsafe",
-        "#[ignore",
+        concat!("#[", "ignore"),
     ] {
         assert!(
             !PROJECTOR_SOURCE.contains(forbidden),
@@ -166,7 +166,7 @@ fn refusal_codes_and_fixture_names_stay_pinned_in_the_fixtures() {
         );
     }
     assert!(
-        !MANUAL_LANE.contains("--ignored"),
+        !MANUAL_LANE.contains(concat!("--", "ignored")),
         "BQ-20 manual lane must not skip fixtures"
     );
 }

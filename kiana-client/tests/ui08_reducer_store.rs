@@ -1302,6 +1302,32 @@ fn apply_traced_event(
     }
 }
 
+/// The reducer binds an action result to the command that created the optimistic entry. The
+/// trace replay is deterministic, so the command id is derived from the idempotency key that
+/// both trace steps share instead of a fresh random id per event.
+fn trace_command_id(idempotency_key: &str) -> RequestId {
+    // FNV-1a over the key: two independent passes keep the value 128-bit and stable.
+    let hash = |seed: u64| {
+        let mut value = seed;
+        for byte in idempotency_key.bytes() {
+            value ^= u64::from(byte);
+            value = value.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        value
+    };
+    let high = hash(0xcbf2_9ce4_8422_2325);
+    let low = hash(0x0000_0100_0000_01b3);
+    let uuid = format!(
+        "{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}",
+        (high >> 32) as u32,
+        (high >> 16) as u16,
+        high & 0x0fff,
+        (low >> 48) as u16 & 0x0fff,
+        low & 0x0000_ffff_ffff_ffff
+    );
+    RequestId::parse_str(&uuid).expect("trace command id")
+}
+
 fn trace_event(trace: &TracePlan, step: &TraceStep, index: usize) -> Option<UiStoreEvent> {
     let scope = UiStoreScope::new(
         trace.scope.workspace.clone(),
@@ -1360,7 +1386,7 @@ fn trace_event(trace: &TracePlan, step: &TraceStep, index: usize) -> Option<UiSt
         )),
         "optimistic" => Some(UiStoreEvent::Optimistic(UiOptimisticUpdate {
             idempotency_key: step.idempotency_key.clone(),
-            command_id: RequestId::new(),
+            command_id: trace_command_id(&step.idempotency_key),
             key: UiEntityKey::new(UiEntityKind::Submission, step.idempotency_key.clone())
                 .expect("traced optimistic key"),
             revision: 1,
@@ -1379,7 +1405,7 @@ fn trace_event(trace: &TracePlan, step: &TraceStep, index: usize) -> Option<UiSt
             Some(UiStoreEvent::action_result(
                 scope,
                 step.idempotency_key.clone(),
-                action_result(RequestId::new(), disposition),
+                action_result(trace_command_id(&step.idempotency_key), disposition),
             ))
         }
         "expire" => Some(UiStoreEvent::ExpireOptimistic {

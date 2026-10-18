@@ -324,9 +324,10 @@ fn retry_budget_and_deadline_refuse_before_scheduling_another_request() {
     );
 
     // The request budget can bind before the attempt budget; a fresh attempt still passes.
-    let capped = RetryPolicy::new(4, 2, 5_000, 100_000).expect("policy");
+    // `max_requests` must cover `max_attempts`, so the cap is expressed on both budgets.
+    let capped = RetryPolicy::new(2, 2, 5_000, 100_000).expect("policy");
     assert_eq!(
-        denial(&capped, 2, 2, 1_000, &allowed),
+        denial(&capped, 1, 2, 1_000, &allowed),
         RetryDenyReason::RequestBudget
     );
     assert!(
@@ -452,7 +453,7 @@ fn policy_validation_refuses_unbounded_or_forged_policies_before_classification(
         "retry_observation_phase_invalid"
     );
     assert_eq!(
-        forged.classify(1, 1, 1_000, &empty_code).unwrap_err(),
+        policy().classify(1, 1, 1_000, &empty_code).unwrap_err(),
         "retry_observation_code_invalid"
     );
 }

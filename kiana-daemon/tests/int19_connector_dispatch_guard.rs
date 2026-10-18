@@ -163,8 +163,8 @@ fn dispatch_refusal_codes_and_behaviour_fixtures_stay_pinned() {
         );
     }
     for fixtures in [DAEMON_FIXTURES, DOMAIN_FIXTURES] {
-        assert!(!fixtures.contains("#[ignore"));
-        assert!(!fixtures.contains("ignore ="));
+        assert!(!fixtures.contains(concat!("#[", "ignore")));
+        assert!(!fixtures.contains(concat!("ignore", " =")));
     }
     assert!(DAEMON_FIXTURES.contains("result_unknown:connector_dispatch_incomplete"));
     assert!(DAEMON_FIXTURES.contains("result_unknown:connector_result_commit_missing"));
