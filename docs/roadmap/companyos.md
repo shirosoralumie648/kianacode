@@ -255,7 +255,7 @@
 
 
 
-#### CO-13 · WorkPacket 扩为通用部门工作合同　🔄
+#### CO-13 · WorkPacket 扩为通用部门工作合同　✅
 
 - **归属**：`P1-D-01`、`P1-E-01`、`P1-C-01`。
 - **依赖**：CO-04、CO-06、CO-12。
@@ -263,6 +263,7 @@
 - **实现顺序**：①新增受版本控制的工作种类、输入/输出 schema、责任方和目标角色任命；②输入依据区分 Intake/Initiative/Charter/Plan，分析/规划包可在相应批准阶段运行、只写受控提案，实现包必须绑定批准 Plan 与写集；③业务 packet 不携带可自行生效的 Grant/Lease，运行权限仍由 core 派生。
 - **先拒绝**：`department_packet_cannot_smuggle_builder_write_scope_or_runtime_grants`；旧 v1 的 `packet_role_must_be_builder` 测试保持原语义，新 schema 单独验证岗位/任务种类。
 - **再成功 / 退出**：`analysis_and_implementation_packets_validate_through_versioned_contracts`；可表达立项调查、规划、实现、验证、交付准备和知识整理；未生成 Plan 时分析包可在受理授权下工作，实现包仍拒绝，消除“先有计划才能生成计划”的循环。
+- **2026-10-17 收口切片（CI-only）**：输入依据每种只绑定一个批准引用（Plan 经 `plan_binding`；Charter 直接命名 baseline；Intake/Initiative 不得携带）、`allowed_write_path` 受控写根、`DepartmentPacketAdmission` 证据一致性；`CompanyCommand::AdmitDepartmentPacket` + `department_stage_facts`/`department_role_appointment` + core `department_packet_admission_verdict` 在 transition 之前复核（服务端派生的 intake/Initiative/Charter/Plan 阶段与 CO-05 任命，同合同幂等 / 异合同拒绝，只写一条 `runtime_authority=false` 证据、零相关对象变化），CO-17 handoff digest 覆盖完整合同；domain 6 条先拒绝优先夹具 + daemon 2 条真实脊柱夹具 + core guard 2 条与手动 lane 重写为 fetch/fmt/三 target/三 `--no-run`；proof 上限 source，CI 回执未等待。
 
 <a id="co-14"></a>
 
