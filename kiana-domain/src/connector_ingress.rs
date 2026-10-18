@@ -24,6 +24,14 @@ pub const CONNECTOR_INGRESS_POLICY_SCHEMA: &str = "kiana.connector-ingress-polic
 pub const CONNECTOR_INGRESS_OCCURRENCE_SCHEMA: &str = "kiana.connector-ingress-occurrence.v1";
 pub const CONNECTOR_INGRESS_PAYLOAD_MAX_BYTES: usize = 64 * 1024;
 pub const CONNECTOR_INGRESS_MAX_CLOCK_SKEW_MS: u64 = 86_400_000;
+pub const CONNECTOR_INGRESS_REPLAY_SCHEMA: &str = "kiana.connector-ingress-replay-entry.v1";
+/// Default server-side replay window. It must outlive the provider retry horizon so a retried
+/// delivery cannot become a second occurrence after a daemon restart.
+pub const CONNECTOR_INGRESS_REPLAY_DEFAULT_WINDOW_MS: u64 = 86_400_000;
+pub const CONNECTOR_INGRESS_REPLAY_MAX_WINDOW_MS: u64 = 30 * 86_400_000;
+/// Hard bound on retained replay entries. The store prunes expired entries first and fails
+/// closed instead of dropping still-live evidence.
+pub const CONNECTOR_INGRESS_REPLAY_MAX_ENTRIES: usize = 100_000;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -314,11 +322,19 @@ pub struct ConnectorIngressOccurrence {
 }
 
 impl ConnectorIngressOccurrence {
+    /// Build the occurrence from a *caller-supplied* wall clock.
+    ///
+    /// `now_unix_ms` must be the server clock at admission time. Deriving it from
+    /// `event.occurred_at_unix_ms` would make the policy's clock-skew check vacuous: an attacker
+    /// controls `occurred_at_unix_ms`, so a stale or future-dated event would always appear
+    /// "fresh". Callers that only own a contract (tests, replay tooling) must pass the same
+    /// server time they verified the signature with.
     pub fn from_verified(
         event: &ConnectorIngressEvent,
         policy: &ConnectorIngressPolicy,
+        now_unix_ms: u64,
     ) -> Result<Self, String> {
-        policy.matches(event, event.occurred_at_unix_ms)?;
+        policy.matches(event, now_unix_ms)?;
         let mut occurrence = Self {
             schema: CONNECTOR_INGRESS_OCCURRENCE_SCHEMA.to_owned(),
             protocol: event.protocol,
@@ -391,6 +407,104 @@ impl ConnectorIngressOccurrence {
             "policy_digest": self.policy_digest,
         }))
     }
+}
+
+/// One admitted occurrence in the server-side replay window.
+///
+/// The entry is deliberately digest-only: it carries the source/event identity, the nonce and the
+/// ingress digest needed to detect replay and payload conflicts, but never the raw payload,
+/// signature or signing key. `expires_at_unix_ms` makes retention a bounded window rather than an
+/// unbounded growth.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorIngressReplayEntry {
+    pub schema: String,
+    pub source_id: String,
+    pub event_id: String,
+    pub nonce: String,
+    pub ingress_digest: String,
+    pub accepted_at_unix_ms: u64,
+    pub expires_at_unix_ms: u64,
+    pub entry_digest: String,
+}
+
+impl ConnectorIngressReplayEntry {
+    pub fn new(
+        occurrence: &ConnectorIngressOccurrence,
+        accepted_at_unix_ms: u64,
+        window_ms: u64,
+    ) -> Result<Self, String> {
+        occurrence.validate()?;
+        if window_ms == 0 || window_ms > CONNECTOR_INGRESS_REPLAY_MAX_WINDOW_MS {
+            return Err("connector_ingress_replay_window_invalid".to_owned());
+        }
+        let expires_at_unix_ms = accepted_at_unix_ms
+            .checked_add(window_ms)
+            .ok_or_else(|| "connector_ingress_replay_window_invalid".to_owned())?;
+        let mut entry = Self {
+            schema: CONNECTOR_INGRESS_REPLAY_SCHEMA.to_owned(),
+            source_id: occurrence.source_id.clone(),
+            event_id: occurrence.event_id.clone(),
+            nonce: occurrence.nonce.clone(),
+            ingress_digest: occurrence.ingress_digest.clone(),
+            accepted_at_unix_ms,
+            expires_at_unix_ms,
+            entry_digest: String::new(),
+        };
+        entry.entry_digest = entry.digest();
+        entry.validate()?;
+        Ok(entry)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != CONNECTOR_INGRESS_REPLAY_SCHEMA
+            || self.accepted_at_unix_ms == 0
+            || self.expires_at_unix_ms <= self.accepted_at_unix_ms
+            || !valid_digest(&self.ingress_digest)
+            || !valid_digest(&self.entry_digest)
+            || self.entry_digest != self.digest()
+        {
+            return Err("connector_ingress_replay_entry_invalid".to_owned());
+        }
+        for (value, field, max) in [
+            (&self.source_id, "connector_ingress_source", 128),
+            (&self.event_id, "connector_ingress_event", 256),
+            (&self.nonce, "connector_ingress_nonce", 256),
+        ] {
+            bounded(value, field, max)?;
+        }
+        Ok(())
+    }
+
+    pub fn is_expired_at(&self, now_unix_ms: u64) -> bool {
+        now_unix_ms >= self.expires_at_unix_ms
+    }
+
+    fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "source_id": self.source_id,
+            "event_id": self.event_id,
+            "nonce": self.nonce,
+            "ingress_digest": self.ingress_digest,
+            "accepted_at_unix_ms": self.accepted_at_unix_ms,
+            "expires_at_unix_ms": self.expires_at_unix_ms,
+        }))
+    }
+}
+
+/// Outcome of atomically admitting an entry into a replay store.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectorIngressReplayOutcome {
+    /// The entry is new and is now retained for the rest of its window.
+    Accepted,
+    /// Same source, same event ID and same ingress digest: an idempotent redelivery.
+    Duplicate,
+    /// Same source and event ID with another payload/signature: a conflict, not a retry.
+    EventConflict,
+    /// Same source and nonce under another event ID: a replay with a rewritten identity.
+    NonceReplay,
 }
 
 /// Typed connector invocation derived from a *verified* ingress occurrence.

@@ -1401,3 +1401,40 @@ fn valid_digest(value: &str) -> bool {
     };
     hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
+
+/// Durable replay admission for signed connector ingress occurrences.
+///
+/// The daemon verifier owns signatures and policy.  This port owns only the replay window: it
+/// atomically admits one [`ConnectorIngressReplayEntry`] and reports whether the identity is new,
+/// an idempotent redelivery, a payload conflict or a nonce replay.  Implementations must be
+/// crash-consistent with their own storage boundary and must never accept an entry they could not
+/// durably retain.
+///
+/// The port deliberately does not expose the EventStore or ControlPlane: retaining an ingress
+/// fact is not an authorization to execute anything, and the caller still has to route the
+/// derived intent through the normal ControlPlane command path.
+#[async_trait]
+pub trait ConnectorIngressReplayStore: Send + Sync {
+    /// Retain `entry` unless it conflicts with an entry still inside the replay window.
+    ///
+    /// `Duplicate`, `EventConflict` and `NonceReplay` are normal admission outcomes and must not
+    /// mutate state.  `Accepted` means the entry is now durable for its whole window.  Storage
+    /// or retention failures return `PortError` and the caller must treat the occurrence as
+    /// unadmitted (fail closed), never as a fresh occurrence.
+    async fn admit(
+        &self,
+        entry: kiana_domain::ConnectorIngressReplayEntry,
+        now_unix_ms: u64,
+    ) -> Result<kiana_domain::ConnectorIngressReplayOutcome, PortError>;
+
+    /// Read the still-live entries of one source for audit/inspection.
+    ///
+    /// Bounded by the caller's `limit`; a store that cannot enumerate returns `Unavailable`
+    /// rather than an empty list so "no replay state" is distinguishable from "not supported".
+    async fn window(
+        &self,
+        source_id: &str,
+        now_unix_ms: u64,
+        limit: usize,
+    ) -> Result<Vec<kiana_domain::ConnectorIngressReplayEntry>, PortError>;
+}

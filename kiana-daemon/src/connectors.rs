@@ -124,9 +124,30 @@ impl ConnectorEventJournal {
             CONNECTOR_STREAM,
             project,
             expected_version.saturating_add(1),
-        );
+        )
+        // One attempt writes several ordered lifecycle facts, so the key must include the stage:
+        // a replayed append of the *same* stage returns the original fact, while the next stage
+        // (which must append a new fact) can never collide with its predecessor.
+        .with_idempotency_key(format!(
+            "connector-dispatch-lifecycle:{}:{}:{}",
+            lifecycle.invocation_id,
+            lifecycle.attempt,
+            dispatch_stage_key(lifecycle.stage)
+        ));
         self.append_idempotent_expected(event, Some(expected_version))
             .await
+    }
+}
+
+/// Stable text for a dispatch stage in an idempotency key. Kept separate from the serde name so a
+/// wire rename cannot silently change already-persisted keys.
+fn dispatch_stage_key(stage: ConnectorDispatchStage) -> &'static str {
+    match stage {
+        ConnectorDispatchStage::Prepared => "prepared",
+        ConnectorDispatchStage::Dispatching => "dispatching",
+        ConnectorDispatchStage::Observed => "observed",
+        ConnectorDispatchStage::ResultCommitted => "result_committed",
+        ConnectorDispatchStage::Unknown => "unknown",
     }
 }
 

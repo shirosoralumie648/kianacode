@@ -19,7 +19,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format gate
         run: cargo fmt --all --check
+      - name: Run kiana-domain connector_ingress
+        run: cargo test -p kiana-domain --test connector_ingress --locked -- --test-threads=1
       - name: Run kiana-daemon int24_connector_ingress
         run: cargo test -p kiana-daemon --test int24_connector_ingress --locked -- --test-threads=1
+      - name: Run kiana-daemon int24_connector_ingress_route
+        run: cargo test -p kiana-daemon --test int24_connector_ingress_route --locked -- --test-threads=1
       - name: Run kiana-daemon int24_connector_ingress_guard
         run: cargo test -p kiana-daemon --test int24_connector_ingress_guard --locked -- --test-threads=1
+      - name: Compile the ingress route and the connector dispatch spine
+        run: |
+          cargo test -p kiana-daemon --test int19_connector_dispatch --locked --no-run
+          cargo test -p kiana-daemon --test int23_connector_cancellation --locked --no-run

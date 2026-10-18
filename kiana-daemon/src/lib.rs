@@ -57,6 +57,8 @@ mod automation_dispatch;
 mod billing_invoice_import;
 mod company_dispatch;
 mod connector_ingress;
+mod connector_ingress_replay;
+mod connector_ingress_route;
 mod connectors;
 pub mod container_environment;
 mod context_query;
@@ -150,6 +152,10 @@ pub use automation_dispatch::{
 };
 pub use billing_invoice_import::{LocalProviderInvoiceImportError, LocalProviderInvoiceImporter};
 pub use connector_ingress::ConnectorIngressVerifier;
+pub use connector_ingress_replay::JsonlConnectorIngressReplayStore;
+pub use connector_ingress_route::{
+    ConnectorIngressRouteConfig, ConnectorIngressRouteResult, CONNECTOR_INGRESS_ROUTE_SCHEMA,
+};
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
 };
@@ -512,6 +518,9 @@ pub struct DaemonHost {
     /// and execution remain owned by ControlPlane/Broker; hosts constructed around an injected
     /// core simply report the projection as unavailable.
     extensions: Option<Arc<extensions::ExtensionRegistry>>,
+    /// INT-24 signed Webhook/A2A ingress route. `None` means the host exposes no ingress
+    /// surface at all; when present the route still re-enters `ControlPlane` for every command.
+    connector_ingress_route: Option<connector_ingress_route::ConnectorIngressRoute>,
 }
 
 /// daemon 信任存储适配器的审计引用；稳定、脱敏，**不是**真实路径。
@@ -807,6 +816,7 @@ impl DaemonHost {
                 automation_boot_recovery::BootRecoveryGate::default(),
             ),
             extensions: None,
+            connector_ingress_route: None,
         }
     }
 
