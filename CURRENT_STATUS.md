@@ -28617,3 +28617,18 @@ proof-level_change: local_behavior for in-memory capability-attempt projection o
 limitations: EventStore duplicate enforcement remains the durable boundary; projector checkpoints, restart/cross-process recovery, terminal reconciliation, external effect receipts and live/physical proof remain open
 reviewer: root integration agent with read-only ER-02/ER-09 projection audit; focused Core projection reviewer
 ```
+
+### DEP-05 operation lifecycle completion slice（2026-10-19）
+
+```text
+source_snapshot: worktree D:/code/kiana-steps/dep05, branch step/dep05-20261018-1; kiana-domain/src/operation_lifecycle.rs; kiana-domain/tests/dep05_operation_lifecycle.rs; kiana-core/src/deployment_operation.rs; kiana-core/tests/dep05_operation_lifecycle_guard.rs; .github/workflows/dep05-operation-lifecycle.yml; docs/roadmap/dep05-operation-lifecycle-baseline.md; docs/roadmap.md
+worktree_status: single-writer worktree; completion slice applied locally; no push/merge to D:/code/kianacode; unrelated shared WIP untouched
+command_argv: `CARGO_TARGET_DIR=D:/code/kiana-steps/target-dep05 CARGO_BUILD_JOBS=4 cargo check -p kiana-domain -p kiana-core --tests --offline`; `CARGO_TARGET_DIR=D:/code/kiana-steps/target-dep05 CARGO_BUILD_JOBS=4 RUST_MIN_STACK=33554432 cargo test -p kiana-domain --test dep05_operation_lifecycle --offline -- --test-threads=1`; `CARGO_TARGET_DIR=D:/code/kiana-steps/target-dep05 CARGO_BUILD_JOBS=4 RUST_MIN_STACK=33554432 cargo test -p kiana-core --test dep05_operation_lifecycle_guard --offline -- --test-threads=1`; `rustfmt --edition 2021 <touched files>`; `git diff --check`
+cwd·environment: D:/code/kiana-steps/dep05; Windows 11 + Git Bash; 4 Cargo build jobs; one test thread; 32 MiB test-thread stack; offline resolution; shared CARGO_TARGET_DIR outside the worktree
+fixture·cassette: domain lifecycle 10/10 and Core guard 4/4; deny-first coverage for empty evidence (constructor/validate/append with recomputed digests), empty journal projection evidence, forged nested transition digest after journal_digest recomputation, forged nested state, capacity fence at MAX_OPERATION_TRANSITIONS with byte-identical journal afterwards, append-error immutability for preflight/cursor/terminal, and replay comparison of truncated/empty/cursor-drifted sequences against a persisted snapshot
+exit_code: cargo check 0; domain test 0; Core guard test 0
+status_change: docs/roadmap.md row 610 and the DEP-05 detailed card promoted 🔄 → ✅ at local_behavior; the four tracked DEP-05 gaps (replay snapshot comparison, non-empty evidence_refs, nested transition validation, capacity fence mutation) marked [x]
+proof-level_change: focused reducer/facade contract source → local_behavior; whole-card deployment integration remains partial and no durable/live/physical claim
+limitations: journal remains an in-memory projection; no EventStore persistence, OperationLease/fence, supervisor, startup/health/shutdown admission or cross-process recovery; digests remain unkeyed content fingerprints; top-level journal reason/evidence_refs are still not cross-checked against the final transition; remote GitHub workflow result not awaited
+reviewer: integration agent with read-only DEP-05 audit; focused lifecycle/replay reviewer
+```

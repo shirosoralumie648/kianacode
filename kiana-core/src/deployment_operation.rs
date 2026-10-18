@@ -13,8 +13,8 @@
 //! supervisor/process、approval 或 capability effect。当前 workspace 未发现这两个 facade 的
 //! 生产调用者；DEP-05 虽有 focused fixture proof，但部署操作路径尚未因这些函数而接通。
 //! `validate_operation_journal()` 检查输入 journal 的内部合同；`replay_operation_journal()`
-//! 接收 journal 身份和独立 transition iterator，不过当前实现没有校验传入 journal 或比较重放
-//! 结果与该 journal。该差异会影响对“重放成功”的理解，不能把它当作 persisted snapshot 校验。
+//! 把输入 journal 当作 expected persisted snapshot：先校验它，再用独立 transition iterator
+//! 重建投影，并要求重建结果与快照逐字段一致。
 
 use kiana_domain::{OperationJournal, OperationTransition};
 
@@ -32,24 +32,27 @@ pub fn validate_operation_journal(journal: &OperationJournal) -> Result<(), Stri
     journal.validate()
 }
 
-/// 从给定 journal 的身份字段出发，按 transition iterator 重建一个新的内存投影。
+/// 从给定 journal 的身份字段出发，按 transition iterator 重建投影并校验其与快照一致。
 ///
 /// 【调用者】公开导出给上层恢复/查询代码；当前未发现仓库内生产调用点。Domain `replay()`
 /// 从 Created 开始并逐条调用 `append()`，因此会校验 transition 自身、operation/revision 身份、
 /// 序号/cursor 连续性和 lifecycle 状态迁移。
 ///
-/// 【输入/输出】`journal` 参数当前只提供 operation ID、revision ID 和 revision digest；第二个
-/// 参数是独立的 transition 序列。成功返回由该序列折叠出的新 journal，而不是原参数的修改版。
-/// 非法身份、状态迁移或序列时返回 Domain 稳定字符串；本函数不访问存储、不写回结果、不自动重试。
+/// 【输入/输出】`journal` 参数是 expected persisted snapshot；第二个参数是独立的 transition
+/// 序列。成功返回重建的 journal，且它必须与 `journal` 逐字段相等（state/phase/preflight、
+/// sequence、source cursor、reason/evidence、active deadline、完整 transition 列表与
+/// `journal_digest`），否则返回 `operation_journal_replay_mismatch`。传入快照自身不合法时先
+/// 返回 `journal.validate()` 的稳定错误。本函数不访问存储、不写回结果、不自动重试。
 ///
-/// ⚠ 此 facade 当前不会先调用 `journal.validate()`，也不会比较重放后的 state、sequence、cursor
-/// 或 digest 与传入 journal。若把 persisted journal 当作期望快照传入，截断的 transitions 仍可
-/// 返回一个更早的有效投影；因此 `Ok(replayed)` 只表示提供的前缀可折叠，不代表快照完整。
-/// 该不一致已由 DEP-05 roadmap gap 记录，本注释任务不改变其行为。
+/// 【失败与边界】截断、重复、乱序、不同 revision/cursor 或不同 terminal 的 transitions 都不能
+/// 静默产生一个更早的投影；失败不会返回部分成功 journal。无密钥摘要只能证明重建载荷与快照
+/// 自洽，不能证明快照曾由 EventStore 提交或来自可信 signer。
 pub fn replay_operation_journal(
     journal: &OperationJournal,
     transitions: impl IntoIterator<Item = OperationTransition>,
 ) -> Result<OperationJournal, String> {
+    // 先验证 expected persisted snapshot；坏快照不能被当作重放基准。
+    journal.validate()?;
     let mut replayed = OperationJournal::new(
         journal.operation_id,
         journal.revision_id.clone(),
@@ -57,6 +60,10 @@ pub fn replay_operation_journal(
     )?;
     for transition in transitions {
         replayed.append(transition)?;
+    }
+    // 重建结果必须与快照逐字段一致；截断或替换的序列不能返回更早的“成功”投影。
+    if replayed != *journal {
+        return Err("operation_journal_replay_mismatch".to_owned());
     }
     Ok(replayed)
 }
