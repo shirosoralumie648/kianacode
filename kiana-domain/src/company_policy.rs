@@ -638,6 +638,9 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         | CompanyCommand::ResumeProject { .. }
         | CompanyCommand::RequestChange { .. }
         | CompanyCommand::RecordDirectIntake { .. } => &["sponsor", "pm"],
+        // CO-10: the versioned Charter draft is recorded by the chartering role before the
+        // Sponsor approves the exact version.
+        CompanyCommand::DraftCharter { .. } => &["sponsor", "pm"],
         CompanyCommand::RequestCancelProject { .. }
         | CompanyCommand::ConfirmCancelProject { .. }
         | CompanyCommand::FailProject { .. }
@@ -810,6 +813,7 @@ impl CompanyMutationClass {
             | CompanyCommand::AdvanceInitiative { .. } => Self::Objective,
             CompanyCommand::ProposeProject { .. }
             | CompanyCommand::RecordDirectIntake { .. }
+            | CompanyCommand::DraftCharter { .. }
             | CompanyCommand::StartChartering { .. }
             | CompanyCommand::ApproveProject { .. }
             | CompanyCommand::RejectProject { .. }
