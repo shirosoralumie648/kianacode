@@ -7,7 +7,8 @@
 
 use crate::web_contract::WebClientTab;
 use kiana_protocol::{
-    UiHumanActionCardV1, UiHumanActionIntentV1, UiHumanInboxV1, UI_HUMAN_ACTION_INTENT_SCHEMA,
+    json_digest, UiHumanActionCardV1, UiHumanActionFieldV1, UiHumanActionIntentV1, UiHumanInboxV1,
+    UI_HUMAN_ACTION_INTENT_SCHEMA,
 };
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -15,12 +16,99 @@ use std::collections::BTreeMap;
 pub const WEB_HUMAN_INBOX_SCHEMA: &str = "kiana.web-human-inbox.v1";
 pub const WEB_HUMAN_MAX_CARDS: usize = 256;
 pub const WEB_HUMAN_MAX_FIELD_BYTES: usize = 64 * 1024;
+pub const WEB_HUMAN_MAX_FIELD_STRING_BYTES: usize = 4 * 1024;
+pub const WEB_HUMAN_MAX_FIELD_LIST_ITEMS: usize = 64;
+
+/// Declared display field types.  An unknown type fails closed instead of being passed through.
+pub const WEB_HUMAN_FIELD_TYPES: [&str; 4] = ["json", "string", "boolean", "string_list"];
+
+/// Deny-first display state of one card.  A revoked card stays revoked even after a later
+/// non-revoked projection would refresh it; expiry is derived from the server card only.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WebHumanActionState {
+    Actionable,
+    Expired,
+    Revoked,
+}
+
+impl WebHumanActionState {
+    pub const ALL: [Self; 3] = [Self::Actionable, Self::Expired, Self::Revoked];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Actionable => "actionable",
+            Self::Expired => "expired",
+            Self::Revoked => "revoked",
+        }
+    }
+
+    pub fn is_actionable(self) -> bool {
+        self == Self::Actionable
+    }
+}
 
 fn required(value: &str, field: &str, max: usize) -> Result<(), String> {
     if value.trim().is_empty() || value.len() > max || value.contains('\0') {
         Err(format!("{field}_invalid"))
     } else {
         Ok(())
+    }
+}
+
+fn validate_field_text(text: &str) -> Result<(), String> {
+    if text.len() > WEB_HUMAN_MAX_FIELD_STRING_BYTES {
+        return Err("web_human_field_value_too_long".to_owned());
+    }
+    if text.contains('\0') {
+        return Err("web_human_field_value_type_invalid".to_owned());
+    }
+    Ok(())
+}
+
+/// Validate one submitted field value against the server card descriptor.  `null` explicitly
+/// clears an optional field; everything else must match the declared type, size and allowed
+/// values, so an illegal value never produces an intent.
+fn validate_field_value(field: &UiHumanActionFieldV1, value: &Value) -> Result<(), String> {
+    if value.is_null() {
+        return Ok(());
+    }
+    match field.field_type.as_str() {
+        "json" => Ok(()),
+        "string" => {
+            let text = value
+                .as_str()
+                .ok_or_else(|| "web_human_field_value_type_invalid".to_owned())?;
+            validate_field_text(text)?;
+            if field.required && text.trim().is_empty() {
+                return Err("web_human_field_value_empty".to_owned());
+            }
+            if !field.allowed_values.is_empty()
+                && !field.allowed_values.iter().any(|allowed| allowed == text)
+            {
+                return Err("web_human_field_value_not_allowed".to_owned());
+            }
+            Ok(())
+        }
+        "boolean" => value
+            .as_bool()
+            .map(|_| ())
+            .ok_or_else(|| "web_human_field_value_type_invalid".to_owned()),
+        "string_list" => {
+            let items = value
+                .as_array()
+                .ok_or_else(|| "web_human_field_value_type_invalid".to_owned())?;
+            if items.len() > WEB_HUMAN_MAX_FIELD_LIST_ITEMS {
+                return Err("web_human_field_value_limit".to_owned());
+            }
+            for item in items {
+                let text = item
+                    .as_str()
+                    .ok_or_else(|| "web_human_field_value_type_invalid".to_owned())?;
+                validate_field_text(text)?;
+            }
+            Ok(())
+        }
+        _ => Err("web_human_field_type_unknown".to_owned()),
     }
 }
 
@@ -81,6 +169,62 @@ impl WebHumanInbox {
         self.cards.get(&card_key(item_id, action_id))
     }
 
+    /// Single deny-first state derivation for a card: revoked outranks expired, and neither can
+    /// ever become actionable by a later client-side refresh.
+    pub fn action_state(
+        &self,
+        item_id: &str,
+        action_id: &str,
+        now_unix_ms: u64,
+    ) -> Option<WebHumanActionState> {
+        let card = self.get(item_id, action_id)?;
+        if card.revoked {
+            return Some(WebHumanActionState::Revoked);
+        }
+        if card.is_expired(now_unix_ms) {
+            return Some(WebHumanActionState::Expired);
+        }
+        Some(WebHumanActionState::Actionable)
+    }
+
+    /// Cards a presenter may render as actionable at this instant.  Expired and revoked cards stay
+    /// visible in the projection but are never offered for submission.
+    pub fn actionable(&self, now_unix_ms: u64) -> Vec<&UiHumanActionCardV1> {
+        self.cards
+            .values()
+            .filter(|card| !card.revoked && !card.is_expired(now_unix_ms))
+            .collect()
+    }
+
+    /// Stable submission identity for a card decision.  Repeated clicks and a lost response must
+    /// reuse this key so the server replays the original command result instead of creating a
+    /// second effect.  The key is derived from the server card identity and the submitted fields;
+    /// it carries no actor, scope or approval material.
+    pub fn submission_key(
+        &self,
+        item_id: &str,
+        action_id: &str,
+        fields: &Value,
+    ) -> Result<String, String> {
+        required(item_id, "web_human_item_id", 256)?;
+        required(action_id, "web_human_action_id", 256)?;
+        let card = self
+            .get(item_id, action_id)
+            .ok_or_else(|| "web_human_action_not_found".to_owned())?;
+        Ok(format!(
+            "web-human:{}",
+            json_digest(&serde_json::json!({
+                "schema": WEB_HUMAN_INBOX_SCHEMA,
+                "item_id": item_id,
+                "action_id": action_id,
+                "inbox_revision": self.revision,
+                "expected_revision": card.expected_revision,
+                "payload_digest": card.payload_digest,
+                "fields": fields,
+            }))
+        ))
+    }
+
     /// Validate a form and produce an intent only.  The returned object deliberately omits actor,
     /// scope and approval material; the authoritative server resolves those from the card.
     pub fn prepare_intent(
@@ -108,6 +252,12 @@ impl WebHumanInbox {
             .get(item_id, action_id)
             .ok_or_else(|| "web_human_action_not_found".to_owned())?;
         card.validate()?;
+        // An unknown declared type fails closed before any value is interpreted.
+        for field in card.fields.iter() {
+            if !WEB_HUMAN_FIELD_TYPES.contains(&field.field_type.as_str()) {
+                return Err("web_human_field_type_unknown".to_owned());
+            }
+        }
         if card.revoked {
             return Err("web_human_action_revoked".to_owned());
         }
@@ -139,6 +289,11 @@ impl WebHumanInbox {
         for field in card.fields.iter().filter(|field| field.required) {
             if !fields_object.contains_key(&field.name) {
                 return Err("web_human_required_field_missing".to_owned());
+            }
+        }
+        for field in card.fields.iter() {
+            if let Some(value) = fields_object.get(&field.name) {
+                validate_field_value(field, value)?;
             }
         }
         Ok(UiHumanActionIntentV1 {

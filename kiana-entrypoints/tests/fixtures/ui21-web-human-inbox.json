@@ -2,6 +2,7 @@
   "schema": "kiana.ui-human-inbox.v1",
   "card_schema": "kiana.ui-human-action-card.v1",
   "intent_schema": "kiana.ui-human-action-intent.v1",
+  "audit_schema": "kiana.web-human-audit.v1",
   "server_fields": [
     "reason",
     "scope",
@@ -9,7 +10,22 @@
     "expected_revision",
     "fields",
     "allowed_decisions",
-    "payload_digest"
+    "payload_digest",
+    "action_cards",
+    "action_audit",
+    "web_result_class"
+  ],
+  "reserved_intent_fields": [
+    "actor",
+    "actor_id",
+    "scope",
+    "path_allow",
+    "effect_scope",
+    "approval_grant",
+    "role_id",
+    "department_id",
+    "session_id",
+    "project_root"
   ],
   "deny_first": [
     "duplicate_card",
@@ -25,7 +41,12 @@
     "idempotency_replay_new_effect",
     "response_unknown_auto_retry",
     "close_tab_cancels_run",
-    "incident_or_limitation_hidden"
+    "incident_or_limitation_hidden",
+    "forged_actor_scope_or_grant_field_refused",
+    "unknown_field_type_fails_closed",
+    "illegal_field_value_never_forms_intent",
+    "denied_approval_never_dispatches_effect",
+    "replay_returns_recorded_result"
   ],
   "success": [
     "approve",
@@ -35,8 +56,125 @@
     "continue",
     "required_fields_from_server_card",
     "original_command_result_on_replay",
-    "unknown_visible_with_query_original"
+    "unknown_visible_with_query_original",
+    "audit_event_and_disposition_visible",
+    "dangerous_action_collapsed_with_effect_scope"
   ],
+  "audit_matrix": [
+    {
+      "command": "approval",
+      "action_id": "approve",
+      "audit_event": "approval.approved",
+      "disposition": "effect_dispatch",
+      "dangerous": true
+    },
+    {
+      "command": "approval",
+      "action_id": "deny",
+      "audit_event": "approval.denied",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company",
+      "action_id": "record_review",
+      "audit_event": "company.ReviewRecorded",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company",
+      "action_id": "accept",
+      "audit_event": "company.AcceptanceDecided",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company",
+      "action_id": "reject",
+      "audit_event": "company.AcceptanceDecided",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company",
+      "action_id": "waive",
+      "audit_event": "company.AcceptanceDecided",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company.business",
+      "action_id": "dispatch_delivery",
+      "audit_event": "company.business.v2",
+      "disposition": "effect_dispatch",
+      "dangerous": true
+    },
+    {
+      "command": "company.business",
+      "action_id": "reconcile_delivery",
+      "audit_event": "company.business.v2",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company.business",
+      "action_id": "confirm_delivery",
+      "audit_event": "company.business.v2",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company.business",
+      "action_id": "decide_change",
+      "audit_event": "company.business.v2",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "company.business",
+      "action_id": "reconcile_cancel",
+      "audit_event": "company.business.v2",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "failure.reconcile",
+      "action_id": "reconcile",
+      "audit_event": "failure.reconciled",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "failure.recovery",
+      "action_id": null,
+      "audit_event": "failure.recovery.transition",
+      "disposition": "decision_only",
+      "dangerous": false
+    },
+    {
+      "command": "feedback.review",
+      "action_id": null,
+      "audit_event": "feedback.candidate_reviewed",
+      "disposition": "decision_only",
+      "dangerous": false
+    }
+  ],
+  "field_arms": [
+    {
+      "names": ["approve"],
+      "field_type": "boolean"
+    },
+    {
+      "names": ["evidence_refs", "reasons"],
+      "field_type": "string_list"
+    },
+    {
+      "names": ["review_id", "waiver_ref", "resolution", "package_sha256", "decision_ref"],
+      "field_type": "string"
+    }
+  ],
+  "default_field_type": "json",
   "authority": "Web typed intent -> DaemonHost -> ControlPlane -> Broker",
   "proof_level": "source"
 }

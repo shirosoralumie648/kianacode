@@ -135,7 +135,8 @@ pub use web_detail::{
     WEB_RECEIPT_DETAIL_SCHEMA,
 };
 pub use web_inbox::{
-    WebHumanInbox, WEB_HUMAN_INBOX_SCHEMA, WEB_HUMAN_MAX_CARDS, WEB_HUMAN_MAX_FIELD_BYTES,
+    WebHumanActionState, WebHumanInbox, WEB_HUMAN_INBOX_SCHEMA, WEB_HUMAN_MAX_CARDS,
+    WEB_HUMAN_MAX_FIELD_BYTES,
 };
 pub use web_timeline::{
     web_timeline_components, web_timeline_window_bounds, WebTimelineBundle, WebTimelineComponent,

@@ -1,0 +1,42 @@
+name: "UI-21 Web Human Inbox and approval action cards"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui21-web-human-inbox:
+    name: "UI-21 Web Human Inbox and approval action cards"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+      # The runtime fixtures drive a real DaemonHost/Web router and stage a real approval that is
+      # then denied; the project convention for daemon/entrypoint tests is a 32 MiB test-thread
+      # stack.
+      RUST_MIN_STACK: "33554432"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+      - name: Run the typed card/intent/deny-first client fixtures
+        run: cargo test -p kiana-client --test ui21_human_inbox --locked -- --test-threads=1
+      - name: Run the declarative inbox/audit fixture
+        run: cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked -- --test-threads=1
+      - name: Run the page/submission/deny-first guard
+        run: cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked -- --test-threads=1
+      - name: Run the Core human.resolve recheck guard
+        run: cargo test -p kiana-core --test ui21_human_inbox_guard --locked -- --test-threads=1
+      - name: Run the live loopback inbox/deny/replay fixtures
+        run: cargo test -p kiana-entrypoints --lib web::tests::ui21_ --locked -- --test-threads=1
+      - name: Compile the affected targets without running
+        run: cargo test -p kiana-entrypoints --no-run --locked
