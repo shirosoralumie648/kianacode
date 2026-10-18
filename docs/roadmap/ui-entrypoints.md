@@ -570,7 +570,7 @@ protocol-propagated 码↔`kiana-protocol`、append-only 负断言、
 
 
 
-#### UI-14 · Workbench controller 与命令面板　🔄
+#### UI-14 · Workbench controller 与命令面板　✅
 
 - 依赖：UI-07/08/10–13。代码：controller、keymap、session switcher、command palette。
 - 步骤：实现 open/attach/new/continue/status/run/cancel/resume/receipt；controller 只把用户意图翻译成 UiAction，提交状态与 run 状态分离。
@@ -578,13 +578,69 @@ protocol-propagated 码↔`kiana-protocol`、append-only 负断言、
 - 成功/回归：多 session、重复 submit、断线、响应丢失、stale card、SIGTERM 和重启后恢复测试。
 - 完成产物：controller state machine、keymap 文档、action audit trace。
 
-已接入纯 `WorkbenchController` source contract：open/attach/new/continue/status/run/cancel/resume/
-receipt intent 映射为带 target、epoch/cursor/revision、command ID 和 idempotency key 的
-`WorkbenchUiAction`，再由 typed client 边界补齐 `UiActionV1` payload digest。`Keymap` 拒绝重复
-快捷键，`CommandPalette` 按 enabled `UiCapability` 过滤，`SessionSwitcher` 在切换时清空旧
-draft 并递增 revision；stale draft、重复提交、Unknown 未对账、无 capability 和 window close
-不自动 cancel/resume 均 deny-first。fixture、source guard 和 GitHub-only workflow 已接入；见
-[UI-14 baseline](ui14-workbench-controller-baseline.md)。证明等级为 `source`，CI 结果未等待。
+完成切片（2026-10-17，CI-only）把「纯 `WorkbenchController` source contract、fixture、source
+guard 与已接入 workflow」补成卡片退出条件收口——`kiana-entrypoints/src/workbench_controller.rs`：
+
+1. 交付丢失不再只有「在途」一种状态：`set_connection` 返回
+   `ConnectionTransition { previous, current, in_flight }`，离开 `Attached` 时把在途提交改写成
+   `SubmissionStatus::Unknown` 并把原始 `SubmissionIdentity`（command id + idempotency key）
+   交回调用方，不重试、不发新命令 ID、不 cancel/resume、不改写 run 维度；重连不解锁，未对账
+   前新的变更一律 `duplicate_submission`（`connection_loss_marks_the_submission_unknown_with_its_original_identity`、
+   `response_loss_never_mints_a_second_command_and_survives_a_terminal_run`）；
+2. `Degraded` 本地拒绝（`workbench_controller_offline`）：控制器没有发送队列，「先准备、稍后发」
+   在结构上不存在；`observe_run_status` 到终态也不再清除未对账提交，因此一次响应丢失不会被
+   「run 已经结束」洗掉（`submission-state-and-run-state-stay-separate`）；
+3. `note_termination_signal`（`TerminationSignal::{Interrupt,Terminate}`，`sigint`/`sigterm`）
+   把「进程收信号」做成一等状态：只标记结果未知，绝不合成 cancel/resume，也不等于关窗；
+   `WindowClose` 仍可收尾（`sigterm-is-not-a-window-close-or-a-cancel`）；
+4. `recover(RecoveryObservation)` 是跨进程恢复的唯一入口：observation 只有服务端观测到的
+   workspace/principal/epoch/cursor/revision/connection/sessions/active_session_id/capabilities，
+   **没有** draft/submission/in-flight action 的位置；固定顺序拒绝
+   `workbench_recovery_offline`/`workbench_controller_scope_invalid`/
+   `workbench_controller_cursor_invalid`/`workbench_recovery_scope_changed`/
+   `workbench_recovery_epoch_mismatch`/`workbench_recovery_cursor_stale`/
+   `workbench_recovery_revision_stale`/`workbench_recovery_session_changed`，再走
+   `SessionSwitcher` 与 `UiCapability::validate`；成功时只带走未对账身份并**延续 idempotency
+   序号**（新动作不可能与已死进程用过的 key 重名），草稿清空且 revision 前进，旧进程的草稿版本
+   仍然 `stale_draft`（`restart-recovery-carries-only-server-coordinates`、
+   `restart-recovery-continues-the-idempotency-sequence`）；
+5. `Keymap` 除重复快捷键（`duplicate_shortcut`）外再拒绝一个命令绑两个键位
+   （`duplicate_command_binding`）；`in_flight` 只保留身份（`Option<SubmissionIdentity>`），
+   结构上不可重放；审计 trace 有界（128）且只从前端裁剪、只保留完整身份对
+   （`action-audit-trace-is-bounded-and-append-only`）。
+
+声明式 fixture
+[`kiana-entrypoints/tests/fixtures/ui14-controller-actions.json`](../../kiana-entrypoints/tests/fixtures/ui14-controller-actions.json)
+升级为 `kiana.ui14-workbench-controller.v1`（预算 256 sessions / 32 palette entries / 128 audit
+entries / 64 KiB text / 256 target / 512 title / 9 commands / 8 shortcuts；九行 intent 表含
+target/payload 键/mutating/clears-draft；12 个先拒绝 scenario 带期望 refusal 码；recovery 段声明
+可观测字段、不得带走与必须带走的三类；21 个夹具名；required/denied/denial_templates/
+propagated_denials/limitations）。`kiana-entrypoints/tests/ui14_workbench_controller.rs` 7 → 21
+条先拒绝优先夹具（新增 `session_switch_cannot_submit_the_previous_draft_and_targets_the_new_session`、
+`denied_intents_leave_no_action_no_sequence_and_no_audit_entry`、
+`multi_session_targets_stay_bound_to_the_selected_session`、
+`connection_loss_marks_the_submission_unknown_with_its_original_identity`、
+`response_loss_never_mints_a_second_command_and_survives_a_terminal_run`、
+`stale_card_results_are_rejected_and_never_resurrect_a_submission`、
+`termination_signals_are_not_window_close_cancel_or_resume`、
+`restart_recovery_refuses_stale_widened_or_foreign_coordinates`、
+`restart_recovery_carries_only_server_coordinates_and_the_unreconciled_identity`、
+`restart_recovery_without_a_pending_submission_starts_idle_and_allows_work`、
+`hostile_control_traffic_keeps_the_controller_bounded_and_audit_append_only`、
+`every_declared_intent_translates_to_its_stable_action`、
+`declared_scenarios_are_exercised_by_their_named_fixtures` 等），既有断言一条未放宽；
+`kiana-entrypoints/tests/ui14_workbench_controller_guard.rs` 新增第二条守卫
+`ui14_completion_slice_stays_wired_to_the_fixture_lane_and_shard`（预算↔源码常量、命令/键位↔
+源码、21 个夹具名↔真实测试、scenario↔夹具与 refusal 码、required↔baseline、denied↔源码、
+denial_templates↔源码+夹具、protocol-propagated 边界↔`kiana-protocol`、手动 lane 逐字命令与
+`kiana-entrypoints` 整 crate 分片，并负断言 `in_flight: Option<WorkbenchUiAction>` 不存在）；
+重建手动 `.github/workflows/ui14-workbench-controller.yml`（`workflow_dispatch`-only、
+`permissions: contents: read`、fetch/fmt 门 + 两个 target（`--test-threads=1`）+ `--no-run`），
+自动覆盖仍是统一 `ci.yml` 的 `kiana-entrypoints` 整 crate 分片（`scripts/ci/test-shards.json`
+未改）；无 Cargo.toml/Cargo.lock/package.json 变化、无新依赖/第二执行循环，五个模型可见工具面
+不变、未触碰冻结项；本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt --all`），CI 回执
+未等待，proof_level 维持 `source`；见
+[UI-14 baseline](ui14-workbench-controller-baseline.md)。
 
 <a id="step-ui-15"></a>
 
