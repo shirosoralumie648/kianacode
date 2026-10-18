@@ -247,7 +247,9 @@ pub use billing_invoice::{
 pub use billing_projection::{
     BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
 };
-pub use billing_recovery::validate_billing_recovery;
+pub use billing_recovery::{
+    validate_billing_recovery, BillingRecoveryAdmission, BillingRecoveryAdmissionError,
+};
 pub use billing_settlement_fold::{
     project_settlement_fold, project_settlement_folds, SettlementFoldProjection,
     SettlementFoldProjectionError,
