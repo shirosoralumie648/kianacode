@@ -287,14 +287,14 @@
 
 
 
-#### CO-15 · 用现有 Harness 驱动有界角色会议　🔄
+#### CO-15 · 用现有 Harness 驱动有界角色会议　✅
 
 - **归属**：`P1-E-02`、`P4-E-03`、`P1-J2-03`。
 - **依赖**：CO-14；现有角色 max_steps、wall-time 和取消路径已验收。
-- **代码与产物**：core `convene_symposium`、`symposium_runtime.rs`、daemon 角色模型路由、Runner ResultContract 校验；当前 source slice 与 CI-only 证据见 [`co15-symposium-runtime-baseline.md`](co15-symposium-runtime-baseline.md)。
+- **代码与产物**：core `convene_symposium`（确定性逐角色调度 + 每人独立 session，`start_run`/`continue_run` 复用既有 Harness）、`symposium_runtime.rs`（`SymposiumRunBudget` 轮次/消息/token/墙钟/stall 账本与 `SymposiumContributionProposal` 结构化提案）、CO-14 governed board 核验后才发布 blackboard；本地 local_behavior 证据（domain 5 条 + core real-Harness 5 条 + guard 2 条，`--offline --test-threads=1`）见 [`co15-symposium-runtime-baseline.md`](co15-symposium-runtime-baseline.md)。
 - **实现顺序**：①主持人按确定性调度点名，复用每位成员独立 session；②模型仅返回结构化贡献，core 核验后发布 blackboard；③达到轮次、消息、token、时间或 stall 上限就关闭/升级，形成可复查 DecisionProposal。
-- **先拒绝**：`symposium_budget_exhaustion_or_cancel_never_emits_an_approved_decision`；不得广播私有 scratch，成员失效不静默换人或扩权。
-- **再成功 / 退出**：`symposium_and_async_proposal_share_the_same_decision_gate`；开会和 anti-meeting 两条路都产同一合同、经同一决策入口且可重放，所有模型调用来自已有 Harness。
+- **先拒绝**：`symposium_budget_exhaustion_or_cancel_never_emits_an_approved_decision`（轮次/消息/token/墙钟/stall/取消各自的稳定拒绝码）、`convene_refuses_unstructured_member_contribution`、`convene_refuses_evidence_free_and_unknown_field_contributions`、`convene_refuses_private_scratch_broadcast_and_failed_member_substitution`；不得广播私有 scratch，成员失效不静默换人或扩权。
+- **再成功 / 退出**：`symposium_and_async_proposal_share_the_same_decision_gate` / `convened_and_anti_meeting_share_one_decision_gate`；开会和 anti-meeting 两条路都产同一 `DecisionRecord` 合同、经同一个 `budget.decision_allowed()` 决策入口，记录的 `symposium.closed` 事实可校验并重放，所有模型调用来自已有 Harness。
 
 <a id="co-16"></a>
 

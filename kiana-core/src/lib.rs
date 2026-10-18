@@ -570,18 +570,20 @@ pub use workflow_queue::{
 use capability_scheduler::CapabilityAdmissionScheduler;
 use cell_registry::MemoryCellRegistry;
 use kiana_domain::{
-    path_locks_conflict, ApprovalDecision, ApprovalId, AuthorizedCapabilityRequest, BudgetLease,
-    CapabilityGrant, CapabilityGrantId, CapabilityKind, CapabilityRequest, CapabilityResult,
-    CellId, CellLifecycle, CellSpec, ClosingReceipt, CommandIntent, CoreResponse, DecisionRecord,
-    ExecutionStatus, GateDecision, MemoryDistillationSource, MemoryDistillationSourceStatus,
-    MemoryDistillationSourceType, MemoryOrigin, MemoryProposal, MergeReceipt, PendingInvocation,
-    PermissionProfile, PolicyDecision, RequestContext, RequestId, ReviewPacket, RiskLevel,
-    RoleSpec, RunId, RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus, SupervisionLease,
-    SupervisionLeaseId, Symposium, SymposiumClaim, WorkFingerprint, WorkPacket,
-    CAPABILITY_GRANT_SCHEMA, CELL_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING,
-    MEMORY_SEARCH_SCHEMA, REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_CLOSER,
-    ROLE_REVIEWER, SPAWN_PLAN_SCHEMA, SUPERVISION_LEASE_SCHEMA, SYMPOSIUM_RESULT_SCHEMA,
-    WORK_PACKET_PATH,
+    parse_symposium_contributions, path_locks_conflict, ApprovalDecision, ApprovalId,
+    AuthorizedCapabilityRequest, BudgetLease, CapabilityGrant, CapabilityGrantId, CapabilityKind,
+    CapabilityRequest, CapabilityResult, CellId, CellLifecycle, CellSpec, ClosingReceipt,
+    CommandIntent, CoreResponse, DecisionRecord, ExecutionStatus, GateDecision,
+    MemoryDistillationSource, MemoryDistillationSourceStatus, MemoryDistillationSourceType,
+    MemoryOrigin, MemoryProposal, MergeReceipt, PendingInvocation, PermissionProfile,
+    PolicyDecision, RequestContext, RequestId, ReviewPacket, RiskLevel, RoleSpec, RunId,
+    RuntimeEvent, SpawnPlan, SpawnPlanId, SpawnPlanStatus, SupervisionLease, SupervisionLeaseId,
+    Symposium, SymposiumBoard, SymposiumClaim, SymposiumContribution, SymposiumGovernance,
+    SymposiumRunBudget, SymposiumVisibility, WorkFingerprint, WorkPacket, CAPABILITY_GRANT_SCHEMA,
+    CELL_SCHEMA, DEPARTMENT_EXECUTING, DEPARTMENT_PLANNING, MEMORY_SEARCH_SCHEMA,
+    REVIEW_PACKET_PATH, REVIEW_RESULT_SCHEMA, ROLE_BUILDER, ROLE_CLOSER, ROLE_REVIEWER,
+    SPAWN_PLAN_SCHEMA, SUPERVISION_LEASE_SCHEMA, SYMPOSIUM_CONTRIBUTION_PROPOSAL_SCHEMA,
+    SYMPOSIUM_RESULT_SCHEMA, SYMPOSIUM_TOKENS_PER_CONTRIBUTION, WORK_PACKET_PATH,
 };
 use kiana_gates::GateEngine;
 use kiana_policy::{capability_risk_violation, PolicyEngine};

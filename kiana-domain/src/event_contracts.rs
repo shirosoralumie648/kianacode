@@ -528,6 +528,10 @@ const RUN_COMPLETED_FIELDS: &[&str] = &[
     "model_id",
     "usage",
     "secret_ref",
+    // CO-15: a symposium speaker turn returns its contribution as parsed structured output,
+    // separate from transcript text. The field carries no authority; Core validates the shape
+    // and supplies assignment/identity itself before publishing.
+    "structured",
 ];
 const RUN_REJECTED_FIELDS: &[&str] = &[
     "run_id",

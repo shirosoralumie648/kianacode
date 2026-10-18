@@ -1266,10 +1266,46 @@ impl ControlPlane {
             return Ok(CoreResponse::blocked(request_id, reason));
         }
 
+        // Deterministic chair schedule.
+        let mut budget = match SymposiumRunBudget::for_schedule(max_rounds, meeting.attendees.len())
+        {
+            Ok(budget) => budget,
+            Err(reason) => {
+                self.record_event(
+                    request_id,
+                    &mut sequence,
+                    "run.rejected",
+                    json!({ "reason": reason }),
+                )
+                .await?;
+                return Ok(CoreResponse::blocked(request_id, reason));
+            }
+        };
+        let mut board = if anti_meeting {
+            None
+        } else {
+            match governing_board(&meeting) {
+                Ok(board) => Some(board),
+                Err(reason) => {
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.rejected",
+                        json!({ "reason": reason }),
+                    )
+                    .await?;
+                    return Ok(CoreResponse::blocked(request_id, reason));
+                }
+            }
+        };
+        let mut contributions = Vec::new();
+
         let mut speaker_sessions = Vec::new();
         if !anti_meeting {
             let attendees = meeting.attendees.clone();
-            for round in 0..max_rounds {
+            'schedule: for round in 0..max_rounds {
+                let mut round_progress = false;
+                let round_started = std::time::Instant::now();
                 for role_id in &attendees {
                     let Some(role) = RoleSpec::lookup(role_id) else {
                         self.record_event(
@@ -1294,22 +1330,157 @@ impl ControlPlane {
                         self.continue_run(speaker, prompt, None, None).await?
                     };
                     if turn.status != ExecutionStatus::Completed {
-                        let mut failed = turn;
-                        failed.request_id = request_id;
-                        return Ok(failed);
+                        budget.cancel();
+                        let failure = if turn.status == ExecutionStatus::Cancelled {
+                            "symposium_member_cancelled"
+                        } else {
+                            "symposium_member_failed"
+                        };
+                        let detail = turn
+                            .error
+                            .clone()
+                            .filter(|reason| !reason.trim().is_empty())
+                            .unwrap_or_else(|| failure.to_owned());
+                        self.record_event(
+                            request_id,
+                            &mut sequence,
+                            "run.rejected",
+                            json!({ "reason": failure, "session_id": session_id }),
+                        )
+                        .await?;
+                        return Ok(CoreResponse::blocked(
+                            request_id,
+                            format!("{failure}:{detail}"),
+                        ));
                     }
-                    if let Some(text) = turn
-                        .output
-                        .get("output")
-                        .and_then(|output| output.get("text"))
-                        .and_then(Value::as_str)
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                    {
-                        meeting
-                            .blackboard
-                            .claims
-                            .push(SymposiumClaim::new(role_id, text));
+                    let turn_output = turn.output.get("output");
+                    let tokens = turn_output
+                        .and_then(|output| output.get("usage"))
+                        .map(|usage| {
+                            usage
+                                .get("input_tokens")
+                                .and_then(Value::as_u64)
+                                .unwrap_or(0)
+                                + usage
+                                    .get("output_tokens")
+                                    .and_then(Value::as_u64)
+                                    .unwrap_or(0)
+                        })
+                        .filter(|tokens| *tokens > 0)
+                        .unwrap_or(SYMPOSIUM_TOKENS_PER_CONTRIBUTION);
+                    if let Err(reason) = budget.record_message(tokens).and_then(|()| {
+                        budget.record_elapsed(round_started.elapsed().as_millis() as u64)
+                    }) {
+                        self.record_event(
+                            request_id,
+                            &mut sequence,
+                            "run.rejected",
+                            json!({ "reason": reason, "session_id": session_id }),
+                        )
+                        .await?;
+                        return Ok(CoreResponse::blocked(request_id, reason));
+                    }
+                    let structured = turn_output.and_then(|output| output.get("structured"));
+                    let Some(structured) = structured else {
+                        let reason = "symposium_contribution_required";
+                        self.record_event(
+                            request_id,
+                            &mut sequence,
+                            "run.rejected",
+                            json!({ "reason": reason, "session_id": session_id }),
+                        )
+                        .await?;
+                        return Ok(CoreResponse::blocked(request_id, reason));
+                    };
+                    let proposals = match parse_symposium_contributions(structured) {
+                        Ok(proposals) => proposals,
+                        Err(reason) => {
+                            self.record_event(
+                                request_id,
+                                &mut sequence,
+                                "run.rejected",
+                                json!({ "reason": reason, "session_id": session_id }),
+                            )
+                            .await?;
+                            return Ok(CoreResponse::blocked(request_id, reason));
+                        }
+                    };
+                    let Some(board_state) = board.as_mut() else {
+                        return Ok(CoreResponse::blocked(
+                            request_id,
+                            "symposium_governance_missing",
+                        ));
+                    };
+                    for proposal in proposals {
+                        let assignment_ref = meeting.speaker_session_id(role_id);
+                        let contribution_id = format!("{}-r{round}-{role_id}", meeting.id);
+                        let kind = match proposal.contribution_kind() {
+                            Ok(kind) => kind,
+                            Err(reason) => {
+                                self.record_event(
+                                    request_id,
+                                    &mut sequence,
+                                    "run.rejected",
+                                    json!({ "reason": reason, "session_id": session_id }),
+                                )
+                                .await?;
+                                return Ok(CoreResponse::blocked(request_id, reason));
+                            }
+                        };
+                        let visibility = match proposal.visibility() {
+                            Ok(visibility) => visibility,
+                            Err(reason) => {
+                                self.record_event(
+                                    request_id,
+                                    &mut sequence,
+                                    "run.rejected",
+                                    json!({ "reason": reason, "session_id": session_id }),
+                                )
+                                .await?;
+                                return Ok(CoreResponse::blocked(request_id, reason));
+                            }
+                        };
+                        let contribution = match SymposiumContribution::new(
+                            contribution_id,
+                            meeting.id.clone(),
+                            assignment_ref,
+                            board_state.governance.baseline_version,
+                            kind,
+                            proposal.text.clone(),
+                            visibility,
+                            proposal.evidence_refs.clone(),
+                        ) {
+                            Ok(contribution) => contribution,
+                            Err(reason) => {
+                                self.record_event(
+                                    request_id,
+                                    &mut sequence,
+                                    "run.rejected",
+                                    json!({ "reason": reason, "session_id": session_id }),
+                                )
+                                .await?;
+                                return Ok(CoreResponse::blocked(request_id, reason));
+                            }
+                        };
+                        if let Err(reason) = board_state.record(contribution.clone()) {
+                            self.record_event(
+                                request_id,
+                                &mut sequence,
+                                "run.rejected",
+                                json!({ "reason": reason, "session_id": session_id }),
+                            )
+                            .await?;
+                            return Ok(CoreResponse::blocked(request_id, reason));
+                        }
+                        round_progress = true;
+                        // Private scratch never reaches the broadcast blackboard.
+                        if visibility == SymposiumVisibility::Blackboard {
+                            meeting
+                                .blackboard
+                                .claims
+                                .push(SymposiumClaim::new(role_id, proposal.text.clone()));
+                        }
+                        contributions.push(contribution);
                     }
                     if round == 0 {
                         speaker_sessions.push(json!({
@@ -1318,7 +1489,42 @@ impl ControlPlane {
                         }));
                     }
                 }
+                if let Err(reason) = budget.record_round(round_progress) {
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.rejected",
+                        json!({ "reason": reason }),
+                    )
+                    .await?;
+                    return Ok(CoreResponse::blocked(request_id, reason));
+                }
+                if let Err(reason) = budget.limit_reason() {
+                    // A reached limit closes the loop, but it never closes the meeting with an
+                    // approved decision: the request is refused with the concrete limit code.
+                    self.record_event(
+                        request_id,
+                        &mut sequence,
+                        "run.rejected",
+                        json!({ "reason": reason }),
+                    )
+                    .await?;
+                    return Ok(CoreResponse::blocked(request_id, reason));
+                }
             }
+        }
+
+        // One decision gate for both paths: anti-meeting has no speakers and therefore an
+        // untouched ledger, while a convened meeting must still hold an unexhausted ledger.
+        if let Err(reason) = budget.decision_allowed() {
+            self.record_event(
+                request_id,
+                &mut sequence,
+                "run.rejected",
+                json!({ "reason": reason }),
+            )
+            .await?;
+            return Ok(CoreResponse::blocked(request_id, reason));
         }
 
         let (decision, packet) = match meeting.close(anti_meeting) {
@@ -1391,9 +1597,41 @@ impl ControlPlane {
                 "packet_path": packet.as_ref().map(|_| WORK_PACKET_PATH),
                 "speaker_sessions": speaker_sessions,
                 "blackboard": meeting.blackboard,
+                "budget": budget,
+                "contributions": contributions,
+                "decision_gate": "symposium_run_budget",
             }),
         ))
     }
+}
+
+/// Build the CO-14 governed board for one department meeting.
+///
+/// The legacy `Symposium` chooses the department and chair; this contract names each attendee
+/// assignment explicitly so a contribution is accepted only from a named role and only inside the
+/// declared visibility/decision scope. It does not convene a joint meeting (`Symposium::validate`
+/// still refuses cross-department roles before this point).
+fn governing_board(meeting: &Symposium) -> Result<SymposiumBoard, &'static str> {
+    let mut assignments = std::collections::BTreeMap::new();
+    for role_id in &meeting.attendees {
+        assignments.insert(role_id.clone(), meeting.speaker_session_id(role_id));
+    }
+    let chair_role = RoleSpec::lookup(&meeting.chair).ok_or("symposium_chair_cannot_convene")?;
+    if !chair_role.can_convene {
+        return Err("symposium_chair_cannot_convene");
+    }
+    let governance = SymposiumGovernance::new(
+        meeting.id.clone(),
+        meeting.department_id.clone(),
+        1,
+        format!("symposium/{}/agenda", meeting.id),
+        meeting.speaker_session_id(&meeting.chair),
+        assignments,
+        meeting.max_rounds,
+        SYMPOSIUM_CONTRIBUTION_PROPOSAL_SCHEMA,
+        SymposiumVisibility::Blackboard,
+    )?;
+    SymposiumBoard::new(governance)
 }
 
 fn unix_ms() -> u64 {
