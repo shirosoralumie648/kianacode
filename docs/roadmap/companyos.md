@@ -207,7 +207,7 @@
 
 
 
-#### CO-10 · Charter 与项目 go/no-go　🔄
+#### CO-10 · Charter 与项目 go/no-go　✅
 
 - **归属**：`P3-I-01`、`P3-I-02`。
 - **依赖**：CO-09、CO-06。
@@ -215,6 +215,7 @@
 - **实现顺序**：①立项角色生成范围、非目标、干系人、成功标准、风险和预算的草案；②Sponsor 批准精确 Charter 版本与决议；③冻结项目 baseline，未经批准只允许受理/分析，不能进入实现派发。
 - **先拒绝**：`project_approval_rejects_missing_budget_changed_charter_and_inactive_objective`；填写一个非空 budget_ref 不等于已存在有效预算。
 - **再成功 / 退出**：`project_charter_approval_freezes_scope_criteria_and_budget`；后续状态事件不递增 baseline；拒绝项目保持可查询且不能写源码。
+- **2026-10-17 收口切片（CI-only）**：版本化 Charter 草案（`ProjectCharterDraft`/`CharterStakeholder`、`CompanyCommand::DraftCharter`、`kiana.project-charter-draft.v1`、有界文本/列表/干系人预算）、`StartChartering` 冻结草案身份、`ApproveProject` 绑定精确草案版本（`project_charter_draft_changed`/`project_charter_draft_missing`）、`ProjectCharterBaseline` 增 `charter_draft_digest`/`charter_draft_version`/`stakeholder_principals`（`#[serde(default)]` 兼容 legacy）、版本化 business `ApproveCharter` 记录其批准的草案、草案拒绝码矩阵与 3 条新夹具（含卡片命名先拒绝/成功夹具）、core guard 1→2 条、手动 lane 补 `cargo fetch --locked` 与两条 `--no-run`；proof 上限 source，CI 回执未等待。
 
 <a id="co-11"></a>
 
