@@ -17,8 +17,23 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
+      - name: Compile affected targets
+        run: |
+          cargo test -p kiana-domain --test restore_verification --locked --no-run
+          cargo test -p kiana-core --test restore_verification_guard --locked --no-run
+          cargo test -p kiana-core --test dep23_restore_activation --locked --no-run
+          cargo test -p kiana-daemon --test pd23_restore_verifier --locked --no-run
+          cargo test -p kiana-daemon --test pd23_restore_verifier_guard --locked --no-run
+      - name: Run kiana-domain restore_verification
+        run: cargo test -p kiana-domain --test restore_verification --locked -- --test-threads=1
+      - name: Run kiana-core restore_verification_guard
+        run: cargo test -p kiana-core --test restore_verification_guard --locked -- --test-threads=1
+      - name: Run kiana-core dep23_restore_activation
+        run: cargo test -p kiana-core --test dep23_restore_activation --locked -- --test-threads=1
       - name: Run kiana-daemon pd23_restore_verifier
         run: cargo test -p kiana-daemon --test pd23_restore_verifier --locked -- --test-threads=1
       - name: Run kiana-daemon pd23_restore_verifier_guard

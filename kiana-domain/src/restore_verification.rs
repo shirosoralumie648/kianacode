@@ -15,17 +15,19 @@
 //! 后续恢复激活/就绪门（本文件本身不执行）
 //! ```
 //!
-//! 当前 workspace 没有生产代码构造或消费该 fact；可见引用来自 Domain fixture 和 Daemon
-//! 的公开校验函数。这里描述的是值合同，不代表 projection 已重建、ACL 已读取、外部 effect
-//! 已从权威系统核实，或实例已经激活。
+//! 当前 workspace 的生产消费入口是 `kiana-daemon::DaemonHost::restore_gate` /
+//! `restore_gate_after_restart` / `admit_restored_command`：它们组合本文件的值合同、Daemon
+//! 的 manifest/artifact 绑定、Core 的 effect claim 交叉核对与 DEP-23 激活就绪门。这里仍是
+//! 值合同，不代表 projection 已重建、ACL 已读取、外部 effect 已从权威系统核实，或实例
+//! 已经激活；读取备份根、写文件、取锁、围栏进程和激活 root 都不在本模块。
 //!
 //! ⚠ 所有“已围栏”“已对账”“默认暂停”等字段都是调用方提供的观察值。摘要（digest）只能检测载荷
 //! 与自身摘要是否一致，不认证是谁提供了这些值，也不代替真实租约、存储或 effect adapter。
 //! 未知外部效果不能因为有摘要就被当成成功。
 
-use crate::json_digest;
+use crate::{json_digest, EffectObservationState, SnapshotFileSeal, SnapshotManifest};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const RESTORE_VERIFICATION_SCHEMA: &str = "kiana.restore-verification.v1";
 
@@ -42,6 +44,144 @@ pub enum RestoreVerificationState {
     NeedsReconciliation,
     /// 所有验证条件都已由调用方报告满足；仍然只是 fact 状态，不等于激活或物理证明。
     Verified,
+}
+
+pub const RESTORE_EFFECT_CLAIM_SCHEMA: &str = "kiana.restore-effect-claim.v1";
+/// 单条恢复 fact 可携带的对账证据上限。
+pub const MAX_RESTORE_EFFECT_CLAIMS: usize = 64;
+/// 恢复事实中 artifact 引用的固定前缀。
+pub const RESTORE_ARTIFACT_REF_PREFIX: &str = "artifact:";
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// 恢复 fact 采纳的外部 effect 处置，只允许既有 reconciliation receipt 已经决定过的四种。
+///
+/// 该枚举刻意不复用 Core 的 receipt 类型：Domain 不能依赖 Core，但字段语义与
+/// `kiana-core::EffectResolution` 一一对应；Core 的 `restore_effect_claim_from_receipt`
+/// 是唯一合法的派生入口。
+pub enum RestoreEffectResolution {
+    /// 外部系统确认了结果。
+    Reconciled,
+    /// 已证明没有发生，因此可以重发。
+    RetryWithoutEffect,
+    /// 永远不会发生。
+    Abandoned,
+    /// 可能发生过，已执行补偿。
+    Compensated,
+}
+
+impl RestoreEffectResolution {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Reconciled => "reconciled",
+            Self::RetryWithoutEffect => "retry_without_effect",
+            Self::Abandoned => "abandoned",
+            Self::Compensated => "compensated",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+/// 一条来自外部 effect reconciliation receipt 的恢复证据。
+///
+/// 这里只保存摘要与身份，不保存 provider payload。`observed_state` 必须与真实
+/// `EffectObservation` 的状态一致；`claim_digest` 只能证明字段自洽，不能证明 receipt
+/// 存在——后者由 Core 的 `verify_restore_effect_claims` 对传入 receipt 重新派生后比对。
+pub struct RestoreExternalEffectClaim {
+    /// 固定 wire schema 名称。
+    pub schema: String,
+    /// 该处置所依据的 `EffectObservation.observation_digest`。
+    pub observation_digest: String,
+    /// 观察到的真实状态；`Unknown` 永远不能出现在对账证据里。
+    pub observed_state: EffectObservationState,
+    /// receipt 已决定的处置。
+    pub resolution: RestoreEffectResolution,
+    /// 派生该 claim 的 `EffectReconciliationReceipt.receipt_digest`。
+    pub receipt_digest: String,
+    /// 授权该次对账的审批引用。
+    pub approval_ref: String,
+    /// 对账发生时的 authority epoch。
+    pub authority_epoch: u64,
+    /// 对本结构其他字段的 `sha256:` JSON 摘要。
+    pub claim_digest: String,
+}
+
+impl RestoreExternalEffectClaim {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        observation_digest: impl Into<String>,
+        observed_state: EffectObservationState,
+        resolution: RestoreEffectResolution,
+        receipt_digest: impl Into<String>,
+        approval_ref: impl Into<String>,
+        authority_epoch: u64,
+    ) -> Result<Self, String> {
+        let mut claim = Self {
+            schema: RESTORE_EFFECT_CLAIM_SCHEMA.to_owned(),
+            observation_digest: observation_digest.into(),
+            observed_state,
+            resolution,
+            receipt_digest: receipt_digest.into(),
+            approval_ref: approval_ref.into(),
+            authority_epoch,
+            claim_digest: String::new(),
+        };
+        claim.claim_digest = claim.digest();
+        claim.validate().map_err(str::to_owned)?;
+        Ok(claim)
+    }
+
+    /// 重新计算自身摘要；仅供已经有意修改字段的夹具使用。
+    pub fn recompute_digest(&mut self) {
+        self.claim_digest = self.digest();
+    }
+
+    pub fn digest(&self) -> String {
+        json_digest(&serde_json::json!({
+            "schema": self.schema,
+            "observation_digest": self.observation_digest,
+            "observed_state": self.observed_state,
+            "resolution": self.resolution,
+            "receipt_digest": self.receipt_digest,
+            "approval_ref": self.approval_ref,
+            "authority_epoch": self.authority_epoch,
+        }))
+    }
+
+    /// 检查字段格式以及处置与观察状态是否相容。
+    ///
+    /// 【核心拒绝】`Unknown` 不是任何一种对账结论：无论调用方给出哪种 resolution，
+    /// 都返回 `restore_effect_claim_unknown`。这是「Unknown 不能被声明为已对账」的第一道门。
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.schema != RESTORE_EFFECT_CLAIM_SCHEMA
+            || !valid_digest(&self.observation_digest)
+            || !valid_digest(&self.receipt_digest)
+            || !valid_text(&self.approval_ref)
+            || self.authority_epoch == 0
+            || !valid_digest(&self.claim_digest)
+            || self.claim_digest != self.digest()
+        {
+            return Err("restore_effect_claim_invalid");
+        }
+        if self.observed_state == EffectObservationState::Unknown {
+            return Err("restore_effect_claim_unknown");
+        }
+        match self.resolution {
+            RestoreEffectResolution::Reconciled => {}
+            RestoreEffectResolution::RetryWithoutEffect | RestoreEffectResolution::Abandoned => {
+                if self.observed_state != EffectObservationState::NoEffect {
+                    return Err("restore_effect_claim_resolution_state_mismatch");
+                }
+            }
+            RestoreEffectResolution::Compensated => {
+                if self.observed_state == EffectObservationState::NoEffect {
+                    return Err("restore_effect_claim_resolution_state_mismatch");
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -79,7 +219,9 @@ pub struct RestoreVerificationFact {
     pub authority_epoch: u64,
     /// 被替换实例的授权 epoch；只做本 fact 的单调性检查，不由 Daemon manifest verifier 绑定。
     pub previous_authority_epoch: Option<u64>,
-    /// 调用方报告已核对的 artifact 引用；必须非空、唯一，最多 256 项。
+    /// 调用方报告的 artifact 引用；必须非空、唯一、最多 256 项，且每条必须是
+    /// `artifact:<relative_path>#<sha256>`。Daemon `verify_restore()` 会把它逐条绑定到
+    /// `SnapshotManifest.files` 的 `content_hash`：缺失、未知或哈希不符都被拒绝。
     pub artifact_refs: Vec<String>,
     /// 恢复时仍待处理的审批数量；Verified 状态要求为 0。
     pub pending_approval_count: u32,
@@ -93,8 +235,9 @@ pub struct RestoreVerificationFact {
     pub old_instance_fenced: bool,
     /// 调用方声明旧授权写入权已围栏；有 previous_instance_id 时 validator 要求为 true。
     pub old_authority_fenced: bool,
-    /// 调用方声明相关外部 effect 已完成核对；若为 true，unknown_effect_count 必须为 0。
-    pub external_effects_reconciled: bool,
+    /// 调用方提交的外部副作用对账证据；每条都必须由既有 effect reconciliation receipt 派生。
+    /// `Unknown` 观察值不能出现在这里，且 `unknown_effect_count` 必须为 0 才可能 Verified。
+    pub external_effect_claims: Vec<RestoreExternalEffectClaim>,
     /// 调用方声明新实例默认保持暂停；所有可接受状态都要求为 true。
     pub default_paused: bool,
     /// 待对账/已对账过程的证据引用；最多 64 项且不能重复。
@@ -169,9 +312,17 @@ impl RestoreVerificationFact {
         {
             return Err("restore_old_instance_not_fenced");
         }
-        // 不能一边声称所有 effect 已对账，一边还保留结果未知的 effect。
-        if self.external_effects_reconciled && self.unknown_effect_count != 0 {
-            return Err("restore_unknown_effect_reconciled_mismatch");
+        // 对账证据本身必须合法、有界，且每条对应不同的 observation。Unknown 在
+        // `claim.validate()` 里已被拒绝：摘要正确不能把未知 effect 变成已对账。
+        if self.external_effect_claims.len() > MAX_RESTORE_EFFECT_CLAIMS {
+            return Err("restore_effect_claims_unbounded");
+        }
+        let mut claimed_observations = BTreeSet::new();
+        for claim in &self.external_effect_claims {
+            claim.validate()?;
+            if !claimed_observations.insert(claim.observation_digest.as_str()) {
+                return Err("restore_effect_claim_duplicate");
+            }
         }
         // 同一份字段结构能表达三类状态；下面分别拒绝自相矛盾的状态组合。
         match self.state {
@@ -188,11 +339,15 @@ impl RestoreVerificationFact {
                 {
                     return Err("restore_reconciliation_not_needed");
                 }
-                if self.reconciliation_refs.is_empty() || self.external_effects_reconciled {
+                if self.reconciliation_refs.is_empty() || !self.external_effect_claims.is_empty() {
                     return Err("restore_reconciliation_evidence_invalid");
                 }
             }
             RestoreVerificationState::Verified => {
+                // 注意：这里只检查 fact 的自洽条件。projector/ACL 读模型本身不由本模块读取或
+                // 重建；`projection_cursor == source_cursor` 与 `projection_digest` 是调用方
+                // 观察值。真正的读模型比对属于 PD-29 的 storage health 与后续 projector 适配器，
+                // 本切片的 limitation 在 docs/roadmap/pd23-restore-baseline.md 中显式记录。
                 if self.previous_instance_id.is_none()
                     || self.previous_data_epoch.is_none()
                     || self.previous_authority_epoch.is_none()
@@ -203,13 +358,31 @@ impl RestoreVerificationFact {
                     || self.unknown_effect_count != 0
                     || !self.old_instance_fenced
                     || !self.old_authority_fenced
-                    || !self.external_effects_reconciled
                     || !self.reconciliation_refs.is_empty()
                     || self.reason != "ok"
                 {
                     return Err("restore_verification_not_ready");
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// 重新计算并写入自身摘要。
+    ///
+    /// 仅供已经有意修改字段的派生器/夹具使用。摘要不带密钥，`recompute_digest()` 只让
+    /// 载荷重新自洽，不证明字段来自可信恢复进程。
+    pub fn recompute_digest(&mut self) {
+        self.verification_digest = self.digest();
+    }
+
+    /// 激活前的就绪门：只有 `Verified` 的 fact 才能进入恢复激活。
+    ///
+    /// 【调用者】Daemon 的恢复校验/激活入口。`validate()` 仍允许表达 Blocked 与
+    /// NeedsReconciliation（它们需要被记录、被人工对账），但结构合法不等于可以启动实例。
+    pub fn require_verified(&self) -> Result<(), &'static str> {
+        if self.state != RestoreVerificationState::Verified {
+            return Err("restore_verification_not_verified");
         }
         Ok(())
     }
@@ -240,7 +413,7 @@ impl RestoreVerificationFact {
             "unknown_effect_count": self.unknown_effect_count,
             "old_instance_fenced": self.old_instance_fenced,
             "old_authority_fenced": self.old_authority_fenced,
-            "external_effects_reconciled": self.external_effects_reconciled,
+            "external_effect_claims": self.external_effect_claims,
             "default_paused": self.default_paused,
             "reconciliation_refs": self.reconciliation_refs,
             "state": self.state,
@@ -255,6 +428,64 @@ impl RestoreVerificationFact {
 /// Domain 规则。它不会额外查存储或绑定 snapshot manifest。
 pub fn validate_restore_verification(fact: &RestoreVerificationFact) -> Result<(), &'static str> {
     fact.validate()
+}
+
+/// 激活前就绪门的自由函数形式；与 [`RestoreVerificationFact::require_verified`] 相同。
+pub fn require_verified_restore_verification(
+    fact: &RestoreVerificationFact,
+) -> Result<(), &'static str> {
+    fact.require_verified()
+}
+
+/// 清单文件在恢复事实中的规范 artifact 引用：`artifact:<relative_path>#<content_hash>`。
+pub fn restore_artifact_ref(file: &SnapshotFileSeal) -> String {
+    format!(
+        "{RESTORE_ARTIFACT_REF_PREFIX}{}#{}",
+        file.relative_path, file.content_hash
+    )
+}
+
+/// 将 fact 的 artifact 引用绑定到已封存清单的真实文件哈希。
+///
+/// 【调用者】Daemon `verify_restore()`。`RestoreVerificationFact::validate()` 只能检查
+/// 「非空、唯一、长度」，它不知道清单里有哪些文件；这里补上真正的比对：
+/// - 引用形状必须是 `artifact:<relative_path>#sha256:<64 hex>`；
+/// - 每个引用都必须指向清单中的文件，且哈希与 `SnapshotFileSeal.content_hash` 相同；
+/// - 清单中的每个文件都必须至少被一个引用覆盖。
+///
+/// 【边界】只比较调用方提供的元数据，不读取文件字节；文件内容是否真的匹配哈希仍由
+/// 备份/恢复 adapter 负责。
+pub fn bind_restore_artifact_refs(
+    manifest: &SnapshotManifest,
+    artifact_refs: &[String],
+) -> Result<(), &'static str> {
+    let mut expected: BTreeMap<&str, &str> = BTreeMap::new();
+    for file in &manifest.files {
+        expected.insert(file.relative_path.as_str(), file.content_hash.as_str());
+    }
+    let mut covered: BTreeSet<&str> = BTreeSet::new();
+    for reference in artifact_refs {
+        let Some(rest) = reference.strip_prefix(RESTORE_ARTIFACT_REF_PREFIX) else {
+            return Err("restore_artifact_ref_invalid");
+        };
+        let Some((path, hash)) = rest.rsplit_once('#') else {
+            return Err("restore_artifact_ref_invalid");
+        };
+        if path.is_empty() || !valid_digest(hash) {
+            return Err("restore_artifact_ref_invalid");
+        }
+        let Some(expected_hash) = expected.get(path) else {
+            return Err("restore_artifact_ref_unknown");
+        };
+        if *expected_hash != hash {
+            return Err("restore_artifact_ref_hash_mismatch");
+        }
+        covered.insert(path);
+    }
+    if expected.keys().any(|path| !covered.contains(*path)) {
+        return Err("restore_artifact_ref_missing");
+    }
+    Ok(())
 }
 
 /// 检查需进入摘要的普通文本字段是否非空、长度不超过 512 字节且不含 NUL/换行符。
