@@ -98,19 +98,20 @@ by querying the original command with that same key — the result panel never r
 ## Evidence block
 
 ```text
-source_snapshot: e4611ee3 (fix: restore workspace compile on origin/master) plus UI-21 completion slice
-worktree_status: D:\code\kiana-steps\ui21 on step/ui-21-20261018-1; protocol/client/Core/Web contracts, browser card renderer, fixture, guards, workflow and baseline
+source_snapshot: efc27ddc (Windows-runnable local product path) plus UI-21 completion slice
+worktree_status: D:/code/kiana-steps/ui21 on step/ui-21-20261018-1; protocol/client/Core/Web contracts, browser card renderer, fixture, guards, workflow and baseline
 command_argv:
-  cargo test -p kiana-client --test ui21_human_inbox --locked --offline -- --test-threads=1            -> exit 0 (8 passed)
-  cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked --offline -- --test-threads=1   -> exit 0 (6 passed)
+  cargo test -p kiana-client --test ui21_human_inbox --locked --offline -- --test-threads=1                -> exit 0 (8 passed)
+  cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked --offline -- --test-threads=1       -> exit 0 (6 passed)
   cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked --offline -- --test-threads=1 -> exit 0 (8 passed)
-  cargo test -p kiana-entrypoints --lib web::tests::ui21_ --locked --offline -- --test-threads=1       -> exit 101 (2 passed, 2 failed; baseline defect)
-  rustfmt --edition 2021 on touched Rust files; git diff --check                                      -> exit 0
-cwd·environment: D:\code\kiana-steps\ui21; Windows 11, rustc stable; CARGO_TARGET_DIR=D:/code/kiana-steps/target-ui21; CARGO_BUILD_JOBS=4; RUST_MIN_STACK=33554432 for lib tests
-fixture·cassette: kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json; duplicate/expiry/revocation/CAS/owner/hidden-field/required-value/payload/idempotency/duplicate-click/response-loss/unsupported-decision cases; no provider, filesystem or external effect contacted
-exit_code: 0 for the three focused targets; 101 for the live staging filter (see limitations)
-status_change: UI-21 card remains 🔄; completion slice adds the explicit unsupported-decision refusal table, required/illegal-value refusal, duplicate-click/response-loss proofs and baseline/workflow updates
-proof-level change: proof_level local_behavior for the focused client/entrypoints fixture and guard targets; no live loopback proof
-limitations: the two live `web::tests::ui21_*` staging fixtures (and the unrelated live `loopback_health_and_cassette_write_go_through_daemon_host`) fail before the approval stage with `port_failed:event_contract_event_payload_unknown_field`: `kiana-core/src/capabilities.rs` writes `input_digest` into `run.tool_call` but `kiana-domain/src/event_contracts.rs` `RUN_TOOL_CALL_FIELDS` was not extended, a base-commit (`e4611ee3`, from CAP-25) defect outside this card's scope. Also absent: browser E2E, screenshot/golden, real HTTP/session lease race, durable cross-process inbox, provider/Broker effect, approval identity authentication, incident reconciliation and live/physical proof; the UI remains a projection and final authorization is server-owned.
-reviewer: UI-21 completion source review; checked server-owned card fields, no actor/scope expansion, expiry/revocation/revision/owner/idempotency fences, unsupported-decision refusal, required/illegal value refusal, Unknown/incident/limitation visibility and no second execution loop
+  cargo test -p kiana-core --test ui21_human_inbox_guard --locked --offline -- --test-threads=1           -> exit 0 (2 passed)
+  cargo test -p kiana-entrypoints --lib web::tests::ui21_ --locked --offline -- --test-threads=1          -> exit 0 (4 passed)
+  rustfmt --edition 2021 on touched Rust files; git diff --check                                          -> exit 0
+cwd-environment: D:/code/kiana-steps/ui21; Windows 11, rustc stable; CARGO_TARGET_DIR=D:/code/kiana-steps/target-ui21; CARGO_BUILD_JOBS=4; RUST_MIN_STACK=33554432 for lib tests
+fixture-cassette: kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json; duplicate/expiry/revocation/CAS/owner/hidden-field/required-value/payload/idempotency/duplicate-click/response-loss/unsupported-decision cases; no provider or external effect contacted. The live fixtures drive a real loopback Web router, stage a real approval through the daemon host, submit a typed deny intent, and assert the effect file is never created.
+exit_code: 0 for every command above
+status_change: UI-21 row 437 moves to done on local_behavior evidence; the completion slice adds the explicit unsupported-decision refusal table, required/illegal-value refusal, duplicate-click/response-loss proofs, and the live loopback deny/replay path
+proof-level_change: proof_level local_behavior for the focused client/entrypoints/core fixture and guard targets plus the live loopback Web fixture
+limitations: no browser E2E, screenshot/golden, real HTTP race or session-lease contention, durable cross-process inbox, provider/Broker effect, approval identity authentication, incident reconciliation or live/physical proof. The UI remains a projection and final authorization stays server-owned. The manual GitHub lane was not triggered and its receipt is not awaited.
+reviewer: UI-21 completion source review; checked server-owned card fields, no actor/scope expansion, expiry/revocation/revision/owner/idempotency fences, unsupported-decision refusal, required/illegal value refusal, Unknown/incident/limitation visibility, replay marker separation and no second execution loop
 ```

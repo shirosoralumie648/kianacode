@@ -8848,7 +8848,8 @@ mod tests {
         let response = ui21_auth(
             server,
             token,
-            client.get(format!("{base}/api/query")).query(&[
+            // The query surface is served by `/api/command`; `/api/query` never existed.
+            client.get(format!("{base}/api/command")).query(&[
                 ("name", "human.inbox"),
                 ("session_id", server.session.as_str()),
             ]),
@@ -8999,7 +9000,15 @@ mod tests {
         let (replay_status, replay) =
             ui21_command(&client, &base, &token, &server, &action_id, &intent).await;
         assert_eq!(replay_status, StatusCode::OK);
-        assert_eq!(replay, denied, "replay must return the recorded result");
+        // The replayed answer must be the recorded result. It additionally carries the
+        // `web_action_replay` marker that tells the browser this was a replay (and that it must
+        // query the original command rather than retry), so the comparison is made on the recorded
+        // command response and the replay marker is checked separately.
+        assert_eq!(
+            replay["response"], denied["response"],
+            "replay must return the recorded command result"
+        );
+        assert_eq!(replay["web_action_replay"]["replayed"], json!(true));
 
         // The decision is now a committed fact: the inbox no longer offers the approval.
         let after = ui21_inbox(&client, &base, &token, &server).await;
@@ -9121,7 +9130,14 @@ mod tests {
         let (replay_status, replay) =
             ui21_command(&client, &base, &token, &server, action_id, &intent).await;
         assert_eq!(replay_status, StatusCode::OK);
-        assert_eq!(replay, denied, "the legitimate decision is replayed once");
+        // Replaying the same browser action identity returns the recorded command result; the
+        // `web_action_replay` marker is added by the replay path and tells the browser to query the
+        // original command instead of retrying.
+        assert_eq!(
+            replay["response"], denied["response"],
+            "the legitimate decision is replayed once"
+        );
+        assert_eq!(replay["web_action_replay"]["replayed"], json!(true));
 
         let _ = fs::remove_dir_all(&server.root);
         let _ = fs::remove_dir_all(&server.home);

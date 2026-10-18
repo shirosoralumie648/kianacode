@@ -28398,6 +28398,21 @@ limitations: missing-root creation, symlink/race handling, shared CLI/Web/Workbe
 reviewer: root integration agent with PD-01 read-only audit; focused local storage reviewer
 ```
 
+### UI-21 Web Human Inbox completion (2026-10-18)
+
+```text
+source_snapshot: efc27ddc plus UI-21 completion slice; kiana-entrypoints/src/web_inbox.rs; kiana-entrypoints/src/web.rs; kiana-domain/src/event_contracts.rs; kiana-core/src/approvals.rs
+worktree_status: D:/code/kiana-steps/ui21 on step/ui-21-20261018-1; UI-21 row 437 moves to done on local_behavior evidence
+command_argv: cargo test -p kiana-client --test ui21_human_inbox --locked --offline -- --test-threads=1 (8 passed); cargo test -p kiana-entrypoints --test ui21_web_human_inbox (6 passed); --test ui21_web_human_inbox_guard (8 passed); cargo test -p kiana-core --test ui21_human_inbox_guard (2 passed); cargo test -p kiana-entrypoints --lib web::tests::ui21_ (4 passed); rustfmt --edition 2021 on touched files; git diff --check
+cwd-environment: Windows 11, rustc stable; CARGO_TARGET_DIR=D:/code/kiana-steps/target-ui21; CARGO_BUILD_JOBS=4; RUST_MIN_STACK=33554432
+fixture-cassette: kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json plus the live loopback fixtures that stage a real approval, submit a typed deny intent, and assert the effect file is never created
+exit_code: 0 for every command above
+status_change: UI-21 row 437 WIP -> done (local_behavior)
+proof_level_change: source -> local_behavior for the focused fixture/guard targets and the live loopback Web deny/replay path
+limitations: no browser E2E, screenshot/golden, real HTTP race or session-lease contention, durable cross-process inbox, provider/Broker effect, approval identity authentication, incident reconciliation, live or physical proof; the manual GitHub lane was not triggered and CI is not awaited
+reviewer: UI-21 completion source review; server-owned card fields, no actor/scope expansion, expiry/revocation/revision/owner/idempotency fences, unsupported-decision refusal, required/illegal-value refusal, Unknown/incident/limitation visibility, replay marker separation, no second execution loop
+```
+
 ### SC-07 nil assignment identity deny receipt（2026-10-08）
 
 ```text
