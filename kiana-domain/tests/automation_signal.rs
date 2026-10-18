@@ -205,6 +205,11 @@ fn request_and_fact_shapes_fail_closed() {
         inconsistent.validate(),
         Err("automation_signal_fact_invalid")
     );
+
+    // 事实载荷同样拒绝未知字段：旧版/外来字段不会被解释成同一条事实。
+    let mut fact_value = serde_json::to_value(&inconsistent).unwrap();
+    fact_value["unexpected"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<AutomationSignalFact>(fact_value).is_err());
 }
 
 #[test]
@@ -704,10 +709,11 @@ fn resumed_signal_is_consumed_exactly_once() {
     );
 
     // consume 必须引用恢复时的同一审批摘要，且只能发生一次。
+    // 序号必须紧接已记录事实（pause 1、resume 2），被拒绝的 replay 不推进 next_sequence。
     let consume = request(
         AutomationSignalKind::Consume,
         "signal-4",
-        4,
+        3,
         EPOCH,
         CHECKPOINT_SEQUENCE,
         Some(approval.approval_digest.as_str()),
@@ -722,7 +728,7 @@ fn resumed_signal_is_consumed_exactly_once() {
     let second = request(
         AutomationSignalKind::Consume,
         "signal-5",
-        5,
+        4,
         EPOCH,
         CHECKPOINT_SEQUENCE,
         Some(approval.approval_digest.as_str()),
@@ -734,7 +740,7 @@ fn resumed_signal_is_consumed_exactly_once() {
     // 消费后再次 pause / resume 也必须拒绝，终态不可复活。
     let mut after_pause = pause_request();
     after_pause.signal_id = "signal-6".to_owned();
-    after_pause.signal_sequence = 6;
+    after_pause.signal_sequence = 4;
     let after_pause = resign_request(after_pause);
     assert_eq!(
         apply_signal(
@@ -746,7 +752,14 @@ fn resumed_signal_is_consumed_exactly_once() {
         .unwrap_err(),
         "automation_signal_already_consumed"
     );
-    let after_resume = resume_request(7, EPOCH, &approval);
+    let after_resume = request(
+        AutomationSignalKind::Resume,
+        "signal-7",
+        4,
+        EPOCH,
+        CHECKPOINT_SEQUENCE,
+        Some(approval.approval_digest.as_str()),
+    );
     assert_eq!(
         apply_signal(
             &mut ledger,
@@ -797,10 +810,10 @@ fn resume_and_consume_require_a_paused_or_resumed_predecessor() {
         apply_signal(&mut ledger, &consume, None, None).unwrap_err(),
         "automation_signal_not_resumed"
     );
-    // 暂停中的第二次 pause：状态冲突。
+    // 暂停中的第二次 pause：状态冲突（序号仍须紧接已记录事实：pause 1 之后 next=2）。
     let mut again = pause_request();
     again.signal_id = "signal-3".to_owned();
-    again.signal_sequence = 3;
+    again.signal_sequence = 2;
     let again = resign_request(again);
     assert_eq!(
         apply_signal(
