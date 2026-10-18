@@ -55,6 +55,7 @@
    "automation_cancellation_guard",
    "automation_compensation_guard",
    "automation_dispatch_guard",
+   "automation_effect_reservation",
    "automation_effect_reservation_guard",
    "automation_fanout_guard",
    "automation_release_evidence_guard",

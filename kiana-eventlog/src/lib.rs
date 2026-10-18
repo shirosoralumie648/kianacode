@@ -58,6 +58,7 @@
 
 mod artifact_store;
 mod audit_contract;
+mod automation_effect_reservation;
 mod credential_rotation;
 mod event_store_core;
 mod governance_contract;
@@ -80,6 +81,10 @@ mod writer_queue;
 
 // 【关键适配器】
 pub use artifact_store::MemoryArtifactStore; // 产物存储适配器
+pub use automation_effect_reservation::{
+    AutomationEffectAttemptCommit, AutomationEffectReservationCommit,
+    MemoryAutomationEffectReservationStore, StoredAutomationAttempt, StoredAutomationReservation,
+}; // AUT-14 reservation CAS 语义存储（CI 语义）
 pub use credential_rotation::MemoryCredentialRotationStore; // 凭证轮换
 pub use integrity::{
     scan_jsonl, IntegrityRecoveryReport, IntegrityScanReport, IntegrityScanStatus,
