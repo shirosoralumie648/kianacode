@@ -100,6 +100,9 @@ const RUN_CAPABILITY_REQUESTED_FIELDS: &[&str] = &[
     "stop_state",
     "fenced",
     "action_digest",
+    // The canonical action-input digest recorded with the capability request.  Optional on the
+    // wire so older producers and the legacy upcast keep validating.
+    "input_digest",
     "turn_id",
     "step_id",
     "invocation_id",
@@ -541,6 +544,10 @@ const RUN_TOOL_CALL_FIELDS: &[&str] = &[
     "step_id",
     "invocation_id",
     "execution_scope",
+    // The ControlPlane records the canonical action-input digest next to the tool/operation so a
+    // replay can prove which exact input produced this call.  It is optional on the wire: older
+    // producers that predate the field keep working, and the legacy upcast leaves it absent.
+    "input_digest",
     "tool",
     "operation",
 ];

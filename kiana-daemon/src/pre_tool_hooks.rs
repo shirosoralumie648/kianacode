@@ -398,9 +398,18 @@ fn parse_file(raw: &str) -> Result<Vec<String>, PortError> {
 }
 fn read_config(path: &Path) -> Result<Option<String>, PortError> {
     use std::io::Read;
+    use std::path::Component;
     let mut current = PathBuf::new();
     for part in path.components() {
+        // A Windows verbatim path (`\\?\C:\...`) starts with `Prefix`/`RootDir` components that
+        // are not filesystem entries of their own: `symlink_metadata` on a bare prefix fails, and
+        // treating that as unavailable would reject every canonicalized project root.  They are
+        // pushed into `current` and then skipped by the per-component symlink probe.
+        let is_namespace = matches!(part, Component::Prefix(_) | Component::RootDir);
         current.push(part);
+        if is_namespace {
+            continue;
+        }
         match std::fs::symlink_metadata(&current) {
             Ok(meta) if meta.file_type().is_symlink() => {
                 return Err(failed("hook_config_symlink_denied"))

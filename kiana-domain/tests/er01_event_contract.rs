@@ -409,6 +409,8 @@ fn run_tool_contracts_match_cancel_and_dispatch_producers() {
             "step_id",
             "invocation_id",
             "execution_scope",
+            // The ControlPlane writes the canonical action-input digest with every tool call.
+            "input_digest",
             "tool",
             "operation",
         ][..]
@@ -2357,6 +2359,8 @@ fn run_capability_and_approval_contracts_match_all_producers() {
                 "stop_state",
                 "fenced",
                 "action_digest",
+                // The ControlPlane records the canonical action-input digest with the request.
+                "input_digest",
                 "turn_id",
                 "step_id",
                 "invocation_id",
@@ -2386,6 +2390,8 @@ fn run_capability_and_approval_contracts_match_all_producers() {
                 "stop_state",
                 "fenced",
                 "action_digest",
+                // The ControlPlane records the canonical action-input digest with the request.
+                "input_digest",
                 "turn_id",
                 "step_id",
                 "invocation_id",

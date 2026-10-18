@@ -8207,10 +8207,7 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK, "{body}");
         let timeline = &body["timeline"];
-        assert_eq!(
-            timeline["schema"],
-            json!(WEB_TIMELINE_MIGRATION_SCHEMA)
-        );
+        assert_eq!(timeline["schema"], json!(WEB_TIMELINE_MIGRATION_SCHEMA));
         assert_eq!(
             timeline["selected"],
             json!(WEB_TIMELINE_RENDERER_TYPED_INLINE)
@@ -9564,7 +9561,10 @@ mod tests {
         // The old credential is dead on every protected route.
         let stale = client
             .client
-            .get(format!("{}/api/state?session_id={}", client.base, server.active))
+            .get(format!(
+                "{}/api/state?session_id={}",
+                client.base, server.active
+            ))
             .header("x-kiana-web-token", &client.token)
             .send()
             .await
@@ -9621,7 +9621,10 @@ mod tests {
         let (status, after) = ui17_json(
             client
                 .client
-                .get(format!("{}/api/state?session_id={}", client.base, server.active))
+                .get(format!(
+                    "{}/api/state?session_id={}",
+                    client.base, server.active
+                ))
                 .header("x-kiana-web-token", &token)
                 .header("x-kiana-ui-tab", owner_tab)
                 .send()

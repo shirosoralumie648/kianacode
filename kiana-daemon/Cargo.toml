@@ -36,6 +36,16 @@ sha2 = "0.10"
 tokio.workspace = true
 libc.workspace = true
 
+# The workspace patch lock needs an OS-level exclusive lock on Windows as well; `flock(2)` only
+# exists on Unix, so the Windows path uses `LockFileEx` from the same crate version the other
+# workspace members already pin.  This is a target-scoped dependency, so Unix builds are unchanged.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+] }
+
 [dev-dependencies]
 kiana-client.workspace = true
 kiana-skills = { path = "../kiana-skills", version = "0.1.0" }

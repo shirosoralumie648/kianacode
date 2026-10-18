@@ -475,44 +475,330 @@ mod unix {
 pub(crate) use unix::LocalDir;
 
 #[cfg(not(unix))]
-#[derive(Debug)]
-pub(crate) struct LocalDir;
-#[cfg(not(unix))]
-impl LocalDir {
-    pub(crate) fn try_clone(&self) -> Result<Self, PortError> {
-        Err(failed("local_package_platform_unsupported"))
+mod portable {
+    //! Non-Unix (Windows) `LocalDir`.
+    //!
+    //! The Unix implementation pins a directory descriptor and reaches every entry with
+    //! `openat(..., O_NOFOLLOW)` so no intermediate component can be swapped between the check and
+    //! the operation.  The standard library has no `openat` on Windows, so this implementation
+    //! tracks the absolute path instead and re-inspects every component with `symlink_metadata`
+    //! before each operation.
+    //!
+    //! What is preserved from the Unix contract: absolute roots only, single-component names that
+    //! pass `valid_extension_path`, no symlink or reparse point anywhere on the path, regular files
+    //! only, bounded reads, durable publish (write temporary, flush, then link into place without
+    //! replacing an existing entry), append-only writes, and the distinct "replaced" refusal when
+    //! the file behind an owned handle changed.
+    //!
+    //! What differs: Windows has no inode link count, so the "extra hard link" denial is not
+    //! expressed; the ownership check compares size and modification time instead.  A component
+    //! swapped in the window between `symlink_metadata` and the following call is a TOCTOU window
+    //! this layer cannot close; callers still verify content fingerprints, so the observable
+    //! failures stay fail-closed rather than silently accepting unverified bytes.
+
+    use super::*;
+    use std::io::Read;
+    use std::path::PathBuf;
+
+    #[derive(Debug)]
+    pub(crate) struct LocalDir {
+        path: PathBuf,
     }
-    pub(crate) fn open(_: &Path, _: bool) -> Result<Self, PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn subdir(&self, _: &str, _: bool) -> Result<Self, PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn subdir_optional(&self, _: &str) -> Result<Option<Self>, PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn read(&self, _: &str, _: usize) -> Result<Vec<u8>, PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn read_optional(&self, _: &str, _: usize) -> Result<Option<Vec<u8>>, PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn create_new_file(&self, _: &str) -> std::io::Result<File> {
-        Err(std::io::ErrorKind::Unsupported.into())
-    }
-    pub(crate) fn open_regular_file(&self, _: &str) -> Result<Option<File>, PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn remove_owned_file(&self, _: &str, _: &File) -> Result<(), PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn append(&self, _: &str, _: &[u8]) -> Result<(), PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn publish(&self, _: &str, _: &[u8]) -> Result<(), PortError> {
-        Err(failed("local_package_platform_unsupported"))
-    }
-    pub(crate) fn publish_immutable(&self, _: &str, _: &[u8], _: &str) -> Result<(), PortError> {
-        Err(failed("local_package_platform_unsupported"))
+
+    impl LocalDir {
+        pub(crate) fn try_clone(&self) -> Result<Self, PortError> {
+            Ok(Self {
+                path: self.path.clone(),
+            })
+        }
+
+        pub(crate) fn open(path: &Path, create: bool) -> Result<Self, PortError> {
+            if !path.is_absolute() {
+                return Err(failed("package_path_must_be_absolute"));
+            }
+            let mut current = PathBuf::new();
+            for component in path.components() {
+                match component {
+                    Component::Prefix(_) | Component::RootDir => current.push(component),
+                    Component::Normal(name) => {
+                        current.push(name);
+                        match std::fs::symlink_metadata(&current) {
+                            Ok(meta) if meta.file_type().is_symlink() => {
+                                return Err(failed("package_directory_open_failed:symlink"))
+                            }
+                            Ok(meta) if !meta.is_dir() => {
+                                return Err(failed("package_directory_open_failed:not_directory"))
+                            }
+                            Ok(_) => {}
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                                if !create {
+                                    return Err(failed(format!(
+                                        "package_directory_open_failed:{error}"
+                                    )));
+                                }
+                                std::fs::create_dir(&current).map_err(|create_error| {
+                                    failed(format!(
+                                        "package_directory_create_failed:{create_error}"
+                                    ))
+                                })?;
+                            }
+                            Err(error) => {
+                                return Err(failed(format!(
+                                    "package_directory_open_failed:{error}"
+                                )))
+                            }
+                        }
+                    }
+                    _ => return Err(failed("package_path_invalid")),
+                }
+            }
+            Ok(Self { path: current })
+        }
+
+        fn child(&self, name: &str, create: bool) -> Result<Self, PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let path = self.path.join(name);
+            match std::fs::symlink_metadata(&path) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    return Err(failed("package_directory_open_failed:symlink"))
+                }
+                Ok(meta) if !meta.is_dir() => {
+                    return Err(failed("package_directory_open_failed:not_directory"))
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    if !create {
+                        return Err(failed(format!("package_directory_open_failed:{error}")));
+                    }
+                    std::fs::create_dir(&path).map_err(|create_error| {
+                        failed(format!("package_directory_create_failed:{create_error}"))
+                    })?;
+                }
+                Err(error) => return Err(failed(format!("package_directory_open_failed:{error}"))),
+            }
+            Ok(Self { path })
+        }
+
+        pub(crate) fn subdir(&self, name: &str, create: bool) -> Result<Self, PortError> {
+            self.child(name, create)
+        }
+
+        pub(crate) fn subdir_optional(&self, name: &str) -> Result<Option<Self>, PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let path = self.path.join(name);
+            match std::fs::symlink_metadata(&path) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    Err(failed("package_directory_open_failed:symlink"))
+                }
+                Ok(meta) if meta.is_dir() => Ok(Some(Self { path })),
+                Ok(_) => Err(failed("package_directory_open_failed:not_directory")),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(failed(format!("package_directory_open_failed:{error}"))),
+            }
+        }
+
+        /// Resolve a bounded relative path and refuse any symlink component.
+        fn resolve(&self, relative: &str) -> Result<PathBuf, PortError> {
+            if !kiana_domain::valid_extension_path(relative) {
+                return Err(failed("package_path_invalid"));
+            }
+            let mut current = self.path.clone();
+            let mut parts = relative.split('/').peekable();
+            while let Some(name) = parts.next() {
+                current.push(name);
+                let is_last = parts.peek().is_none();
+                match std::fs::symlink_metadata(&current) {
+                    Ok(meta) if meta.file_type().is_symlink() => {
+                        return Err(failed("package_path_invalid"))
+                    }
+                    Ok(meta) if is_last && !meta.is_file() => {
+                        return Err(failed("package_file_type_denied"))
+                    }
+                    Ok(meta) if !is_last && !meta.is_dir() => {
+                        return Err(failed("package_path_invalid"))
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        if is_last {
+                            return Ok(current);
+                        }
+                        return Err(failed(format!("package_file_open_failed:{error}")));
+                    }
+                    Err(error) => return Err(failed(format!("package_file_open_failed:{error}"))),
+                }
+            }
+            Ok(current)
+        }
+
+        pub(crate) fn read(&self, relative: &str, limit: usize) -> Result<Vec<u8>, PortError> {
+            self.read_optional(relative, limit)?.ok_or_else(|| {
+                failed(format!(
+                    "package_file_open_failed:{}",
+                    std::io::Error::from(std::io::ErrorKind::NotFound)
+                ))
+            })
+        }
+
+        pub(crate) fn read_optional(
+            &self,
+            relative: &str,
+            limit: usize,
+        ) -> Result<Option<Vec<u8>>, PortError> {
+            let path = self.resolve(relative)?;
+            let file = match File::open(&path) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+                Err(error) => return Err(failed(format!("package_file_open_failed:{error}"))),
+            };
+            let metadata = file.metadata().map_err(|e| failed(e.to_string()))?;
+            if !metadata.is_file() {
+                return Err(failed("package_file_type_denied"));
+            }
+            if metadata.len() > limit as u64 {
+                return Err(failed("package_size_exceeded"));
+            }
+            let mut bytes = Vec::new();
+            let mut handle = file;
+            handle
+                .take(limit as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|e| failed(format!("package_read_failed:{e}")))?;
+            if bytes.len() > limit {
+                return Err(failed("package_size_exceeded"));
+            }
+            Ok(Some(bytes))
+        }
+
+        pub(crate) fn create_new_file(&self, name: &str) -> std::io::Result<File> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(std::io::ErrorKind::InvalidInput.into());
+            }
+            let path = self.path.join(name);
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)
+        }
+
+        pub(crate) fn open_regular_file(&self, name: &str) -> Result<Option<File>, PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let path = self.path.join(name);
+            match std::fs::symlink_metadata(&path) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    return Err(failed("package_file_type_denied"))
+                }
+                Ok(meta) if !meta.is_file() => return Err(failed("package_file_type_denied")),
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+                Err(error) => return Err(failed(format!("package_file_open_failed:{error}"))),
+            }
+            let file = File::open(&path)
+                .map_err(|error| failed(format!("package_file_open_failed:{error}")))?;
+            Ok(Some(file))
+        }
+
+        pub(crate) fn remove_owned_file(&self, name: &str, owned: &File) -> Result<(), PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let path = self.path.join(name);
+            let current =
+                std::fs::symlink_metadata(&path).map_err(|_| failed("package_file_replaced"))?;
+            if current.file_type().is_symlink() || !current.is_file() {
+                return Err(failed("package_file_replaced"));
+            }
+            // Windows has no inode link count, so ownership is proved by size + modification time
+            // matching the handle the caller already validated.
+            let pinned = owned.metadata().map_err(|e| failed(e.to_string()))?;
+            if current.len() != pinned.len() || current.modified().ok() != pinned.modified().ok() {
+                return Err(failed("package_file_replaced"));
+            }
+            std::fs::remove_file(&path)
+                .map_err(|error| failed(format!("package_file_remove_failed:{error}")))?;
+            Ok(())
+        }
+
+        /// Append bytes to a regular file, creating it when absent; existing content is never
+        /// rewritten.  Windows flushes through `sync_all` the same way the Unix path does.
+        pub(crate) fn append(&self, name: &str, bytes: &[u8]) -> Result<(), PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let path = self.path.join(name);
+            if let Ok(meta) = std::fs::symlink_metadata(&path) {
+                if meta.file_type().is_symlink() || !meta.is_file() {
+                    return Err(failed("package_path_invalid"));
+                }
+            }
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .append(true)
+                .open(&path)
+                .map_err(|e| failed(format!("package_append_open_failed:{e}")))?;
+            file.write_all(bytes)
+                .and_then(|()| file.sync_all())
+                .map_err(|e| failed(format!("package_append_failed:{e}")))?;
+            Ok(())
+        }
+
+        /// Publish an immutable cache entry only after all bytes are durable.  Existing entries
+        /// must match exactly; a leftover temp file cannot become active registry state.
+        pub(crate) fn publish(&self, name: &str, bytes: &[u8]) -> Result<(), PortError> {
+            self.publish_inner(name, bytes, "package_cache_hash_mismatch")
+        }
+
+        pub(crate) fn publish_immutable(
+            &self,
+            name: &str,
+            bytes: &[u8],
+            conflict: &str,
+        ) -> Result<(), PortError> {
+            self.publish_inner(name, bytes, conflict)
+        }
+
+        fn publish_inner(&self, name: &str, bytes: &[u8], conflict: &str) -> Result<(), PortError> {
+            if name.contains('/') || !kiana_domain::valid_extension_path(name) {
+                return Err(failed("package_path_invalid"));
+            }
+            let target = self.path.join(name);
+            let temp = self
+                .path
+                .join(format!(".staged-{}", kiana_domain::RequestId::new()));
+            let result = (|| {
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&temp)
+                    .map_err(|e| failed(format!("package_stage_failed:{e}")))?;
+                file.write_all(bytes)
+                    .and_then(|()| file.sync_all())
+                    .map_err(|e| failed(format!("package_write_failed:{e}")))?;
+                drop(file);
+                // Hard-link publish: an existing target is never replaced.  The entry is created
+                // only when absent; the idempotent case then compares the stored bytes.
+                match std::fs::hard_link(&temp, &target) {
+                    Ok(()) => Ok(()),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                        if self.read(name, bytes.len().max(1))? != bytes {
+                            return Err(PortError::Conflict(conflict.to_owned()));
+                        }
+                        Ok(())
+                    }
+                    Err(error) => Err(failed(format!("package_publish_failed:{error}"))),
+                }
+            })();
+            let _ = std::fs::remove_file(&temp);
+            result
+        }
     }
 }
+
+#[cfg(not(unix))]
+pub(crate) use portable::LocalDir;
