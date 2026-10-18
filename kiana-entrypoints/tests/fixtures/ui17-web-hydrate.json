@@ -1,34 +1,102 @@
 {
-  "schema": "kiana.web-hydrate.v1",
+  "schema": "kiana.ui17-web-hydrate.v1",
+  "step": "UI-17",
+  "hydrate_schema": "kiana.web-hydrate.v1",
   "history_schema": "kiana.web-history-page.v1",
   "artifact_schema": "kiana.web-artifact-page.v1",
+  "trace_schema": "kiana.web-hydrate-trace.v1",
+  "sequence": ["hydrate_snapshot", "install_feed_listener", "resume_or_render", "history_page"],
+  "states": ["loading", "empty", "partial", "limited", "ready", "offline"],
+  "budgets": {
+    "history_page_default": 32,
+    "history_page_max": 64,
+    "page_cursor_max": 256,
+    "page_cursor_bytes": 256,
+    "hydrate_cache_entries": 8,
+    "history_cache_entries": 256,
+    "history_cache_sessions": 8,
+    "hydrate_trace_steps": 16,
+    "server_trace_steps": 4
+  },
   "cache": {
     "scope": ["tab_id", "session_id", "instance_id", "epoch", "schema"],
     "storage": "memory_only",
-    "max_entries": 8,
-    "stale_action": "web_page_cursor_replayed"
+    "stale_action": "web_page_cursor_replayed",
+    "scope_reset": "epoch_or_instance_changed",
+    "eviction": ["hydrate_evict", "history_cache_entries", "history_cache_sessions"]
   },
-  "states": ["loading", "empty", "partial", "limited", "ready", "offline"],
-  "deny_first": [
-    "localStorage_state_only",
-    "empty_response_is_no_session",
-    "cross_tab_owner_cache_reuse",
-    "web_page_cursor_replayed",
-    "web_page_cursor_scope_mismatch",
-    "web_page_cursor_source_changed",
-    "scope_mismatch_does_not_consume_cursor",
-    "artifact_content_client_fetch"
-  ],
-  "sequence": ["hydrate_snapshot", "install_feed_listener", "resume_or_render"],
+  "trace": {
+    "server_steps": ["snapshot", "history", "feed"],
+    "page_steps": ["hydrate_snapshot", "install_feed_listener", "resume_or_render", "history_page"],
+    "forbidden": ["token", "prompt", "draft", "approval_payload", "artifact_bytes"]
+  },
   "routes": [
     {"path": "/api/bootstrap", "method": "GET", "class": "bootstrap", "token_required": true},
     {"path": "/api/history", "method": "GET", "class": "history", "token_required": true},
     {"path": "/api/artifact", "method": "GET", "class": "artifact", "token_required": true}
   ],
+  "deny_first": [
+    "web_page_cursor_replayed",
+    "web_page_cursor_unknown",
+    "web_page_cursor_scope_mismatch",
+    "web_page_cursor_limit_mismatch",
+    "web_page_cursor_invalid",
+    "web_page_cursor_offset_invalid",
+    "web_page_cursor_state_unavailable",
+    "web_page_source_changed",
+    "web_page_limit_invalid",
+    "web_tab_required",
+    "web_auth_required",
+    "session_unknown"
+  ],
+  "browser_required": [
+    "recordHydrateTrace('hydrate_snapshot')",
+    "recordHydrateTrace('install_feed_listener')",
+    "recordHydrateTrace('resume_or_render')",
+    "recordHydrateTrace('history_page')",
+    "recordHydrateTrace('hydrate_reject'",
+    "recordHydrateTrace('hydrate_scope_reset'",
+    "recordHydrateTrace('history_replay_reject'",
+    "recordHydrateTrace('history_offline'",
+    "window.__KIANA_HYDRATE_TRACE__",
+    "envelope.cache !== 'memory_only'",
+    "evictHistorySessions",
+    "MAX_HISTORY_SESSIONS",
+    "MAX_HYDRATE_TRACE",
+    "window.addEventListener('offline'"
+  ],
+  "browser_forbidden": [
+    "localStorage.setItem('kiana.web",
+    "localStorage.getItem('kiana.web",
+    "localStorage.setItem('kiana.state",
+    "localStorage.getItem('kiana.state",
+    "sessionStorage.setItem('kiana",
+    "sessionStorage.getItem('kiana"
+  ],
+  "required": [
+    "snapshot first, feed after hydrate",
+    "server cursor pages are single-use",
+    "a known empty session is not a missing session",
+    "the hydrate trace is bounded and credential-free",
+    "tab-local caches are bounded and memory-only",
+    "visible loading/empty/partial/limited/offline states",
+    "re-hydrated status matches the CLI parity projection",
+    "no second execution path"
+  ],
+  "fixtures": [
+    "ui17_fixture_binds_hydrate_cache_and_page_cursor_contract",
+    "ui17_page_hydrates_before_feed_and_keeps_cache_tab_scoped",
+    "ui17_runtime_fixtures_are_wired_to_the_web_module",
+    "ui17_bootstrap_hydrates_before_feed_and_matches_the_cli_parity_snapshot",
+    "ui17_history_pages_follow_one_server_cursor_and_refuse_replay_and_foreign_tabs",
+    "ui17_artifact_page_is_run_scoped_and_never_returns_bytes",
+    "ui17_source_change_fence_rejects_a_cursor_that_moved_mid_read"
+  ],
   "limitations": [
     "cache_is_tab_local_and_process_local",
     "artifact_route_returns_server_refs_without_bytes",
     "offline_does_not_claim_execution_result",
+    "history_is_bounded_by_the_eventlog_projection",
     "no_durable_browser_cache_or_live_provider_proof"
   ]
 }

@@ -696,7 +696,7 @@ durable rate state/token 持久化与 live/physical 证据仍开放。
 
 
 
-#### UI-17 · Web snapshot hydrate、历史和分页　🔄
+#### UI-17 · Web snapshot hydrate、历史和分页　✅
 
 - 依赖：UI-05/08/16。代码：Web bootstrap、session/history/artifact query。
 - 步骤：首屏先 hydrate snapshot，再开启 feed；历史按 server cursor 分页，缓存带 instance/epoch/schema；loading、empty、partial、limited 状态明确。
@@ -704,7 +704,30 @@ durable rate state/token 持久化与 live/physical 证据仍开放。
 - 成功/回归：首次打开/刷新/旧缓存/分页边界/离线/恢复/多 session；重新 hydrate 后 reducer 与 CLI status 一致。
 - 完成产物：hydrate trace、分页 fixture、缓存淘汰和可见限制说明。
 
-实现基线：[UI-17 Web snapshot hydrate, history and pagination](ui17-web-hydrate-baseline.md)。
+实现基线：[UI-17 Web snapshot hydrate, history and pagination](ui17-web-hydrate-baseline.md)。完成切片（2026-10-17）
+把该基线补成卡片退出条件：`hydrate` 增带有界 `kiana.web-hydrate-trace.v1` 三步 trace（`snapshot` → `history` → `feed`，
+只含 schema/requires 名称，不含 token/正文/载荷），`bootstrap` 对「只存在于 EventLog 的历史会话」不再要求
+lease，改为只读 hydrate（`read_only`、`lease.disposition=closed`、`feed_only=true`、无动作权限），未知 id 仍
+`session_unknown`（空会话≠缺失会话）；`consume_page_cursor` 在移除 token 前先校验 kind/session/tab/instance/epoch/
+source 与**签发时的 limit**（跨 tab/旧 source cursor/错误 limit 都不会烧掉 owner 的 cursor），页 cursor 单次消费
+（重放 `web_page_cursor_replayed`），读后一致性收敛为共享 `ensure_page_source_unchanged`（`web_page_source_changed`）；
+浏览器侧 `recordHydrateTrace` 维护有界（`MAX_HYDRATE_TRACE=16`）且无凭据的 hydrate trace 并暴露
+`window.__KIANA_HYDRATE_TRACE__`，非 `memory_only` 的 hydrate 一律拒绝（`hydrate_cache_scope_invalid`），
+instance/epoch 漂移清空 scope 缓存，历史页按 session 有界（256）并按会话数淘汰（`MAX_HISTORY_SESSIONS=8`、
+`evictHistorySessions`），loading/empty/partial/limited/ready/offline 状态与限制文案保持可见。验收：真实 loopback
+`DaemonHost` + 预置 JSONL 账本上新增 4 条 `web::tests::ui17_*` 运行时夹具（hydration 顺序/历史 hydrate/空会话、
+server cursor 分页与重放/跨 tab/错误 limit/旧 cursor 围栏、artifact 只返回 server refs 且 run/session 作用域、
+`ensure_page_source_unchanged` 对真实推进后的旧身份拒绝），集成侧
+`kiana-entrypoints/tests/ui17_web_hydrate.rs` 绑定声明式 fixture（budgets/sequence/deny_first/browser_required/
+browser_forbidden/routes）与页面顺序，`ui17_web_hydrate_guard.rs` 新增
+`ui17_completion_slice_stays_wired_to_the_fixture_lane_and_shard` 绑定 fixture↔源码常量↔真实夹具名↔baseline
+required marker↔手动 lane 逐字命令↔整 crate 分片↔「无第二执行路径」；重建手动
+`.github/workflows/ui17-web-hydrate.yml`（`workflow_dispatch`-only、`permissions: contents: read`、fetch/fmt 门 +
+两个 target + `--lib web::tests::ui17_` + `--no-run`），自动覆盖仍是统一 `ci.yml` 的 `kiana-entrypoints` 整 crate
+分片（`scripts/ci/test-shards.json` 未改）。无 Cargo.toml/Cargo.lock/package.json 变化、无新依赖/新 test target/
+第二执行循环，五个模型可见工具面不变、未触碰冻结项；本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt`），
+CI 回执未等待，proof 上限 `source`；真实浏览器矩阵、跨进程/durable cursor 与 cache、artifact 内容字节、
+live/physical 证据仍开放。
 
 <a id="step-ui-18"></a>
 
