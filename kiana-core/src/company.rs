@@ -365,6 +365,16 @@ impl ControlPlane {
                 return self.reject_company(&context, reason).await;
             }
         }
+        // CO-13: admitting a department work contract binds the versioned packet body to the
+        // server-derived approval stage and the admitted CO-05 appointment. The verdict runs
+        // before the transition, so a forged contract, an inactive appointment, a mismatched
+        // role/department or a basis the project stage does not yet support changes no related
+        // object; the admission itself grants no capability, path, budget or lease.
+        if let CompanyCommand::AdmitDepartmentPacket { packet } = &request.command {
+            if let Err(reason) = state.department_packet_admission_verdict(packet, company_now()) {
+                return self.reject_company(&context, reason).await;
+            }
+        }
         let command_id = CompanyCommandReceipt::command_id(
             &company_aggregate_id(&context),
             &request.idempotency_key,

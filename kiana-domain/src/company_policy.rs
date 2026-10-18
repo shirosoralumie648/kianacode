@@ -646,6 +646,9 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         CompanyCommand::FreezeCriterionCoverage { .. } => &["sponsor"],
         // CO-12: the plan graph revision is a planning proposal; the PM or the Sponsor admits it.
         CompanyCommand::FreezePlanGraph { .. } => &["pm", "sponsor"],
+        // CO-13: a department work contract is admitted through the planning path; the PM or the
+        // Sponsor admits it, and the department/role pair still has to match the packet kind.
+        CompanyCommand::AdmitDepartmentPacket { .. } => &["pm", "sponsor"],
         CompanyCommand::RequestCancelProject { .. }
         | CompanyCommand::ConfirmCancelProject { .. }
         | CompanyCommand::FailProject { .. }
@@ -826,6 +829,7 @@ impl CompanyMutationClass {
             | CompanyCommand::PlanProject { .. }
             | CompanyCommand::FreezeCriterionCoverage { .. }
             | CompanyCommand::FreezePlanGraph { .. }
+            | CompanyCommand::AdmitDepartmentPacket { .. }
             | CompanyCommand::PauseProject { .. }
             | CompanyCommand::ResumeProject { .. }
             | CompanyCommand::RequestCancelProject { .. }
@@ -1077,6 +1081,22 @@ impl CompanyMutationPermission {
                 "plan_graph_baseline_missing",
                 "plan_graph_baseline_mismatch",
                 "plan_graph_already_frozen",
+                // CO-13 department work contract: the server-derived approval stage and the
+                // admitted CO-05 appointment are re-read at the boundary, and admission grants no
+                // runtime authority.
+                "department_packet_project_terminal",
+                "department_packet_appointment_required",
+                "department_packet_appointment_inactive",
+                "department_packet_appointment_mismatch",
+                "department_packet_stage_not_admitted",
+                "department_packet_charter_not_approved",
+                "department_packet_charter_baseline_mismatch",
+                "department_packet_plan_not_approved",
+                "department_packet_plan_version_mismatch",
+                "department_packet_plan_baseline_mismatch",
+                "department_packet_plan_mismatch",
+                "department_packet_plan_node_unknown",
+                "department_packet_already_admitted",
             ],
             CompanyMutationClass::Budget => &[
                 "company_project_not_budgetable",
