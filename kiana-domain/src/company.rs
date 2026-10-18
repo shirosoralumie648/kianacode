@@ -13,11 +13,17 @@ pub const COMPANY_STATE_SCHEMA: &str = "kiana.company-state.v1";
 pub const COMPANY_COMMAND: &str = "company.command.v1";
 pub const COMPANY_SNAPSHOT: &str = "company.snapshot.v1";
 pub const COMPANY_GOVERNANCE: &str = "company.governance.v1";
+/// Versioned Charter draft envelope approved by the project go/no-go (CO-10).
+pub const PROJECT_CHARTER_DRAFT_SCHEMA: &str = "kiana.project-charter-draft.v1";
 /// Maximum declared Initiative information gaps and the per-entry byte budget (CO-09).
 pub const MAX_INITIATIVE_INFORMATION_GAPS: usize = 32;
 pub const MAX_INITIATIVE_INFORMATION_GAP_BYTES: usize = 2_048;
 /// Direct project intake has to state why the Initiative lane was skipped (CO-09).
 pub const MAX_DIRECT_INTAKE_REASON_BYTES: usize = 2_048;
+/// Bounded Charter draft surface (CO-10): free-text fields, list fields and stakeholder count.
+pub const MAX_CHARTER_DRAFT_TEXT_BYTES: usize = 4_096;
+pub const MAX_CHARTER_DRAFT_LIST_ITEMS: usize = 64;
+pub const MAX_CHARTER_DRAFT_STAKEHOLDERS: usize = 32;
 
 pub type CompanyResult<T> = Result<T, &'static str>;
 fn one() -> u64 {
@@ -36,6 +42,30 @@ fn charter_identity_digest(artifact: &CompanyArtifact) -> String {
         "content_hash": journal_sha256(artifact.text.as_bytes()),
         "typed_version": artifact.typed_version.as_ref(),
     }))
+}
+/// CO-10 Charter draft text fields carry their own bounded, named refusal codes so a malformed
+/// draft never falls back to the generic Company field error.
+fn draft_text(value: &str, reason: &'static str) -> CompanyResult<()> {
+    if value.trim().is_empty() || value.len() > MAX_CHARTER_DRAFT_TEXT_BYTES {
+        Err(reason)
+    } else {
+        Ok(())
+    }
+}
+fn draft_list(values: &[String], reason: &'static str) -> CompanyResult<()> {
+    if values.is_empty() || values.len() > MAX_CHARTER_DRAFT_LIST_ITEMS {
+        return Err(reason);
+    }
+    for value in values {
+        draft_text(value, reason)?;
+    }
+    let mut distinct = values.to_vec();
+    distinct.sort();
+    distinct.dedup();
+    if distinct.len() != values.len() {
+        return Err(reason);
+    }
+    Ok(())
 }
 fn list(values: &[String]) -> CompanyResult<()> {
     if values.is_empty() || values.len() > 1024 {
@@ -338,6 +368,94 @@ impl Project {
     }
 }
 
+/// One named stakeholder on the versioned Charter draft (CO-10).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CharterStakeholder {
+    pub principal_id: String,
+    pub responsibility: String,
+    pub delivery_recipient: bool,
+}
+impl CharterStakeholder {
+    pub fn validate(&self) -> CompanyResult<()> {
+        draft_text(
+            &self.principal_id,
+            "charter_draft_stakeholder_principal_invalid",
+        )?;
+        draft_text(
+            &self.responsibility,
+            "charter_draft_stakeholder_responsibility_invalid",
+        )
+    }
+}
+
+/// CO-10: bounded, versioned Charter draft produced by the chartering role.
+///
+/// The draft is the object the Sponsor approves: scope, non-goals, stakeholders, success
+/// criteria, risk and the budget reference are recorded once, frozen by `StartChartering` and
+/// bound into the approval-time [`ProjectCharterBaseline`] by identity digest. It cannot grant
+/// capabilities, budgets, paths or runtime leases; it only fixes the versioned identity of the
+/// Charter that the `Project` compatibility fields and the registered Charter artifact carry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectCharterDraft {
+    pub schema: String,
+    pub project_id: String,
+    pub organization_id: String,
+    pub scope: String,
+    pub non_goals: Vec<String>,
+    pub stakeholders: Vec<CharterStakeholder>,
+    pub success_criteria: Vec<String>,
+    pub risk_summary: String,
+    pub project_budget_ref: String,
+    pub drafted_by: String,
+    pub drafted_at: u64,
+    pub version: u64,
+}
+impl ProjectCharterDraft {
+    pub fn validate(&self) -> CompanyResult<()> {
+        ensure(
+            self.schema == crate::PROJECT_CHARTER_DRAFT_SCHEMA,
+            "charter_draft_schema_invalid",
+        )?;
+        ensure(
+            self.version == 1 && self.drafted_at > 0,
+            "charter_draft_version_invalid",
+        )?;
+        draft_text(&self.project_id, "charter_draft_project_invalid")?;
+        draft_text(&self.organization_id, "charter_draft_organization_invalid")?;
+        draft_text(&self.drafted_by, "charter_draft_author_invalid")?;
+        draft_text(&self.project_budget_ref, "charter_draft_budget_ref_invalid")?;
+        draft_text(&self.scope, "charter_draft_scope_invalid")?;
+        draft_text(&self.risk_summary, "charter_draft_risk_invalid")?;
+        draft_list(&self.non_goals, "charter_draft_non_goals_invalid")?;
+        draft_list(
+            &self.success_criteria,
+            "charter_draft_success_criteria_invalid",
+        )?;
+        ensure(
+            !self.stakeholders.is_empty()
+                && self.stakeholders.len() <= MAX_CHARTER_DRAFT_STAKEHOLDERS,
+            "charter_draft_stakeholders_invalid",
+        )?;
+        ensure(
+            self.stakeholders
+                .iter()
+                .any(|stakeholder| stakeholder.delivery_recipient),
+            "charter_draft_delivery_recipient_required",
+        )?;
+        for stakeholder in &self.stakeholders {
+            stakeholder.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Canonical identity of the exact draft version; the approval freezes this digest.
+    pub fn identity_digest(&self) -> String {
+        crate::json_digest(&serde_json::json!(self))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectCharterBaseline {
@@ -350,10 +468,24 @@ pub struct ProjectCharterBaseline {
     pub risk_summary: String,
     pub project_budget_ref: String,
     pub budget_digest: String,
+    /// CO-10: identity digest of the versioned Charter draft the Sponsor approved. Legacy
+    /// approvals without a recorded draft keep `None` and stay readable.
+    #[serde(default)]
+    pub charter_draft_digest: Option<String>,
+    /// CO-10: draft version bound by the approval; `None` on legacy approvals.
+    #[serde(default)]
+    pub charter_draft_version: Option<u64>,
+    /// CO-10: stakeholder principals recorded on the approved draft.
+    #[serde(default)]
+    pub stakeholder_principals: Vec<String>,
 }
 
 impl ProjectCharterBaseline {
-    fn from_project(project: &Project, budget: &CompanyBudgetPolicy) -> Self {
+    fn from_project(
+        project: &Project,
+        budget: &CompanyBudgetPolicy,
+        draft: Option<&ProjectCharterDraft>,
+    ) -> Self {
         Self {
             project_id: project.project_id.clone(),
             version: 1,
@@ -364,6 +496,17 @@ impl ProjectCharterBaseline {
             risk_summary: project.risk_summary.clone(),
             project_budget_ref: project.project_budget_ref.clone(),
             budget_digest: crate::json_digest(&serde_json::json!(budget)),
+            charter_draft_digest: draft.map(ProjectCharterDraft::identity_digest),
+            charter_draft_version: draft.map(|draft| draft.version),
+            stakeholder_principals: draft
+                .map(|draft| {
+                    draft
+                        .stakeholders
+                        .iter()
+                        .map(|stakeholder| stakeholder.principal_id.clone())
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 }
@@ -754,6 +897,11 @@ pub enum CompanyCommand {
         project_id: String,
         reason: String,
     },
+    /// CO-10: the chartering role records the versioned Charter draft (scope, non-goals,
+    /// stakeholders, success criteria, risk and budget reference) that the Sponsor approves.
+    DraftCharter {
+        draft: ProjectCharterDraft,
+    },
     StartChartering {
         project_id: String,
     },
@@ -929,6 +1077,7 @@ impl CompanyCommand {
             Self::AdvanceInitiative { .. } => "InitiativeTransitioned",
             Self::ProposeProject { .. } => "ProjectProposed",
             Self::RecordDirectIntake { .. } => "DirectProjectIntakeRecorded",
+            Self::DraftCharter { .. } => "ProjectCharterDrafted",
             Self::StartChartering { .. } => "ProjectCharteringStarted",
             Self::ApproveProject { .. } => "ProjectApproved",
             Self::RejectProject { .. } => "ProjectRejected",
@@ -1006,6 +1155,9 @@ impl CompanyCommand {
             | Self::ResumeProject { .. }
             | Self::RequestChange { .. } => &["sponsor", "pm"],
             Self::RecordDirectIntake { .. } => &["sponsor", "pm"],
+            // CO-10: the chartering role drafts; the Sponsor (or an assigned PM) records it, and
+            // only the Sponsor can approve the exact draft version.
+            Self::DraftCharter { .. } => &["sponsor", "pm"],
             Self::RequestCancelProject { .. }
             | Self::ConfirmCancelProject { .. }
             | Self::FailProject { .. }
@@ -1108,6 +1260,14 @@ pub struct CompanyState {
     /// Legacy/replayed projects may omit it and still require a present artifact at approval.
     #[serde(default)]
     pub charter_digests: BTreeMap<String, String>,
+    /// CO-10 versioned Charter draft recorded by the chartering role. Legacy projects without a
+    /// draft keep the artifact-identity compatibility path.
+    #[serde(default)]
+    pub charter_drafts: BTreeMap<String, ProjectCharterDraft>,
+    /// CO-10 identity digest frozen when the project entered Chartering, so a later draft edit
+    /// cannot be approved silently.
+    #[serde(default)]
+    pub charter_draft_digests: BTreeMap<String, String>,
     /// Frozen scope/criteria/budget references created by a successful Charter approval. Project
     /// state revisions continue to advance independently after this snapshot.
     #[serde(default)]
@@ -1985,6 +2145,54 @@ impl CompanyState {
                     },
                 );
             }
+            CompanyCommand::DraftCharter { draft } => {
+                draft.validate()?;
+                let project = self.project(&draft.project_id)?.clone();
+                ensure(
+                    matches!(
+                        project.status,
+                        ProjectStatus::Proposed | ProjectStatus::Chartering
+                    ),
+                    "project_charter_draft_not_pending",
+                )?;
+                ensure(
+                    draft.organization_id == project.organization_id,
+                    "project_charter_draft_organization_mismatch",
+                )?;
+                ensure(
+                    draft.project_budget_ref == project.project_budget_ref,
+                    "project_charter_draft_budget_ref_mismatch",
+                )?;
+                ensure(
+                    draft.drafted_by == a.actor_id && draft.drafted_at <= a.now_ms,
+                    "project_charter_draft_author_mismatch",
+                )?;
+                // The chartering role drafts; a Sponsor-role actor that is not this project's
+                // sponsor or its recorded business sponsor assignment cannot speak for it.
+                let assigned_sponsor = self
+                    .business_assignment(&a.actor_id, "sponsor", &draft.project_id, a.now_ms)
+                    .is_ok();
+                ensure(
+                    a.actor_id == project.sponsor_id || a.role_id == "pm" || assigned_sponsor,
+                    "project_charter_draft_role_denied",
+                )?;
+                ensure(
+                    draft.scope == project.scope_baseline
+                        && draft.non_goals == project.non_goals
+                        && draft.success_criteria == project.success_criteria
+                        && draft.risk_summary == project.risk_summary,
+                    "project_charter_draft_project_mismatch",
+                )?;
+                if let Some(existing) = self.charter_drafts.get(&draft.project_id) {
+                    ensure(
+                        existing.identity_digest() == draft.identity_digest(),
+                        "project_charter_draft_exists",
+                    )?;
+                    return Ok(());
+                }
+                self.charter_drafts
+                    .insert(draft.project_id.clone(), draft.clone());
+            }
             CompanyCommand::StartChartering { project_id } => {
                 let project = self.project(project_id)?.clone();
                 let charter_id = project
@@ -2001,6 +2209,17 @@ impl CompanyState {
                 )?;
                 self.charter_digests
                     .insert(project_id.clone(), charter_identity_digest(charter));
+                // CO-10: freeze the exact draft identity on entry so a later edit cannot be
+                // approved as if it were the reviewed draft.
+                let draft_digest = self
+                    .charter_drafts
+                    .get(project_id)
+                    .map(|draft| draft.validate().map(|()| draft.identity_digest()))
+                    .transpose()?;
+                if let Some(digest) = draft_digest {
+                    self.charter_draft_digests
+                        .insert(project_id.clone(), digest);
+                }
                 self.set_project(project_id, ProjectStatus::Chartering)?
             }
             CompanyCommand::ApproveProject {
@@ -2059,6 +2278,20 @@ impl CompanyState {
                             "project_charter_changed",
                         )?;
                     }
+                    // CO-10: approve the exact draft version, not whatever the draft says now.
+                    if let Some(frozen_digest) = self.charter_draft_digests.get(project_id) {
+                        let draft = self
+                            .charter_drafts
+                            .get(project_id)
+                            .ok_or("project_charter_draft_missing")?;
+                        draft.validate()?;
+                        ensure(
+                            draft.identity_digest() == *frozen_digest,
+                            "project_charter_draft_changed",
+                        )?;
+                    } else if let Some(draft) = self.charter_drafts.get(project_id) {
+                        draft.validate()?;
+                    }
                 }
                 Self::evidence(p, &[project.charter_ref.clone(), decision_ref.clone()])?;
                 let status = if matches!(c, CompanyCommand::ApproveProject { .. }) {
@@ -2078,10 +2311,12 @@ impl CompanyState {
                         .budgets
                         .get(project_id)
                         .ok_or("project_budget_required")?;
-                    self.charter_baselines.insert(
-                        project_id.clone(),
-                        ProjectCharterBaseline::from_project(approved_project, budget),
+                    let baseline = ProjectCharterBaseline::from_project(
+                        approved_project,
+                        budget,
+                        self.charter_drafts.get(project_id),
                     );
+                    self.charter_baselines.insert(project_id.clone(), baseline);
                 }
             }
             CompanyCommand::CreateMilestone { milestone } => {

@@ -740,6 +740,39 @@ impl CompanyState {
                 }
                 let target = AcceptanceTarget::Project(project_id.clone());
                 let criteria = validate_criteria(criteria, &target)?;
+                // CO-10: the versioned business charter path records the typed Charter draft it
+                // approves, so the frozen baseline binds an explicit draft identity instead of
+                // only the compatibility Project fields.
+                if !self.charter_drafts.contains_key(project_id) {
+                    let mut success_criteria = criteria
+                        .values()
+                        .map(|criterion| criterion.description.clone())
+                        .collect::<Vec<_>>();
+                    success_criteria.sort();
+                    success_criteria.dedup();
+                    let draft = crate::ProjectCharterDraft {
+                        schema: crate::PROJECT_CHARTER_DRAFT_SCHEMA.to_owned(),
+                        project_id: project_id.clone(),
+                        organization_id: organization_id.clone(),
+                        scope: project.scope_baseline.clone(),
+                        non_goals: project.non_goals.clone(),
+                        stakeholders: stakeholders
+                            .iter()
+                            .map(|stakeholder| crate::CharterStakeholder {
+                                principal_id: stakeholder.principal_id.clone(),
+                                responsibility: stakeholder.responsibility.clone(),
+                                delivery_recipient: stakeholder.delivery_recipient,
+                            })
+                            .collect(),
+                        success_criteria,
+                        risk_summary: project.risk_summary.clone(),
+                        project_budget_ref: project.project_budget_ref.clone(),
+                        drafted_by: a.actor_id.clone(),
+                        drafted_at: a.now_ms,
+                        version: 1,
+                    };
+                    self.apply(&CompanyCommand::DraftCharter { draft }, a, p)?;
+                }
                 if project.status == ProjectStatus::Proposed {
                     self.apply(
                         &CompanyCommand::StartChartering {
