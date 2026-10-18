@@ -1,0 +1,58 @@
+name: AUT-15 dispatch observation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch-observation:
+    name: AUT-15 dispatch/observation separation fence
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+
+      # Domain contract: prepared command identity/revision, exactly one worker attempt, structured
+      # failure results and terminal results that cannot be overwritten; deny-first.
+      - name: Run domain dispatch command fixtures
+        run: cargo test -p kiana-domain --test automation_dispatch --locked -- --test-threads=1
+      # Core coordinator: re-fetch -> CAS claim -> exactly one effect -> observation. Every denial,
+      # replay, concurrent loser and uncertain commit keeps the injected runner at 0/1 calls and
+      # never reports a success that was not committed.
+      - name: Run core dispatch coordinator fixtures
+        run: cargo test -p kiana-core --test automation_dispatch_worker --locked -- --test-threads=1
+      - name: Run core dispatch source guard
+        run: cargo test -p kiana-core --test automation_dispatch_guard --locked -- --test-threads=1
+      # EventLog store: CAS commit, idempotent safe re-fetch after a crash, exactly one winning
+      # claim and observation revision races that cannot overwrite a terminal result.
+      - name: Run eventlog dispatch store fixtures
+        run: cargo test -p kiana-eventlog --test aut15_dispatch_store --locked -- --test-threads=1
+      # Daemon service: commit and dispatch stay separate phases; restart, duplicate workers and
+      # unknown commits are counted as recovery-required instead of re-running an effect.
+      - name: Run daemon dispatch service fixtures
+        run: cargo test -p kiana-daemon --test aut15_dispatch_observation --locked -- --test-threads=1
+      - name: Run daemon dispatch service source guard
+        run: cargo test -p kiana-daemon --test aut15_dispatch_observation_guard --locked -- --test-threads=1
+
+      - name: Compile domain dispatch command target
+        run: cargo test -p kiana-domain --test automation_dispatch --no-run --locked
+      - name: Compile core dispatch coordinator target
+        run: cargo test -p kiana-core --test automation_dispatch_worker --no-run --locked
+      - name: Compile core dispatch source guard
+        run: cargo test -p kiana-core --test automation_dispatch_guard --no-run --locked
+      - name: Compile eventlog dispatch store target
+        run: cargo test -p kiana-eventlog --test aut15_dispatch_store --no-run --locked
+      - name: Compile daemon dispatch service target
+        run: cargo test -p kiana-daemon --test aut15_dispatch_observation --no-run --locked
+      - name: Compile daemon dispatch service guard
+        run: cargo test -p kiana-daemon --test aut15_dispatch_observation_guard --no-run --locked

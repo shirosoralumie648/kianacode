@@ -3982,3 +3982,80 @@ impl HealthProbePort for JsonlObservabilitySink {
             .ok_or_else(|| PortError::Unavailable("health_snapshot_unavailable".to_owned()))
     }
 }
+
+/// AUT-15 worker dispatch command store: the durable unit of one worker attempt.
+///
+/// A committed command is re-fetchable by `command_id` or `idempotency_key`, so a crash after the
+/// commit returns the same authoritative copy instead of letting the caller re-derive (and repeat)
+/// an effect. Implementations must make commit, claim and observation atomic with respect to their
+/// own state, must treat an identical idempotency replay as a safe re-fetch of the stored copy,
+/// and must refuse stale revisions, a second worker/attempt and any attempt to overwrite a terminal
+/// result. The trait never executes an effect, authorizes a capability or turns an uncertain commit
+/// into a success; admission and effect execution stay on the existing ControlPlane/Broker spine.
+/// An in-memory implementation is useful for CI semantics but must not be called durable or
+/// cross-process recovery evidence.
+#[async_trait]
+pub trait AutomationDispatchStore: Send + Sync {
+    async fn commit_command(
+        &self,
+        _command: kiana_domain::AutomationDispatchCommand,
+        _expected_revision: u64,
+    ) -> Result<kiana_domain::AutomationDispatchCommit, PortError> {
+        Err(PortError::Unavailable(
+            "automation_dispatch_commit_unsupported".to_owned(),
+        ))
+    }
+
+    async fn claim_command(
+        &self,
+        _request: kiana_domain::AutomationDispatchClaimRequest,
+    ) -> Result<kiana_domain::AutomationDispatchClaimCommit, PortError> {
+        Err(PortError::Unavailable(
+            "automation_dispatch_claim_unsupported".to_owned(),
+        ))
+    }
+
+    async fn observe_command(
+        &self,
+        _request: kiana_domain::AutomationDispatchObservationRequest,
+    ) -> Result<kiana_domain::AutomationDispatchObservationCommit, PortError> {
+        Err(PortError::Unavailable(
+            "automation_dispatch_observe_unsupported".to_owned(),
+        ))
+    }
+
+    async fn fetch_command(
+        &self,
+        _command_id: &str,
+    ) -> Result<kiana_domain::AutomationDispatchCommand, PortError> {
+        Err(PortError::Unavailable(
+            "automation_dispatch_fetch_unsupported".to_owned(),
+        ))
+    }
+
+    async fn fetch_command_by_idempotency_key(
+        &self,
+        _idempotency_key: &str,
+    ) -> Result<kiana_domain::AutomationDispatchCommand, PortError> {
+        Err(PortError::Unavailable(
+            "automation_dispatch_fetch_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Single-attempt effect boundary for one claimed automation dispatch command.
+///
+/// The runner is invoked only after the store committed the unique worker/attempt claim, and it may
+/// only report an [`kiana_domain::AutomationWorkerEffectOutcome`]: success, a structured known
+/// failure, or unknown. Execution identity, worker, attempt and authority epoch are copied from the
+/// committed command by the domain layer, so a runner cannot claim someone else's attempt or forge a
+/// success. The runner is not an authorization boundary and must not re-derive its own scope; a
+/// returned outcome is a declaration, not proof that an external effect happened. Implementors must
+/// answer explicitly: there is no default that could silently turn a missing runner into a success.
+#[async_trait]
+pub trait AutomationWorkerEffectRunner: Send + Sync {
+    async fn run_dispatch_attempt(
+        &self,
+        command: &kiana_domain::AutomationDispatchCommand,
+    ) -> kiana_domain::AutomationWorkerEffectOutcome;
+}
