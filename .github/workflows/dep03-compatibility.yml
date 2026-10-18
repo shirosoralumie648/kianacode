@@ -17,9 +17,15 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
       - name: Run kiana-core dep03_compatibility_guard
         run: cargo test -p kiana-core --test dep03_compatibility_guard --locked -- --test-threads=1
       - name: Run kiana-domain dep03_compatibility
         run: cargo test -p kiana-domain --test dep03_compatibility --locked -- --test-threads=1
+      - name: Compile kiana-core dep03_compatibility_guard target
+        run: cargo test -p kiana-core --test dep03_compatibility_guard --no-run --locked
+      - name: Compile kiana-domain dep03_compatibility target
+        run: cargo test -p kiana-domain --test dep03_compatibility --no-run --locked

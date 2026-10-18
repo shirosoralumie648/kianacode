@@ -1,8 +1,12 @@
 //! Version-axis compatibility matrix for deployment admission.
 //!
 //! The matrix compares server-owned snapshots. It does not migrate data, acquire a lease, start
-//! a revision or decide an external provider outcome. Unknown major versions, downgrades and
-//! route/workflow/extension drift remain explicit blocked reasons.
+//! a revision or decide an external provider outcome. Unknown major versions, downgrades,
+//! unsupported store formats and route/workflow/extension drift remain explicit blocked reasons.
+//!
+//! `app_build` participates in the axes digest but is deliberately non-blocking: a different
+//! build alone (same data-facing axes) is `Compatible` with empty reasons. Replacing the process
+//! is a rollout decision that later admission layers make; it cannot be inferred from this matrix.
 
 use crate::{json_digest, SchemaVersion};
 use serde::{Deserialize, Serialize};
@@ -11,6 +15,11 @@ pub const DEPLOYMENT_COMPATIBILITY_SCHEMA: &str = "kiana.deployment-compatibilit
 pub const DEPLOYMENT_COMPATIBILITY_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 pub const MAX_COMPATIBILITY_REASONS: usize = 16;
 pub const MAX_COMPATIBILITY_TEXT: usize = 512;
+/// Highest store/table/frame layout this binary can read. Tied to the journal writer format the
+/// workspace actually writes: a candidate (or a self-declared current snapshot) above this bound
+/// describes a layout this binary does not understand, so it fails closed with
+/// `store_format_unsupported` instead of being silently treated as a forward-compatible upgrade.
+pub const MAX_SUPPORTED_STORE_FORMAT: u32 = crate::JOURNAL_WRITER_VERSION;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -237,6 +246,14 @@ fn compatibility_reasons(
         reasons.push("projection_major_mismatch".to_owned());
     } else if candidate.projection_version.minor < current.projection_version.minor {
         reasons.push("projection_version_downgrade".to_owned());
+    }
+    // A layout above the bound this binary reads is not a forward-compatible upgrade: without a
+    // migration adapter it must be named and refused, never silently admitted. Both sides are
+    // checked because a self-declared current snapshot is just as unreadable as the candidate.
+    if current.store_format > MAX_SUPPORTED_STORE_FORMAT
+        || candidate.store_format > MAX_SUPPORTED_STORE_FORMAT
+    {
+        reasons.push("store_format_unsupported".to_owned());
     }
     if candidate.store_format < current.store_format {
         reasons.push("store_format_downgrade".to_owned());

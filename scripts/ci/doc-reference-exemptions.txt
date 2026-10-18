@@ -124,7 +124,6 @@ CURRENT_STATUS.md :: .github/workflows/ui38-conformance.yml
 CURRENT_STATUS.md :: .github/workflows/ui39-live-acp.yml
 CURRENT_STATUS.md :: .github/workflows/ui40-release-gate.yml
 CURRENT_STATUS.md :: .github/workflows/ui41-handoff.yml
-docs/roadmap.md :: .github/workflows/dep03-compatibility.yml
 docs/roadmap.md :: .github/workflows/p0-g04-projection.yml
 docs/roadmap/artifact-evidence-baseline.md :: .github/workflows/co06-artifact-evidence.yml
 docs/roadmap/assignment-baseline.md :: .github/workflows/co03-assignments.yml
@@ -216,7 +215,6 @@ docs/roadmap/daemon-ingress-baseline.md :: .github/workflows/ci04-ingress.yml
 docs/roadmap/dep00-deployment-baseline.md :: .github/workflows/dep00-deployment-baseline.yml
 docs/roadmap/dep01-deployment-baseline.md :: .github/workflows/dep01-deployment-profile.yml
 docs/roadmap/dep02-release-bundle-baseline.md :: .github/workflows/dep02-release-bundle.yml
-docs/roadmap/dep03-compatibility-baseline.md :: .github/workflows/dep03-compatibility.yml
 docs/roadmap/dep04-ops-protocol-baseline.md :: .github/workflows/dep04-ops-protocol.yml
 docs/roadmap/dep05-operation-lifecycle-baseline.md :: .github/workflows/dep05-operation-lifecycle.yml
 docs/roadmap/dep06-operation-lease-baseline.md :: .github/workflows/dep06-operation-lease.yml
