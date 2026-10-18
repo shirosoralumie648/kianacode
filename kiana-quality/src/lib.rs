@@ -107,8 +107,14 @@ pub use flake::{
     FLAKE_QUARANTINE_SCHEMA, MAX_FLAKE_ATTEMPTS, MAX_FLAKE_TEXT_BYTES, MAX_QUARANTINE_TTL_MS,
 };
 pub use gate::{
-    evaluate_gate, GateEvaluator, GateInput, GateVerdict, QualityGateConfig, QualityGateDecision,
-    GATE_EVALUATOR_ID, GATE_INPUT_SCHEMA,
+    evaluate_gate, evaluate_gate_log, quality_gate_config_update, quality_gate_decision_binding,
+    GateConfigHistory, GateEvaluator, GateInput, GateLogEvaluator, GateLogInput, GateVerdict,
+    QualityGateConfig, QualityGateDecision, QualityGateDecisionLog, GATE_BLOCKING_RULES,
+    GATE_CONFIG_HISTORY_SCHEMA, GATE_CONFIG_SCHEMA, GATE_DECISION_LOG_SCHEMA, GATE_DECISION_SCHEMA,
+    GATE_EVALUATOR_ID, GATE_INPUT_SCHEMA, GATE_LOG_EVALUATOR_ID, GATE_LOG_INPUT_SCHEMA,
+    GATE_THRESHOLD_DIMENSIONS, MAX_GATE_BLOCKING_RULES, MAX_GATE_CONFIG_VERSIONS,
+    MAX_GATE_DECISIONS, MAX_GATE_EVIDENCE_REFS, MAX_GATE_SCORE_MILLI, MAX_GATE_TEXT_BYTES,
+    MAX_GATE_THRESHOLDS,
 };
 pub use judge::{
     evaluate_semantic_judge, JudgeAvailability, JudgeVerdict, SemanticJudgeConfig,
