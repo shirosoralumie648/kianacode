@@ -42,8 +42,11 @@ pub use assertions::{
     AssertionResult, ASSERTION_SCHEMA, MAX_ASSERTIONS,
 };
 pub use baseline::{
-    evaluate_baseline_comparison, BaselineComparisonInput, BaselineEvaluator, BaselineRecord,
-    BaselineRegistry, BASELINE_EVALUATOR_ID, BASELINE_INPUT_SCHEMA,
+    evaluate_baseline_comparison, evaluate_baseline_lookup, BaselineComparisonInput,
+    BaselineEvaluator, BaselineRecord, BaselineRegistry, BaselineRegistryEvaluator,
+    BaselineRegistryInput, BASELINE_EVALUATOR_ID, BASELINE_INPUT_SCHEMA,
+    BASELINE_LOOKUP_EVALUATOR_ID, BASELINE_RECORD_SCHEMA, BASELINE_REGISTRY_INPUT_SCHEMA,
+    BASELINE_REGISTRY_SCHEMA, MAX_BASELINE_ENTRIES, MAX_BASELINE_TEXT_BYTES, MAX_BASELINE_TTL_MS,
 };
 pub use candidate::{
     CandidateDimension, CandidateEvaluator, CandidateInput, CandidateStatus, QualityCandidate,
