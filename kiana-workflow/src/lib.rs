@@ -1,13 +1,16 @@
-//! 本 crate 提供两类不直接执行副作用的 workflow 逻辑。
+//! 本 crate 提供三类不直接执行副作用的 workflow 逻辑。
 //!
 //! - 根模块的 `WorkflowState` 是很小的通用生命周期状态机：只验证固定状态边；工作区生产代码
 //!   中暂未找到它的调用者，当前覆盖来自本模块单元测试。
 //! - `durable` 子模块是 durable workflow 的领域 planner：由 `kiana-core/src/automation.rs` 的
 //!   命令路径调用，并在 EventStore 重放时重建状态。
+//! - `retry` 子模块是 AUT-16 的有界重试分类器与 retry attempt/lease/deadline 账本：只做分类
+//!   与事实登记，不预留新 execution、不重新授权、不执行 effect。
 //!
-//! 两者都不调用模型、不执行 Capability、不持有审批或写 EventStore。Durable planner 返回的
-//! `WorkflowEffect` 只是待办；授权、事实提交、生命周期推进和 effect 执行仍由唯一组合根
-//! `DaemonHost` 与 `kiana-core::ControlPlane` 负责，不能把本 crate 当作第二条执行路径。
+//! 三者都不调用模型、不执行 Capability、不持有审批或写 EventStore。Durable planner 返回的
+//! `WorkflowEffect` 与 retry planner 返回的 `AutomationRetryAttempt` 都只是待办/事实；授权、
+//! 事实提交、生命周期推进和 effect 执行仍由唯一组合根 `DaemonHost` 与
+//! `kiana-core::ControlPlane` 负责，不能把本 crate 当作第二条执行路径。
 
 use serde::{Deserialize, Serialize};
 
@@ -134,4 +137,6 @@ mod tests {
 }
 
 mod durable;
+mod retry;
 pub use durable::*;
+pub use retry::*;

@@ -1,0 +1,52 @@
+name: AUT-16 retry attempt
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retry-attempt:
+    name: AUT-16 bounded retry classifier fence
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+
+      # Domain classifier (2026-09-27 slice): Unknown-first ordering, idempotency/approval/budget/
+      # deadline bounds and unknown-field denial.
+      - name: Run domain retry classifier fixtures
+        run: cargo test -p kiana-domain --test automation_retry --locked -- --test-threads=1
+      - name: Run core retry classifier guard
+        run: cargo test -p kiana-core --test automation_retry_guard --locked -- --test-threads=1
+      # Workflow classifier + attempt/lease/deadline ledger: pure/no-dispatch failures and
+      # explicitly idempotent known failures create bounded, auditable attempts; Unknown, missing
+      # receipt, non-idempotent capability, expired approval, budget and lease fences deny first.
+      - name: Run workflow retry attempt fixtures
+        run: cargo test -p kiana-workflow --test aut16_retry_attempt --locked -- --test-threads=1
+      # Core coordinator: derives failure facts from the authoritative dispatch command and only
+      # records an auditable attempt; every denial keeps store mutations and attempts at zero.
+      - name: Run core retry command fixtures
+        run: cargo test -p kiana-core --test aut16_retry_command --locked -- --test-threads=1
+      - name: Run core retry command source guard
+        run: cargo test -p kiana-core --test aut16_retry_command_guard --locked -- --test-threads=1
+
+      - name: Compile domain retry classifier target
+        run: cargo test -p kiana-domain --test automation_retry --no-run --locked
+      - name: Compile core retry classifier guard
+        run: cargo test -p kiana-core --test automation_retry_guard --no-run --locked
+      - name: Compile workflow retry attempt target
+        run: cargo test -p kiana-workflow --test aut16_retry_attempt --no-run --locked
+      - name: Compile core retry command target
+        run: cargo test -p kiana-core --test aut16_retry_command --no-run --locked
+      - name: Compile core retry command guard
+        run: cargo test -p kiana-core --test aut16_retry_command_guard --no-run --locked

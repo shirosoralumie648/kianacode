@@ -138,6 +138,7 @@ mod automation_dispatch;
 mod automation_effect_reservation;
 mod automation_fanout;
 mod automation_retry;
+mod automation_retry_attempt;
 mod automation_signal;
 mod capability_attempt_projection;
 mod entrypoint_parity;
@@ -237,6 +238,11 @@ pub use automation_effect_reservation::{
 pub use automation_fanout::validate_fanout_plan;
 pub use automation_release_evidence::validate_automation_release_gate;
 pub use automation_retry::classify_retry;
+pub use automation_retry_attempt::{
+    record_automation_retry_attempt, AutomationRetryCommandOutcome, AutomationRetryCommandRequest,
+    AUTOMATION_RETRY_COMMAND_NOT_FAILED, AUTOMATION_RETRY_COMMAND_OUTCOME_UNKNOWN,
+    AUTOMATION_RETRY_COMMAND_REQUEST_SCHEMA, AUTOMATION_RETRY_COMMAND_SUCCEEDED,
+};
 pub use automation_signal::validate_automation_signal_fact;
 pub use automation_snapshot::validate_automation_snapshot;
 pub use automation_surface_uat::validate_automation_surface_uat;
