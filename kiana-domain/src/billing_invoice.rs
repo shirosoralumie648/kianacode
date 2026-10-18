@@ -21,7 +21,7 @@
 //! 本文件只做纯值校验与只追加账本：不 append EventStore、不消费审批、不调用 provider、
 //! 不覆盖任何已提交事实。`Matched` 只表示“服务端比较结果一致”，不表示账单已支付。
 
-use crate::{json_digest, CostCorrectionCommand, Money, ProviderReceiptRef};
+use crate::{json_digest, CostCorrectionCommand, CostLedgerEntry, Money, ProviderReceiptRef};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -312,6 +312,16 @@ pub struct InvoiceComparison {
     pub invoice_usage_digest: Option<String>,
     pub expected_amount: Option<Money>,
     pub invoice_amount: Money,
+    /// BQ-22: the committed ledger fact's provider receipt reference, when it has one.
+    ///
+    /// Compared field-by-field with the invoice's own receipt before a `Matched` state is
+    /// allowed.  `None` on the ledger side makes the comparison a review item, never a match.
+    #[serde(default)]
+    pub expected_receipt_ref: Option<ProviderReceiptRef>,
+    /// BQ-22: the invoice import's provider receipt reference.  Always populated by
+    /// `compare_provider_invoice`; hand-built comparisons must carry it to claim a match.
+    #[serde(default)]
+    pub invoice_receipt_ref: Option<ProviderReceiptRef>,
     pub state: InvoiceComparisonState,
     pub discrepancy_codes: Vec<String>,
     pub correction_ref: Option<String>,
@@ -332,6 +342,13 @@ pub struct InvoiceLedgerExpectation {
     /// 账本侧金额；`None` 表示金额仍然未知，此时比较只能是 ReviewRequired。
     pub amount: Option<Money>,
     pub source_cursor: u64,
+    /// BQ-22: the committed ledger fact's own provider receipt reference.
+    ///
+    /// The invoice must present the same receipt before a comparison may claim a match.  It is
+    /// copied from the authoritative entry (never from the wire) so an adapter cannot reintroduce
+    /// a hand-passed receipt by constructing the expectation directly.
+    #[serde(default)]
+    pub receipt_ref: Option<ProviderReceiptRef>,
 }
 
 impl InvoiceLedgerExpectation {
@@ -355,6 +372,54 @@ impl InvoiceLedgerExpectation {
             usage_digest,
             amount,
             source_cursor,
+            receipt_ref: None,
+        };
+        expectation.validate()?;
+        Ok(expectation)
+    }
+
+    /// The whole-card path: derive the expectation from a committed `CostLedgerEntry`.
+    ///
+    /// Every field comes from the fact itself: the entry digest is re-derived and checked, the
+    /// period/model are the server-owned comparison fields, the usage digest is the entry's
+    /// `source_digest` (the BQ-13 observation digest the entry was built from), the amount is the
+    /// measured cost when present, and the receipt reference is the entry's own
+    /// `provider_receipt_ref`.  A fact that never named a period or model cannot be turned into a
+    /// matching expectation; the try fails closed instead of letting an adapter fill the gap.
+    ///
+    /// `usage_digest` is `None` for entries whose cost is still an estimate/unknown, which keeps
+    /// the comparison at `usage_unknown` (review) rather than manufacturing a measured value.
+    pub fn from_ledger_entry(entry: &CostLedgerEntry) -> Result<Self, String> {
+        entry.validate()?;
+        let (Some(period_start_unix_ms), Some(period_end_unix_ms)) =
+            (entry.period_start_unix_ms, entry.period_end_unix_ms)
+        else {
+            return Err("provider_invoice_ledger_entry_period_missing".to_owned());
+        };
+        let Some(model) = entry.model.clone() else {
+            return Err("provider_invoice_ledger_entry_model_missing".to_owned());
+        };
+        // Estimated facts have no measured observation behind them, so their usage stays unknown
+        // for invoice comparison.  A measured fact carries the observation digest in
+        // `source_digest`, which is the only server-owned usage digest on the entry.
+        let (usage_digest, amount) = if entry.measured_cost.is_some() {
+            (
+                Some(entry.source_digest.clone()),
+                entry.measured_cost.clone(),
+            )
+        } else {
+            (None, None)
+        };
+        let expectation = Self {
+            ledger_entry_digest: entry.entry_digest.clone(),
+            ledger_entry_ref: format!("ledger-entry:{}", entry.entry_id),
+            period_start_unix_ms,
+            period_end_unix_ms,
+            model,
+            usage_digest,
+            amount,
+            source_cursor: entry.source_cursor,
+            receipt_ref: entry.provider_receipt_ref.clone(),
         };
         expectation.validate()?;
         Ok(expectation)
@@ -375,10 +440,23 @@ impl InvoiceLedgerExpectation {
                 .as_ref()
                 .is_some_and(|amount| amount.validate().is_err() || amount.micros < 0)
             || self.source_cursor == 0
+            || self.receipt_ref.as_ref().is_some_and(|receipt| {
+                receipt.as_str().trim().is_empty()
+                    || receipt.as_str().len() > 512
+                    || receipt.as_str().contains(['\0', '\n', '\r'])
+            })
         {
             return Err("provider_invoice_ledger_expectation_invalid".to_owned());
         }
         Ok(())
+    }
+}
+
+impl TryFrom<&CostLedgerEntry> for InvoiceLedgerExpectation {
+    type Error = String;
+
+    fn try_from(entry: &CostLedgerEntry) -> Result<Self, Self::Error> {
+        Self::from_ledger_entry(entry)
     }
 }
 
@@ -433,6 +511,8 @@ impl InvoiceComparison {
                 if !mismatches.is_empty()
                     || self.expected_usage_digest.is_none()
                     || self.invoice_usage_digest.is_none()
+                    || self.expected_receipt_ref.is_none()
+                    || self.invoice_receipt_ref.is_none()
                     || !self.discrepancy_codes.is_empty()
                     || self.correction_ref.is_some()
                 {
@@ -489,6 +569,16 @@ impl InvoiceComparison {
             Some(_) => codes.push("amount_mismatch".to_owned()),
             None => codes.push("amount_unknown".to_owned()),
         }
+        // The receipt is the invoice's own identity: without it on both sides the comparison can
+        // only be reviewed, and a different receipt is an explicit mismatch.
+        match (
+            self.expected_receipt_ref.as_ref(),
+            self.invoice_receipt_ref.as_ref(),
+        ) {
+            (Some(expected), Some(invoice)) if expected == invoice => {}
+            (Some(_), Some(_)) => codes.push("receipt_mismatch".to_owned()),
+            _ => codes.push("receipt_unknown".to_owned()),
+        }
         codes
     }
 
@@ -507,6 +597,8 @@ impl InvoiceComparison {
             "invoice_usage_digest": self.invoice_usage_digest,
             "expected_amount": self.expected_amount,
             "invoice_amount": self.invoice_amount,
+            "expected_receipt_ref": self.expected_receipt_ref,
+            "invoice_receipt_ref": self.invoice_receipt_ref,
             "state": self.state,
             "discrepancy_codes": self.discrepancy_codes,
             "correction_ref": self.correction_ref,
@@ -519,10 +611,10 @@ impl InvoiceComparison {
 /// 【检查顺序与规则】
 /// 1. 导入事实与账本期望各自先过形状校验；
 /// 2. 币种必须一致（否则修正差额没有意义，返回 `provider_invoice_currency_mismatch`）；
-/// 3. 差异码由字段派生：period/model/usage/amount；
-/// 4. 只要出现 `*_unknown`（账本或账单一侧的用量、金额未知）就只能是 `ReviewRequired`，
+/// 3. 差异码由字段派生：period/model/usage/amount/receipt；
+/// 4. 只要出现 `*_unknown`（账本或账单一侧的用量、金额、收据未知）就只能是 `ReviewRequired`，
 ///    绝不生成实测金额；其余差异是 `CorrectionRequired` 且**必须**带修正引用；
-/// 5. `Matched` 要求无差异、两侧用量摘要齐全且不得携带修正引用。
+/// 5. `Matched` 要求无差异、两侧用量摘要与收据引用齐全且不得携带修正引用。
 ///
 /// 【失败】任何形状或引用缺失都在构造比较事实前拒绝；本函数不修改导入与期望。
 pub fn compare_provider_invoice(
@@ -539,6 +631,16 @@ pub fn compare_provider_invoice(
     {
         return Err("provider_invoice_currency_mismatch".to_owned());
     }
+    // The receipt reference is the bill's identity.  If the committed ledger fact names a
+    // different provider receipt than the imported invoice, the two documents are not the same
+    // bill and no monetary comparison is meaningful: refuse before any fact is built.
+    if expected
+        .receipt_ref
+        .as_ref()
+        .is_some_and(|receipt| receipt != &import.receipt_ref)
+    {
+        return Err("provider_invoice_receipt_mismatch".to_owned());
+    }
 
     let mut comparison = InvoiceComparison {
         schema: INVOICE_COMPARISON_SCHEMA.to_owned(),
@@ -554,6 +656,8 @@ pub fn compare_provider_invoice(
         invoice_usage_digest: import.usage_digest.clone(),
         expected_amount: expected.amount.clone(),
         invoice_amount: import.amount.clone(),
+        expected_receipt_ref: expected.receipt_ref.clone(),
+        invoice_receipt_ref: Some(import.receipt_ref.clone()),
         state: InvoiceComparisonState::Matched,
         discrepancy_codes: Vec::new(),
         correction_ref: None,
@@ -1088,6 +1192,156 @@ pub fn validate_invoice_correction_handoff(
     handoff: &ProviderInvoiceCorrectionHandoff,
 ) -> Result<(), &'static str> {
     handoff.validate()
+}
+
+// ---------------------------------------------------------------------------
+// BQ-22 local-only invoice document parser
+// ---------------------------------------------------------------------------
+
+/// Schema of the local provider invoice document an operator may hand to Kiana.
+///
+/// This is a *file* format, not a provider protocol: the parser below never opens a socket, reads
+/// a URL or trusts a signature field.  It turns bytes into the same typed contracts the rest of
+/// the billing path already uses, and fails closed on anything it does not fully understand.
+pub const PROVIDER_INVOICE_DOCUMENT_SCHEMA: &str = "kiana.provider-invoice-document.v1";
+/// Maximum accepted invoice document size.  A provider PDF turned into JSON must still fit a
+/// bounded buffer; the adapter refuses anything larger before parsing.
+pub const MAX_PROVIDER_INVOICE_DOCUMENT_BYTES: usize = 256 * 1024;
+
+/// A parsed local invoice document: the import fact plus the server authentication evidence that
+/// must bind it.  Both are produced by [`parse_provider_invoice_document`]; neither is trusted
+/// merely because it appeared in the file.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParsedProviderInvoiceDocument {
+    pub import: ProviderInvoiceImport,
+    pub authentication: InvoiceAuthenticationEvidence,
+}
+
+/// Wire shape of the invoice document.  Deliberately narrow and `deny_unknown_fields`: a vendor
+/// export with extra columns is rejected instead of being partially interpreted.
+///
+/// The document carries an *authentication block* fields, not a signature: a local file cannot
+/// prove a provider signed it.  `verifier_ref`/`verified_at_unix_ms`/`authority_epoch` describe
+/// who checked the receipt bytes and when, and are still compared against the caller-supplied
+/// `now`/`epoch` by [`ProviderInvoiceImport::validate_against_authentication`].  The digest fields
+/// are recomputed locally.  A real signature verifier remains out of scope.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderInvoiceDocument {
+    pub schema: String,
+    pub provider_account_ref: String,
+    pub invoice_id: String,
+    pub period_start_unix_ms: u64,
+    pub period_end_unix_ms: u64,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub usage_digest: Option<String>,
+    /// `kiana.money.v1` value.  Negative micros are refused before the import is built.
+    pub amount: Money,
+    pub receipt_ref: String,
+    /// Digest of the receipt bytes, computed by the operator's import step.
+    pub receipt_digest: String,
+    pub verifier_ref: String,
+    pub verified_at_unix_ms: u64,
+    pub authority_epoch: u64,
+    pub source_cursor: u64,
+    pub import_key: String,
+}
+
+/// Parse a provider invoice document into the import fact and its authentication evidence.
+///
+/// # Failure order (all before any fact exists)
+/// 1. size bound → 2. strict JSON decode (`deny_unknown_fields`, no duplicate keys) →
+/// 3. document schema → 4. money shape/negative amount → 5. receipt reference shape →
+/// 6. digest shapes → 7. period/cursor/epoch shapes → 8. sealed import/evidence validation.
+///
+/// Every failure returns a stable `provider_invoice_document_*` code.  The `import_digest` and
+/// `evidence_digest` are always recomputed here; a file that ships its own digests is rejected as
+/// an unknown field, so a caller cannot hand-pass a covering digest.
+pub fn parse_provider_invoice_document(
+    bytes: &[u8],
+) -> Result<ParsedProviderInvoiceDocument, String> {
+    if bytes.is_empty() {
+        return Err("provider_invoice_document_empty".to_owned());
+    }
+    if bytes.len() > MAX_PROVIDER_INVOICE_DOCUMENT_BYTES {
+        return Err("provider_invoice_document_too_large".to_owned());
+    }
+    let text =
+        std::str::from_utf8(bytes).map_err(|_| "provider_invoice_document_not_utf8".to_owned())?;
+    let document: ProviderInvoiceDocument = serde_json::from_str(text)
+        .map_err(|error| format!("provider_invoice_document_invalid_json:{error}"))?;
+
+    if document.schema != PROVIDER_INVOICE_DOCUMENT_SCHEMA {
+        return Err("provider_invoice_document_schema_invalid".to_owned());
+    }
+    document
+        .amount
+        .validate()
+        .map_err(|_| "provider_invoice_document_money_invalid".to_owned())?;
+    if document.amount.micros < 0 {
+        return Err("provider_invoice_document_amount_negative".to_owned());
+    }
+    let receipt_ref = ProviderReceiptRef::new(document.receipt_ref.clone())
+        .map_err(|_| "provider_invoice_document_receipt_invalid".to_owned())?;
+    if !valid_digest(&document.receipt_digest) {
+        return Err("provider_invoice_document_receipt_digest_invalid".to_owned());
+    }
+    if document.verified_at_unix_ms == 0 {
+        return Err("provider_invoice_document_verified_at_invalid".to_owned());
+    }
+    if document.authority_epoch == 0 {
+        return Err("provider_invoice_document_authority_epoch_invalid".to_owned());
+    }
+    if document.source_cursor == 0 {
+        return Err("provider_invoice_document_source_cursor_invalid".to_owned());
+    }
+    if !valid_text(&document.import_key) {
+        return Err("provider_invoice_document_import_key_invalid".to_owned());
+    }
+
+    let mut import = ProviderInvoiceImport {
+        schema: PROVIDER_INVOICE_SCHEMA.to_owned(),
+        provider_account_ref: document.provider_account_ref.clone(),
+        invoice_id: document.invoice_id.clone(),
+        period_start_unix_ms: document.period_start_unix_ms,
+        period_end_unix_ms: document.period_end_unix_ms,
+        model: document.model.clone(),
+        usage_digest: document.usage_digest.clone(),
+        amount: document.amount.clone(),
+        receipt_ref: receipt_ref.clone(),
+        receipt_digest: document.receipt_digest.clone(),
+        authentication_ref: format!("document:{}", document.verifier_ref),
+        // The document is local evidence, not a provider assertion.  `authenticated` is set only
+        // after the evidence below binds it, but the field itself is still a shape gate: a
+        // document that does not carry verification fields fails the later evidence check.
+        authenticated: true,
+        source_cursor: document.source_cursor,
+        import_key: document.import_key.clone(),
+        import_digest: String::new(),
+    };
+    import.import_digest = import.digest();
+    import
+        .validate()
+        .map_err(|code| format!("provider_invoice_document_import_invalid:{code}"))?;
+
+    let authentication = InvoiceAuthenticationEvidence::new(
+        document.provider_account_ref,
+        document.invoice_id,
+        document.period_start_unix_ms,
+        document.period_end_unix_ms,
+        document.receipt_digest,
+        document.verifier_ref,
+        document.verified_at_unix_ms,
+        document.authority_epoch,
+    )
+    .map_err(|code| format!("provider_invoice_document_evidence_invalid:{code}"))?;
+
+    Ok(ParsedProviderInvoiceDocument {
+        import,
+        authentication,
+    })
 }
 
 fn valid_text(value: &str) -> bool {

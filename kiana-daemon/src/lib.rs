@@ -53,6 +53,7 @@ mod approval_store;
 mod authn;
 mod automation_cancellation;
 mod automation_dispatch;
+mod billing_invoice_import;
 mod company_dispatch;
 mod connector_ingress;
 mod connectors;
@@ -143,6 +144,7 @@ pub use automation_dispatch::{
     AutomationDispatchService, AutomationDispatchShutdownReport,
     AUTOMATION_DISPATCH_CHANNEL_CAPACITY,
 };
+pub use billing_invoice_import::{LocalProviderInvoiceImportError, LocalProviderInvoiceImporter};
 pub use connector_ingress::ConnectorIngressVerifier;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,

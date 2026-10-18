@@ -131,6 +131,21 @@ pub struct CostLedgerEntry {
     pub rate_card_version: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_receipt_ref: Option<ProviderReceiptRef>,
+    /// BQ-22: server-owned billing period this fact belongs to, when the producer knew it.
+    ///
+    /// It is a comparison aid for provider-invoice reconciliation, not an invoice identity: a
+    /// missing period keeps a comparison at `usage_unknown`/`period`-review instead of letting an
+    /// adapter invent a window.  Optional so existing facts stay decodable and no adapter may
+    /// backfill it from a provider document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period_start_unix_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period_end_unix_ms: Option<u64>,
+    /// BQ-22: server-owned model selector this fact was priced for.  A provider invoice may only
+    /// be compared against a fact that names the same model; `None` makes the comparison a review
+    /// item, never a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     pub created_at_unix_ms: u64,
     pub source_event_id: EventId,
     pub source_cursor: u64,
@@ -173,6 +188,9 @@ impl CostLedgerEntry {
             rate_card_id: None,
             rate_card_version: None,
             provider_receipt_ref: None,
+            period_start_unix_ms: None,
+            period_end_unix_ms: None,
+            model: None,
             created_at_unix_ms,
             source_event_id,
             source_cursor,
@@ -303,6 +321,27 @@ impl CostLedgerEntry {
         self.reseal_and_validate()
     }
 
+    /// BQ-22: name the server-owned billing period a committed fact belongs to.
+    ///
+    /// Both ends are required together and must form a positive window.  This is the only
+    /// sanctioned way to populate the comparison fields; a provider invoice document is never a
+    /// source for them.
+    pub fn with_billing_period(
+        mut self,
+        period_start_unix_ms: u64,
+        period_end_unix_ms: u64,
+    ) -> Result<Self, String> {
+        self.period_start_unix_ms = Some(period_start_unix_ms);
+        self.period_end_unix_ms = Some(period_end_unix_ms);
+        self.reseal_and_validate()
+    }
+
+    /// BQ-22: name the server-owned model selector this fact was priced for.
+    pub fn with_model(mut self, model: impl Into<String>) -> Result<Self, String> {
+        self.model = Some(model.into());
+        self.reseal_and_validate()
+    }
+
     fn reseal_and_validate(mut self) -> Result<Self, String> {
         self.reseal();
         self.validate()?;
@@ -336,6 +375,20 @@ impl CostLedgerEntry {
         }
         if let Some(allocation_ref) = &self.allocation_ref {
             required(allocation_ref, "cost_ledger_entry_allocation_ref", 512)?;
+        }
+        // BQ-22 comparison fields: both period ends or neither, a positive window, and a bounded
+        // model selector.  Half a period or a zero-width window would make invoice comparison
+        // fabricate a match, so it is refused before any ledger fact exists.
+        if self.period_start_unix_ms.is_some() != self.period_end_unix_ms.is_some() {
+            return Err("cost_ledger_entry_billing_period_pair_required".to_owned());
+        }
+        if let (Some(start), Some(end)) = (self.period_start_unix_ms, self.period_end_unix_ms) {
+            if start == 0 || end <= start {
+                return Err("cost_ledger_entry_billing_period_invalid".to_owned());
+            }
+        }
+        if let Some(model) = &self.model {
+            required(model, "cost_ledger_entry_model", 256)?;
         }
         for money in [
             self.amount.as_ref(),
@@ -398,6 +451,9 @@ impl CostLedgerEntry {
             "rate_card_id": self.rate_card_id,
             "rate_card_version": self.rate_card_version,
             "provider_receipt_ref": self.provider_receipt_ref,
+            "period_start_unix_ms": self.period_start_unix_ms,
+            "period_end_unix_ms": self.period_end_unix_ms,
+            "model": self.model,
             "created_at_unix_ms": self.created_at_unix_ms,
             "source_event_id": self.source_event_id,
             "source_cursor": self.source_cursor,
