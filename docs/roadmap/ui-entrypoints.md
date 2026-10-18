@@ -845,7 +845,7 @@ close-without-cancel fence；GitHub-only fixture/workflow 已接入，证明等�
 
 
 
-#### UI-20 · Web 时间线组件迁移　🔄
+#### UI-20 · Web 时间线组件迁移　✅
 
 - 依赖：UI-08/13/17/18。代码：从当前 inline HTML 渐进抽出 Thread/Turn/Item、status bar、feed indicator 组件；可采用 React/TS/Vite，但先保持静态构建可运行。
 - 步骤：按 server item kind 渲染 delta/tool/approval/error/unknown；虚拟化和窗口化受有界 cursor 控制；错误、partial、replay、loading 可感知。
@@ -860,6 +860,43 @@ timeline renderer 与受保护 pending/unknown recent window；loading/partial/r
 状态节点可见，unknown 不从文本猜测且要求保守刷新。GitHub-only fixture/source guard/workflow
 已接入，浏览器截图/golden、真实长流/窄屏、视觉 parity、跨进程/durable replay 和 live/physical
 proof 留后续。
+
+完成切片（2026-10-17）把该基线补成卡片退出条件：把时间线收敛为唯一**组件目录**
+（`kiana.web-timeline-components.v1`：typed `WEB_TIMELINE_COMPONENTS` = thread `#chat`、turn
+`section.timeline-turn`、item `article.timeline-item`、status-bar `#timelineState`、
+feed-indicator `#streamBanner`，每个条目 `may_execute=false`，页面以 `data-component` 挂载并
+在 `renderTimelineProjection` 里按 server `turn_id` 分组、无 turn id 的条目绝不自行造组，CSS
+补 `.timeline-turn` 与窄屏规则）；**迁移开关**为 server-owned：`kiana.web-timeline-migration.v1`
+随每个 snapshot 下发（`web_timeline_contract()` = `WebTimelineMigration::select(PAGE)`，
+含 selected/disposition/reason/renderers/components/window/bundle/server_item_kinds/visible_states），
+`/api/bootstrap` 新增可选 `timeline_renderer` 请求并在**任何 lease/投影之前**校验——只有
+`typed_inline` 在已审查白名单内，`legacy_text`（按文本猜 kind）得到
+`web_timeline_renderer_text_guess_forbidden`、其它值得到 `web_timeline_renderer_unsupported`
+（两个稳定码已进 `WEB_ERROR_MATRIX` 与 `ui16-web-routes.json`）；页面只在契约
+`schema/disposition=active/selected` 合法、window 三界（64/512/16KiB）与自身常量一致、组件目录
+完整、`bundle.within_budget=true` 时用该 renderer，否则 `failTimelineRenderer` 设
+`renderer='unsupported'`：状态条被强制 `partial`（`setTimelineState` 不能再报告 ready），
+`appendTimelineItem` 对新普通条目 early-return、只保留 pending/unknown，且开关从不来自 URL/hash/
+localStorage/tab 状态；**golden** 为 `ui20-web-timeline-golden.json`（六种 kind 的 class/label/
+CSS 存在性与 dataset 契约、五个组件的 selector/dataset/CSS、unsupported renderer 的 keeps/
+refuses、`screenshot.status=deferred` 明示 CI 无浏览器 lane）；**bundle size 基线**为
+`kiana.web-timeline-bundle.v1`：从被服务的页面 artifact 实测 `// >>> UI-20 timeline components`
+到 `// <<< UI-20 timeline components` 区间与整页字节（本地实测 page 98,339B / 组件区 43,966B ≤
+预算 160KiB / 64KiB，运行时夹具再以替换 token 后的真实响应复核），缺失标记或超预算一律发布
+`unavailable` 而非照常渲染。验收：`web::tests::ui20_*` 新增 2 条真实 loopback `DaemonHost`
+夹具（bootstrap/state 下发同一契约且 typed 校验通过、契约不含 token/prompt/nonce、served 页面
+保留标记且未超预算；`legacy_text`/`react_vite_migration` 在 lease 之前被拒、随后 owner tab 仍能
+第一个拿到 `lease.disposition=owner`），`ui20_web_timeline.rs` 5 条（fixture↔typed 常量↔页面常量、
+typed kind/window 拒绝矩阵、bundle/组件区 fail-closed、golden↔页面 renderer、runtime 接线），
+`ui20_web_timeline_guard.rs` 5 条（renderer 文本边界与稳定 key、受保护窗口与上限、状态/开关
+fail-closed 且无第二执行者、开关与 window 只由服务端拥有、fixture↔golden↔lane 逐字命令↔
+`kiana-entrypoints` 整 crate 分片的双向绑定），重建手动 `.github/workflows/ui20-web-timeline.yml`
+（`workflow_dispatch`-only、`permissions: contents: read`、fetch/fmt 门 + 两个 target +`--lib
+web::tests::ui20_`+ `--no-run`），自动覆盖仍是统一 `ci.yml` 的 `kiana-entrypoints` 整 crate 分片
+（`scripts/ci/test-shards.json` 未改）。无 Cargo.toml/Cargo.lock/package.json 变化、无新依赖/新
+test target/第二执行循环，五个模型可见工具面不变、未触碰冻结项；本地未运行测试/build/check/
+clippy/smoke（只跑 `cargo fmt`），CI 回执未等待，proof 上限 `source`；真实浏览器截图/视觉差分、
+真实长流与窄屏 timing、深链接浏览器行为、跨进程/durable replay 与 live/physical 证据仍开放。
 
 <a id="step-ui-21"></a>
 

@@ -80,3 +80,60 @@ proof-level change: feature_status=implemented for bounded Web source contracts;
 limitations: no browser screenshot/golden, real HTTP/SSE timing, visual parity, cross-process/durable cache, provider/live timing, receipt correctness, external effect or physical proof; CI result not awaited
 reviewer: Codex UI-20 source review; checks explicit server kind mapping, text-only rendering, stable IDs, protected pending/unknown window, visible loading/partial/replay/offline state, shared hydrate/SSE/session boundaries and no second execution loop; no local runtime test reviewer
 ```
+
+## Completion slice: component directory, migration switch, DOM golden and bundle baseline (2026-10-17)
+
+The card's remaining products are now in the source and wired to CI.  `UI-20` keeps the canonical
+path `server ItemView/hydrate/SSE projection → shared Web client contract/store state → DOM-only
+timeline renderer`; nothing here authorizes an action, executes a command or owns a second
+projection.
+
+| Product | Where | Bound by |
+|---|---|---|
+| component directory | `kiana-client/src/web_timeline.rs` `WEB_TIMELINE_COMPONENTS` + `TIMELINE_COMPONENT_DIRECTORY` in `web_page.html` (thread `#chat`, turn `section.timeline-turn`, item `article.timeline-item`, status bar `#timelineState`, feed indicator `#streamBanner`) | `ui20_fixture_binds_the_typed_timeline_and_migration_contract`, `ui20_browser_component_directory_and_switch_stay_text_only` |
+| migration switch | `kiana.web-timeline-migration.v1` inside every snapshot (`web_timeline_contract`), requested value validated by `validate_timeline_renderer` | `ui20_timeline_renderer_requests_denied_before_lease_or_projection`, `ui20_switch_and_window_bounds_stay_server_owned` |
+| DOM golden | `kiana-entrypoints/tests/fixtures/ui20-web-timeline-golden.json` | `ui20_browser_component_directory_and_switch_stay_text_only`, `ui20_completion_slice_stays_wired_to_the_fixture_lane_and_shard` |
+| bundle baseline | `kiana.web-timeline-bundle.v1` measured from the served artifact, `WEB_TIMELINE_PAGE_MAX_BYTES`, `WEB_TIMELINE_COMPONENT_MAX_BYTES`, marked region `// >>> UI-20 timeline components` … `// <<< UI-20 timeline components` | `ui20_bundle_and_component_region_fail_closed`, `ui20_bootstrap_publishes_the_server_owned_timeline_migration_contract` |
+
+Deny-first behaviour of the switch: only `typed_inline` is in the reviewed allowlist; a
+`legacy_text` request (text-based kind guessing) is refused with
+`web_timeline_renderer_text_guess_forbidden` and any other value with
+`web_timeline_renderer_unsupported`, both before a session lease is claimed or a projection is read.
+A page whose component region is missing or over budget is published as `unavailable` instead of
+being painted, and a browser that receives an unreviewed renderer, a diverging window bound, an
+incomplete component directory or an over-budget bundle fails closed: the projection stays
+`partial`, keeps pending/unknown items visible and refuses ordinary new items until a hydrate
+carries a reviewed contract again.  The switch is never read from a URL, hash, local storage or tab
+state.
+
+Verification wiring: `kiana-entrypoints/tests/fixtures/ui20-web-timeline.json` is a declarative
+`kiana.ui20-web-timeline.v1` matrix (schemas, reviewed renderers, refused requests, components,
+window, budgets, deny-first, server/browser required markers, routes, fixtures, required markers,
+limitations); `ui20_web_timeline.rs` binds it plus the typed contract to the real source constants
+and the golden; `ui20_web_timeline_guard.rs` binds it to the deny paths, the manual lane
+`ui20-web-timeline.yml`, the baseline and the `kiana-entrypoints` whole-crate shard.  The runtime
+fixtures `web::tests::ui20_bootstrap_publishes_the_server_owned_timeline_migration_contract` and
+`web::tests::ui20_timeline_renderer_requests_denied_before_lease_or_projection` drive a real
+loopback `DaemonHost` router over the embedded artifact.
+
+```text
+driver: cargo test -p kiana-entrypoints --test ui20_web_timeline --locked -- --test-threads=1
+driver: cargo test -p kiana-entrypoints --test ui20_web_timeline_guard --locked -- --test-threads=1
+driver: cargo test -p kiana-entrypoints --lib web::tests::ui20_ --locked -- --test-threads=1
+lane: .github/workflows/ui20-web-timeline.yml (workflow_dispatch only, permissions: contents: read)
+automatic shard: ci.yml kiana-entrypoints whole-crate shard (scripts/ci/test-shards.json unchanged)
+```
+
+```text
+source_snapshot: master 63ab82657671 plus this UI-20 completion slice (branch step/ui-20-20261017-1)
+worktree_status: isolated worktree /workspace/kianacode-worktrees/UI-20; typed client contract, page component directory/migration switch, page HTML markers, server contract, fixtures, golden, guard, lane and docs
+command_argv: cargo fmt --all; cargo fmt --all -- --check; static rg/cat/sed/git inspection only
+cwd·environment: /workspace/kianacode-worktrees/UI-20; Linux/bash; no Cargo build/test/check/clippy/run, no smoke or acceptance script; no live provider
+fixture·cassette: kiana-entrypoints/tests/fixtures/ui20-web-timeline.json, ui20-web-timeline-golden.json and web::tests::ui20_* over a real loopback DaemonHost router; no external effect
+exit_code: local rustfmt only; GitHub Actions owns compile and behaviour verification and its result is not awaited
+status_change: UI-20 🔄 → ✅ (CI pending); component directory, server-owned migration switch with deny-first renderer requests, DOM golden and measured bundle baseline added on top of the typed item/window contract
+proof_level: source; the lane and the automatic crate shard are wired but no local behaviour, durable, live or physical evidence exists
+limitations: no browser screenshot or visual-diff lane, no real long-stream timing, narrow-screen or deep-link browser measurement, no cross-process/durable cache or replay proof, no provider/live or physical evidence; CI receipt not awaited
+reviewer: this session's source self-review against the card's deny-first/parity list; no local runtime test reviewer
+```
+
