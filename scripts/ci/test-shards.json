@@ -497,6 +497,8 @@
    "nm18_notification_recovery_guard",
    "nm19_external_notification",
    "nm19_external_notification_guard",
+   "nm20_notification_fault_harness",
+   "nm20_notification_fault_harness_guard",
    "nm20_notification_faults",
    "nm20_notification_faults_guard",
    "nm21_notification_parity",
