@@ -271,14 +271,15 @@
 
 
 
-#### CO-14 · 会议、黑板和决议对象补齐　🔄
+#### CO-14 · 会议、黑板和决议对象补齐　✅
 
 - **归属**：`P1-E-02`、`P4-E-03`。
 - **依赖**：CO-04、CO-06、CO-13。
-- **代码与产物**：`symposiums.rs`、`symposium_governance.rs`、DecisionProposal/DecisionRecord、domain 会议状态和公开/私有上下文视图；当前 source slice 与 CI-only 证据见 [`co14-symposium-governance-baseline.md`](co14-symposium-governance-baseline.md)。
+- **代码与产物**：`symposiums.rs`、`symposium_governance.rs`、DecisionProposal/DecisionRecord、domain 会议状态和公开/私有上下文视图；当前 source slice、本地 focused 证据与 CI-only 证据见 [`co14-symposium-governance-baseline.md`](co14-symposium-governance-baseline.md)。
 - **实现顺序**：①绑定 Project/baseline、议程、具名 assignment、主席、限额与输出合同；②Claim/Vote/Draft 带来源、版本和证据；③声明会议/异步处理选择、分歧、未决项和明确决定者，私有 brief 单独保存。
 - **先拒绝**：`symposium_rejects_uninvited_stale_and_duplicate_contributions`；投票数不等于批准权，未点名角色不能读主席准备或伪造票。
 - **再成功 / 退出**：`symposium_decision_preserves_alternatives_dissent_and_evidence`；五部门可使用相同合同；联席会议明确列出各 assignment 的可见与决策范围。
+- **2026-10-18 收口切片（local_behavior）**：`SymposiumAssignmentScope`（`kiana.symposium-assignment-scope.v1`：逐 assignment 的 `visible_kinds` + `may_decide`）成为 typed 合同，`record`/`visible_to`/`publish_decision`/`attach_sponsor_approval` 全部按声明范围拒绝（`symposium_contribution_scope_denied`/`symposium_decision_authority_denied`/`symposium_sponsor_scope_denied`），`visible_to` 去掉主席无条件全可见捷径；投票仅建议，只引用 vote 记录的决议被 `symposium_vote_does_not_approve` 拒绝，Sponsor approval 仍是需要 sponsor 角色与声明决策范围的独立附件；部门会议要求全部角色同属一个 `DepartmentSpec` 且主席为其 `can_convene` 角色，`SymposiumGovernance::joint` 只作可见/决策范围合同（`symposium_joint_scope_undeclared`/`symposium_joint_decision_authority_denied`），`symposiums.rs` 的 `joint_symposium_frozen` 产品冻结不变。domain 6 条先拒绝优先夹具（五部门逐部门建板、joint 逐 assignment 列可见/决策范围、success 最后）+ core guard 1 → 2 条 + lane 扩为 locked fetch/fmt/双 target/双 `--no-run`；本地两 target 实跑通过（本地 `--locked --offline --test-threads=1`），CI 回执未等待。
 
 <a id="co-15"></a>
 
