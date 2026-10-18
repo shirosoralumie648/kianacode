@@ -212,6 +212,9 @@ const COST_CORRECTION_IDS: &[&str] = &[
     "target_entry_digest",
 ];
 const COST_ALLOCATION_IDS: &[&str] = &["run_id", "allocation_id", "usage_id"];
+// BQ-22 账单导入没有 run（它来自 provider 账单，不是某次运行），身份由 invoice 与自证摘要绑定。
+const INVOICE_IMPORT_IDS: &[&str] = &["invoice_id", "import_digest"];
+const INVOICE_OBSERVATION_IDS: &[&str] = &["invoice_digest", "observation_digest"];
 
 /// 一种运行事件在服务端的静态契约。
 ///
@@ -1104,6 +1107,38 @@ const COST_ALLOCATION_FIELDS: &[&str] = &[
     "source_digest",
     "allocation_digest",
 ];
+// BQ-22：导入事实与观测事实的精确白名单。两者共享 `provider_invoice` 聚合流，
+// 因此字段白名单不允许出现 transcript/prompt/审批载荷等第二权威字段。
+const INVOICE_IMPORT_FIELDS: &[&str] = &[
+    "schema",
+    "provider_account_ref",
+    "invoice_id",
+    "period_start_unix_ms",
+    "period_end_unix_ms",
+    "model",
+    "usage_digest",
+    "amount",
+    "receipt_ref",
+    "receipt_digest",
+    "authentication_ref",
+    "authenticated",
+    "source_cursor",
+    "import_key",
+    "import_digest",
+];
+const INVOICE_OBSERVATION_FIELDS: &[&str] = &[
+    "schema",
+    "kind",
+    "invoice_digest",
+    "ledger_entry_digest",
+    "measured_amount",
+    "usage_digest",
+    "discrepancy_codes",
+    "correction_ref",
+    "review_ref",
+    "source_cursor",
+    "observation_digest",
+];
 
 // approval 字段组分别描述审批请求、决策、过期、撤销、消费等生命周期事实。
 // 各状态使用精确白名单，避免一个宽泛联合结构把“已请求”载荷里的字段带入“已批准”事件。
@@ -1832,6 +1867,22 @@ pub const EVENT_KIND_SPECS: &[EventKindSpec] = &[
         "cost_allocation",
         COST_ALLOCATION_IDS,
         COST_ALLOCATION_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "cost.invoice_imported",
+        "provider_invoice",
+        INVOICE_IMPORT_IDS,
+        INVOICE_IMPORT_FIELDS,
+        false,
+        None
+    ),
+    spec!(
+        "cost.invoice_observed",
+        "provider_invoice",
+        INVOICE_OBSERVATION_IDS,
+        INVOICE_OBSERVATION_FIELDS,
         false,
         None
     ),
