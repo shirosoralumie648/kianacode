@@ -2761,69 +2761,74 @@ async fn events(
             last_cursor: initial_cursor,
         },
         |mut state| async move {
-            if state.done {
-                return None;
-            }
-            if let Some(gap) = state.gap.take() {
-                return Some((Ok(gap), state));
-            }
-            loop {
-                let received = tokio::select! {
-                    biased;
-                    _ = state.shutdown.changed() => {
-                        state.done = true;
-                        return Some((Ok(stream_error_sse_event_with_cursor("web_shutdown", &state.last_cursor)), state));
-                    }
-                    _ = tokio::time::sleep(WEB_SSE_HEARTBEAT_INTERVAL) => {
-                        return Some((Ok(stream_heartbeat_sse_event(&state.last_cursor)), state));
-                    }
-                    received = state.subscription.recv() => received,
-                };
-                match received {
-                    Ok(envelope) => {
-                        let (name, terminal) = match &envelope.event {
-                            RunStreamEvent::Delta { .. } => ("delta", false),
-                            RunStreamEvent::Terminal { .. } => ("terminal", true),
-                            RunStreamEvent::Usage { .. } => ("usage", false),
-                            RunStreamEvent::ToolCall { .. } => ("tool_call", false),
-                            RunStreamEvent::ApprovalRequested { .. } => {
-                                ("approval_requested", false)
-                            }
-                            RunStreamEvent::Error { .. } => ("runtime_error", false),
-                            RunStreamEvent::Unknown => continue,
-                        };
-                        state.last_cursor = UiCursor {
-                            epoch: envelope.epoch.clone(),
-                            sequence: envelope.sequence,
-                        };
-                        state.done = terminal;
-                        return Some((Ok(run_stream_sse_event(name, &envelope)), state));
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        state.done = true;
-                        return Some((
-                            Ok(stream_error_sse_event_with_cursor(
-                                &format!("stream_subscription_lagged:{skipped}"),
-                                &state.last_cursor,
-                            )),
-                            state,
-                        ));
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        state.done = true;
-                        return Some((
-                            Ok(stream_error_sse_event_with_cursor(
-                                "stream_closed_before_terminal",
-                                &state.last_cursor,
-                            )),
-                            state,
-                        ));
-                    }
-                }
-            }
+            next_run_stream_frame(&mut state)
+                .await
+                .map(|event| (Ok(event), state))
         },
     );
     Ok(Sse::new(Box::pin(stream)).keep_alive(KeepAlive::default()))
+}
+
+/// Pull exactly one display frame for a run-stream subscription.
+///
+/// This is the single implementation of the reconnect/heartbeat/gap/terminal state machine behind
+/// `/api/events`.  A dropped, lagged or overloaded consumer is turned into one explicit bounded
+/// frame (`stream_error` with the server cursor it last observed) instead of an unbounded buffer,
+/// a silent stall or a replay of deltas the browser already rendered.  `terminal` is the last
+/// frame of a display stream, and a heartbeat only re-states the current server cursor.
+async fn next_run_stream_frame(state: &mut EventStreamState) -> Option<Event> {
+    if state.done {
+        return None;
+    }
+    if let Some(gap) = state.gap.take() {
+        return Some(gap);
+    }
+    loop {
+        let received = tokio::select! {
+            biased;
+            _ = state.shutdown.changed() => {
+                state.done = true;
+                return Some(stream_error_sse_event_with_cursor("web_shutdown", &state.last_cursor));
+            }
+            _ = tokio::time::sleep(WEB_SSE_HEARTBEAT_INTERVAL) => {
+                return Some(stream_heartbeat_sse_event(&state.last_cursor));
+            }
+            received = state.subscription.recv() => received,
+        };
+        match received {
+            Ok(envelope) => {
+                let (name, terminal) = match &envelope.event {
+                    RunStreamEvent::Delta { .. } => ("delta", false),
+                    RunStreamEvent::Terminal { .. } => ("terminal", true),
+                    RunStreamEvent::Usage { .. } => ("usage", false),
+                    RunStreamEvent::ToolCall { .. } => ("tool_call", false),
+                    RunStreamEvent::ApprovalRequested { .. } => ("approval_requested", false),
+                    RunStreamEvent::Error { .. } => ("runtime_error", false),
+                    RunStreamEvent::Unknown => continue,
+                };
+                state.last_cursor = UiCursor {
+                    epoch: envelope.epoch.clone(),
+                    sequence: envelope.sequence,
+                };
+                state.done = terminal;
+                return Some(run_stream_sse_event(name, &envelope));
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                state.done = true;
+                return Some(stream_error_sse_event_with_cursor(
+                    &format!("stream_subscription_lagged:{skipped}"),
+                    &state.last_cursor,
+                ));
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                state.done = true;
+                return Some(stream_error_sse_event_with_cursor(
+                    "stream_closed_before_terminal",
+                    &state.last_cursor,
+                ));
+            }
+        }
+    }
 }
 
 /// Notification SSE is a redacted view over the existing versioned feed.  It sends a snapshot
@@ -6949,5 +6954,834 @@ mod tests {
 
         let _ = fs::remove_dir_all(&server.root);
         let _ = fs::remove_dir_all(&server.home);
+    }
+
+    // ------------------------------------------------------------------
+    // UI-18: Web SSE reconnect, Last-Event-ID and gap (completion slice).
+    //
+    // These fixtures drive the real loopback router and a real `DaemonHost` run: frames are read
+    // off the wire (`id`/event/schema/epoch/sequence), a reconnect is a second GET that carries a
+    // Last-Event-ID cursor, and "a reconnect never resubmits an effect" is checked against the
+    // committed facts instead of the browser source alone.
+    // ------------------------------------------------------------------
+
+    const UI18_TAB: &str = "ui18-tab";
+    const UI18_FIRST_CHUNK: &str = "ui18 alpha";
+    const UI18_SECOND_CHUNK: &str = " ui18 omega";
+    const UI18_STALE_EPOCH: &str = "ui18-stale-epoch";
+
+    struct Ui18Server {
+        addr: SocketAddr,
+        host: Arc<DaemonHost>,
+        root: PathBuf,
+        home: PathBuf,
+        session: String,
+        options: HashMap<String, Value>,
+        shutdown: tokio::sync::watch::Receiver<bool>,
+        _env: crate::test_support::ScopedEnv<'static>,
+    }
+
+    /// The default UI-18 script streams one delta, blocks inside a tool call (so a fixture can drop
+    /// the connection in the middle of the turn) and then streams the second delta.
+    fn ui18_stream_script() -> String {
+        json!([
+            {
+                "text": UI18_FIRST_CHUNK,
+                "tool_calls": [{
+                    "id": "ui18-c1",
+                    "name": "shell",
+                    "arguments": {"command": "sleep 2"},
+                }],
+            },
+            {"text": UI18_SECOND_CHUNK},
+        ])
+        .to_string()
+    }
+
+    async fn ui18_server(script: &str) -> Ui18Server {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("ui18-home");
+        let root = unique_dir("ui18-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script_path = unique_dir("ui18-script").join("script.json");
+        fs::write(&script_path, script).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script_path);
+        std::env::remove_var("KIANA_PROVIDER");
+        std::env::remove_var("KIANA_STREAMING");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::with_env_harness().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "workspace-write".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        let session = lock_string(&app.active).unwrap();
+        let options = app.options().unwrap();
+        let shutdown = app.shutdown.subscribe();
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        Ui18Server {
+            addr,
+            host,
+            root,
+            home,
+            session,
+            options,
+            shutdown,
+            _env: env,
+        }
+    }
+
+    /// Claim the live session for this tab exactly as the browser bootstrap does; the action route
+    /// refuses an unclaimed session, so the SSE fixtures run the same authorization path.
+    async fn ui18_claim(client: &reqwest::Client, base: &str, token: &str, session: &str) {
+        let response = client
+            .get(format!("{base}/api/bootstrap"))
+            .query(&[("session_id", session)])
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", UI18_TAB)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    async fn ui18_run_turn(
+        client: &reqwest::Client,
+        base: &str,
+        token: &str,
+        session: &str,
+        prompt: &str,
+    ) -> (StatusCode, Value) {
+        let response = client
+            .post(format!("{base}/api/run"))
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", UI18_TAB)
+            .json(&json!({"prompt": prompt, "session_id": session}))
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.json().await.unwrap_or(Value::Null);
+        (status, body)
+    }
+
+    /// Open the display stream.  A native reconnect carries `Last-Event-ID`; the loopback wrapper
+    /// mirrors it in the query, and the server must agree with whichever form arrives.
+    async fn ui18_open_stream(
+        client: &reqwest::Client,
+        base: &str,
+        token: &str,
+        session: &str,
+        header_cursor: Option<&str>,
+        query_cursor: Option<&str>,
+    ) -> reqwest::Response {
+        let mut request = client
+            .get(format!("{base}/api/events"))
+            .query(&[("session_id", session), ("tab_id", UI18_TAB)])
+            .header("x-kiana-web-token", token);
+        if let Some(cursor) = header_cursor {
+            request = request.header("last-event-id", cursor);
+        }
+        if let Some(cursor) = query_cursor {
+            request = request.query(&[("last_event_id", cursor)]);
+        }
+        request.send().await.unwrap()
+    }
+
+    #[derive(Debug)]
+    struct Ui18Frame {
+        id: String,
+        event: String,
+        data: Value,
+    }
+
+    fn ui18_take_frame(buffer: &mut Vec<u8>) -> Option<Ui18Frame> {
+        loop {
+            let boundary = buffer.windows(2).position(|window| window == b"\n\n")?;
+            let block = String::from_utf8_lossy(&buffer[..boundary]).to_string();
+            buffer.drain(..boundary + 2);
+            let mut id = String::new();
+            let mut event = String::new();
+            let mut data = String::new();
+            for line in block.lines() {
+                let line = line.trim_end_matches('\r');
+                if let Some(value) = line.strip_prefix("id:") {
+                    id = value.trim().to_owned();
+                } else if let Some(value) = line.strip_prefix("event:") {
+                    event = value.trim().to_owned();
+                } else if let Some(value) = line.strip_prefix("data:") {
+                    data.push_str(value.trim_start());
+                }
+            }
+            if id.is_empty() && event.is_empty() && data.is_empty() {
+                // `keep_alive` comments carry no frame.
+                continue;
+            }
+            return Some(Ui18Frame {
+                id,
+                event,
+                data: serde_json::from_str(&data).unwrap_or(Value::Null),
+            });
+        }
+    }
+
+    async fn ui18_next_frame<S, B, E>(stream: &mut S, buffer: &mut Vec<u8>) -> Ui18Frame
+    where
+        S: futures_util::Stream<Item = Result<B, E>> + Unpin,
+        B: AsRef<[u8]>,
+        E: std::fmt::Debug,
+    {
+        use futures_util::StreamExt as _;
+        loop {
+            if let Some(frame) = ui18_take_frame(buffer) {
+                return frame;
+            }
+            let chunk = tokio::time::timeout(Duration::from_secs(20), stream.next())
+                .await
+                .expect("SSE frame timeout")
+                .expect("the display stream ended before the expected frame")
+                .expect("SSE chunk");
+            buffer.extend_from_slice(chunk.as_ref());
+        }
+    }
+
+    /// A reconnect from an already-consumed cursor must not re-deliver that frame.
+    async fn ui18_expect_no_frame<S, B, E>(stream: &mut S, buffer: &mut Vec<u8>, wait: Duration)
+    where
+        S: futures_util::Stream<Item = Result<B, E>> + Unpin,
+        B: AsRef<[u8]>,
+        E: std::fmt::Debug,
+    {
+        use futures_util::StreamExt as _;
+        let deadline = tokio::time::Instant::now() + wait;
+        loop {
+            assert!(
+                ui18_take_frame(buffer).is_none(),
+                "an already-consumed cursor must not replay a frame"
+            );
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return;
+            }
+            match tokio::time::timeout(remaining, stream.next()).await {
+                Err(_) => return,
+                Ok(None) => return,
+                Ok(Some(Ok(chunk))) => buffer.extend_from_slice(chunk.as_ref()),
+                Ok(Some(Err(error))) => panic!("display stream chunk error: {error:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn ui18_events_frames_carry_server_owned_cursors_and_fence_last_event_id_conflicts() {
+        let server = ui18_server(&ui18_stream_script()).await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        ui18_claim(&client, &base, &token, &server.session).await;
+
+        // Deny-first: an ambiguous, malformed or oversized resume cursor never opens a stream, and
+        // `POST /api/events` stays a method rejection instead of becoming a second dispatch path.
+        let conflict = client
+            .get(format!("{base}/api/events"))
+            .query(&[
+                ("session_id", server.session.as_str()),
+                ("tab_id", UI18_TAB),
+                ("last_event_id", "ui18-epoch-a:1"),
+            ])
+            .header("x-kiana-web-token", &token)
+            .header("last-event-id", "ui18-epoch-b:2")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(conflict.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            conflict.json::<Value>().await.unwrap()["error"],
+            "stream_cursor_conflict"
+        );
+        for cursor in [
+            "not-a-cursor".to_owned(),
+            "ui18-epoch-a:1:2".to_owned(),
+            format!("{}:1", "e".repeat(MAX_WEB_SSE_CURSOR_BYTES)),
+        ] {
+            let response =
+                ui18_open_stream(&client, &base, &token, &server.session, Some(&cursor), None)
+                    .await;
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{cursor}");
+            assert_eq!(
+                response.json::<Value>().await.unwrap()["error"],
+                "stream_cursor_invalid"
+            );
+        }
+        let posted = client
+            .post(format!("{base}/api/events"))
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", UI18_TAB)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(posted.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            server
+                .host
+                .ui_events()
+                .await
+                .unwrap()
+                .unwrap()
+                .iter()
+                .filter(|event| event.kind == "run.authorized")
+                .count(),
+            0,
+            "a rejected stream request must not authorize anything"
+        );
+
+        // The listener is installed first; the explicit turn submission follows (browser order).
+        let response = ui18_open_stream(&client, &base, &token, &server.session, None, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream"));
+        let mut stream = response.bytes_stream();
+        let mut buffer = Vec::new();
+        let run_task = tokio::spawn({
+            let client = client.clone();
+            let base = base.clone();
+            let token = token.clone();
+            let session = server.session.clone();
+            async move { ui18_run_turn(&client, &base, &token, &session, "ui18 stream").await }
+        });
+
+        let first = ui18_next_frame(&mut stream, &mut buffer).await;
+        assert_eq!(first.event, "delta", "{}", first.data);
+        assert_eq!(first.data["schema"], PROTOCOL_SCHEMA);
+        assert_eq!(first.data["event"]["text"], UI18_FIRST_CHUNK);
+        let epoch = first.data["epoch"]
+            .as_str()
+            .expect("server epoch")
+            .to_owned();
+        let first_sequence = first.data["sequence"].as_u64().expect("server sequence");
+        assert!(first_sequence >= 1, "{first:?}");
+        assert_eq!(first.id, format!("{epoch}:{first_sequence}"));
+        assert!(
+            !first.data.to_string().contains(&token) && !first.id.contains(&token),
+            "the Web token must never enter an SSE frame: {first:?}"
+        );
+
+        // The live display stream is dense and server-owned: every frame advances the cursor by
+        // exactly one, the id mirrors `epoch:sequence`, and the terminal response ends the stream.
+        let mut names = vec![first.event.clone()];
+        let mut last_sequence = first_sequence;
+        let mut terminal = None;
+        while terminal.is_none() {
+            let frame = ui18_next_frame(&mut stream, &mut buffer).await;
+            assert_eq!(frame.data["schema"], PROTOCOL_SCHEMA, "{}", frame.data);
+            assert_eq!(frame.data["epoch"].as_str(), Some(epoch.as_str()));
+            let sequence = frame.data["sequence"].as_u64().expect("server sequence");
+            assert_eq!(
+                sequence,
+                last_sequence + 1,
+                "a subscriber must not be served a skipped display frame: {frame:?}"
+            );
+            assert_eq!(frame.id, format!("{epoch}:{sequence}"));
+            assert!(!frame.data.to_string().contains(&token));
+            last_sequence = sequence;
+            names.push(frame.event.clone());
+            if frame.event == "terminal" {
+                terminal = Some(frame);
+            }
+        }
+        let terminal = terminal.expect("terminal frame");
+        assert_eq!(terminal.data["event"]["response"]["status"], "completed");
+        for name in &names {
+            assert!(
+                matches!(
+                    name.as_str(),
+                    "delta"
+                        | "usage"
+                        | "tool_call"
+                        | "approval_requested"
+                        | "runtime_error"
+                        | "terminal"
+                ),
+                "unexpected display event name: {name}"
+            );
+        }
+        drop(stream);
+        let (status, run) = run_task.await.unwrap();
+        assert_eq!(status, StatusCode::OK, "{run}");
+        assert_eq!(run["response"]["status"], "completed", "{run}");
+
+        // A native reconnect sends the last id it saw. Neither the header form nor the wrapper's
+        // query mirror may re-deliver frames the tab already rendered.
+        let terminal_cursor = format!("{epoch}:{last_sequence}");
+        for (header, query) in [
+            (Some(terminal_cursor.as_str()), None),
+            (None, Some(terminal_cursor.as_str())),
+        ] {
+            let duplicate =
+                ui18_open_stream(&client, &base, &token, &server.session, header, query).await;
+            assert_eq!(duplicate.status(), StatusCode::OK);
+            let mut duplicate_stream = duplicate.bytes_stream();
+            let mut duplicate_buffer = Vec::new();
+            ui18_expect_no_frame(
+                &mut duplicate_stream,
+                &mut duplicate_buffer,
+                Duration::from_millis(1000),
+            )
+            .await;
+            drop(duplicate_stream);
+        }
+
+        // A previous daemon incarnation can never keep rendering: the first frame is an explicit
+        // snapshot-required gap that carries the *current* server epoch, never the stale one.
+        let stale = ui18_open_stream(
+            &client,
+            &base,
+            &token,
+            &server.session,
+            Some(&format!("{UI18_STALE_EPOCH}:1")),
+            None,
+        )
+        .await;
+        assert_eq!(stale.status(), StatusCode::OK);
+        let mut stale_stream = stale.bytes_stream();
+        let mut stale_buffer = Vec::new();
+        let gap = ui18_next_frame(&mut stale_stream, &mut stale_buffer).await;
+        assert_eq!(gap.event, "stream_gap", "{}", gap.data);
+        assert_eq!(gap.data["schema"], WEB_SSE_SCHEMA);
+        assert_eq!(gap.data["snapshot_required"], true);
+        assert_eq!(gap.data["hydrate"], true);
+        assert_eq!(gap.data["epoch"].as_str(), Some(epoch.as_str()));
+        assert_eq!(
+            gap.id,
+            format!("{epoch}:{}", gap.data["sequence"].as_u64().unwrap())
+        );
+        drop(stale_stream);
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui18_reconnect_and_gap_paths_never_resubmit_effectful_commands() {
+        let server = ui18_server(&ui18_stream_script()).await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        ui18_claim(&client, &base, &token, &server.session).await;
+
+        // Browser order: the listener is installed first, the command follows.
+        let response = ui18_open_stream(&client, &base, &token, &server.session, None, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut stream = response.bytes_stream();
+        let mut buffer = Vec::new();
+        let run_task = tokio::spawn({
+            let client = client.clone();
+            let base = base.clone();
+            let token = token.clone();
+            let session = server.session.clone();
+            async move { ui18_run_turn(&client, &base, &token, &session, "ui18 reconnect").await }
+        });
+        let first = ui18_next_frame(&mut stream, &mut buffer).await;
+        assert_eq!(first.event, "delta", "{}", first.data);
+        assert_eq!(first.data["event"]["text"], UI18_FIRST_CHUNK);
+        let epoch = first.data["epoch"]
+            .as_str()
+            .expect("server epoch")
+            .to_owned();
+        drop(stream);
+
+        // Resuming from an older cursor cannot silently continue: the display window the tab
+        // missed is reported as one explicit snapshot-required gap.
+        let reconnect = ui18_open_stream(
+            &client,
+            &base,
+            &token,
+            &server.session,
+            Some(&format!("{epoch}:0")),
+            None,
+        )
+        .await;
+        assert_eq!(reconnect.status(), StatusCode::OK);
+        let mut reconnect_stream = reconnect.bytes_stream();
+        let mut reconnect_buffer = Vec::new();
+        let gap = ui18_next_frame(&mut reconnect_stream, &mut reconnect_buffer).await;
+        assert_eq!(gap.event, "stream_gap", "{}", gap.data);
+        assert_eq!(gap.data["schema"], WEB_SSE_SCHEMA);
+        assert_eq!(gap.data["reason"], "snapshot_required_after_stream_gap");
+        assert_eq!(gap.data["snapshot_required"], true);
+        assert_eq!(gap.data["hydrate"], true);
+        let mut replayed_first_chunk = 0usize;
+        let mut terminal_status = None;
+        loop {
+            let frame = ui18_next_frame(&mut reconnect_stream, &mut reconnect_buffer).await;
+            if frame.event == "delta" && frame.data["event"]["text"] == UI18_FIRST_CHUNK {
+                replayed_first_chunk += 1;
+            }
+            if frame.event == "terminal" {
+                terminal_status = frame.data["event"]["response"]["status"]
+                    .as_str()
+                    .map(str::to_owned);
+                break;
+            }
+        }
+        assert_eq!(terminal_status.as_deref(), Some("completed"));
+        assert_eq!(
+            replayed_first_chunk, 0,
+            "a reconnect must never re-render a delta the tab already consumed"
+        );
+        drop(reconnect_stream);
+
+        let (status, run) = run_task.await.unwrap();
+        assert_eq!(status, StatusCode::OK, "{run}");
+        let events = server.host.ui_events().await.unwrap().unwrap();
+        let authorized = events
+            .iter()
+            .filter(|event| event.kind == "run.authorized")
+            .count();
+        let prompts = events
+            .iter()
+            .filter(|event| event.kind == "run.prompt")
+            .count();
+        assert_eq!(
+            authorized, 1,
+            "a reconnect must never authorize a second run"
+        );
+        assert_eq!(prompts, 1, "a reconnect must never resubmit the command");
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui18_terminal_retention_replays_the_latest_terminal_without_deltas() {
+        let script = json!([
+            {"text": "ui18 retained one"},
+            {"text": "ui18 retained two"},
+        ])
+        .to_string();
+        let server = ui18_server(&script).await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        ui18_claim(&client, &base, &token, &server.session).await;
+
+        // Turn 1 finishes with no display subscriber attached: only the terminal is retained.
+        let (status, first_turn) = ui18_run_turn(
+            &client,
+            &base,
+            &token,
+            &server.session,
+            "ui18 retention one",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{first_turn}");
+        assert_eq!(
+            first_turn["response"]["status"], "completed",
+            "{first_turn}"
+        );
+
+        let reconnect = ui18_open_stream(&client, &base, &token, &server.session, None, None).await;
+        assert_eq!(reconnect.status(), StatusCode::OK);
+        let mut reconnect_stream = reconnect.bytes_stream();
+        let mut reconnect_buffer = Vec::new();
+        let gap = ui18_next_frame(&mut reconnect_stream, &mut reconnect_buffer).await;
+        assert_eq!(gap.event, "stream_gap", "{}", gap.data);
+        assert_eq!(gap.data["reason"], "snapshot_required_after_stream_gap");
+        assert_eq!(gap.data["snapshot_required"], true);
+        let mut retained = Vec::new();
+        let mut delta_frames = 0usize;
+        loop {
+            let frame = ui18_next_frame(&mut reconnect_stream, &mut reconnect_buffer).await;
+            if frame.event == "delta" {
+                delta_frames += 1;
+            }
+            let terminal = frame.event == "terminal";
+            retained.push(frame);
+            if terminal {
+                break;
+            }
+        }
+        assert_eq!(delta_frames, 0, "terminal retention must not replay deltas");
+        assert_eq!(retained.len(), 1, "the retained terminal is replayed once");
+        assert_eq!(
+            retained[0].data["event"]["response"]["output"]["output"]["text"],
+            "ui18 retained one"
+        );
+        let retained_cursor = retained[0].id.clone();
+        drop(reconnect_stream);
+
+        let duplicate = ui18_open_stream(
+            &client,
+            &base,
+            &token,
+            &server.session,
+            Some(&retained_cursor),
+            None,
+        )
+        .await;
+        assert_eq!(duplicate.status(), StatusCode::OK);
+        let mut duplicate_stream = duplicate.bytes_stream();
+        let mut duplicate_buffer = Vec::new();
+        ui18_expect_no_frame(
+            &mut duplicate_stream,
+            &mut duplicate_buffer,
+            Duration::from_millis(1000),
+        )
+        .await;
+        drop(duplicate_stream);
+
+        // A tab that resumes exactly from the retained cursor sees the next turn live: the
+        // replaced terminal is never re-delivered and no snapshot is required.
+        let live = ui18_open_stream(
+            &client,
+            &base,
+            &token,
+            &server.session,
+            Some(&retained_cursor),
+            None,
+        )
+        .await;
+        assert_eq!(live.status(), StatusCode::OK);
+        let mut live_stream = live.bytes_stream();
+        let mut live_buffer = Vec::new();
+        let run_task = tokio::spawn({
+            let client = client.clone();
+            let base = base.clone();
+            let token = token.clone();
+            let session = server.session.clone();
+            async move { ui18_run_turn(&client, &base, &token, &session, "ui18 retention two").await }
+        });
+        let mut live_terminal = None;
+        while live_terminal.is_none() {
+            let frame = ui18_next_frame(&mut live_stream, &mut live_buffer).await;
+            assert_ne!(
+                frame.event, "stream_gap",
+                "resuming from the retained cursor must not require a snapshot: {}",
+                frame.data
+            );
+            assert_ne!(
+                frame.data["event"]["response"]["output"]["output"]["text"], "ui18 retained one",
+                "the replaced terminal must never be replayed: {}",
+                frame.data
+            );
+            if frame.event == "terminal" {
+                live_terminal = Some(frame);
+            }
+        }
+        assert_eq!(
+            live_terminal.unwrap().data["event"]["response"]["output"]["output"]["text"],
+            "ui18 retained two"
+        );
+        drop(live_stream);
+        let (status, second_turn) = run_task.await.unwrap();
+        assert_eq!(status, StatusCode::OK, "{second_turn}");
+
+        let stale = ui18_open_stream(
+            &client,
+            &base,
+            &token,
+            &server.session,
+            Some(&retained_cursor),
+            None,
+        )
+        .await;
+        assert_eq!(stale.status(), StatusCode::OK);
+        let mut stale_stream = stale.bytes_stream();
+        let mut stale_buffer = Vec::new();
+        let stale_gap = ui18_next_frame(&mut stale_stream, &mut stale_buffer).await;
+        assert_eq!(stale_gap.event, "stream_gap");
+        let mut newest = Vec::new();
+        let mut stale_deltas = 0usize;
+        loop {
+            let frame = ui18_next_frame(&mut stale_stream, &mut stale_buffer).await;
+            if frame.event == "delta" {
+                stale_deltas += 1;
+            }
+            let terminal = frame.event == "terminal";
+            newest.push(frame);
+            if terminal {
+                break;
+            }
+        }
+        assert_eq!(stale_deltas, 0, "a terminal replay never re-renders deltas");
+        assert_eq!(newest.len(), 1, "only the newest terminal is retained");
+        assert_eq!(
+            newest[0].data["event"]["response"]["output"]["output"]["text"],
+            "ui18 retained two"
+        );
+        drop(stale_stream);
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui18_slow_tab_becomes_an_explicit_lagged_error_without_blocking_facts() {
+        let server = ui18_server(&json!([{"text": "ui18 slow tab"}]).to_string()).await;
+
+        // The first turn only provides the run identity every display subscription is bound to.
+        let first = harness_run::run_envelope_on_host(
+            Arc::clone(&server.host),
+            server.session.clone(),
+            "ui18 slow tab",
+            &server.options,
+        )
+        .await
+        .expect("fixture harness turn");
+        assert_eq!(
+            first.status,
+            kiana_protocol::ExecutionStatus::Completed,
+            "{first:?}"
+        );
+        let run_id = RunId::parse_str(first.output["run_id"].as_str().expect("run id"))
+            .expect("fixture run id");
+
+        // A tab that attaches and then never drains is exactly a slow/background tab.  Facts keep
+        // committing; the display subscription falls behind the bounded queue.
+        let subscription = server.host.subscribe_run_after(run_id, None);
+        let attached = subscription.cursor().clone();
+        let attached_sequence = attached.sequence;
+        let mut state = EventStreamState {
+            subscription,
+            gap: None,
+            done: false,
+            shutdown: server.shutdown.clone(),
+            last_cursor: attached,
+        };
+        let mut turns = 0usize;
+        let budget = tokio::time::Instant::now() + Duration::from_secs(120);
+        while server.host.run_stream_cursor(run_id).sequence
+            <= kiana_daemon::UI_FEED_QUEUE_CAPACITY as u64
+        {
+            assert!(
+                turns < 1024,
+                "the slow-tab fixture must reach the bounded queue capacity"
+            );
+            assert!(
+                tokio::time::Instant::now() < budget,
+                "the slow-tab fixture exceeded its time budget"
+            );
+            let response = harness_run::run_envelope_on_host(
+                Arc::clone(&server.host),
+                server.session.clone(),
+                "ui18 slow tab",
+                &server.options,
+            )
+            .await
+            .expect("slow-tab harness turn");
+            assert_eq!(
+                response.status,
+                kiana_protocol::ExecutionStatus::Completed,
+                "{response:?}"
+            );
+            turns += 1;
+        }
+
+        // A tab that fell behind receives one explicit bounded error carrying the server cursor it
+        // observed last — not silence, not an unbounded buffer, and not a replayed delta.
+        let frame = next_run_stream_frame(&mut state)
+            .await
+            .expect("a lagged display subscription still yields one explicit frame");
+        let body = sse_event_body(frame).await;
+        assert!(body.contains("event: stream_error"), "{body}");
+        assert!(body.contains("stream_subscription_lagged:"), "{body}");
+        assert!(body.contains("\"hydrate\":true"), "{body}");
+        assert!(
+            body.contains(&format!(
+                "\"epoch\":\"{}\"",
+                server.host.run_stream_cursor(run_id).epoch
+            )),
+            "{body}"
+        );
+        assert!(
+            body.contains(&format!("\"sequence\":{attached_sequence}")),
+            "the lagged error must carry the cursor the tab attached at: {body}"
+        );
+        assert!(
+            state.done,
+            "a lagged stream closes after its explicit error"
+        );
+
+        // Committed facts were never blocked: the same run kept completing turns and a fresh
+        // subscriber resumes from the retained terminal.
+        let events = server.host.ui_events().await.unwrap().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.kind == "run.authorized")
+                .count(),
+            1,
+            "the slow tab never turned into a second run"
+        );
+        let mut fresh = server.host.subscribe_run_after(run_id, None);
+        assert!(fresh.has_gap());
+        let terminal = tokio::time::timeout(Duration::from_secs(10), fresh.recv())
+            .await
+            .expect("fresh subscriber timeout")
+            .expect("fresh subscriber terminal");
+        assert!(
+            matches!(terminal.event, RunStreamEvent::Terminal { .. }),
+            "{terminal:?}"
+        );
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui18_heartbeat_and_error_frames_re_state_the_cursor_without_payloads() {
+        let cursor = UiCursor {
+            epoch: "ui18-heartbeat-epoch".to_owned(),
+            sequence: 7,
+        };
+        let heartbeat = sse_event_body(stream_heartbeat_sse_event(&cursor)).await;
+        assert!(heartbeat.contains("event: heartbeat"), "{heartbeat}");
+        assert!(
+            heartbeat.contains("id: ui18-heartbeat-epoch:7"),
+            "{heartbeat}"
+        );
+        assert!(
+            heartbeat.contains("\"schema\":\"kiana.web-sse.v1\""),
+            "{heartbeat}"
+        );
+        assert!(heartbeat.contains("\"sequence\":7"), "{heartbeat}");
+        let error = sse_event_body(stream_error_sse_event_with_cursor(
+            "stream_subscription_lagged:9",
+            &cursor,
+        ))
+        .await;
+        assert!(error.contains("event: stream_error"), "{error}");
+        assert!(error.contains("id: ui18-heartbeat-epoch:7"), "{error}");
+        assert!(error.contains("\"hydrate\":true"), "{error}");
+        // The display frames never carry a credential or a payload beyond the bounded reason.
+        for body in [heartbeat, error] {
+            assert!(!body.contains("x-kiana-web-token"), "{body}");
+            assert!(!body.contains("Authorization"), "{body}");
+        }
     }
 }

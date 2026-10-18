@@ -93,6 +93,7 @@
       <div class="folder" id="folder">…</div>
       <div><span class="pill" id="trust">untrusted</span> <span class="pill" id="status" role="status" aria-live="polite">idle</span></div>
       <div class="muted" id="hydrateStatus" role="status" aria-live="polite">snapshot loading…</div>
+      <div class="muted" id="sseMetrics" role="status" aria-live="off" aria-label="实时流重连指标">sse idle · reconnects 0 · errors 0 · gaps 0 · hydrate 0 · cursor none</div>
       <div class="banner" id="trustBanner">未信任此文件夹时不能修改文件。请先核实工作区，再选择「信任此文件夹」。</div>
       <div class="row">
         <button id="trustBtn">信任此文件夹</button>
@@ -275,6 +276,60 @@
       return hydrateTrace[hydrateTrace.length - 1];
     }
     window.__KIANA_HYDRATE_TRACE__ = hydrateTrace;
+
+    // Observable reconnect metrics.  The display feed is best-effort, so a network cut, a proxy
+    // reconnect or a slow tab must be countable instead of only inferred from a banner.  The
+    // record is bounded, in-memory and credential-free: counters, the last server cursor and a
+    // bounded reason list — never the Web token, a prompt, an approval payload or artifact bytes.
+    const SSE_METRICS_SCHEMA = 'kiana.web-sse-metrics.v1';
+    const MAX_SSE_METRIC_REASONS = 8;
+    const sseMetrics = {
+      schema: SSE_METRICS_SCHEMA,
+      installs: 0,
+      connects: 0,
+      errors: 0,
+      reconnects: 0,
+      exhausted: 0,
+      hydrate_requests: 0,
+      hydrated: 0,
+      hydrate_offline: 0,
+      duplicate_frames: 0,
+      sequence_gaps: 0,
+      stale_epochs: 0,
+      heartbeats: 0,
+      incomplete: 0,
+      last_cursor: null,
+      last_reason: null,
+      reasons: [],
+      updated_at: null
+    };
+    function recordSseMetric(field, reason, cursor) {
+      if (typeof sseMetrics[field] === 'number') sseMetrics[field] += 1;
+      const source = cursor || streamCursors.get(sessionId);
+      if (source && source.epoch && Number.isSafeInteger(source.sequence)) {
+        sseMetrics.last_cursor = { epoch: String(source.epoch).slice(0, 128), sequence: source.sequence };
+      }
+      if (reason) {
+        const bounded = sanitizeDisplayText(reason, 64);
+        sseMetrics.last_reason = bounded;
+        sseMetrics.reasons.push(bounded);
+        while (sseMetrics.reasons.length > MAX_SSE_METRIC_REASONS) sseMetrics.reasons.shift();
+      }
+      sseMetrics.updated_at = new Date().toISOString();
+      renderSseMetrics();
+      return sseMetrics;
+    }
+    function renderSseMetrics() {
+      const node = document.getElementById('sseMetrics');
+      if (!node) return;
+      const cursor = sseMetrics.last_cursor
+        ? (sseMetrics.last_cursor.epoch + ':' + sseMetrics.last_cursor.sequence) : 'none';
+      node.textContent = 'sse ' + (sseMetrics.last_reason || 'ready') +
+        ' · reconnects ' + sseMetrics.reconnects + ' · errors ' + sseMetrics.errors +
+        ' · gaps ' + sseMetrics.sequence_gaps + ' · hydrate ' + sseMetrics.hydrate_requests +
+        ' · dup ' + sseMetrics.duplicate_frames + ' · cursor ' + cursor;
+    }
+    window.__KIANA_SSE_METRICS__ = sseMetrics;
     let hydrateState = 'loading';
     let desktopNotificationBindingPromise = null;
 
@@ -597,17 +652,25 @@
     }
     function applyStreamCursor(epoch, sequence, eventId, allowZero = false) {
       if (!epoch || !Number.isSafeInteger(sequence) || sequence < 0 || (!allowZero && sequence < 1)) {
+        recordSseMetric('errors', 'stream_cursor_invalid');
         requestStreamHydrate('stream_cursor_invalid'); return false;
       }
       if (stateCache && stateCache.cursor && stateCache.cursor.epoch !== epoch) {
+        recordSseMetric('stale_epochs', 'stream_epoch_changed');
         requestStreamHydrate('stream_epoch_changed'); return false;
       }
       const old = streamCursors.get(sessionId);
       if (old && old.epoch !== epoch) {
+        recordSseMetric('stale_epochs', 'stream_epoch_changed');
         requestStreamHydrate('stream_epoch_changed'); return false;
       }
-      if (old && sequence <= old.sequence) return false;
+      // A duplicate frame is dropped, never re-rendered: the display cursor only moves forward.
+      if (old && sequence <= old.sequence) {
+        recordSseMetric('duplicate_frames', 'duplicate_frame');
+        return false;
+      }
       if (old && sequence !== old.sequence + 1) {
+        recordSseMetric('sequence_gaps', 'stream_sequence_gap');
         // Compatibility marker for the deny-first contract: if (envelope.sequence !== old.sequence + 1) markStreamIncomplete('stream_sequence_gap')
         requestStreamHydrate('stream_sequence_gap'); return false;
       }
@@ -629,9 +692,12 @@
     function handleStreamHeartbeat(message) {
       const heartbeat = parseSsePayload(message);
       if (!heartbeat || heartbeat.schema !== 'kiana.web-sse.v1') {
+        recordSseMetric('errors', 'stream_heartbeat_invalid');
         requestStreamHydrate('stream_heartbeat_invalid'); return;
       }
-      applyStreamCursor(heartbeat.epoch, heartbeat.sequence, message.lastEventId, true);
+      if (applyStreamCursor(heartbeat.epoch, heartbeat.sequence, message.lastEventId, true)) {
+        recordSseMetric('heartbeats', 'heartbeat', {epoch: heartbeat.epoch, sequence: heartbeat.sequence});
+      }
     }
     function handleRuntimeEvent(message) {
       const envelope = readStreamEnvelope(message);
@@ -1131,6 +1197,7 @@
       streamIncomplete = true;
       streamComplete = false;
       streamInterruption = reason || 'stream_incomplete';
+      recordSseMetric('incomplete', streamInterruption);
       ensureStreamItem();
       setStreamItemKind('unknown', 'Builder · unknown / incomplete', true);
       showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
@@ -1223,11 +1290,13 @@
     function scheduleEventStreamReconnect(session, reason) {
       if (!session || sseCloseRequested || sseHydrateRequired || sseReconnectTimer !== null) return;
       if (sseReconnectAttempts >= SSE_MAX_RECONNECTS) {
+        recordSseMetric('exhausted', 'stream_reconnect_exhausted');
         requestStreamHydrate('stream_reconnect_exhausted');
         return;
       }
       const attempt = ++sseReconnectAttempts;
       const delay = Math.min(SSE_RECONNECT_MAX_MS, SSE_RECONNECT_BASE_MS * (2 ** (attempt - 1)));
+      recordSseMetric('reconnects', reason || 'network');
       showStreamBanner(true, '流式连接中断（' + (reason || 'network') + '）；' + delay + 'ms 后重连。');
       sseReconnectTimer = setTimeout(() => {
         sseReconnectTimer = null;
@@ -1238,6 +1307,7 @@
     async function requestStreamHydrate(reason) {
       if (sseHydrateRequired) return;
       sseHydrateRequired = true;
+      recordSseMetric('hydrate_requests', reason || 'stream_gap');
       markStreamIncomplete(reason || 'stream_gap');
       cancelReconnectTimer();
       closeEventStream(true);
@@ -1252,8 +1322,10 @@
         }
         sseReconnectAttempts = 0;
         sseHydrateRequired = false;
+        recordSseMetric('hydrated', 'snapshot_hydrated');
         if (sessionId && running && !readOnly) await ensureEventStream(sessionId, false, true);
       } catch (_) {
+        recordSseMetric('hydrate_offline', 'snapshot_unavailable');
         setHydrateStatus('offline', 'stream gap · snapshot hydrate offline');
       } finally {
         if (sseHydrateRequired) showStreamBanner(true, '请重新加载 snapshot 以恢复实时显示。');
@@ -1276,6 +1348,7 @@
       }
       closeEventStream(false);
       recordHydrateTrace('install_feed_listener');
+      recordSseMetric('installs', 'install_feed_listener');
       eventSourceSession = session;
       sseCloseRequested = false;
       streamRunId = (stateCache && stateCache.last && stateCache.last.run_id) || session;
@@ -1305,6 +1378,7 @@
           opened = true;
           clearTimeout(timer);
           sseReconnectAttempts = 0;
+          recordSseMetric('connects', 'connected');
           if (streamIncomplete) {
             showStreamBanner(true, '流式连接不完整或已中断；本轮不会标记完成，请以 receipt 为准。');
           } else {
@@ -1319,6 +1393,7 @@
             clearTimeout(timer);
             reject(new Error('stream_connect_failed'));
           }
+          recordSseMetric('errors', 'stream_connect_failed');
           markStreamIncomplete('stream_connect_failed');
           source.close();
           eventSource = null;
