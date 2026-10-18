@@ -315,6 +315,11 @@
       "class": "conflict"
     },
     {
+      "code": "ui_action_payload_mismatch",
+      "status": 409,
+      "class": "conflict"
+    },
+    {
       "code": "ui_action_submission_expired",
       "status": 409,
       "class": "conflict"
@@ -338,6 +343,11 @@
       "code": "web_session_limit_exceeded",
       "status": 409,
       "class": "conflict"
+    },
+    {
+      "code": "web_action_replay_unavailable",
+      "status": 500,
+      "class": "internal"
     },
     {
       "code": "web_action_state_unavailable",
@@ -386,6 +396,11 @@
     },
     {
       "code": "web_state_poisoned",
+      "status": 500,
+      "class": "internal"
+    },
+    {
+      "code": "web_tab_projection_invalid",
       "status": 500,
       "class": "internal"
     },
