@@ -227,7 +227,9 @@ fn gate_config_update_does_not_mutate_old_decision() {
 #[test]
 fn gate_config_and_decision_are_separate_value_contracts() {
     let v1 = config(1, &sha('1'));
-    let v2 = config(2, &sha('1'));
+    // A new config version must bind a different suite, otherwise the identity separation this
+    // test asserts would be vacuous.
+    let v2 = config(2, &sha('2'));
     let decision = pass_decision(&v1);
 
     let config_value = serde_json::to_value(&v1).expect("config value");
@@ -613,7 +615,9 @@ fn gate_decision_digest_and_header_tamper_is_refused() {
 
     let mut unsorted_reasons = decision.clone();
     unsorted_reasons.verdict = GateVerdict::Reject;
-    unsorted_reasons.known_regressions = vec!["replay".to_owned(), "safety".to_owned()];
+    // Deliberately out of lexicographic order: the contract requires sorted unique lists, so
+    // `["safety", "replay"]` (not the sorted `["replay", "safety"]`) is the tampered value.
+    unsorted_reasons.known_regressions = vec!["safety".to_owned(), "replay".to_owned()];
     reseal_decision(&mut unsorted_reasons);
     assert_eq!(
         decision_reason(&unsorted_reasons),

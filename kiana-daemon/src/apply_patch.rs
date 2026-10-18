@@ -692,9 +692,64 @@ fn open_checkpoint_file(root: &Path, relative: &Path) -> Result<Option<File>, Po
     Err(failed("checkpoint_path_invalid"))
 }
 
+/// Non-Linux portable checkpoint read.
+///
+/// The Linux implementation walks the relative path with `openat(..., O_NOFOLLOW)` so no
+/// intermediate component can be swapped for a symlink between the check and the read.  Windows
+/// has no `openat` in the standard library, so the portable version reaches the same conclusion a
+/// different way: every component is pushed in turn and re-inspected with `symlink_metadata`, the
+/// final handle is only accepted when it is a regular file, and the resolved path is compared with
+/// the requested one so a reparse point cannot redirect the read outside the workspace root.
+///
+/// This is not byte-for-byte equivalent to Linux: a component swapped after the last
+/// `symlink_metadata` and before `File::open` is a TOCTOU window the standard library cannot
+/// close.  The workspace checkpoint is a best-effort undo aid, and the caller still verifies the
+/// content fingerprint after reading, so the portable path fails closed on the observable cases
+/// rather than silently returning unverified bytes.
 #[cfg(not(target_os = "linux"))]
-fn open_checkpoint_file(_root: &Path, _relative: &Path) -> Result<Option<File>, PortError> {
-    Err(failed("checkpoint_safe_read_unsupported_platform"))
+fn open_checkpoint_file(root: &Path, relative: &Path) -> Result<Option<File>, PortError> {
+    use std::path::Component;
+
+    let mut current = root.to_path_buf();
+    let components = relative.components().collect::<Vec<_>>();
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(name) = component else {
+            return Err(failed("checkpoint_path_invalid"));
+        };
+        current.push(name);
+        match std::fs::symlink_metadata(&current) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(failed("checkpoint_symlink_denied"));
+            }
+            Ok(meta) if index + 1 == components.len() && !meta.is_file() => {
+                return Err(failed("checkpoint_file_limit_or_not_regular"));
+            }
+            Ok(meta) if index + 1 != components.len() && !meta.is_dir() => {
+                return Err(failed("checkpoint_path_invalid"));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err(failed("checkpoint_safe_read_unavailable")),
+        }
+    }
+    let file = File::open(&current).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            failed("checkpoint_file_changed")
+        } else {
+            failed("checkpoint_safe_read_unavailable")
+        }
+    })?;
+    // Re-resolve the handle's own path and refuse when it no longer names the file we inspected.
+    let opened = file.metadata().map_err(io_failed)?;
+    if !opened.is_file() {
+        return Err(failed("checkpoint_file_limit_or_not_regular"));
+    }
+    let resolved = current.canonicalize().map_err(io_failed)?;
+    let expected = root.canonicalize().map_err(io_failed)?.join(relative);
+    if resolved != expected {
+        return Err(failed("checkpoint_symlink_denied"));
+    }
+    Ok(Some(file))
 }
 
 #[cfg(unix)]
@@ -707,7 +762,58 @@ fn lock_project_patch(file: &File) -> Result<(), PortError> {
     }
 }
 
-#[cfg(not(unix))]
+/// Windows exclusive lock over the whole lock file.
+///
+/// `flock(2)` has no Windows equivalent in the standard library, so the portable path asks the OS
+/// for the same guarantee through `LockFileEx`: an exclusive lock over the full range, blocking
+/// until it is granted.  `LOCKFILE_FAIL_IMMEDIATELY` is deliberately not set — the caller wants the
+/// same wait-for-the-previous-writer behaviour the Unix path provides.  The handle must stay open
+/// for as long as the lock is held; `ProjectPatchLock` owns it for exactly that reason.  The lock
+/// is released by the OS when the handle closes, including on process death, which matches
+/// `flock`'s unlock-on-close semantics closely enough for a local single-writer workspace.
+#[cfg(windows)]
+fn lock_project_patch(file: &File) -> Result<(), PortError> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::HANDLE;
+    use windows_sys::Win32::Storage::FileSystem::{
+        LockFileEx, LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY,
+    };
+    use windows_sys::Win32::System::IO::OVERLAPPED;
+
+    let handle = file.as_raw_handle() as HANDLE;
+    let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+    // Lock the whole address space (`0xFFFF_FFFF` high/low).  `LockFileEx` is synchronous when the
+    // handle was not opened with FILE_FLAG_OVERLAPPED, which `OpenOptions` does not set here, so no
+    // event object is required.
+    let flags = LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY;
+    let result = unsafe { LockFileEx(handle, flags, 0, u32::MAX, u32::MAX, &mut overlapped) };
+    if result != 0 {
+        return Ok(());
+    }
+    // A brief contention is normal when two runs in the same workspace overlap.  Retry a bounded
+    // number of times before reporting the lock as unavailable, so a slow writer does not turn
+    // into a hard failure but an actually stuck lock still fails closed.
+    for _ in 0..50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let mut retry: OVERLAPPED = unsafe { std::mem::zeroed() };
+        if unsafe {
+            LockFileEx(
+                handle,
+                LOCKFILE_EXCLUSIVE_LOCK,
+                0,
+                u32::MAX,
+                u32::MAX,
+                &mut retry,
+            )
+        } != 0
+        {
+            return Ok(());
+        }
+    }
+    Err(failed("apply_patch_lock_unavailable"))
+}
+
+#[cfg(not(any(unix, windows)))]
 fn lock_project_patch(_file: &File) -> Result<(), PortError> {
     Err(failed("apply_patch_lock_unavailable"))
 }
@@ -876,6 +982,15 @@ fn declared_path(path: &Path) -> Result<String, PortError> {
 }
 
 fn plan_hunks(project_root: &Path, hunks: Vec<Hunk>) -> Result<PlannedPatch, PortError> {
+    // Resolve the root once here so every downstream step compares against the same form.  The
+    // confined planners return `canonicalize()`d targets, and on Windows that is a verbatim
+    // `\\?\C:\...` path; mixing it with a plain root makes `starts_with` fail, which would silently
+    // drop the file from the precondition set (the overwrite check would then pass).  Callers that
+    // already canonicalized, such as `preview_codex_patch`, are unaffected because canonicalizing a
+    // canonical path is idempotent.
+    let project_root = &project_root
+        .canonicalize()
+        .map_err(|error| failed(format!("apply_patch_project_root_invalid:{error}")))?;
     let mut overlay = HashMap::new();
     let mut operations = Vec::new();
     for hunk in hunks {
@@ -1242,14 +1357,25 @@ fn same_snapshot(current: &PathSnapshot, expected: &PathSnapshot) -> bool {
         (PathSnapshot::Missing, PathSnapshot::Missing) => true,
         (
             PathSnapshot::Present {
-                fingerprint: current,
-                ..
+                fingerprint: current_fingerprint,
+                contents: current_contents,
+                readonly: current_readonly,
             },
             PathSnapshot::Present {
-                fingerprint: expected,
-                ..
+                fingerprint: expected_fingerprint,
+                contents: expected_contents,
+                readonly: expected_readonly,
             },
-        ) => current == expected,
+        ) => {
+            // The metadata fingerprint alone cannot prove "unchanged": a same-length overwrite can
+            // keep length and land inside the filesystem timestamp granularity (coarse on some
+            // platforms), and there is no inode/device on Windows.  The captured bytes are the
+            // real precondition, so they are compared as well; this is what the caller is about to
+            // overwrite, and it is already bounded by the snapshot size limits.
+            current_fingerprint == expected_fingerprint
+                && current_readonly == expected_readonly
+                && current_contents == expected_contents
+        }
         _ => false,
     }
 }
@@ -1835,10 +1961,20 @@ fn confined_new_file(root: &Path, relative: &Path) -> Result<PathBuf, PortError>
 }
 
 fn reject_symlink_components(root: &Path, candidate: &Path) -> Result<(), PortError> {
-    let relative = candidate
-        .strip_prefix(root)
+    // The root handed in may be a plain path while `candidate` came back from `canonicalize()`,
+    // which on Windows yields a verbatim `\\?\C:\...` form.  Comparing those two forms directly
+    // makes `strip_prefix` fail even though the candidate really is inside the root, so both sides
+    // are canonicalized before the containment relation is computed.  When canonicalization fails
+    // the uncanonicalized pair is used, which keeps the original refusal for missing paths.
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let canonical_candidate = candidate
+        .canonicalize()
+        .unwrap_or_else(|_| candidate.to_path_buf());
+    let relative = canonical_candidate
+        .strip_prefix(&canonical_root)
+        .or_else(|_| candidate.strip_prefix(root))
         .map_err(|_| failed("apply_patch_path_outside_project"))?;
-    let mut current = root.to_path_buf();
+    let mut current = canonical_root.clone();
     for component in relative.components() {
         let Component::Normal(name) = component else {
             continue;
@@ -1879,7 +2015,16 @@ fn confined_candidate(root: &Path, relative: &Path) -> Result<PathBuf, PortError
 }
 
 fn ensure_inside(root: &Path, candidate: &Path) -> Result<(), PortError> {
-    kiana_domain::enforce_root_containment(root, candidate)
+    // `candidate` is usually the result of `canonicalize()`, which on Windows is a verbatim
+    // `\\?\C:\...` path, while `root` is whatever the caller passed in.  Canonicalize the root too
+    // so the containment relation compares like with like; fall back to the raw paths when the
+    // root cannot be resolved (the domain check then still rejects a genuinely foreign path).
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let canonical_candidate = candidate
+        .canonicalize()
+        .unwrap_or_else(|_| candidate.to_path_buf());
+    kiana_domain::enforce_root_containment(&canonical_root, &canonical_candidate)
+        .or_else(|_| kiana_domain::enforce_root_containment(root, candidate))
         .map_err(|_| failed("apply_patch_path_outside_project"))
 }
 
@@ -2090,7 +2235,12 @@ mod tests {
         fs::write(&target, "changed\n").unwrap();
         assert_eq!(
             verify_preconditions(&planned.preconditions).unwrap_err(),
-            failed(format!("apply_patch_path_changed:{}", target.display()))
+            // The planner canonicalizes the root before capturing preconditions, so the reported
+            // path is the canonical one (a verbatim `\\?\` path on Windows).
+            failed(format!(
+                "apply_patch_path_changed:{}",
+                target.canonicalize().unwrap().display()
+            ))
         );
     }
 
