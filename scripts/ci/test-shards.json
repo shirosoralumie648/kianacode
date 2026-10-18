@@ -50,6 +50,8 @@
    "aut11_workflow_ingress_guard",
    "aut12_pending_policy_guard",
    "aut13_advance_route_guard",
+   "aut16_retry_command",
+   "aut16_retry_command_guard",
    "automation_baseline",
    "automation_boot_recovery_guard",
    "automation_cancellation_guard",
