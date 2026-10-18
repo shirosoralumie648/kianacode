@@ -121,8 +121,11 @@ pub use web_accessibility::{
     WEB_ACCESSIBILITY_SCHEMA, WEB_FOCUS_SCOPE_SCHEMA, WEB_MAX_TEXT_BYTES,
 };
 pub use web_contract::{
-    WebClientDraft, WebClientSubmission, WebClientTab, WEB_CLIENT_DRAFT_SCHEMA,
-    WEB_CLIENT_MAX_DRAFT_BYTES, WEB_CLIENT_SUBMISSION_SCHEMA, WEB_CLIENT_TAB_SCHEMA,
+    web_tab_conflict_codes, web_tab_conflict_copy, WebClientDraft, WebClientSubmission,
+    WebClientTab, WebTabConflictCopy, WebTabConflictRetry, WebTabConflictStage,
+    WEB_CLIENT_DRAFT_SCHEMA, WEB_CLIENT_MAX_DRAFT_BYTES, WEB_CLIENT_SUBMISSION_SCHEMA,
+    WEB_CLIENT_TAB_SCHEMA, WEB_TAB_CONFLICT_COPY, WEB_TAB_CONFLICT_COPY_SCHEMA,
+    WEB_TAB_CONFLICT_MAX_REASONS,
 };
 pub use web_detail::{
     WebArtifactPage, WebArtifactRef, WebArtifactViewer, WebDetailCursor, WebDetailProjection,
