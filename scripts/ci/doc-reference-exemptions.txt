@@ -142,7 +142,6 @@ docs/roadmap/aut24-release-evidence-baseline.md :: .github/workflows/aut24-relea
 docs/roadmap/authority-ledger-baseline.md :: .github/workflows/ci05-authority-ledger.yml
 docs/roadmap/automation-baseline.md :: .github/workflows/aut01-baseline.yml
 docs/roadmap/bq21-recovery-baseline.md :: .github/workflows/bq21-recovery.yml
-docs/roadmap/bq22-invoice-baseline.md :: .github/workflows/bq22-invoice.yml
 docs/roadmap/bq23-query-baseline.md :: .github/workflows/bq23-query.yml
 docs/roadmap/capability-authority-baseline.md :: .github/workflows/cap01-authority.yml
 docs/roadmap/capability-execution-scope-baseline.md :: .github/workflows/cap03-execution-scope.yml

@@ -8,7 +8,7 @@
 //!   -> 【当前文件】import 准入：形状 + 认证绑定 + 账本追加（只追加）
 //!   -> compare_provider_invoice（服务端派生状态，拒绝 wire 自报的 Matched）
 //!   -> ProviderInvoiceObservation（measured / correction / review）
-//!   -> 既有 BQ-14 CostCorrectionAdmission 审批与落账
+//!   -> 【当前文件】admit_invoice_correction：handoff + BQ-14 批准命令 → CostCorrection
 //! ```
 //!
 //! 这里的函数只做内存校验与事件构造：不 append EventStore、不消费审批、不调用 provider、
@@ -18,10 +18,12 @@
 //! `authenticated` 布尔值、wire 自报的比较状态、模型文本都不是授权：认证必须由服务端证据
 //! 绑定，比较状态由 `compare_provider_invoice` 从已提交期望重算，任何漂移在事实成形前拒绝。
 
+use crate::{CostCorrectionAdmission, CostCorrectionAdmissionError};
 use kiana_domain::{
     compare_provider_invoice, validate_invoice_comparison as validate_domain_comparison,
-    validate_provider_invoice as validate_domain_invoice, InvoiceAuthenticationEvidence,
-    InvoiceComparison, InvoiceImportOutcome, InvoiceLedgerExpectation, InvoiceObservationOutcome,
+    validate_provider_invoice as validate_domain_invoice, CostCorrection, CostCorrectionCommand,
+    CostLedgerEntry, InvoiceAuthenticationEvidence, InvoiceComparison, InvoiceImportOutcome,
+    InvoiceLedgerExpectation, InvoiceObservationOutcome, ProviderInvoiceCorrectionHandoff,
     ProviderInvoiceImport, ProviderInvoiceLedger, ProviderInvoiceObservation, RuntimeEvent,
     INVOICE_IMPORT_EVENT, INVOICE_OBSERVATION_EVENT,
 };
@@ -47,6 +49,9 @@ pub enum ProviderInvoiceAdmissionError {
     /// 观测事实非法，或编码为 RuntimeEvent/流元数据失败。
     #[error("provider_invoice_event_invalid:{0}")]
     EventInvalid(String),
+    /// 修正闭环：handoff 与批准后的 BQ-14 命令不能成立（未批准、绑定漂移、期望非权威）。
+    #[error("provider_invoice_correction_invalid:{0}")]
+    CorrectionInvalid(String),
 }
 
 /// 把 Domain 拒绝码映射到 Core 分类；分类只做归类，不改写 Domain 规则。
@@ -189,6 +194,91 @@ impl ProviderInvoiceAdmission {
     pub const fn observation_event_kind() -> &'static str {
         INVOICE_OBSERVATION_EVENT
     }
+
+    /// BQ-22 correction loop: hand an invoice discrepancy to the BQ-14 approval path.
+    ///
+    /// This is the missing caller the domain `ProviderInvoiceCorrectionHandoff` never had.  It
+    /// does *not* create a second correction ledger and it does not approve anything: it proves
+    /// the handoff's target digest is the committed ledger entry's digest, that the command is
+    /// still the unapproved draft the handoff binds, and then delegates the approved command to
+    /// [`CostCorrectionAdmission::authorize`].  An unapproved draft is refused with
+    /// `cost_correction_approval_required`; an approved but drifted command is refused by the
+    /// same admission helper's binding/digest checks.
+    ///
+    /// `Ok(CostCorrection)` is a value the caller must still append through the existing
+    /// ControlPlane/EventStore transaction; no event is written here.
+    pub fn admit_invoice_correction(
+        handoff: &ProviderInvoiceCorrectionHandoff,
+        target: &CostLedgerEntry,
+        command: &CostCorrectionCommand,
+    ) -> Result<CostCorrection, ProviderInvoiceAdmissionError> {
+        handoff
+            .validate()
+            .map_err(|code| ProviderInvoiceAdmissionError::CorrectionInvalid(code.to_owned()))?;
+        target
+            .validate()
+            .map_err(ProviderInvoiceAdmissionError::CorrectionInvalid)?;
+        if target.entry_digest != handoff.ledger_entry_digest {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "provider_invoice_handoff_target_digest_mismatch".to_owned(),
+            ));
+        }
+        // The handoff only binds the *draft*.  Refuse an unapproved command before asking BQ-14,
+        // so an operator sees the stable invoice-side code rather than a generic command error.
+        if command.approval.is_none() {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "cost_correction_approval_required".to_owned(),
+            ));
+        }
+        // `validate_draft_command` rejects approved commands by design (it is the handoff's
+        // draft-only binding), so compare the fields it would have compared directly.
+        if command.target_entry_digest != handoff.ledger_entry_digest {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "provider_invoice_handoff_command_binding_mismatch".to_owned(),
+            ));
+        }
+        if command.correction_id.to_string() != handoff.correction_ref {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "provider_invoice_handoff_command_reference_mismatch".to_owned(),
+            ));
+        }
+        if command.delta_estimated.is_some()
+            || command.delta_measured.as_ref() != Some(&handoff.delta_measured)
+        {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "provider_invoice_handoff_command_delta_mismatch".to_owned(),
+            ));
+        }
+        if handoff
+            .evidence_refs
+            .iter()
+            .any(|reference| !command.evidence_refs.contains(reference))
+        {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "provider_invoice_handoff_command_evidence_missing".to_owned(),
+            ));
+        }
+        if handoff
+            .discrepancy_codes
+            .iter()
+            .any(|code| !command.reason.contains(code.as_str()))
+        {
+            return Err(ProviderInvoiceAdmissionError::CorrectionInvalid(
+                "provider_invoice_handoff_command_reason_missing".to_owned(),
+            ));
+        }
+        CostCorrectionAdmission::authorize(target, command).map_err(|error| match error {
+            CostCorrectionAdmissionError::TargetInvalid(code) => {
+                ProviderInvoiceAdmissionError::CorrectionInvalid(code)
+            }
+            CostCorrectionAdmissionError::CommandInvalid(code) => {
+                ProviderInvoiceAdmissionError::CorrectionInvalid(code)
+            }
+            CostCorrectionAdmissionError::EventInvalid(code) => {
+                ProviderInvoiceAdmissionError::CorrectionInvalid(code)
+            }
+        })
+    }
 }
 
 pub fn validate_provider_invoice(import: &ProviderInvoiceImport) -> Result<(), &'static str> {
@@ -240,5 +330,18 @@ impl super::ControlPlane {
         observation: &ProviderInvoiceObservation,
     ) -> Result<InvoiceObservationOutcome, ProviderInvoiceAdmissionError> {
         ProviderInvoiceAdmission::record_observation(ledger, observation)
+    }
+
+    /// 以 `ControlPlane` 方法形式暴露 BQ-22 → BQ-14 修正闭环。
+    ///
+    /// 与 `admit_cost_correction` 相同：只返回可追加的 `CostCorrection` 值，不 append、不消费
+    /// 审批；未批准 draft 在发票侧以 `cost_correction_approval_required` 拒绝。
+    pub fn admit_provider_invoice_correction(
+        &self,
+        handoff: &ProviderInvoiceCorrectionHandoff,
+        target: &CostLedgerEntry,
+        command: &CostCorrectionCommand,
+    ) -> Result<CostCorrection, ProviderInvoiceAdmissionError> {
+        ProviderInvoiceAdmission::admit_invoice_correction(handoff, target, command)
     }
 }

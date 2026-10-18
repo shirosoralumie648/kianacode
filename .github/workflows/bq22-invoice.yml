@@ -1,0 +1,40 @@
+name: BQ-22 invoice
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invoice:
+    name: BQ-22 provider invoice import, reconciliation and correction fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_PROFILE_TEST_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run BQ-22 domain fixtures
+        run: cargo test -p kiana-domain --test billing_invoice --locked -- --test-threads=1
+      - name: Run BQ-22 core admission fixtures and source guard
+        run: cargo test -p kiana-core --test billing_invoice_correction --locked -- --test-threads=1
+      - name: Run BQ-22 baseline source guard
+        run: cargo test -p kiana-core --test billing_invoice_guard --locked -- --test-threads=1
+      - name: Run BQ-22 local file import fixtures
+        run: cargo test -p kiana-daemon --test billing_invoice_import --locked -- --test-threads=1
+      - name: Compile BQ-22 domain target
+        run: cargo test -p kiana-domain --test billing_invoice --no-run --locked
+      - name: Compile BQ-22 core targets
+        run: cargo test -p kiana-core --test billing_invoice_correction --no-run --locked
+      - name: Compile BQ-22 baseline target
+        run: cargo test -p kiana-core --test billing_invoice_guard --no-run --locked
+      - name: Compile BQ-22 local import target
+        run: cargo test -p kiana-daemon --test billing_invoice_import --no-run --locked
