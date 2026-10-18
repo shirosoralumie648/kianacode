@@ -791,7 +791,7 @@ live/physical 证据仍开放。
 
 
 
-#### UI-18 · Web SSE reconnect、Last-Event-ID 和 gap　🔄
+#### UI-18 · Web SSE reconnect、Last-Event-ID 和 gap　✅
 
 - 依赖：UI-06/16/17。代码：SSE handler、EventSource wrapper、feed reducer。
 - 步骤：发出 `id`/event/schema/epoch，读取 Last-Event-ID；心跳、退避、最大重连、terminal/gap 事件；连接 listener 在 resume 前安装。
@@ -799,10 +799,30 @@ live/physical 证据仍开放。
 - 成功/回归：网络切断、代理重连、重复 Last-Event-ID、server restart、gap→snapshot、慢 tab、terminal retention。
 - 完成产物：浏览器/HTTP fixture、reconnect state machine、可观测重连指标。
 
-实现基线：[UI-18 Web SSE reconnect, Last-Event-ID and gap](ui18-web-sse-baseline.md)。当前
-source slice 在既有 loopback `/api/events` 与 `DaemonHost` 只读展示投影上补充 server-owned
-`id`/event/schema/epoch、严格 Last-Event-ID 冲突拒绝、显式 heartbeat、有限退避/最大重连和
-gap→snapshot hydrate；重连路径不会提交 `/api/run`、`/api/cancel` 或其他副作用 command。
+实现基线：[UI-18 Web SSE reconnect, Last-Event-ID and gap](ui18-web-sse-baseline.md)。完成切片（2026-10-17）
+把该基线补成卡片退出条件：把 `/api/events` 的帧映射（心跳、lagged/closed 消费者、稠密 delta cursor、terminal 围栏）收敛为唯一
+`next_run_stream_frame` 泵（路由与边界夹具共用一份实现，慢/掉线消费者只得到一条带 cursor 的有界 `stream_error`，绝不是
+无界 buffer、静默停滞或已渲染 delta 的重放）；浏览器侧新增有界且无凭据的可观测重连指标
+`kiana.web-sse-metrics.v1`（`window.__KIANA_SSE_METRICS__` + 可见 `#sseMetrics` 状态行，计数
+installs/connects/errors/reconnects/exhausted/hydrate/duplicate/sequence-gap/stale-epoch/heartbeat/incomplete、
+`MAX_SSE_METRIC_REASONS=8` 的 reason 环、最近 server cursor，绝不含 token/prompt/审批载荷/artifact 字节），
+重复帧只丢弃不重渲染、跳号与旧 epoch 一律先 `requestStreamHydrate` 再恢复；验收新增 5 条真实 loopback
+`DaemonHost` 运行时夹具（`web::tests::ui18_*`：真实 SSE 帧的 `id`/event/schema/epoch/sequence 稠密推进与
+token 不入帧，重复/畸形/超长 `Last-Event-ID` 先拒且零 `run.authorized`，`POST /api/events` 仍是 405；
+断线后从旧 cursor 重连得 `snapshot_required_after_stream_gap`、不重放已消费 delta 且授权/命令事实恰好各一条；
+terminal retention 只重放最新终态一次、已消费 cursor 无帧、下一个 turn 从 retained cursor 继续实时可见；
+从不排空的慢 tab 落后 256 帧队列后得到一条 `stream_subscription_lagged` 且有界关闭、事实不被阻塞、新订阅者
+仍能从 retained terminal 恢复；heartbeat/error 帧只复述 server cursor 且无凭据），`ui18-web-sse.json` 升级为
+`kiana.ui18-web-sse.v1` 声明式矩阵（budgets/events/lifecycle/deny_first/server_required/browser_required/
+browser_forbidden/routes/fixtures/required/limitations），`ui18_web_sse.rs` 与 `ui18_web_sse_guard.rs` 重写为
+fixture ↔ 源码常量 ↔ 路由矩阵 ↔ 页面契约 ↔ 5 条运行时夹具名 ↔ baseline required marker ↔ 手动 lane 逐字命令 ↔
+`kiana-entrypoints` 整 crate 分片的双向绑定，并固定展示区无第二执行器/第二模型循环，重建手动
+`.github/workflows/ui18-web-sse.yml`（`workflow_dispatch`-only、`permissions: contents: read`、fetch/fmt 门 +
+两个 target + `--lib web::tests::ui18_` + `--no-run`），自动覆盖仍是统一 `ci.yml` 的 `kiana-entrypoints` 整 crate
+分片（`scripts/ci/test-shards.json` 未改）。无 Cargo.toml/Cargo.lock/package.json 变化、无新依赖/新 test target/
+第二执行循环，五个模型可见工具面不变、未触碰冻结项；本地未运行测试/build/check/clippy/smoke（只跑 `cargo fmt`），
+CI 回执未等待，proof 上限 `source`；真实浏览器/代理时序、durable 跨进程 cursor 与订阅、provider/live 流、
+receipt 真值与 physical 证据仍开放。
 
 <a id="step-ui-19"></a>
 

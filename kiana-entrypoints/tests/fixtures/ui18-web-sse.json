@@ -1,44 +1,157 @@
 {
-  "schema": "kiana.web-sse.v1",
+  "schema": "kiana.ui18-web-sse.v1",
+  "step": "UI-18",
   "transport": "sse",
+  "route": "/api/events",
+  "event_schema": "kiana.protocol.v1",
+  "control_schema": "kiana.web-sse.v1",
+  "metrics_schema": "kiana.web-sse-metrics.v1",
   "event_fields": ["id", "event", "schema", "epoch", "sequence"],
   "last_event_id": {
     "header": "Last-Event-ID",
     "query_fallback": "last_event_id",
     "max_bytes": 256,
-    "conflict": "stream_cursor_conflict"
+    "conflict": "stream_cursor_conflict",
+    "invalid": "stream_cursor_invalid"
   },
-  "limits": {
+  "budgets": {
     "frame_bytes": 262144,
     "browser_text_bytes": 262144,
+    "cursor_bytes": 256,
+    "reason_bytes": 512,
     "reconnect_max_attempts": 6,
     "reconnect_backoff_ms": [250, 8000],
+    "heartbeat_seconds": 15,
+    "queue_capacity": 256,
+    "metric_reasons": 8,
     "browser_buffer": "bounded_stream_projection"
   },
-  "events": ["delta", "usage", "tool_call", "approval_requested", "runtime_error", "heartbeat", "stream_gap", "stream_error", "terminal"],
-  "lifecycle": ["listener_before_command", "last_event_id_resume", "heartbeat", "bounded_backoff", "gap_to_hydrate", "terminal_to_receipt"],
-  "deny_first": [
-    "duplicate_sequence",
-    "sequence_gap",
-    "old_epoch",
-    "cursor_conflict",
-    "oversized_frame",
-    "oversized_frame_preserves_cursor_context",
-    "sse_token_in_payload_or_log",
-    "reconnect_resubmits_command",
-    "terminal_then_delta"
+  "events": [
+    "delta",
+    "usage",
+    "tool_call",
+    "approval_requested",
+    "runtime_error",
+    "heartbeat",
+    "stream_gap",
+    "stream_error",
+    "terminal"
   ],
-  "source_boundary": {
-    "authority": "DaemonHost.ControlPlane",
-    "mode": "read_only_display_projection",
-    "gap_action": "snapshot_hydrate",
-    "command_retry": "never"
-  },
+  "lifecycle": [
+    "listener_before_command",
+    "last_event_id_resume",
+    "query_cursor_fallback",
+    "heartbeat",
+    "bounded_backoff",
+    "max_reconnects",
+    "gap_to_hydrate",
+    "terminal_to_receipt"
+  ],
+  "deny_first": [
+    "stream_cursor_conflict",
+    "stream_cursor_invalid",
+    "stream_payload_too_large",
+    "stream_subscription_lagged",
+    "stream_closed_before_terminal",
+    "snapshot_required_after_stream_gap",
+    "subscription_attached_after_run_started",
+    "next_run_stream_frame",
+    "stream_event_id"
+  ],
+  "browser_required": [
+    "const SSE_RECONNECT_BASE_MS = 250;",
+    "const SSE_RECONNECT_MAX_MS = 8000;",
+    "const SSE_MAX_RECONNECTS = 6;",
+    "const MAX_STREAM_TEXT_BYTES = 256 * 1024;",
+    "const SSE_METRICS_SCHEMA = 'kiana.web-sse-metrics.v1';",
+    "const MAX_SSE_METRIC_REASONS = 8;",
+    "function scheduleEventStreamReconnect",
+    "async function requestStreamHydrate",
+    "function applyStreamCursor",
+    "function readStreamEnvelope",
+    "function handleStreamGap",
+    "function handleStreamError",
+    "function handleStreamHeartbeat",
+    "function recordSseMetric",
+    "function renderSseMetrics",
+    "kiana.web-sse-metrics.v1",
+    "window.__KIANA_SSE_METRICS__ = sseMetrics;",
+    "recordSseMetric('duplicate_frames', 'duplicate_frame')",
+    "recordSseMetric('sequence_gaps', 'stream_sequence_gap')",
+    "recordSseMetric('stale_epochs', 'stream_epoch_changed')",
+    "recordSseMetric('reconnects', reason || 'network')",
+    "recordSseMetric('exhausted', 'stream_reconnect_exhausted')",
+    "requestStreamHydrate('stream_reconnect_exhausted')",
+    "stream_reconnect_exhausted",
+    "stream_epoch_changed",
+    "stream_text_limit",
+    "Last-Event-ID",
+    "sseMetrics",
+    "await ensureEventStream(sessionId, true)"
+  ],
+  "browser_forbidden": [
+    "localStorage.setItem('kiana.web",
+    "localStorage.getItem('kiana.web",
+    "localStorage.setItem('kiana.state",
+    "localStorage.getItem('kiana.state",
+    "sessionStorage.setItem('kiana",
+    "sessionStorage.getItem('kiana",
+    "console.log(window.__KIANA_WEB_TOKEN__",
+    "history.pushState({}, '', window.__KIANA_WEB_TOKEN__",
+    "new KianaHarness",
+    "new CapabilityBroker"
+  ],
+  "server_required": [
+    "next_run_stream_frame",
+    "stream_cursor_from_request",
+    "subscribe_run_after",
+    "run_stream_cursor",
+    "stream_event_id",
+    "stream_heartbeat_sse_event",
+    "stream_gap_sse_event_with_cursor",
+    "stream_error_sse_event_with_cursor",
+    "WEB_SSE_SCHEMA",
+    "MAX_WEB_SSE_EVENT_BYTES",
+    "MAX_WEB_SSE_CURSOR_BYTES",
+    "WEB_SSE_HEARTBEAT_INTERVAL"
+  ],
+  "routes": [
+    {
+      "path": "/api/events",
+      "method": "GET",
+      "class": "Events",
+      "token_required": true
+    }
+  ],
+  "fixtures": [
+    "ui18_events_frames_carry_server_owned_cursors_and_fence_last_event_id_conflicts",
+    "ui18_reconnect_and_gap_paths_never_resubmit_effectful_commands",
+    "ui18_terminal_retention_replays_the_latest_terminal_without_deltas",
+    "ui18_slow_tab_becomes_an_explicit_lagged_error_without_blocking_facts",
+    "ui18_heartbeat_and_error_frames_re_state_the_cursor_without_payloads",
+    "ui18_fixture_binds_the_sse_reconnect_cursor_and_metric_contract",
+    "ui18_browser_reconnect_state_machine_never_resubmits_commands_or_persists_state",
+    "ui18_runtime_fixtures_are_wired_to_the_web_module"
+  ],
+  "required": [
+    "kiana.web-sse.v1",
+    "kiana.web-sse-metrics.v1",
+    "ui18-web-sse.json",
+    "ui18_web_sse",
+    "ui18_web_sse_guard",
+    "ui18-web-sse.yml",
+    "next_run_stream_frame",
+    "Last-Event-ID",
+    "MAX_WEB_SSE_EVENT_BYTES",
+    "proof_level",
+    "limitations"
+  ],
   "limitations": [
     "sse_cursor_and_reconnect_state_are_process_local",
     "eventsource_delivery_is_best_effort",
     "terminal_and_receipt_remain_authoritative",
     "no_durable_cross_process_browser_subscription",
+    "browser_reconnect_timers_are_not_exercised_by_a_real_browser",
     "no_live_provider_or_physical_network_proof"
   ]
 }
