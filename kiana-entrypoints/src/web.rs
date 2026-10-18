@@ -5433,6 +5433,21 @@ mod tests {
         fs::canonicalize(&dir).unwrap()
     }
 
+    /// Same fresh temp directory, but without `canonicalize`.  On Windows canonicalizing turns a
+    /// `C:\...` path into the `\\?\C:\...` verbatim form, which the daemon's hook-config reader
+    /// cannot walk component by component.  Only fixtures that exercise the hook snapshot need
+    /// this spelling.
+    fn unique_dir_temp(label: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("kiana-web-{label}-{}-{stamp}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     fn ledger_event(sequence: u64, kind: &str, data: Value) -> Value {
         json!({
             "event_id": uuid::Uuid::new_v4().to_string(),
@@ -8429,7 +8444,7 @@ mod tests {
                  "required_fields": []},
                 {"id": "publish", "label": "发布", "command": "unknown.command",
                  "arguments": {}, "required_fields": []},
-                {"id": "dispatch", "label": "交付", "command": "company.business",
+                {"id": "dispatch_delivery", "label": "交付", "command": "company.business",
                  "arguments": {"type": "closeout", "action": {"type": "dispatch_delivery"}},
                  "required_fields": ["package_sha256"]}
             ]
@@ -8487,7 +8502,7 @@ mod tests {
         assert_eq!(approve["fields"], json!([]));
         let dispatch = cards
             .iter()
-            .find(|card| card["action_id"] == json!("dispatch"))
+            .find(|card| card["action_id"] == json!("dispatch_delivery"))
             .expect("dispatch card");
         assert_eq!(dispatch["fields"][0]["name"], json!("package_sha256"));
         assert_eq!(dispatch["fields"][0]["field_type"], json!("string"));
@@ -8521,10 +8536,10 @@ mod tests {
             json!("decision_only")
         );
         assert_eq!(
-            audit_for("dispatch")["audit_event"],
+            audit_for("dispatch_delivery")["audit_event"],
             json!("company.business.v2")
         );
-        assert_eq!(audit_for("dispatch")["dangerous"], json!(true));
+        assert_eq!(audit_for("dispatch_delivery")["dangerous"], json!(true));
         assert_eq!(audit_for("publish")["audit_event"], Value::Null);
         assert_eq!(audit_for("publish")["dangerous"], json!(false));
         assert_eq!(audit_for("publish")["audit_disposition"], json!("unmapped"));
@@ -8535,6 +8550,50 @@ mod tests {
             json!(["src/app.rs", "src/lib.rs"])
         );
         assert_eq!(audit_for("approve")["effect"]["truncated"], json!(false));
+
+        // A decision the backend cannot honor is reported as `refused` with a stable code, never
+        // as `unmapped`, and it never gains a dangerous/effect_dispatch classification.
+        let mut unsupported = ui21_inbox_item();
+        unsupported["actions"] = json!([
+            {"id": "edit", "label": "修改", "command": "approval",
+             "arguments": {"approval_id": "ui21", "decision": "edit"},
+             "required_fields": []},
+            {"id": "restore", "label": "恢复", "command": "approval",
+             "arguments": {"checkpoint_id": "cp-1"}, "required_fields": []},
+            {"id": "continue", "label": "继续", "command": "approval",
+             "arguments": {"run_id": "run-1"}, "required_fields": []}
+        ]);
+        let mut response = json!({"status": "completed", "output": {"items": [unsupported]}});
+        crate::web_inbox::annotate_human_inbox_response(&mut response);
+        let audits = response["output"]["items"][0]["action_audit"]
+            .as_array()
+            .expect("audits");
+        assert_eq!(audits.len(), 3);
+        for (entry, action_id) in audits
+            .iter()
+            .zip(["edit", "restore", "continue"].into_iter())
+        {
+            assert_eq!(entry["action_id"], json!(action_id));
+            assert_eq!(entry["audit_disposition"], json!("refused"));
+            assert_eq!(entry["dangerous"], json!(false));
+            assert_eq!(entry["audit_event"], Value::Null);
+            assert_eq!(
+                entry["refusal_code"],
+                json!(format!("web_human_resolve_action_unsupported:{action_id}"))
+            );
+        }
+        assert_eq!(
+            audits[0]["refusal_reason"],
+            json!("no_approval_amend_authority")
+        );
+        assert_eq!(
+            audits[1]["refusal_reason"],
+            json!("restore_is_a_separate_checkpoint_command")
+        );
+        assert_eq!(
+            audits[2]["refusal_reason"],
+            json!("continue_is_a_separate_resume_command")
+        );
 
         // A response that is not a completed inbox projection is never annotated.
         let mut blocked = json!({"request_id": "ui21-blocked", "status": "blocked", "error": "x"});
@@ -8620,6 +8679,16 @@ mod tests {
             crate::web_inbox::validate_human_action_command("human.resolve", &json!(["intent"])),
             Err("web_human_action_intent_invalid".to_owned())
         );
+        // Decisions the backend cannot honor are refused by name instead of being forwarded and
+        // collapsing into `unmapped`/`human_action_unavailable` server-side.
+        for action_id in crate::web_inbox::WEB_HUMAN_UNSUPPORTED_RESOLVE_ACTIONS {
+            let mut unsupported = ui21_intent();
+            unsupported["action_id"] = json!(action_id);
+            assert_eq!(
+                crate::web_inbox::validate_human_action_command("human.resolve", &unsupported),
+                Err(format!("web_human_resolve_action_unsupported:{action_id}"))
+            );
+        }
     }
 
     struct Ui21Server {
@@ -8641,18 +8710,32 @@ mod tests {
             "KIANA_PROVIDER",
             "KIANA_STREAMING",
             "KIANA_FAKE_PROVIDER_SCRIPT",
+            "KIANA_PRE_TOOL_USE_HOOKS",
+            "KIANA_HOOKS",
+            "KIANA_HOOKS_FILE",
             "ANTHROPIC_API_KEY",
             "KIANA_OPENAI_API_KEY",
             "OPENAI_API_KEY",
         ]);
-        let home = unique_dir("ui21-home");
-        let root = unique_dir("ui21-fixture");
+        // `unique_dir` canonicalizes, which on Windows yields a `\\?\C:\...` verbatim path. The
+        // daemon's hook-snapshot reader walks each path component with `symlink_metadata`, and the
+        // `\\?\C:` component is not resolvable there, so a verbatim hook path fails closed with
+        // `hook_config_unavailable` before the cassette ever runs. Pin this fixture to the plain
+        // absolute spelling so the staging run reaches the approval under test.
+        let home = unique_dir_temp("ui21-home");
+        let root = unique_dir_temp("ui21-fixture");
         fs::create_dir_all(root.join(".git")).unwrap();
-        let script = unique_dir("ui21-script").join("script.json");
+        let script = unique_dir_temp("ui21-script").join("script.json");
         fs::write(&script, UI21_CASSETTE).unwrap();
         env.set_var("KIANA_HOME", &home);
         env.set_var("HOME", &home);
         env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        // The staging run must stop at the approval, not at a hook/config read: pin the user hook
+        // file inside the isolated home and clear any host hook configuration that would make the
+        // snapshot read a path this fixture did not create.
+        env.set_var("KIANA_HOOKS_FILE", home.join("hooks.json"));
+        std::env::remove_var("KIANA_PRE_TOOL_USE_HOOKS");
+        std::env::remove_var("KIANA_HOOKS");
         std::env::remove_var("KIANA_PROVIDER");
         std::env::remove_var("KIANA_STREAMING");
         std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
@@ -8765,7 +8848,8 @@ mod tests {
         let response = ui21_auth(
             server,
             token,
-            client.get(format!("{base}/api/query")).query(&[
+            // The query surface is served by `/api/command`; `/api/query` never existed.
+            client.get(format!("{base}/api/command")).query(&[
                 ("name", "human.inbox"),
                 ("session_id", server.session.as_str()),
             ]),
@@ -8916,7 +9000,15 @@ mod tests {
         let (replay_status, replay) =
             ui21_command(&client, &base, &token, &server, &action_id, &intent).await;
         assert_eq!(replay_status, StatusCode::OK);
-        assert_eq!(replay, denied, "replay must return the recorded result");
+        // The replayed answer must be the recorded result. It additionally carries the
+        // `web_action_replay` marker that tells the browser this was a replay (and that it must
+        // query the original command rather than retry), so the comparison is made on the recorded
+        // command response and the replay marker is checked separately.
+        assert_eq!(
+            replay["response"], denied["response"],
+            "replay must return the recorded command result"
+        );
+        assert_eq!(replay["web_action_replay"]["replayed"], json!(true));
 
         // The decision is now a committed fact: the inbox no longer offers the approval.
         let after = ui21_inbox(&client, &base, &token, &server).await;
@@ -9038,7 +9130,14 @@ mod tests {
         let (replay_status, replay) =
             ui21_command(&client, &base, &token, &server, action_id, &intent).await;
         assert_eq!(replay_status, StatusCode::OK);
-        assert_eq!(replay, denied, "the legitimate decision is replayed once");
+        // Replaying the same browser action identity returns the recorded command result; the
+        // `web_action_replay` marker is added by the replay path and tells the browser to query the
+        // original command instead of retrying.
+        assert_eq!(
+            replay["response"], denied["response"],
+            "the legitimate decision is replayed once"
+        );
+        assert_eq!(replay["web_action_replay"]["replayed"], json!(true));
 
         let _ = fs::remove_dir_all(&server.root);
         let _ = fs::remove_dir_all(&server.home);

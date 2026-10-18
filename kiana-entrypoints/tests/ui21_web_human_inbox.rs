@@ -4,7 +4,7 @@
 //! audit/disposition mapping.  Each row is checked against the source that implements it, so the
 //! fixture can never drift into a second, softer contract.
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 fn fixture() -> Value {
     serde_json::from_str(include_str!("fixtures/ui21-web-human-inbox.json"))
@@ -81,7 +81,13 @@ fn ui21_fixture_captures_server_card_and_deny_first_matrix() {
     for success in [
         "approve",
         "deny",
+        "edit_refused_with_stable_code",
+        "restore_refused_with_stable_code",
+        "continue_refused_with_stable_code",
+        "required_fields_from_server_card",
+        "required_values_accepted_when_present_and_typed",
         "original_command_result_on_replay",
+        "duplicate_click_replays_original_result",
         "unknown_visible_with_query_original",
         "audit_event_and_disposition_visible",
         "dangerous_action_collapsed_with_effect_scope",
@@ -91,6 +97,99 @@ fn ui21_fixture_captures_server_card_and_deny_first_matrix() {
             .unwrap()
             .iter()
             .any(|item| item == success));
+    }
+    // The three decision ids the backend cannot honor are neither silently "successful" nor left
+    // to the unmapped disposition: each has a typed refusal row below.
+    for refused in ["edit", "restore", "continue"] {
+        assert!(
+            !fixture["success"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item == refused),
+            "an unsupported decision must not be listed as success: {refused}"
+        );
+        assert!(fixture["unsupported_actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["action_id"] == refused));
+    }
+    assert_eq!(
+        fixture["response_loss_classes"]["reconcile"],
+        json!("query_original_same_idempotency_key")
+    );
+    assert_eq!(fixture["duplicate_click"]["second_effect"], json!("never"));
+}
+
+#[test]
+fn ui21_unsupported_actions_match_the_server_refusal_table() {
+    let fixture = fixture();
+    let source = compact(include_str!("../src/web_inbox.rs"));
+    assert!(
+        source.contains("[WebHumanActionRefusal;3]"),
+        "the refusal table declares its bounded size"
+    );
+    let rows = fixture["unsupported_actions"]
+        .as_array()
+        .expect("unsupported actions");
+    assert_eq!(rows.len(), 3, "exactly three unsupported decisions");
+    for row in rows {
+        let command = row["command"].as_str().expect("command");
+        let action_id = row["action_id"].as_str().expect("action id");
+        let refusal_code = row["refusal_code"].as_str().expect("refusal code");
+        let reason = row["reason"].as_str().expect("reason");
+        let constant = match refusal_code {
+            "web_human_resolve_action_unsupported" => "WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED",
+            other => panic!("unknown fixture refusal code: {other}"),
+        };
+        let expected = format!(
+            "WebHumanActionRefusal{{command:\"{command}\",action_id:\"{action_id}\",refusal_code:{constant},reason:\"{reason}\",}}"
+        );
+        assert!(
+            source.contains(&expected),
+            "refusal row missing or changed: {expected}"
+        );
+    }
+    // The action id vocabulary, the refusal code and the audit disposition must all agree.
+    let ids = rows
+        .iter()
+        .map(|row| format!("\"{}\"", row["action_id"].as_str().unwrap()))
+        .collect::<Vec<_>>()
+        .join(",");
+    assert!(source.contains(&format!(
+        "WEB_HUMAN_UNSUPPORTED_RESOLVE_ACTIONS:[&str;3]=[{ids}]"
+    )));
+    assert!(source.contains(
+        "WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED:&str=\"web_human_resolve_action_unsupported\""
+    ));
+    assert!(source.contains("WEB_HUMAN_DISPOSITION_REFUSED"));
+    assert!(source.contains("refuse_unsupported_resolve_action"));
+    // The refusal is applied to the deserialized intent and to the audit mapping, never by
+    // widening the surface or dispatching a substitute command.
+    assert!(source.contains("refuse_unsupported_resolve_action(&intent.action_id)"));
+    // The audit mapping matches on the full `(command, action_id)` row, while the wire-level
+    // intent (which carries no command) refuses the three reserved ids by name.
+    assert!(source.contains("human_action_refusal(command,action_id)"));
+    assert!(source.contains("fnreserved_refusal(action_id:&str)"));
+    assert!(source.contains("refusal.command==command&&refusal.action_id==action_id"));
+    // The refusal table itself must not reach an executor: only the doc comments above it may
+    // name the control plane, and the refusal helper is a pure string comparison.
+    let table = source
+        .split("pubconstWEB_HUMAN_REFUSALS:")
+        .nth(1)
+        .and_then(|rest| rest.split("fnhuman_audit_rule(").next())
+        .expect("refusal table");
+    for forbidden in [
+        "CapabilityBroker",
+        "KianaHarness",
+        "ControlPlane::",
+        "authorize_and_execute",
+    ] {
+        assert!(
+            !table.contains(forbidden),
+            "the refusal table gained authority: {forbidden}"
+        );
     }
 }
 
@@ -262,6 +361,11 @@ fn ui21_typed_protocol_client_and_server_contracts_are_wired() {
         "human_audit_entry",
         "human_effect_scope",
         "human_result_class",
+        "WEB_HUMAN_REFUSALS",
+        "human_action_refusal",
+        "reserved_refusal",
+        "refuse_unsupported_resolve_action",
+        "WEB_HUMAN_DISPOSITION_REFUSED",
         "UI_HUMAN_ACTION_CARD_SCHEMA",
     ] {
         assert!(web.contains(marker), "UI-21 Web marker missing: {marker}");

@@ -237,6 +237,10 @@
     const HUMAN_ACTION_MAX_FIELD_STRING_BYTES = 4096;
     const HUMAN_ACTION_MAX_FIELD_LIST_ITEMS = 64;
     const HUMAN_ACTION_FIELD_TYPES = ['json', 'string', 'boolean', 'string_list'];
+    // Decisions `human.resolve` cannot honor: approval amend, workspace restore and run continue
+    // are separate commands, so the card never submits these ids as human.resolve intents.
+    const HUMAN_ACTION_UNSUPPORTED_ACTIONS = ['edit', 'restore', 'continue'];
+    const HUMAN_ACTION_UNSUPPORTED_REFUSAL = 'web_human_resolve_action_unsupported';
     // Native EventSource sends Last-Event-ID automatically; the explicit query mirrors it for
     // loopback reconnects created by this wrapper without ever placing the token in event data.
     let sseReconnectAttempts = 0;
@@ -901,6 +905,7 @@
     function humanActionCardFor(item, action, inboxRevision) {
       const cards = Array.isArray(item && item.action_cards) ? item.action_cards : [];
       if (!action || typeof action !== 'object' || !action.id) return null;
+      if (humanActionUnsupported(action.id)) return null;
       const card = cards.find(candidate => candidate && candidate.item_id === item.item_id && candidate.action_id === action.id);
       if (!card || card.schema !== HUMAN_ACTION_CARD_SCHEMA || !card.item_id || !card.action_id ||
           !card.command || !card.reason || !card.scope || !card.payload_digest ||
@@ -929,7 +934,14 @@
     function humanAuditDispositionText(disposition) {
       if (disposition === 'effect_dispatch') return '记录决定并派发受审批的副作用';
       if (disposition === 'decision_only') return '仅记录决定，不重新执行被拒绝的工具';
+      if (disposition === 'refused') return '该决定后端无法执行，已拒绝';
       return '由服务端权威决定';
+    }
+    // UI-21 completion: the backend honors only approve/deny inside `human.resolve`.  Approval
+    // amend (edit), workspace restore and run continue are separate commands, so the renderer
+    // refuses those ids instead of letting them fall into the unmapped disposition.
+    function humanActionUnsupported(actionId) {
+      return HUMAN_ACTION_UNSUPPORTED_ACTIONS.includes(String(actionId || ''));
     }
     function humanActionAllowed(card, action) {
       if (!card || !action || card.schema !== HUMAN_ACTION_CARD_SCHEMA) return false;
@@ -1008,6 +1020,9 @@
     }
     async function submitHumanAction(item, action, card, fields, inboxRevision, requested) {
       if (!card || card.schema !== HUMAN_ACTION_CARD_SCHEMA) throw new Error('human_action_card_invalid');
+      if (humanActionUnsupported(action && action.id)) {
+        throw new Error(HUMAN_ACTION_UNSUPPORTED_REFUSAL + ':' + String(action.id || ''));
+      }
       if (humanActionExpired(card)) throw new Error(card.revoked ? 'approval_revoked' : 'approval_expired');
       const normalizedFields = validateHumanActionFields(card, fields || {});
       const submissionId = stableSubmissionId(
@@ -1078,7 +1093,11 @@
         (item.actions || []).forEach(action => {
           const actionCard = humanActionCardFor(item, action, output.revision);
           if (!actionCard) {
-            const invalid = document.createElement('p'); invalid.textContent = sanitizeDisplayText(action.label + ' · action card unavailable or decision denied', 1024); card.appendChild(invalid); return;
+            const invalid = document.createElement('p');
+            invalid.textContent = sanitizeDisplayText(humanActionUnsupported(action.id)
+              ? action.label + ' · ' + HUMAN_ACTION_UNSUPPORTED_REFUSAL + ':' + action.id
+              : action.label + ' · action card unavailable or decision denied', 1024);
+            card.appendChild(invalid); return;
           }
           const audit = humanActionAuditFor(item, action);
           const reason = document.createElement('p');

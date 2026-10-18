@@ -136,7 +136,7 @@ pub use web_detail::{
 };
 pub use web_inbox::{
     WebHumanActionState, WebHumanInbox, WEB_HUMAN_INBOX_SCHEMA, WEB_HUMAN_MAX_CARDS,
-    WEB_HUMAN_MAX_FIELD_BYTES,
+    WEB_HUMAN_MAX_FIELD_BYTES, WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED, WEB_HUMAN_UNSUPPORTED_ACTIONS,
 };
 pub use web_timeline::{
     web_timeline_components, web_timeline_window_bounds, WebTimelineBundle, WebTimelineComponent,

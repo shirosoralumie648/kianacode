@@ -44,6 +44,71 @@ pub const WEB_HUMAN_DISPOSITION_DECISION_ONLY: &str = "decision_only";
 pub const WEB_HUMAN_DISPOSITION_EFFECT_DISPATCH: &str = "effect_dispatch";
 /// No server-owned audit mapping exists for this command/action pair.
 pub const WEB_HUMAN_DISPOSITION_UNMAPPED: &str = "unmapped";
+/// The backend cannot honor this decision, so the Web boundary refuses it outright instead of
+/// leaving it in the unmapped class.
+pub const WEB_HUMAN_DISPOSITION_REFUSED: &str = "refused";
+
+/// Resolve decisions the card list once claimed but the backend cannot honor.
+///
+/// `kiana-core`'s `human.resolve` dispatch reaches only the approval (Approve/Deny),
+/// company/company.business, failure.reconcile/failure.recovery and feedback.review authorities.
+/// There is no amend/edit path for a staged approval; workspace restore is its own
+/// `workspace.checkpoint.restore` command whose human decision is the staged approval's
+/// approve/deny (it is not a `human.resolve` action); and continuing a run is the explicit
+/// `/api/resume` command (`ControlPlane::continue_run`), never a resolve decision.  A browser
+/// intent using one of these ids is refused with [`WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED`] before
+/// any replay slot is claimed, so the action can never silently fall into the unmapped
+/// disposition.
+pub const WEB_HUMAN_UNSUPPORTED_RESOLVE_ACTIONS: [&str; 3] = ["edit", "restore", "continue"];
+
+/// Stable refusal code prefix for an unsupported resolve decision; the action id is appended.
+pub const WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED: &str = "web_human_resolve_action_unsupported";
+
+/// One typed, displayable refusal row: the decision the Web card would otherwise offer, the
+/// stable code the boundary returns, and why the backend cannot honor it.
+pub struct WebHumanActionRefusal {
+    pub command: &'static str,
+    pub action_id: &'static str,
+    pub refusal_code: &'static str,
+    pub reason: &'static str,
+}
+
+/// Declared size and rows must stay in sync; the fixture asserts both.
+pub const WEB_HUMAN_REFUSALS: [WebHumanActionRefusal; 3] = [
+    WebHumanActionRefusal {
+        command: "approval",
+        action_id: "edit",
+        refusal_code: WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED,
+        reason: "no_approval_amend_authority",
+    },
+    WebHumanActionRefusal {
+        command: "approval",
+        action_id: "restore",
+        refusal_code: WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED,
+        reason: "restore_is_a_separate_checkpoint_command",
+    },
+    WebHumanActionRefusal {
+        command: "approval",
+        action_id: "continue",
+        refusal_code: WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED,
+        reason: "continue_is_a_separate_resume_command",
+    },
+];
+
+fn human_action_refusal(command: &str, action_id: &str) -> Option<&'static WebHumanActionRefusal> {
+    WEB_HUMAN_REFUSALS
+        .iter()
+        .find(|refusal| refusal.command == command && refusal.action_id == action_id)
+}
+
+/// The intent wire shape carries no `command`, so the three reserved ids are refused by name at
+/// that boundary. A card that would legitimately reuse one of them on another command would have
+/// to be added to the refusal table's `command` column and given its own path first.
+fn reserved_refusal(action_id: &str) -> Option<&'static WebHumanActionRefusal> {
+    WEB_HUMAN_REFUSALS
+        .iter()
+        .find(|refusal| refusal.action_id == action_id)
+}
 
 /// Effect paths are a bounded display projection; the authoritative write set stays in the
 /// WorkPacket/PathLock/approval scope re-derived by the server.
@@ -213,7 +278,19 @@ pub(crate) fn validate_human_action_command(
     if intent.schema != UI_HUMAN_ACTION_INTENT_SCHEMA {
         return Err("web_human_action_intent_schema_invalid".to_owned());
     }
-    intent.validate()
+    intent.validate()?;
+    refuse_unsupported_resolve_action(&intent.action_id)
+}
+
+/// Refuse an intent for a decision the backend cannot honor.  The card projection never serves
+/// these ids (see [`WEB_HUMAN_UNSUPPORTED_RESOLVE_ACTIONS`]), so a browser that fabricates one is
+/// told the truth with a stable code instead of receiving an `unmapped` audit disposition or an
+/// opaque `human_action_unavailable`.
+fn refuse_unsupported_resolve_action(action_id: &str) -> Result<(), String> {
+    if let Some(refusal) = reserved_refusal(action_id) {
+        return Err(format!("{}:{action_id}", refusal.refusal_code));
+    }
+    Ok(())
 }
 
 /// Return a stable display classification for a command response.  `unknown` is kept distinct
@@ -268,15 +345,24 @@ fn human_effect_scope(detail: &Value) -> Value {
 
 fn human_audit_entry(command: &str, action_id: &str, effect: &Value) -> Value {
     let rule = human_audit_rule(command, action_id);
+    // A decision the backend cannot honor is reported as refused, never as unmapped, so the card
+    // never offers an edit/restore/continue that would silently become an authoritative-looking
+    // no-op.  The resolve boundary refuses the same ids before any replay slot is claimed.
+    let refusal = human_action_refusal(command, action_id);
     json!({
         "schema": WEB_HUMAN_AUDIT_SCHEMA,
         "action_id": action_id,
         "command": command,
         "dangerous": rule.is_some_and(|rule| rule.dangerous),
         "audit_event": rule.map(|rule| rule.audit_event),
-        "audit_disposition": rule
-            .map(|rule| rule.disposition)
-            .unwrap_or(WEB_HUMAN_DISPOSITION_UNMAPPED),
+        "audit_disposition": if refusal.is_some() {
+            WEB_HUMAN_DISPOSITION_REFUSED
+        } else {
+            rule.map(|rule| rule.disposition)
+                .unwrap_or(WEB_HUMAN_DISPOSITION_UNMAPPED)
+        },
+        "refusal_code": refusal.map(|refusal| format!("{}:{action_id}", refusal.refusal_code)),
+        "refusal_reason": refusal.map(|refusal| refusal.reason),
         "effect": effect.clone()
     })
 }

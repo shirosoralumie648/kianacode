@@ -353,6 +353,11 @@ impl EventSchemaResolution {
 const RUN_FIELDS: &[&str] = &[
     "run_id",
     "schema",
+    // A terminal event that refuses a staged approval names the approval it refused and states
+    // that the capability was never executed.  Both are written by
+    // `ControlPlane::finish_rejected_approval`; without them the refusal itself cannot be recorded.
+    "approval_id",
+    "not_executed",
     "sequence",
     "session_id",
     "actor_id",

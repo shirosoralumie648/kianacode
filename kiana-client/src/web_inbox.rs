@@ -22,6 +22,15 @@ pub const WEB_HUMAN_MAX_FIELD_LIST_ITEMS: usize = 64;
 /// Declared display field types.  An unknown type fails closed instead of being passed through.
 pub const WEB_HUMAN_FIELD_TYPES: [&str; 4] = ["json", "string", "boolean", "string_list"];
 
+/// Resolve decisions the current backend cannot honor.  `human.resolve` dispatch only reaches
+/// approval approve/deny, company/company.business, failure reconcile/recovery and feedback
+/// review; there is no approval amend, workspace restore or run continue inside `human.resolve`.
+/// The presenter therefore refuses these ids with [`WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED`] rather
+/// than emitting an intent that would be classified as `unmapped` and silently do nothing.
+pub const WEB_HUMAN_UNSUPPORTED_ACTIONS: [&str; 3] = ["edit", "restore", "continue"];
+/// Stable refusal code prefix; the action id is appended.
+pub const WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED: &str = "web_human_resolve_action_unsupported";
+
 /// Deny-first display state of one card.  A revoked card stays revoked even after a later
 /// non-revoked projection would refresh it; expiry is derived from the server card only.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,10 +75,14 @@ fn validate_field_text(text: &str) -> Result<(), String> {
 }
 
 /// Validate one submitted field value against the server card descriptor.  `null` explicitly
-/// clears an optional field; everything else must match the declared type, size and allowed
-/// values, so an illegal value never produces an intent.
+/// clears an *optional* field; a required field cannot be cleared, so a `null` required value is
+/// the same refusal as omitting it.  Everything else must match the declared type, size and
+/// allowed values, so an illegal value never produces an intent.
 fn validate_field_value(field: &UiHumanActionFieldV1, value: &Value) -> Result<(), String> {
     if value.is_null() {
+        if field.required {
+            return Err("web_human_required_field_missing".to_owned());
+        }
         return Ok(());
     }
     match field.field_type.as_str() {
@@ -252,6 +265,13 @@ impl WebHumanInbox {
             .get(item_id, action_id)
             .ok_or_else(|| "web_human_action_not_found".to_owned())?;
         card.validate()?;
+        // The backend cannot honor these decisions through `human.resolve`; refuse before any
+        // form value is interpreted so the presenter never emits a doomed intent.
+        if WEB_HUMAN_UNSUPPORTED_ACTIONS.contains(&action_id) {
+            return Err(format!(
+                "{WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED}:{action_id}"
+            ));
+        }
         // An unknown declared type fails closed before any value is interpreted.
         for field in card.fields.iter() {
             if !WEB_HUMAN_FIELD_TYPES.contains(&field.field_type.as_str()) {

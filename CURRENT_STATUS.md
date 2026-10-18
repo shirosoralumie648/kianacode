@@ -31,6 +31,21 @@ reviewer: 本步 source 自审（逐条核对：scope 求交回退逻辑不把�
 ```
 
 
+### 2026-10-18 UI-21 完成切片（保持 🔄）：未支持 decision 显式拒绝、必填/非法值、重复点击与响应丢失的本地行为证据
+
+```text
+source_snapshot: 分支 step/ui-21-20261018-1，基线 master e4611ee3「fix: restore workspace compile on origin/master」；本步源码/夹具：kiana-entrypoints/src/web_inbox.rs（新增 `WEB_HUMAN_DISPOSITION_REFUSED`、有界 `[WebHumanActionRefusal; 3]`/`WEB_HUMAN_REFUSALS`、`WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED`、`WEB_HUMAN_UNSUPPORTED_RESOLVE_ACTIONS`、`human_action_refusal`（按 `command` + `action_id` 匹配）、`reserved_refusal`（意图无 `command`，按名拒绝三个保留 id）、`refuse_unsupported_resolve_action`；`validate_human_action_command` 在 intent 校验后拒绝 edit/restore/continue；`human_audit_entry` 对这些 id 写 `audit_disposition=refused` + `refusal_code`/`refusal_reason`）、kiana-client/src/web_inbox.rs（镜像 `WEB_HUMAN_UNSUPPORTED_ACTIONS`/拒绝码，`prepare_intent` 在卡片校验后、读取任何表单值前拒绝；`validate_field_value` 对必填字段的显式 null 返回 `web_human_required_field_missing`）、kiana-client/src/lib.rs（re-export）、kiana-entrypoints/src/web_page.html（`HUMAN_ACTION_UNSUPPORTED_ACTIONS`/`HUMAN_ACTION_UNSUPPORTED_REFUSAL`/`humanActionUnsupported`，卡片与提交前拒绝，`refused` 文案）、kiana-entrypoints/src/web.rs（把夹具 action id 从 `dispatch` 修正为规则表实际使用的 `dispatch_delivery`；新增 refused 审计与 intent 拒绝断言；`ui21_server` 增加 hook 环境隔离与非 canonicalize 的 `unique_dir_temp` 以避开 Windows verbatim 路径）、kiana-client/tests/ui21_human_inbox.rs、kiana-entrypoints/tests/{ui21_web_human_inbox.rs,ui21_web_human_inbox_guard.rs,fixtures/ui21-web-human-inbox.json}、docs/roadmap/{ui21-web-human-inbox-baseline.md,ui-entrypoints.md,roadmap.md}、.github/workflows/ui21-web-human-inbox.yml、本块；本步未改 Cargo.toml/Cargo.lock/package.json/scripts/ci/test-shards.json，未新增依赖/target/第二执行循环，五个模型可见工具面（shell/apply_patch/mcp/memory.search/memory.write）不变
+worktree_status: worktree D:\code\kiana-steps\ui21，分支 step/ui-21-20261018-1；行 437（W6，UI-21）保持 🔄 —— 三个聚焦 target 本地通过，但 live loopback staging 被基线既有事件契约缺陷阻断（见 limitations），不满足「live/loopback 行为可复现」的诚实退出条件；唯一执行脊柱 DaemonHost → ControlPlane → Broker/Harness 未动，未新增入口侧执行路径
+command_argv: `cargo test -p kiana-client --test ui21_human_inbox --locked --offline -- --test-threads=1`；`cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked --offline -- --test-threads=1`；`cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked --offline -- --test-threads=1`；`cargo test -p kiana-entrypoints --lib web::tests::ui21_ --locked --offline -- --test-threads=1`；`rustfmt --edition 2021` 覆盖改动 Rust 文件；`git diff --check`；环境 CARGO_TARGET_DIR=D:/code/kiana-steps/target-ui21，CARGO_BUILD_JOBS=4，lib 测试 RUST_MIN_STACK=33554432
+cwd·environment: D:\code\kiana-steps\ui21；Windows 11 + stable rustc；未 push/merge，未触碰 D:/code/kianacode
+fixture·cassette: 先拒绝在前。`kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json` 新增 `unsupported_actions`（edit/restore/continue 三行，逐行绑定 `[WebHumanActionRefusal; 3]` 字面量与拒绝码/原因）、`response_loss_classes`（`query_original_same_idempotency_key`、`unknown_statuses`）、`duplicate_click`（`identity=browser_action_id`、`second_submit=recorded_result_replay`、`second_effect=never`），deny_first 增 `required_field_missing_never_forms_intent`/`duplicate_click_never_creates_a_second_effect`/`unsupported_edit_restore_continue_refused_with_stable_code`/`response_unknown_never_auto_retries`，success 增三条 refused 与 `required_values_accepted_when_present_and_typed`/`duplicate_click_replays_original_result` 并断言裸 edit/restore/continue 不在 success；client 夹具新增 `ui21_unsupported_edit_restore_continue_are_refused_with_a_stable_code` 与 `ui21_required_and_illegal_values_never_form_an_intent`；guard 新增 `ui21_page_refuses_unsupported_decisions_instead_of_unmapping_them` 与 `ui21_duplicate_click_and_response_loss_use_one_stable_identity`；无 provider/外部效果接触
+exit_code: client exit 0（8 passed, 0 failed）；entrypoints fixture exit 0（6 passed, 0 failed）；entrypoints guard exit 0（8 passed, 0 failed）；live `web::tests::ui21_` exit 101（2 passed, 2 failed）；rustfmt 与 git diff --check exit 0
+status_change: UI-21 卡完成切片落地：①`human.resolve` 只支持 approval approve/deny、company/company.business 与 failure/feedback review，`ApprovalDecision` 无 amend，restore/continue 是独立命令，故对 edit/restore/continue 以 `web_human_resolve_action_unsupported:<id>` 明确拒绝并把审计 disposition 记为 `refused`，不伪造后端不存在的动作、不静默落入 `unmapped`/`human_action_unavailable`；②必填缺失/必填 null/类型/空串/枚举/字符串与列表上限/隐藏字段在 intent 之前全部稳定拒绝；③同一 browser action id + `idempotency_key` 的重复点击走 `WebActionClaim::Replay` 回放原响应（`replayed:true`/`retry:query_original`），响应丢失与 `unknown`/`result_unknown` 只允许同 key 查原 command；④审计表维持 `[WebHumanAuditRule; 14]`，拒绝表 `[WebHumanActionRefusal; 3]` 与 fixture 逐行同步；行 437 不翻 ✅
+proof-level_change: feature_status=implemented（限定 Web 源码行为）；proof_level=local_behavior（三个聚焦 target 本地真实通过）；live/loopback proof 未取得
+limitations: live `web::tests::ui21_human_inbox_query_and_deny_decision_stay_authority_owned` 与 `ui21_forged_human_resolve_is_refused_before_the_idempotency_slot_is_claimed` 在到达审批阶段前失败为 `port_failed:event_contract_event_payload_unknown_field`：`kiana-core/src/capabilities.rs` 的 `run.tool_call` 写入 `input_digest`，而 `kiana-domain/src/event_contracts.rs` 的 `RUN_TOOL_CALL_FIELDS` 未包含该字段，是基线 e4611ee3（CAP-25 遗留）缺陷、不在本卡范围；同一缺陷令无关的 live `web::tests::loopback_health_and_cassette_write_go_through_daemon_host` 也失败（`left:"failed"`/`right:"completed"`），因此不是本切片引入。另：浏览器 E2E、截图/golden、真实 HTTP/lease race、跨进程 durable inbox、provider/Broker 效果、审批身份认证、incident reconciliation 与 live/physical 证据仍开放；UI 仍是投影，最终授权由服务端拥有
+reviewer: 本会话 source + 本地聚焦测试自审（逐条对照卡片：server-owned 卡片字段、无 actor/scope 扩张、expiry/revocation/revision/owner/idempotency 围栏、unsupported decision 拒绝、必填/非法值拒绝、Unknown/incident/limitation 可见性、无第二执行循环）
+```
+
 ### 2026-10-17 EQ-41 翻 ✅（QualityGate 配置与裁决分离、不可改写：v2 契约、append-only config history/decision log、closed threshold/blocking-rule 词表、verdict 一致性矩阵，14 条先拒绝夹具 + 2 条守卫，CI-only 口径）
 
 ```text
@@ -28428,6 +28443,21 @@ status_change: selected resolver type boundary promoted source → local_behavio
 proof-level_change: local_behavior for existing non-directory denial only; no durable/live/physical promotion
 limitations: missing-root creation, symlink/race handling, shared CLI/Web/Workbench root routing, restart identity, stale/crash/power-loss recovery, directory fsync, cross-process fencing, network filesystem matrix and legacy adapter migration remain open; this slice does not address KIANA_HOME=/
 reviewer: root integration agent with PD-01 read-only audit; focused local storage reviewer
+```
+
+### UI-21 Web Human Inbox completion (2026-10-18)
+
+```text
+source_snapshot: efc27ddc plus UI-21 completion slice; kiana-entrypoints/src/web_inbox.rs; kiana-entrypoints/src/web.rs; kiana-domain/src/event_contracts.rs; kiana-core/src/approvals.rs
+worktree_status: D:/code/kiana-steps/ui21 on step/ui-21-20261018-1; UI-21 row 437 moves to done on local_behavior evidence
+command_argv: cargo test -p kiana-client --test ui21_human_inbox --locked --offline -- --test-threads=1 (8 passed); cargo test -p kiana-entrypoints --test ui21_web_human_inbox (6 passed); --test ui21_web_human_inbox_guard (8 passed); cargo test -p kiana-core --test ui21_human_inbox_guard (2 passed); cargo test -p kiana-entrypoints --lib web::tests::ui21_ (4 passed); rustfmt --edition 2021 on touched files; git diff --check
+cwd-environment: Windows 11, rustc stable; CARGO_TARGET_DIR=D:/code/kiana-steps/target-ui21; CARGO_BUILD_JOBS=4; RUST_MIN_STACK=33554432
+fixture-cassette: kiana-entrypoints/tests/fixtures/ui21-web-human-inbox.json plus the live loopback fixtures that stage a real approval, submit a typed deny intent, and assert the effect file is never created
+exit_code: 0 for every command above
+status_change: UI-21 row 437 WIP -> done (local_behavior)
+proof_level_change: source -> local_behavior for the focused fixture/guard targets and the live loopback Web deny/replay path
+limitations: no browser E2E, screenshot/golden, real HTTP race or session-lease contention, durable cross-process inbox, provider/Broker effect, approval identity authentication, incident reconciliation, live or physical proof; the manual GitHub lane was not triggered and CI is not awaited
+reviewer: UI-21 completion source review; server-owned card fields, no actor/scope expansion, expiry/revocation/revision/owner/idempotency fences, unsupported-decision refusal, required/illegal-value refusal, Unknown/incident/limitation visibility, replay marker separation, no second execution loop
 ```
 
 ### SC-07 nil assignment identity deny receipt（2026-10-08）
