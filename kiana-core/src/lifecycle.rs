@@ -1434,6 +1434,8 @@ impl ControlPlane {
                 }),
             )
             .await?;
+            self.record_end_of_run_cleanup(&context, run_id, kiana_domain::CleanupCause::Cancel)
+                .await;
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::ResultUnknown,
@@ -1504,6 +1506,8 @@ impl ControlPlane {
                 &mut sequence,
             )
             .await?;
+            self.record_end_of_run_cleanup(&context, run_id, kiana_domain::CleanupCause::Cancel)
+                .await;
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::Cancelled,
@@ -2059,6 +2063,17 @@ impl ControlPlane {
                     )
                     .await;
             }
+            // 终态已提交后再记录清理证据；报告只描述本进程能举证的资源，失败不影响响应。
+            self.record_end_of_run_cleanup(
+                context,
+                run_id,
+                if error_code == CapabilityErrorCode::Cancelled {
+                    kiana_domain::CleanupCause::Cancel
+                } else {
+                    kiana_domain::CleanupCause::Normal
+                },
+            )
+            .await;
             return Ok(CoreResponse {
                 request_id,
                 status: if error == "run_not_found" {
@@ -2090,6 +2105,11 @@ impl ControlPlane {
             {
                 return Ok(response);
             }
+            // 事件批次耗尽但没有终态事件：这是「结果未知」，不是「模型任务已 join」。
+            // 用 `Cancel` 表达缺少停止证据，报告会把任务保持为 `IsolatedUnknown`；
+            // 若沿用 `Normal` 就会在关闭/取消刚发出之后谎称资源已释放。
+            self.record_end_of_run_cleanup(context, run_id, kiana_domain::CleanupCause::Cancel)
+                .await;
             return Ok(CoreResponse {
                 request_id,
                 status: ExecutionStatus::ResultUnknown,
@@ -2108,6 +2128,8 @@ impl ControlPlane {
             .await?;
         self.checkpoint_run(context, run_id, sandbox, sequence)
             .await?;
+        self.record_end_of_run_cleanup(context, run_id, kiana_domain::CleanupCause::Normal)
+            .await;
         Ok(CoreResponse::completed(request_id, receipt))
     }
 }

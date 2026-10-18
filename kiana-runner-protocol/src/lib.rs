@@ -398,3 +398,51 @@ mod tests {
         );
     }
 }
+
+/// 稳定错误码：模型步在 unwind 中中止，结果无法举证。
+///
+/// 这是 `RunnerEvent::Failed` 的 payload，Core 必须把它投影成 `ResultUnknown`，
+/// 不能降格成普通 failed。
+pub const HARNESS_PANIC_ERROR: &str = "result_unknown:harness_panic";
+
+/// panic 后无法举证的单个资源。
+///
+/// `stop_confirmed` / `effect_known` 是**证据位**，不是「希望它已停」的标记。Runner
+/// 捕获 unwind 时两者都只能为 `false`，因为 unwind 之后没有任何可信的终止证据。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunnerPanicResource {
+    /// 资源稳定 ID（如 `model_task`、`tool_future:0`）。
+    pub resource_id: String,
+    /// 资源类别，由 Core 映射到 `CleanupResourceKind`。
+    pub kind: String,
+    /// 该资源是否要求停止确认才能释放。
+    pub requires_stop_confirmation: bool,
+    /// 是否有确认的停止证据。
+    pub stop_confirmed: bool,
+    /// 副作用是否已知。
+    pub effect_known: bool,
+    /// 稳定原因码；不包含 panic payload 原文。
+    pub reason: String,
+}
+
+/// 一次 panic 中止的 run 留下的资源证据。
+///
+/// 它只说明「哪些资源欠一次对账」，不证明任何外部效果已停；Core 用它构造
+/// `CleanupCause::Panic` 的 `ResourceCleanupPlan`。
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunnerPanicRecord {
+    /// 被中止的 run。
+    pub run_id: RunId,
+    /// 稳定原因码（`panic_unwound` / `panic_payload_not_string`）。
+    pub reason: String,
+    /// 欠对账的资源列表。
+    pub resources: Vec<RunnerPanicResource>,
+}
+
+/// 兼容别名：Runner 捕获 unwind 后交给 Core 的 panic 证据。
+pub type HarnessPanicRecord = RunnerPanicRecord;
+
+/// 兼容别名：panic 证据中的单个资源。
+pub type HarnessPanicResource = RunnerPanicResource;

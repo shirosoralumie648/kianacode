@@ -3027,6 +3027,18 @@ pub trait RunnerPort: Send + Sync {
         ))
     }
 
+    /// 取走 panic 证据（若该 run 的模型步以 unwind 中止）。
+    ///
+    /// 【默认语义】没有该能力的适配器返回 `None`：它既没有捕获 unwind，也就没有可举证的
+    /// IsolatedUnknown 资源。调用方必须把 `None` 读作「无证据」，不能读作「无资源」。
+    /// 【为什么是 take】一条 panic 证据只报告一次；重复读取会伪造第二次对账。
+    fn take_panic_evidence(
+        &self,
+        _run_id: RunId,
+    ) -> Option<kiana_runner_protocol::RunnerPanicRecord> {
+        None
+    }
+
     /// 发送一条版本化 Runner 命令，并等待本轮产生的协议事件。
     ///
     /// 适配器不可在协议之外另起第二个执行循环。运行时不可用应使用

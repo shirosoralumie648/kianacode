@@ -147,6 +147,7 @@ use crate::state_driver::{DriverInput, DriverTerminal, RunDriver};
 use crate::stream_normalizer::ModelStreamAccumulator;
 use crate::tools::{capability_for_tool_with_request_id, tool_schemas};
 use async_trait::async_trait;
+use futures::FutureExt;
 use kiana_domain::{
     derived_request_id, json_digest, redact_text, scan_secret_sentinels, AttemptId,
     CapabilityResult, InputId, InteractionId, ModelAttemptId, ModelAttemptIdentity, PromptBundle,
@@ -156,10 +157,12 @@ use kiana_domain::{
 };
 use kiana_ports::{PortError, RunnerPort};
 use kiana_runner_protocol::{
-    RunnerCommand, RunnerEvent, DEFAULT_HARNESS_SANDBOX, HARNESS_SANDBOX_WORKSPACE_WRITE,
+    HarnessPanicRecord, HarnessPanicResource, RunnerCommand, RunnerEvent, DEFAULT_HARNESS_SANDBOX,
+    HARNESS_PANIC_ERROR, HARNESS_SANDBOX_WORKSPACE_WRITE,
 };
 use serde_json::json;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -194,7 +197,7 @@ const ENV_HARNESS_SCRIPT: &str = "KIANA_HARNESS_SCRIPT";
 /// 表现为「Continue 之后 run_not_found」——一个极难定位的 bug。
 const RUN_BUDGET_EXCEEDED_WALL_TIME: &str = "run_budget_exceeded:wall_time";
 
-/// 运行时可调参数的快照（runtime config）。
+/// 运行时可调参数的快照（runtime config）。/// 运行时可调参数的快照（runtime config）。
 ///
 /// 【为什么是 `Copy`】
 /// 它只是一组标量 + 一个 `Option<Duration>`，没有堆分配。
@@ -396,6 +399,20 @@ impl<'a> EventEmitter<'a> {
 /// 代价是**单个 run 的状态不能被两个命令同时改**——
 /// `take_run` 就是「把整个 run 原子地从表里摘走」的动作，
 /// 第二个命令再来就会拿到 `run_not_found`。
+/// Stable, non-leaking panic reason derived from a caught unwind payload.
+///
+/// The payload text is never propagated: it can carry provider or tool internals, and policy
+/// keys on the stable code, not on the message.
+fn panic_reason(payload: &(dyn std::any::Any + Send)) -> String {
+    if payload.downcast_ref::<&'static str>().is_some()
+        || payload.downcast_ref::<String>().is_some()
+    {
+        "panic_unwound".to_owned()
+    } else {
+        "panic_payload_not_string".to_owned()
+    }
+}
+
 struct ActiveRun {
     /// 这个 run 的全局唯一 id。跨进程、跨重启稳定。
     run_id: RunId,
@@ -759,6 +776,50 @@ struct StartInput {
 /// `ModelClient` 负责模型调用；`crate::budget` 记录预算预留与结算；`crate::inbox`、
 /// `crate::state_driver` 管理输入目标与合法状态转换；`crate::tools` 只构造能力请求；
 /// Core 后续通过事件处理器把能力结果送回来。
+/// 进程内留存上限：retained runs / frames / history bytes。
+///
+/// 这里刻意与 `kiana_domain::ResourceRetention` 分开定义：runner 是底层 crate，
+/// 不反向依赖控制面的清理 DTO；daemon/组合根负责把 domain 预算翻译成该结构。
+/// 三个字段都必须是正数，`0` 会让每次裁剪都被拒绝。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RetentionBudget {
+    /// 仍允许保留的**已终态** run 数量。
+    pub max_retained_runs: usize,
+    /// 仍允许保留的已终态 run frame 数量。
+    pub max_retained_frames: usize,
+    /// 已终态 run 的历史字节上限。
+    pub max_history_bytes: usize,
+}
+
+impl RetentionBudget {
+    /// 构造一个全部为正数的预算；任一维度为 `0` 返回稳定拒绝码。
+    pub fn new(
+        max_retained_runs: usize,
+        max_retained_frames: usize,
+        max_history_bytes: usize,
+    ) -> Result<Self, String> {
+        if max_retained_runs == 0 || max_retained_frames == 0 || max_history_bytes == 0 {
+            return Err("resource_retention_invalid".to_owned());
+        }
+        Ok(Self {
+            max_retained_runs,
+            max_retained_frames,
+            max_history_bytes,
+        })
+    }
+}
+
+/// 已终态 run 的留存快照，供裁剪与夹具做稳定性断言。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RetainedRunSnapshot {
+    /// 仍在 `runs` 表里的已终态 run 数量。
+    pub retained_runs: usize,
+    /// 这些 run 的 frame 数量（每个 run 至多一帧）。
+    pub retained_frames: usize,
+    /// 这些 run 的消息历史字节数。
+    pub history_bytes: usize,
+}
+
 pub struct KianaHarness {
     model: Arc<dyn ModelClient>,
     model_budget: Mutex<Option<Arc<dyn kiana_ports::ModelBudgetPort>>>,
@@ -784,12 +845,21 @@ pub struct KianaHarness {
     /// 观测升级成权威证据。持久化的证据投影接线属于 H23/H24 的范围。
     compaction_evidence: Mutex<HashMap<RunId, Vec<kiana_domain::CompactSummaryEvidence>>>,
     in_flight: Mutex<HashMap<RunId, Arc<RunCancellation>>>,
+    /// Panic evidence per run. Entries replace a stale in-flight registration instead of being
+    /// dropped with the unwound stack; the owning lifecycle drains them after the run ends.
+    panic_evidence: Mutex<HashMap<RunId, HarnessPanicRecord>>,
     deferred_inputs: Mutex<HashMap<RunId, Vec<(InboxTarget, InboxMessage)>>>,
     compact_trigger_tokens: usize,
     compact_user_message_max_tokens: usize,
     max_steps_per_turn: u32,
     repeated_tool_call_threshold: u32,
     wall_time_budget: Option<Duration>,
+    /// terminated run 的进程内留存预算（runs/frames/history bytes）。
+    ///
+    /// `None` 表示调用方没有设置预算，保留现有行为；`Some` 时只裁剪**已经终态**的 run，
+    /// 绝不裁掉仍在 in-flight 或挂起等待能力的 run。裁剪只丢进程内 map/cache，
+    /// 不杀进程、不释放 OS 锁，也不改变任何 EventLog 事实。
+    retention: Option<RetentionBudget>,
 }
 
 impl Default for KianaHarness {
@@ -840,12 +910,14 @@ impl KianaHarness {
             compaction_explanations: Mutex::new(HashMap::new()),
             compaction_evidence: Mutex::new(HashMap::new()),
             in_flight: Mutex::new(HashMap::new()),
+            panic_evidence: Mutex::new(HashMap::new()),
             deferred_inputs: Mutex::new(HashMap::new()),
             compact_trigger_tokens: config.compact_trigger_tokens,
             compact_user_message_max_tokens: config.compact_user_message_max_tokens,
             max_steps_per_turn: config.max_steps_per_turn.max(1),
             repeated_tool_call_threshold: config.repeated_tool_call_threshold.max(1),
             wall_time_budget: config.wall_time_budget,
+            retention: None,
         }
     }
 
@@ -927,6 +999,102 @@ impl KianaHarness {
         self.compact_trigger_tokens = trigger_tokens;
         self.compact_user_message_max_tokens = retain_tokens;
         self
+    }
+
+    /// 设置已终态 run 的进程内留存预算。
+    ///
+    /// 【边界】预算只在**终态事件已经排空**之后生效；它不裁剪 `in_flight`、也不裁剪
+    /// 等待能力结果而挂起的 run——那些 run 仍可能被 Continue/Cancel 触达。
+    /// 裁剪只清进程内 map/cache，不杀进程、不释放 OS 锁，也不改 EventLog。
+    pub fn with_retention(mut self, retention: RetentionBudget) -> Self {
+        self.retention = Some(retention);
+        self
+    }
+
+    /// 当前已终态 run 的留存快照（只读）。
+    ///
+    /// frame 数按每个留存 run 一帧计；history 字节取自 `runs` 表里 `ActiveRun.messages`
+    /// 的 UTF-8 文本长度之和。它不读取 EventLog，也不代表持久化留存。
+    pub fn retained_snapshot(&self) -> RetainedRunSnapshot {
+        let runs = self
+            .runs
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let mut retained_runs = 0usize;
+        let mut retained_frames = 0usize;
+        let mut history_bytes = 0usize;
+        for run in runs.values() {
+            if run.driver.frame.terminal.is_none() {
+                continue;
+            }
+            retained_runs += 1;
+            retained_frames += 1;
+            history_bytes += run
+                .messages
+                .iter()
+                .map(|message| message.text.len())
+                .sum::<usize>();
+        }
+        RetainedRunSnapshot {
+            retained_runs,
+            retained_frames,
+            history_bytes,
+        }
+    }
+
+    /// 按已设置的留存预算裁剪**最旧**的已终态 run，并在超出时报告稳定原因码。
+    ///
+    /// 【输出】`Ok(())` 表示在预算内或已裁剪到预算内；`Err("resource_retention_exceeded")`
+    /// 表示存在既不能裁剪（仍在执行/挂起）又已经超预算的留存，调用方必须把它当作
+    /// 有界性失败而不是成功。
+    /// 【顺序】先按 run 数量、再按 frame 数、最后按 history 字节裁剪；每一步都只动终态 run。
+    /// 【为什么不是 drop Host】裁剪是显式的预算动作，不能顺手释放外部资源或宣称停止。
+    pub fn enforce_retention(&self) -> Result<(), String> {
+        let Some(budget) = self.retention else {
+            return Ok(());
+        };
+        // 上界取进入时的留存数量：预算很小（例如 2）时也必须能裁掉全部多余项，
+        // 而不是只裁剪「预算 + 1」个后误报超限。
+        let mut remaining = self.retained_snapshot().retained_runs;
+        while remaining > budget.max_retained_runs {
+            if !self.evict_oldest_terminated_run() {
+                break;
+            }
+            remaining -= 1;
+        }
+        let snapshot = self.retained_snapshot();
+        if snapshot.retained_runs > budget.max_retained_runs
+            || snapshot.retained_frames > budget.max_retained_frames
+            || snapshot.history_bytes > budget.max_history_bytes
+        {
+            return Err("resource_retention_exceeded".to_owned());
+        }
+        Ok(())
+    }
+
+    /// 移除最旧的一个已终态 run；没有可裁剪的 run 时返回 `false`。
+    ///
+    /// 「最旧」按启动顺序无法从 `HashMap` 恢复，因此使用 `RunId` 的字节序作为稳定次序；
+    /// 这不是 wall-clock 排序，只保证裁剪是确定性的，且绝不选中非终态 run。
+    fn evict_oldest_terminated_run(&self) -> bool {
+        let mut runs = self
+            .runs
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let victim = runs
+            .values()
+            .filter(|run| run.driver.frame.terminal.is_some())
+            .map(|run| run.run_id)
+            .min();
+        let Some(victim) = victim else {
+            return false;
+        };
+        let removed = runs.remove(&victim).is_some();
+        drop(runs);
+        if removed {
+            self.release_retained_run_state(victim);
+        }
+        removed
     }
 
     /// 绑定一次 run 的权威压缩证据投影。
@@ -1186,6 +1354,14 @@ impl KianaHarness {
         sink: Option<&mut (dyn FnMut(RunnerEvent) -> Result<(), String> + Send)>,
     ) -> Result<Vec<RunnerEvent>, KianaHarnessError> {
         let mut emitter = EventEmitter::new(sink);
+        // 只有可能产生/结束 run 的命令才触发留存裁剪；Query 类命令不能改变留存集合。
+        let applies_retention = matches!(
+            &command,
+            RunnerCommand::Start { .. }
+                | RunnerCommand::Continue { .. }
+                | RunnerCommand::Resume { .. }
+                | RunnerCommand::Cancel { .. }
+        );
         match command {
             RunnerCommand::Start {
                 run_id,
@@ -1244,6 +1420,11 @@ impl KianaHarness {
             RunnerCommand::Resume { run_id } => self.resume(run_id, &mut emitter).await,
             RunnerCommand::Cancel { run_id, reason } => self.cancel(run_id, reason, &mut emitter),
         }?;
+        if applies_retention {
+            // 有界裁剪是尽力而为：超预算只说明仍有非终态 run 不能裁剪，不能把已经交付的
+            // terminal 改写成失败；需要精确结论的调用方应显式调用 `enforce_retention()`。
+            let _ = self.enforce_retention();
+        }
         Ok(emitter.into_events())
     }
 
@@ -1401,9 +1582,10 @@ impl KianaHarness {
 
         self.register_in_flight(run_id, cancellation)?;
         let result = match emitter.emit_event(RunnerEvent::Started { run_id }) {
-            Ok(()) => self.model_step(&mut run, emitter).await,
+            Ok(()) => self.model_step_contained(&mut run, emitter).await,
             Err(error) => Err(error),
         };
+        // Unregister runs even on a panic so the stale in-flight entry cannot outlive the step.
         self.unregister_in_flight(run_id)?;
         result?;
         self.store_unless_terminal(run, &emitter.events)?;
@@ -2799,18 +2981,213 @@ impl KianaHarness {
         Ok(())
     }
 
+    /// Run one model step while containing an unwind.
+    ///
+    /// A panic inside the model loop (provider adapter, tool-future poll, retry bookkeeping)
+    /// must not escape this future: the unwound stack can no longer prove what the aborted
+    /// step did. The panic is converted into two pieces of evidence instead:
+    ///
+    /// 1. a `Failed` runner event with [`HARNESS_PANIC_ERROR`], which Core projects as
+    ///    `ResultUnknown` (never a clean failure);
+    /// 2. a [`HarnessPanicRecord`] whose resources are marked `IsolatedUnknown`
+    ///    (`stop_confirmed = false`, `effect_known = false`).
+    ///
+    /// A panic payload message is deliberately not stored: it may contain provider or tool
+    /// internals, and the stable code is what downstream policy keys on. This method performs
+    /// no process kill and no OS lock release.
+    async fn model_step_contained(
+        &self,
+        run: &mut ActiveRun,
+        emitter: &mut EventEmitter<'_>,
+    ) -> Result<(), KianaHarnessError> {
+        let run_id = run.run_id;
+        match AssertUnwindSafe(self.model_step(run, emitter))
+            .catch_unwind()
+            .await
+        {
+            Ok(result) => result,
+            Err(payload) => {
+                // Drop any delta checkpoint the panicking step had already emitted: a sink
+                // cannot retract them, so the platform is told the step's result is unknown.
+                // The ActiveRun was not dropped by the unwind; its queued tool intentions are
+                // still observable and each one is reported as an unconfirmed tool future.
+                self.record_panic_evidence(
+                    run_id,
+                    panic_reason(&payload),
+                    run.pending_tools.len(),
+                )?;
+                emitter.emit_event(RunnerEvent::Failed {
+                    run_id,
+                    error: HARNESS_PANIC_ERROR.to_owned(),
+                })?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Build and store the IsolatedUnknown resource evidence for a panicked run.
+    ///
+    /// The set is derived from the state the run actually held at the moment of the unwind:
+    /// the model task was active, queued tool intentions were not dispatched, and a budget
+    /// lease was taken for the turn. Histories/inbox entries are owned by the same run and are
+    /// released only when the owning lifecycle drains the record.
+    fn record_panic_evidence(
+        &self,
+        run_id: RunId,
+        reason: String,
+        pending_tools: usize,
+    ) -> Result<(), KianaHarnessError> {
+        let mut resources = vec![HarnessPanicResource {
+            resource_id: "model_task".to_owned(),
+            kind: "model_task".to_owned(),
+            requires_stop_confirmation: true,
+            stop_confirmed: false,
+            effect_known: false,
+            reason: "panic_during_model_step".to_owned(),
+        }];
+        let mut kinds = HashSet::new();
+        for index in 0..pending_tools {
+            let entry = HarnessPanicResource {
+                resource_id: format!("tool_future:{index}"),
+                kind: "tool_future".to_owned(),
+                requires_stop_confirmation: true,
+                stop_confirmed: false,
+                effect_known: false,
+                reason: "panic_before_tool_settlement".to_owned(),
+            };
+            kinds.insert(entry.resource_id.clone());
+            resources.push(entry);
+        }
+        // A subscription and the turn budget lease are always attributable to the run.
+        for entry in [
+            HarnessPanicResource {
+                resource_id: "budget_lease".to_owned(),
+                kind: "budget_lease".to_owned(),
+                requires_stop_confirmation: true,
+                stop_confirmed: false,
+                effect_known: false,
+                reason: "panic_before_budget_settlement".to_owned(),
+            },
+            HarnessPanicResource {
+                resource_id: "subscription".to_owned(),
+                kind: "subscription".to_owned(),
+                requires_stop_confirmation: true,
+                stop_confirmed: false,
+                effect_known: false,
+                reason: "panic_before_subscription_close".to_owned(),
+            },
+        ] {
+            if kinds.insert(entry.resource_id.clone()) {
+                resources.push(entry);
+            }
+        }
+        let record = HarnessPanicRecord {
+            run_id,
+            reason,
+            resources,
+        };
+        self.panic_evidence
+            .lock()
+            .map_err(|_| KianaHarnessError::Failed("harness_lock_poisoned".to_owned()))?
+            .insert(run_id, record);
+        Ok(())
+    }
+
+    /// Take the panic evidence for `run_id`, if the run unwound inside a model step.
+    ///
+    /// Consumers (Core/daemon) call this after a run ends to build the domain
+    /// `ResourceCleanupPlan` with `CleanupCause::Panic`. Taking is intentional: each record is
+    /// reported once, and an already-drained run reports no panic.
+    pub fn take_panic_record(&self, run_id: RunId) -> Option<HarnessPanicRecord> {
+        self.panic_evidence
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .remove(&run_id)
+    }
+
+    /// 该 run 当前仍在内存表里的留存结构数量，供 retention/清理夹具对比基线。
+    ///
+    /// 返回 `(runs, histories, assignments)` 三个稳定计数：只读快照，不清理也不改变状态。
+    pub fn retained_run_counts(&self, run_id: RunId) -> (usize, usize, usize) {
+        let runs = self
+            .runs
+            .lock()
+            .map(|runs| usize::from(runs.contains_key(&run_id)))
+            .unwrap_or(0);
+        let histories = self
+            .histories
+            .lock()
+            .map(|histories| usize::from(histories.contains_key(&run_id)))
+            .unwrap_or(0);
+        let assignments = self
+            .assignments
+            .lock()
+            .map(|assignments| usize::from(assignments.contains_key(&run_id)))
+            .unwrap_or(0);
+        (runs, histories, assignments)
+    }
+
+    /// 该 run 当前是否仍有 `in_flight` 登记（只读）。
+    ///
+    /// 清理生产者用它在 run 结束时区分「模型任务已经 join」与「仍有登记未注销」。
+    /// 这是一个观测接口：调用它不会改变登记，也不会声称任何外部效果已停止。
+    pub fn is_in_flight(&self, run_id: RunId) -> bool {
+        self.in_flight
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .contains_key(&run_id)
+    }
+
+    /// Drop every retained per-run structure without claiming any external effect stopped.
+    ///
+    /// Used by retention/cleanup callers that only own in-process maps. It removes cancel
+    /// handles, deferred input, histories and cached explanations; it does not release path
+    /// locks, kill processes or prove a provider call ended.
+    pub fn release_retained_run_state(&self, run_id: RunId) {
+        if let Ok(mut guards) = self.assignments.lock() {
+            guards.remove(&run_id);
+        }
+        if let Ok(mut histories) = self.histories.lock() {
+            histories.remove(&run_id);
+        }
+        if let Ok(mut prefixes) = self.prefix_cache.lock() {
+            prefixes.remove(&run_id);
+        }
+        if let Ok(mut explanations) = self.compaction_explanations.lock() {
+            explanations.remove(&run_id);
+        }
+        if let Ok(mut evidence) = self.compaction_evidence.lock() {
+            evidence.remove(&run_id);
+        }
+        if let Ok(mut inputs) = self.deferred_inputs.lock() {
+            inputs.remove(&run_id);
+        }
+        if let Ok(mut runs) = self.runs.lock() {
+            runs.remove(&run_id);
+        }
+    }
+
     /// 在 run 运行期间登记取消句柄，并在模型驱动结束后清除登记。
     ///
     /// `in_flight` 表使另一条 Cancel 命令能在不持有 run 可变借用的情况下拿到同一个
     /// `Arc<RunCancellation>` 并通知正在等待的异步任务。先登记再驱动、结束后再注销，
     /// 使取消请求能区分“仍在执行”与“已挂起保存在 runs 表”两种情况。
+    /// 清空一次 run 的 `in_flight` 登记；没有登记时是幂等 no-op。
+    ///
+    /// 【调用者】Core 的清理生产者在 run 结束后销毁本进程的任务登记；它只移除取消句柄，
+    /// 不改变停止集合、不杀进程、不释放锁。
+    fn release_in_flight(&self, run_id: RunId) -> Result<(), KianaHarnessError> {
+        self.unregister_in_flight(run_id)
+    }
+
     async fn model_step_in_flight(
         &self,
         run: &mut ActiveRun,
         emitter: &mut EventEmitter<'_>,
     ) -> Result<(), KianaHarnessError> {
         self.register_in_flight(run.run_id, run.cancellation.clone())?;
-        let result = self.model_step(run, emitter).await;
+        let result = self.model_step_contained(run, emitter).await;
+        // A panic must not leave the registration behind; the panic evidence record replaces it.
         self.unregister_in_flight(run.run_id)?;
         result
     }
@@ -3097,6 +3474,11 @@ impl From<KianaHarnessError> for PortError {
 
 #[async_trait]
 impl RunnerPort for KianaHarness {
+    /// 交付 panic 证据：只交出一次，且不把「交出」当作停止确认。
+    fn take_panic_evidence(&self, run_id: RunId) -> Option<HarnessPanicRecord> {
+        self.take_panic_record(run_id)
+    }
+
     /// 在 run 启动前绑定由 ControlPlane 生成的服务端模型分配。
     ///
     /// 分配中包含 run/turn、角色、模型配置与运行预算；模型文本没有写入此表的路径。

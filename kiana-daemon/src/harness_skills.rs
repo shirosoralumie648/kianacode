@@ -78,6 +78,15 @@ impl RunnerPort for SkillAwareRunner {
         self.inner.restore(run_id, checkpoint).await
     }
 
+    fn take_panic_evidence(
+        &self,
+        run_id: kiana_domain::RunId,
+    ) -> Option<kiana_runner_protocol::RunnerPanicRecord> {
+        // 包装层不能把 panic 证据吞掉：Core 的清理生产者只读 RunnerPort 的这一面，
+        // 缺了转发就等于把 `IsolatedUnknown` 降级成「没有资源」。
+        self.inner.take_panic_evidence(run_id)
+    }
+
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
         self.inner
             .send(with_skill_and_extension_instructions(command, self.extensions.as_deref()).await?)

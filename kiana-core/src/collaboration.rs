@@ -124,12 +124,13 @@ impl ControlPlane {
             .await?;
             return Ok(CoreResponse::blocked(request_id, reason));
         }
+        let run_id = RunId::new();
         let _path_lock_guard = BuilderPathLockGuard {
             control_plane: self,
+            run_id,
             project_root: project_root.clone(),
             session_id: session_id.clone(),
         };
-        let run_id = RunId::new();
         let admission = match self.reserve_packet_cell(&context, &packet, run_id).await {
             Ok(admission) => admission,
             Err(error) => {

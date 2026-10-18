@@ -1,0 +1,85 @@
+name: H33 resource cleanup diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resource-cleanup:
+    name: H33 run resource, shutdown and abnormal-exit cleanup fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt -p kiana-domain -p kiana-runner -p kiana-core -p kiana-daemon --check
+      - name: Run domain cleanup reducer fixtures
+        run: cargo test -p kiana-domain --test h33_resource_cleanup --locked -- --test-threads=1
+      - name: Run named H33 domain fixtures (deny-first then success)
+        run: |
+          for fixture in \
+            unconfirmed_process_cannot_release_write_ownership_to_next_run \
+            panic_does_not_leave_untracked_background_work \
+            many_short_runs_return_handles_locks_and_memory_to_baseline; do
+            cargo test -p kiana-domain --test h33_resource_cleanup "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Run runner cleanup behavior fixtures
+        run: cargo test -p kiana-runner --test h33_resource_cleanup_behavior --locked -- --test-threads=1
+      - name: Run named H33 runner fixtures (deny-first then retention then success)
+        run: |
+          for fixture in \
+            panic_does_not_leave_untracked_background_work \
+            unconfirmed_process_cannot_release_write_ownership_to_next_run \
+            retention_budget_rejects_zero_dimensions \
+            retention_does_not_silently_trim_history_bytes \
+            retained_runs_and_history_stay_within_budget_without_evicting_active_runs \
+            many_short_runs_return_handles_locks_and_memory_to_baseline; do
+            cargo test -p kiana-runner --test h33_resource_cleanup_behavior "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Run core cleanup producer behavior fixtures
+        run: cargo test -p kiana-core --test h33_resource_cleanup_behavior --locked -- --test-threads=1
+      - name: Run named H33 core fixtures (deny-first then success)
+        run: |
+          for fixture in \
+            unconfirmed_process_cannot_release_write_ownership_to_next_run \
+            panic_does_not_leave_untracked_background_work \
+            many_short_runs_return_handles_locks_and_memory_to_baseline; do
+            cargo test -p kiana-core --test h33_resource_cleanup_behavior "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Run core cleanup source guard
+        run: cargo test -p kiana-core --test h33_resource_cleanup_guard --locked -- --test-threads=1
+      - name: Run daemon shutdown cleanup fixtures
+        run: cargo test -p kiana-daemon --test h33_resource_cleanup_shutdown --locked -- --test-threads=1
+      - name: Run named H33 daemon shutdown fixtures (deny-first then order)
+        run: |
+          for fixture in \
+            shutdown_cannot_claim_in_flight_run_stopped \
+            shutdown_persists_cleanup_reports_before_event_store_close; do
+            cargo test -p kiana-daemon --test h33_resource_cleanup_shutdown "$fixture" --locked -- --exact --test-threads=1 || exit 1
+          done
+      - name: Run daemon retention wiring unit fixture
+        run: cargo test -p kiana-daemon --lib default_resource_retention --locked -- --test-threads=1
+      - name: Run shutdown ordering regression
+        run: cargo test -p kiana-core --test er16_terminal_uniqueness --locked -- --test-threads=1
+      - name: Compile domain cleanup target
+        run: cargo test -p kiana-domain --test h33_resource_cleanup --no-run --locked
+      - name: Compile runner cleanup target
+        run: cargo test -p kiana-runner --test h33_resource_cleanup_behavior --no-run --locked
+      - name: Compile core cleanup behavior target
+        run: cargo test -p kiana-core --test h33_resource_cleanup_behavior --no-run --locked
+      - name: Compile core cleanup source guard target
+        run: cargo test -p kiana-core --test h33_resource_cleanup_guard --no-run --locked
+      - name: Compile daemon shutdown cleanup target
+        run: cargo test -p kiana-daemon --test h33_resource_cleanup_shutdown --no-run --locked
+      - name: Compile daemon lib retention fixture
+        run: cargo test -p kiana-daemon --lib default_resource_retention --no-run --locked
+      - name: Compile shutdown ordering target
+        run: cargo test -p kiana-core --test er16_terminal_uniqueness --no-run --locked

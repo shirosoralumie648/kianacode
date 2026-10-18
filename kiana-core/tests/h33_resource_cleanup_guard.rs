@@ -71,3 +71,64 @@ fn cleanup_does_not_equate_host_drop_with_confirmed_stop() {
     assert!(supervisor.contains("ProcessGroupState::Unknown"));
     assert!(supervisor.contains("confirmed"));
 }
+
+#[test]
+fn cleanup_producer_reads_owner_evidence_and_is_wired_to_run_end_and_shutdown() {
+    let producer = include_str!("../src/resource_cleanup_producer.rs");
+    let lifecycle = include_str!("../src/lifecycle.rs");
+    let daemon = include_str!("../../kiana-daemon/src/lib.rs");
+
+    // 生产者必须是真实 owner 状态的读取者，而不是另一套执行循环。
+    for marker in [
+        "release_run_resources",
+        "record_end_of_run_cleanup",
+        "shutdown_in_flight_runs",
+        "record_shutdown_log_failures",
+        "check_resource_retention",
+        "safe_to_release_all",
+        "IsolatedUnknown",
+    ] {
+        assert!(
+            producer.contains(marker),
+            "missing H33 producer marker: {marker}"
+        );
+    }
+    // 报告只写 resource_cleanup 聚合：它不能改写 run 终态，也不能伪装成 quarantine 事实。
+    assert!(producer.contains("\"resource_cleanup\""));
+    assert!(!producer.contains("\"resource_quarantined\""));
+    assert!(!producer.contains("\"resource.released\""));
+
+    // reducer/producer 不是 OS 级 killer：杀进程、发信号、删临时文件都必须留在 adapter/supervisor。
+    for forbidden in [
+        "std::process",
+        "tokio::process",
+        "libc::",
+        "kill(",
+        "Command::new",
+    ] {
+        assert!(
+            !producer.contains(forbidden),
+            "cleanup producer must not perform OS-level cleanup: {forbidden}"
+        );
+    }
+
+    // 运行结束和关闭两条路径都必须经过生产者。
+    assert!(
+        lifecycle.contains("record_end_of_run_cleanup"),
+        "run end must record cleanup evidence through the producer"
+    );
+    let shutdown = item_source(daemon, "pub async fn shutdown(");
+    let cancel_at = shutdown
+        .find("shutdown_in_flight_runs")
+        .expect("shutdown must cancel and record in-flight runs");
+    let close_at = shutdown
+        .find("close_event_store")
+        .expect("shutdown must close the event store");
+    let log_failure_at = shutdown
+        .find("record_shutdown_log_failures")
+        .expect("shutdown must record observability log failure evidence");
+    assert!(
+        cancel_at < log_failure_at && log_failure_at < close_at,
+        "cleanup evidence must be recorded before the event store closes"
+    );
+}

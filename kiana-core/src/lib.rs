@@ -177,6 +177,7 @@ mod recovery;
 mod recovery_rehearsal;
 mod redaction;
 mod replay_diagnostics;
+mod resource_cleanup_producer;
 mod resource_leases;
 mod resource_projection;
 mod restore_activation;
@@ -479,6 +480,10 @@ pub use recovery_rehearsal::{
 pub use replay_diagnostics::{
     diagnose_replay, diagnose_replay_with_baseline, ReplayDiagnosticsError, ReplayExpectation,
 };
+pub use resource_cleanup_producer::{
+    build_run_cleanup_report, RunCleanupEvidence, DEFAULT_RESOURCE_RETENTION,
+    RESOURCE_CLEANUP_AGGREGATE, RESOURCE_CLEANUP_REPORT_KIND,
+};
 pub use resource_projection::project_recovery_resources;
 pub use restore_activation::{
     admit_audit_read_after_activation, admit_command_after_activation, ActivationLedger,
@@ -657,14 +662,21 @@ impl Drop for TerminalScopeGuard<'_> {
 
 struct BuilderPathLockGuard<'a> {
     control_plane: &'a ControlPlane,
+    run_id: RunId,
     project_root: String,
     session_id: String,
 }
 
 impl Drop for BuilderPathLockGuard<'_> {
     fn drop(&mut self) {
-        self.control_plane
-            .release_builder_path_locks(&self.project_root, &self.session_id);
+        // Drop 只是调用栈退出，不证明 run 已停止。只有停止集合确认收敛时才交还路径锁；
+        // 否则保留 fencing，让下一个写者无法进入仍可能有外部写者的路径。
+        let released = self.control_plane.release_builder_path_locks_if_confirmed(
+            self.run_id,
+            &self.project_root,
+            &self.session_id,
+        );
+        let _ = released;
     }
 }
 
