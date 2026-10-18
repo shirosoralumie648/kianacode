@@ -402,8 +402,13 @@ pub use notification_projector::{
     NOTIFICATION_RETENTION_SCHEMA, NOTIFICATION_RETENTION_VERSION,
 };
 pub use notification_recovery::{
-    plan_notification_recovery, NotificationRecoveryDisposition, NotificationRecoveryInput,
-    NotificationRecoveryPlan, NotificationRecoveryState, NOTIFICATION_RECOVERY_SCHEMA,
+    plan_notification_outbox_recovery, plan_notification_recovery, NotificationAttemptObservation,
+    NotificationDeadLetter, NotificationDeadLetterKind, NotificationReconciliationOutcome,
+    NotificationReconciliationRequirement, NotificationRecoveryDisposition,
+    NotificationRecoveryInput, NotificationRecoveryPlan, NotificationRecoveryResolution,
+    NotificationRecoveryState, NotificationRetryAdmission, NOTIFICATION_DEAD_LETTER_SCHEMA,
+    NOTIFICATION_RECONCILIATION_SCHEMA, NOTIFICATION_RECOVERY_SCHEMA,
+    NOTIFICATION_RETRY_ADMISSION_SCHEMA,
 };
 pub use notification_resolver::{
     resolve_notification_subscriptions, NotificationClientClaims, NotificationEntryPoint,

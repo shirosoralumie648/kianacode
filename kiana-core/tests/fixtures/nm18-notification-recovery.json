@@ -10,13 +10,38 @@
     "expired_notification_is_not_sent",
     "unknown_is_not_automatically_retried",
     "retry_requires_new_authority_and_delivery_key",
-    "connector_effect_is_not_planned_here"
+    "connector_effect_is_not_planned_here",
+    "cancel_requested_is_never_reconciled_as_delivered",
+    "revoked_or_expired_after_send_started_is_not_terminal_no_send",
+    "retry_admission_cannot_reuse_the_previous_delivery_key",
+    "retry_admission_cannot_keep_the_previous_authority_epoch",
+    "reconciliation_requires_an_evidence_digest",
+    "reconciliation_unknown_never_auto_retries",
+    "foreign_live_claim_is_not_planned_here",
+    "possibly_started_failure_is_not_a_pre_send_retry"
   ],
   "accepted": [
     "pending_active_dispatch_plan",
     "known_pre_send_failure_bounded_retry_plan",
     "acknowledged_terminal_no_send",
-    "reconciliation_required_for_uncertain_outcome"
+    "reconciliation_required_for_uncertain_outcome",
+    "uncertainty_is_dead_lettered_with_a_typed_case",
+    "reconciliation_delivered_is_terminal_acknowledged",
+    "reconciliation_not_delivered_requires_re_admission",
+    "fresh_authority_and_delivery_key_admit_one_retry",
+    "cancel_before_send_is_terminal_no_send"
   ],
+  "dead_letter_kinds": [
+    "cancel_requested_after_possible_send",
+    "delivery_outcome_unknown",
+    "authority_epoch_changed",
+    "subscription_inactive",
+    "notification_expired_before_send",
+    "notification_expired_after_possible_send",
+    "pre_send_retry_not_admissible"
+  ],
+  "dead_letter_requirements": ["provider_receipt", "operator_decision"],
+  "reconciliation_outcomes": ["delivered", "not_delivered", "unknown"],
+  "reconciliation_resolutions": ["terminal_acknowledged", "retry_admission_required", "remains_dead_lettered"],
   "proof_ceiling": "source"
 }
