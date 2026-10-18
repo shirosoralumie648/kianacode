@@ -644,6 +644,8 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         // CO-11: the coverage graph is proposed through the planning path but only the Sponsor
         // approves the exact frozen graph.
         CompanyCommand::FreezeCriterionCoverage { .. } => &["sponsor"],
+        // CO-12: the plan graph revision is a planning proposal; the PM or the Sponsor admits it.
+        CompanyCommand::FreezePlanGraph { .. } => &["pm", "sponsor"],
         CompanyCommand::RequestCancelProject { .. }
         | CompanyCommand::ConfirmCancelProject { .. }
         | CompanyCommand::FailProject { .. }
@@ -823,6 +825,7 @@ impl CompanyMutationClass {
             | CompanyCommand::CreateMilestone { .. }
             | CompanyCommand::PlanProject { .. }
             | CompanyCommand::FreezeCriterionCoverage { .. }
+            | CompanyCommand::FreezePlanGraph { .. }
             | CompanyCommand::PauseProject { .. }
             | CompanyCommand::ResumeProject { .. }
             | CompanyCommand::RequestCancelProject { .. }
@@ -1069,6 +1072,11 @@ impl CompanyMutationPermission {
                 "criteria_coverage_project_mismatch",
                 "criteria_coverage_graph_digest_mismatch",
                 "criteria_coverage_freeze_digest_mismatch",
+                // CO-12 frozen Plan/WorkGraph: the complete candidate graph is validated once at
+                // the admission boundary and the frozen Charter baseline still has to match.
+                "plan_graph_baseline_missing",
+                "plan_graph_baseline_mismatch",
+                "plan_graph_already_frozen",
             ],
             CompanyMutationClass::Budget => &[
                 "company_project_not_budgetable",

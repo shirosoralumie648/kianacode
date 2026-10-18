@@ -975,6 +975,14 @@ pub enum CompanyCommand {
     FreezeCriterionCoverage {
         coverage: crate::FrozenCriterionCoverage,
     },
+    /// CO-12: the planning role freezes one exact Plan/WorkGraph revision. The complete candidate
+    /// graph is validated once at this approval boundary — missing dependencies, blocking cycles,
+    /// cross-project edges, empty required milestones, isolated required criteria and the reading
+    /// scope — and the per-node dependency versions are frozen. It creates no packet, claims no
+    /// lease and grants no capability.
+    FreezePlanGraph {
+        plan: crate::PlanProposal,
+    },
     AcknowledgeHandoff {
         handoff_id: String,
         accept: bool,
@@ -1133,6 +1141,7 @@ impl CompanyCommand {
             Self::ReworkPacket { .. } => "PacketReworkApproved",
             Self::PlanProject { .. } => "ProjectPlanned",
             Self::FreezeCriterionCoverage { .. } => "CriterionCoverageFrozen",
+            Self::FreezePlanGraph { .. } => "PlanGraphFrozen",
             Self::AcknowledgeHandoff { .. } => "HandoffAcknowledged",
             Self::ReviewPacket { .. } => "PacketReviewed",
             Self::ConfigureBudget { .. } => "ProjectBudgetConfigured",
@@ -1206,6 +1215,9 @@ impl CompanyCommand {
             // CO-11: only the Sponsor approves the exact coverage graph; the planning roles can
             // propose it but cannot sign the freeze.
             Self::FreezeCriterionCoverage { .. } => &["sponsor"],
+            // CO-12: the plan graph is a planning-side proposal; the assigned PM and the Sponsor
+            // may freeze it, while Builder/Reviewer/Closer subjects are denied by the role gate.
+            Self::FreezePlanGraph { .. } => &["pm", "sponsor"],
             // CO-10: the chartering role drafts; the Sponsor (or an assigned PM) records it, and
             // only the Sponsor can approve the exact draft version.
             Self::DraftCharter { .. } => &["sponsor", "pm"],
@@ -1327,6 +1339,10 @@ pub struct CompanyState {
     /// projects, which keep the readable text-list snapshot path.
     #[serde(default)]
     pub criterion_coverages: BTreeMap<String, crate::FrozenCriterionCoverage>,
+    /// CO-12 admitted Plan/WorkGraph revisions with their frozen dependency versions, keyed by
+    /// project. Absent on legacy projects, which never had a plan proposal admitted.
+    #[serde(default)]
+    pub plan_graphs: BTreeMap<String, crate::FrozenPlanGraph>,
     pub revision: u64,
     pub objectives: BTreeMap<String, Objective>,
     pub initiatives: BTreeMap<String, Initiative>,
@@ -1892,6 +1908,50 @@ impl CompanyState {
         }
         self.criterion_coverages
             .insert(coverage.graph.project_id.clone(), coverage.clone());
+        Ok(())
+    }
+
+    /// CO-12: boundary verdict for admitting one exact Plan/WorkGraph revision.
+    ///
+    /// The complete candidate graph is validated here instead of per insertion, so a batch draft
+    /// may be assembled in any order and still fails closed once. On top of the structural
+    /// contract the verdict binds the revision to the server-side frozen Charter baseline and,
+    /// when the project has one, to the CO-11 frozen criterion coverage. Repeating the exact
+    /// revision is idempotent; a different revision for the same project is refused.
+    pub fn plan_graph_freeze_verdict(&self, plan: &crate::PlanProposal) -> CompanyResult<()> {
+        plan.validate()?;
+        self.require_project_writable(&plan.project_id)?;
+        let baseline = self
+            .charter_baselines
+            .get(&plan.project_id)
+            .ok_or("plan_graph_baseline_missing")?;
+        ensure(
+            baseline.version == plan.charter_baseline_version,
+            "plan_graph_baseline_mismatch",
+        )?;
+        if let Some(coverage) = self.criterion_coverages.get(&plan.project_id) {
+            coverage.bind_plan(plan)?;
+        }
+        if let Some(frozen) = self.plan_graphs.get(&plan.project_id) {
+            ensure!(
+                frozen.plan_digest == plan.digest,
+                "plan_graph_already_frozen"
+            )?;
+        }
+        Ok(())
+    }
+
+    /// CO-12 freeze transition: the exact revision is admitted once per project together with its
+    /// frozen dependency versions. Repeating the same revision is idempotent and grants nothing.
+    fn freeze_plan_graph(&mut self, plan: &crate::PlanProposal) -> CompanyResult<()> {
+        self.plan_graph_freeze_verdict(plan)?;
+        if self.plan_graphs.contains_key(&plan.project_id) {
+            return Ok(());
+        }
+        self.plan_graphs.insert(
+            plan.project_id.clone(),
+            crate::FrozenPlanGraph::from_plan(plan)?,
+        );
         Ok(())
     }
 
@@ -2737,6 +2797,9 @@ impl CompanyState {
             }
             CompanyCommand::FreezeCriterionCoverage { coverage } => {
                 self.freeze_criterion_coverage(coverage, a, p)?;
+            }
+            CompanyCommand::FreezePlanGraph { plan } => {
+                self.freeze_plan_graph(plan)?;
             }
             CompanyCommand::AcknowledgeHandoff {
                 handoff_id,

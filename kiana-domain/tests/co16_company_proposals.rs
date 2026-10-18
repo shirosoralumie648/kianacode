@@ -13,6 +13,7 @@ fn plan() -> PlanProposal {
                 version: 1,
                 required: true,
                 criterion_refs: Vec::new(),
+                input_refs: Vec::new(),
             },
             PlanNode {
                 node_id: "packet-1".to_owned(),
@@ -21,6 +22,7 @@ fn plan() -> PlanProposal {
                 version: 1,
                 required: true,
                 criterion_refs: Vec::new(),
+                input_refs: Vec::new(),
             },
         ],
         vec![PlanEdge {

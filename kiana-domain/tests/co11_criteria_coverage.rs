@@ -642,7 +642,8 @@ fn typed_plan_coverage_binds_the_approved_graph_and_rejects_drift() {
             version: 1,
             required: true,
             criterion_refs: vec![milestone],
-        },
+            input_refs: Vec::new(),
+        }}
         PlanNode {
             node_id: "packet-1".to_owned(),
             project_id: "project-1".to_owned(),
@@ -650,7 +651,8 @@ fn typed_plan_coverage_binds_the_approved_graph_and_rejects_drift() {
             version: 1,
             required: true,
             criterion_refs: vec![packet],
-        },
+            input_refs: Vec::new(),
+        }}
     ];
     let plan_edges = vec![PlanEdge {
         from: "milestone-1".to_owned(),
@@ -821,7 +823,8 @@ fn typed_plan_coverage_binds_the_approved_graph_and_rejects_drift() {
                 version: 1,
                 required: false,
                 criterion_refs: Vec::new(),
-            },
+                input_refs: Vec::new(),
+            }}
         ],
         vec![
             plan_edges[0].clone(),
@@ -851,7 +854,8 @@ fn typed_plan_coverage_binds_the_approved_graph_and_rejects_drift() {
                 version: 1,
                 required: true,
                 criterion_refs: vec![milestone, cid(99)],
-            },
+                input_refs: Vec::new(),
+            }}
             plan_nodes[1].clone(),
         ],
         plan_edges.clone(),
@@ -883,7 +887,8 @@ fn typed_plan_coverage_binds_the_approved_graph_and_rejects_drift() {
                 version: 1,
                 required: true,
                 criterion_refs: Vec::new(),
-            },
+                input_refs: Vec::new(),
+            }}
             plan_nodes[1].clone(),
         ],
         plan_edges.clone(),
