@@ -3,11 +3,19 @@
   "accepted": [
     "CLI/TTY presenter renders bounded server page rows and action ids",
     "run delta/heartbeat/terminal/Unknown preserve cursor and retry semantics",
-    "payload/detail is not copied into display rows"
+    "payload/detail is not copied into display rows",
+    "one server-bound route serves /inbox, /read, /ack, /approve, /deny and detach plans",
+    "multi-session badges are projected from the bound server page and carry the server clock",
+    "approval decisions are bound to the server-issued challenge hash and offered decisions"
   ],
   "denied": [
     "foreign/oversized/malformed page or action fields",
     "Unknown converted to automatic retry or terminal converted to cancel",
-    "presenter calls Broker/runner/process or mutates HumanTask/Approval"
+    "presenter calls Broker/runner/process or mutates HumanTask/Approval",
+    "forged scope tokens, key=value pairs, --flags and scope: prefixes on an inbox line",
+    "client clocks, local counters and preselected answers carried by a server page",
+    "a decision verb on a target outside the server projection or a decision the server did not offer",
+    "read/ACK/snooze state borrowed as an approval or task decision",
+    "another session's line, or a dropped connection turned into cancel/resume"
   ]
 }

@@ -1,0 +1,29 @@
+name: NM-14 notification CLI/TTY inbox
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-cli:
+    name: NM-14 CLI/TTY inbox routing, approval fence and session badges
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run NM-14 notification CLI fixtures
+        run: cargo test -p kiana-entrypoints --test nm14_notification_cli --locked -- --test-threads=1
+      - name: Run NM-14 notification CLI source guard
+        run: cargo test -p kiana-entrypoints --test nm14_notification_cli_guard --locked -- --test-threads=1
+      - name: Compile NM-14 notification CLI target
+        run: cargo test -p kiana-entrypoints --test nm14_notification_cli --no-run --locked
+      - name: Compile NM-14 notification CLI source guard target
+        run: cargo test -p kiana-entrypoints --test nm14_notification_cli_guard --no-run --locked
