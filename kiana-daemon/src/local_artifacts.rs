@@ -7,8 +7,9 @@
 use crate::local_packages::{failed, sha256, LocalDir};
 use async_trait::async_trait;
 use kiana_domain::{
-    ArtifactPublicationIntent, ArtifactPublicationState, ArtifactRef, ArtifactVersion,
-    DataPropagationReceipt, EventId, MAX_ARTIFACT_BYTES,
+    ArtifactId, ArtifactPublicationIntent, ArtifactPublicationState, ArtifactRef, ArtifactVersion,
+    DataPropagationReceipt, DataPropagationState, DataPropagationTarget, EventId,
+    MAX_ARTIFACT_BYTES,
 };
 use kiana_ports::{ArtifactContentPort, ArtifactStorePort, PortError};
 use serde::{Deserialize, Serialize};
@@ -23,9 +24,16 @@ const COMMIT_SCHEMA: &str = "kiana.local-artifact-commit.v1";
 /// Append-only publication journal. It is a recovery sidecar, not a fact source: the EventLog
 /// remains the only authority for whether a Company command committed.
 const PUBLICATION_JOURNAL: &str = "publications.log";
+/// Append-only invalidation journal. Like the publication journal it is recovery state, not a
+/// fact source: the EventLog remains the only authority for a governance decision. It is
+/// monotonic, so a revoked version stays revoked across restarts even before any projection is
+/// rebuilt.
+const INVALIDATION_JOURNAL: &str = "invalidations.log";
+const INVALIDATION_JOURNAL_SCHEMA: &str = "kiana.local-artifact-invalidation.v1";
 const MAX_MANIFEST_BYTES: usize = 32 * 1024;
 const MAX_MARKER_BYTES: usize = 4096;
 const MAX_JOURNAL_BYTES: usize = 1024 * 1024;
+const MAX_INVALIDATION_JOURNAL_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -39,6 +47,23 @@ struct ArtifactManifest {
 struct ArtifactMarker {
     schema: String,
     manifest_sha256: String,
+}
+
+/// One durable revocation boundary for a committed artifact version.
+///
+/// The record deliberately carries the tombstone digest and data epoch, so a replayed
+/// invalidation with the same boundary is idempotent while a different tombstone for the same
+/// version is a conflict rather than a silent second revocation.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ArtifactInvalidation {
+    schema: String,
+    artifact_id: ArtifactId,
+    version: u64,
+    scope_digest: String,
+    data_epoch: u64,
+    tombstone_digest: String,
+    observed_at_ms: u64,
 }
 
 /// Descriptor-pinned local implementation of artifact staging, commit, verification and reads.
@@ -199,6 +224,9 @@ impl LocalArtifactStore {
         reference
             .validate()
             .map_err(|error| failed(format!("artifact_reference_invalid:{error}")))?;
+        // Revocation is checked before existence: a revoked version must never be reported as
+        // merely "not committed", and its bytes must not leave the store.
+        self.check_not_revoked(reference)?;
         let Some(directory) = self.key_directory(reference)? else {
             return Err(PortError::Unavailable(
                 "artifact_version_not_committed".to_owned(),
@@ -357,6 +385,229 @@ impl LocalArtifactStore {
         let mut intents = self.read_journal()?;
         intents.sort_by(|left, right| left.command_id.cmp(&right.command_id));
         Ok(intents)
+    }
+
+    /// Read the append-only invalidation journal and reduce it to one boundary per artifact
+    /// version. Conflicting boundaries for the same version fail closed instead of letting the
+    /// last line silently win, so a concurrent or replayed writer cannot weaken a revocation.
+    fn read_invalidations(
+        &self,
+    ) -> Result<BTreeMap<(ArtifactId, u64), ArtifactInvalidation>, PortError> {
+        let bytes = match self
+            .root
+            .read_optional(INVALIDATION_JOURNAL, MAX_INVALIDATION_JOURNAL_BYTES)
+        {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => return Ok(BTreeMap::new()),
+            Err(PortError::Failed(reason)) if reason == "package_size_exceeded" => {
+                return Err(PortError::Conflict(
+                    "artifact_invalidation_journal_full".to_owned(),
+                ))
+            }
+            Err(error) => return Err(error),
+        };
+        let mut reduced: BTreeMap<(ArtifactId, u64), ArtifactInvalidation> = BTreeMap::new();
+        for line in bytes.split(|byte| *byte == b'\n') {
+            if line.is_empty() {
+                continue;
+            }
+            let record: ArtifactInvalidation =
+                Self::decode(line, "artifact_invalidation_journal_invalid")?;
+            Self::validate_invalidation_record(&record)?;
+            match reduced.get(&(record.artifact_id, record.version)) {
+                Some(existing)
+                    if existing.data_epoch == record.data_epoch
+                        && existing.tombstone_digest == record.tombstone_digest
+                        && existing.scope_digest == record.scope_digest => {}
+                Some(_) => {
+                    return Err(PortError::Conflict(
+                        "artifact_invalidation_journal_conflict".to_owned(),
+                    ))
+                }
+                None => {
+                    reduced.insert((record.artifact_id, record.version), record);
+                }
+            }
+        }
+        Ok(reduced)
+    }
+
+    fn validate_invalidation_record(record: &ArtifactInvalidation) -> Result<(), PortError> {
+        if record.schema != INVALIDATION_JOURNAL_SCHEMA
+            || record.version == 0
+            || record.data_epoch == 0
+            || record.observed_at_ms == 0
+            || !Self::valid_prefixed_digest(&record.scope_digest)
+            || !Self::valid_tombstone_digest(&record.tombstone_digest)
+        {
+            return Err(PortError::Failed(
+                "artifact_invalidation_journal_invalid".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// A tombstone is an explicit `sha256:` digest so a caller cannot pass a bare or
+    /// foreign-shaped string and still produce a receipt that validates.
+    fn valid_tombstone_digest(value: &str) -> bool {
+        let Some(hex) = value.strip_prefix("sha256:") else {
+            return false;
+        };
+        hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+    }
+
+    /// Scope digests follow the repository convention of either a bare or prefixed SHA-256
+    /// text; only the 64 hex characters are load-bearing.
+    fn valid_prefixed_digest(value: &str) -> bool {
+        let hex = value.strip_prefix("sha256:").unwrap_or(value);
+        hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+    }
+
+    /// Deny a read once the journal records a revocation boundary for this version.
+    fn check_not_revoked(&self, reference: &ArtifactRef) -> Result<(), PortError> {
+        if self
+            .read_invalidations()?
+            .contains_key(&(reference.artifact_id, reference.version))
+        {
+            return Err(PortError::Conflict(
+                "artifact_data_revoked_or_expired".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn append_invalidation_record(&self, record: &ArtifactInvalidation) -> Result<(), PortError> {
+        Self::validate_invalidation_record(record)?;
+        let mut line = Self::encode(record, "artifact_invalidation_encode_failed")?;
+        line.push(b'\n');
+        let current = match self
+            .root
+            .read_optional(INVALIDATION_JOURNAL, MAX_INVALIDATION_JOURNAL_BYTES)
+        {
+            Ok(Some(bytes)) => bytes.len(),
+            Ok(None) => 0,
+            Err(PortError::Failed(reason)) if reason == "package_size_exceeded" => {
+                MAX_INVALIDATION_JOURNAL_BYTES + 1
+            }
+            Err(error) => return Err(error),
+        };
+        if current + line.len() > MAX_INVALIDATION_JOURNAL_BYTES {
+            return Err(PortError::Conflict(
+                "artifact_invalidation_journal_full".to_owned(),
+            ));
+        }
+        self.root.append(INVALIDATION_JOURNAL, &line)
+    }
+
+    fn invalidation_receipt(
+        reference: &ArtifactRef,
+        previous_epoch: u64,
+        data_epoch: u64,
+        tombstone_digest: &str,
+        observed_at_ms: u64,
+    ) -> Result<DataPropagationReceipt, PortError> {
+        use serde_json::json;
+        let mut receipt = DataPropagationReceipt {
+            schema: kiana_domain::DATA_PROPAGATION_RECEIPT_SCHEMA.to_owned(),
+            version: kiana_domain::DATA_PROPAGATION_VERSION,
+            target: DataPropagationTarget::Artifact,
+            state: DataPropagationState::Invalidated,
+            project_ref: reference.scope_digest.clone(),
+            previous_epoch,
+            data_epoch,
+            source_cursor: reference.version,
+            tombstone_digest: tombstone_digest.to_owned(),
+            receipt_digest: None,
+            observed_at_ms,
+        };
+        receipt.receipt_digest = Some(kiana_domain::json_digest(&json!({
+            "artifact_id": reference.artifact_id,
+            "version": reference.version,
+            "scope_digest": reference.scope_digest,
+            "data_epoch": data_epoch,
+            "tombstone_digest": tombstone_digest,
+        })));
+        receipt
+            .validate()
+            .map_err(|error| failed(format!("artifact_invalidation_receipt:{error}")))?;
+        Ok(receipt)
+    }
+
+    fn invalidate_sync(
+        &self,
+        reference: &ArtifactRef,
+        previous_epoch: u64,
+        data_epoch: u64,
+        tombstone_digest: &str,
+        observed_at_ms: u64,
+    ) -> Result<DataPropagationReceipt, PortError> {
+        reference
+            .validate()
+            .map_err(|error| failed(format!("artifact_reference_invalid:{error}")))?;
+        if previous_epoch == 0
+            || data_epoch <= previous_epoch
+            || observed_at_ms == 0
+            || !Self::valid_tombstone_digest(tombstone_digest)
+        {
+            return Err(PortError::Failed(
+                "artifact_invalidation_boundary_invalid".to_owned(),
+            ));
+        }
+
+        // Idempotent replay is resolved from the journal before the filesystem: a revoked
+        // reference no longer needs to be readable to confirm the same boundary twice.
+        if let Some(existing) = self
+            .read_invalidations()?
+            .get(&(reference.artifact_id, reference.version))
+        {
+            if existing.data_epoch != data_epoch
+                || existing.tombstone_digest != tombstone_digest
+                || existing.scope_digest != reference.scope_digest
+            {
+                return Err(PortError::Conflict(
+                    "artifact_invalidation_conflict".to_owned(),
+                ));
+            }
+            return Self::invalidation_receipt(
+                reference,
+                previous_epoch,
+                data_epoch,
+                tombstone_digest,
+                observed_at_ms,
+            );
+        }
+
+        // Only a committed version can be revoked; revoking a missing or merely staged version
+        // would fabricate reach over bytes that governance never admitted.
+        let Some(directory) = self.key_directory(reference)? else {
+            return Err(PortError::Unavailable(
+                "artifact_version_not_committed".to_owned(),
+            ));
+        };
+        let [_, _, _, commit_name] = Self::filenames(reference);
+        Self::read_marker(
+            &directory,
+            &commit_name,
+            COMMIT_SCHEMA,
+            "artifact_version_not_committed",
+        )?;
+
+        self.append_invalidation_record(&ArtifactInvalidation {
+            schema: INVALIDATION_JOURNAL_SCHEMA.to_owned(),
+            artifact_id: reference.artifact_id,
+            version: reference.version,
+            scope_digest: reference.scope_digest.clone(),
+            data_epoch,
+            tombstone_digest: tombstone_digest.to_owned(),
+            observed_at_ms,
+        })?;
+        Self::invalidation_receipt(
+            reference,
+            previous_epoch,
+            data_epoch,
+            tombstone_digest,
+            observed_at_ms,
+        )
     }
 
     /// Reclaim the bytes of a committed blob that this store's own journal proves fact-free.
@@ -520,6 +771,8 @@ impl LocalArtifactStore {
                 "artifact_manifest_revision_conflict".to_owned(),
             ));
         }
+        // A version revoked while still staged must not become readable by a later commit.
+        self.check_not_revoked(&reference)?;
         let Some(directory) = self.key_directory(&reference)? else {
             return Err(PortError::Unavailable(
                 "artifact_version_not_staged".to_owned(),
@@ -644,15 +897,33 @@ impl ArtifactStorePort for LocalArtifactStore {
 
     async fn invalidate_artifact(
         &self,
-        _reference: &ArtifactRef,
-        _previous_epoch: u64,
-        _data_epoch: u64,
-        _tombstone_digest: &str,
-        _observed_at_ms: u64,
+        reference: &ArtifactRef,
+        previous_epoch: u64,
+        data_epoch: u64,
+        tombstone_digest: &str,
+        observed_at_ms: u64,
     ) -> Result<DataPropagationReceipt, PortError> {
-        Err(PortError::Unavailable(
-            "artifact_invalidation_unsupported".to_owned(),
-        ))
+        let reference = reference.clone();
+        let tombstone_digest = tombstone_digest.to_owned();
+        let root = self.root.try_clone()?;
+        tokio::task::spawn_blocking(move || {
+            Self {
+                root: Arc::new(root),
+            }
+            .invalidate_sync(
+                &reference,
+                previous_epoch,
+                data_epoch,
+                &tombstone_digest,
+                observed_at_ms,
+            )
+        })
+        .await
+        .map_err(|error| {
+            failed(format!(
+                "result_unknown:artifact_invalidation_join_failed:{error}"
+            ))
+        })?
     }
 
     async fn record_publication_intent(

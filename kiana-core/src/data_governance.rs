@@ -519,6 +519,26 @@ pub fn project_data_governance_snapshot(
     Ok(snapshot)
 }
 
+/// Decide whether a committed memory fact belongs to the requested project.
+///
+/// A record without a recorded root is unattributed history: it is kept because the write path
+/// predates project attribution, and refusing it would hide a real tombstone. A record that names
+/// a different root is excluded unless its collection is home-scoped (company/user), which is
+/// shared by design. Paths are canonicalized so two spellings of the same checkout, or a
+/// symlinked one, are not mistaken for different projects.
+fn memory_fact_matches_project(record: &kiana_domain::MemoryRecord, project_ref: &str) -> bool {
+    if record.project_root.trim().is_empty() {
+        return true;
+    }
+    if kiana_domain::MemoryCollection::parse(&record.collection)
+        .is_some_and(|collection| collection.home_scoped())
+    {
+        return true;
+    }
+    ControlPlane::canonical_project_root(&record.project_root)
+        == ControlPlane::canonical_project_root(project_ref)
+}
+
 /// PD-18：从同一份已提交历史重建内存删除索引，并绑定到当前策略 epoch。
 ///
 /// 【作用与调用者】
@@ -554,6 +574,14 @@ pub fn project_memory_deletion_index(
                 kiana_domain::MemoryVisibility::Denied
             )
         {
+            continue;
+        }
+        // A `memory.fact` event names its own project root. Anything attributed to another
+        // project must not enter this project's deletion index: an index is a promise that reads
+        // from `project_ref` are governed, and a foreign tombstone would either leak another
+        // project's existence or mask a live row here. Company/user home collections are exempt
+        // because they are deliberately shared across project roots.
+        if !memory_fact_matches_project(&fact.record, project_ref) {
             continue;
         }
         let deleted_at_ms = fact
