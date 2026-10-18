@@ -665,7 +665,7 @@ fn host_text(host: Host<&str>) -> String {
     }
 }
 
-fn is_forbidden_address(address: IpAddr) -> bool {
+pub(crate) fn is_forbidden_address(address: IpAddr) -> bool {
     match address {
         IpAddr::V4(value) => {
             value.is_unspecified()
