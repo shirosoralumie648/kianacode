@@ -255,6 +255,7 @@ pub use automation_surface_uat::validate_automation_surface_uat;
 pub use billing_allocation::{CostAllocationAdmission, CostAllocationAdmissionError};
 pub use billing_invoice::{
     reject_duplicate_provider_invoices, validate_invoice_comparison, validate_provider_invoice,
+    ProviderInvoiceAdmission, ProviderInvoiceAdmissionError,
 };
 pub use billing_projection::{
     BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,

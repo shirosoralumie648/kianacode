@@ -1,11 +1,36 @@
+//! BQ-22 provider invoice import、差异检测与 correction workflow 的合成夹具（先拒绝、后成功）。
+//!
+//! 覆盖卡片拒绝面：未认证 receipt、重复 invoice、period/model/usage/amount 不匹配、
+//! 差异静默覆盖/未知被当成实测；以及成功列：账单导入生成 measured/correction，差异、未知
+//! 与待人工项可追踪。全部事实在内存中合成，不连接 EventStore、不消费审批、不调用 provider，
+//! 也不存在第二条修正账本；修正批准与落账仍属 BQ-14。
+
 use kiana_domain::{
-    InvoiceComparison, InvoiceComparisonState, Money, ProviderInvoiceImport, ProviderReceiptRef,
-    INVOICE_COMPARISON_SCHEMA, PROVIDER_INVOICE_SCHEMA,
+    compare_provider_invoice, validate_event_payload, validate_runtime_event, ApprovalId,
+    AttemptId, CostCorrectionApproval, CostCorrectionCommand, CostCorrectionId, CostLedgerEntry,
+    CostLedgerEntryKind, EventId, InvoiceAuthenticationEvidence, InvoiceComparison,
+    InvoiceComparisonState, InvoiceImportOutcome, InvoiceLedgerExpectation, InvoiceObservationKind,
+    InvoiceObservationOutcome, LedgerEntryId, Money, ProviderInvoiceImport, ProviderInvoiceLedger,
+    ProviderInvoiceObservation, ProviderReceiptRef, RateCardId, RequestId, RunId,
+    INVOICE_AUTHENTICATION_MAX_AGE_UNIX_MS, INVOICE_COMPARISON_SCHEMA, INVOICE_IMPORT_EVENT,
+    INVOICE_OBSERVATION_EVENT, PROVIDER_INVOICE_SCHEMA,
 };
 use serde_json::json;
 
 const D1: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const D2: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const D3: &str = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const NOW: u64 = 200_000_000;
+const EPOCH: u64 = 7;
+
+/// 固定重复字符的 sha256 形状 fixture，不是真实内容摘要。
+fn digest(seed: char) -> String {
+    format!("sha256:{}", seed.to_string().repeat(64))
+}
+
+fn money(currency: &str, micros: i128) -> Money {
+    Money::new(currency, micros).expect("money")
+}
 
 fn import_digest(import: &ProviderInvoiceImport) -> String {
     kiana_domain::json_digest(&json!({
@@ -18,11 +43,16 @@ fn import_digest(import: &ProviderInvoiceImport) -> String {
         "usage_digest": import.usage_digest,
         "amount": import.amount,
         "receipt_ref": import.receipt_ref,
+        "receipt_digest": import.receipt_digest,
         "authentication_ref": import.authentication_ref,
         "authenticated": import.authenticated,
         "source_cursor": import.source_cursor,
         "import_key": import.import_key,
     }))
+}
+
+fn reseal(import: &mut ProviderInvoiceImport) {
+    import.import_digest = import_digest(import);
 }
 
 fn invoice(usage_digest: Option<&str>) -> ProviderInvoiceImport {
@@ -34,8 +64,9 @@ fn invoice(usage_digest: Option<&str>) -> ProviderInvoiceImport {
         period_end_unix_ms: 2_000,
         model: Some("model-a".to_owned()),
         usage_digest: usage_digest.map(str::to_owned),
-        amount: Money::new("USD", 100).unwrap(),
-        receipt_ref: ProviderReceiptRef::new("receipt:provider-1").unwrap(),
+        amount: money("USD", 100),
+        receipt_ref: ProviderReceiptRef::new("receipt:provider-1").expect("receipt ref"),
+        receipt_digest: D3.to_owned(),
         authentication_ref: "verified:provider-1".to_owned(),
         authenticated: true,
         source_cursor: 12,
@@ -44,6 +75,60 @@ fn invoice(usage_digest: Option<&str>) -> ProviderInvoiceImport {
     };
     invoice.import_digest = import_digest(&invoice);
     invoice
+}
+
+/// 同一 provider 账户下、不同 invoice/账期/游标的一份合法导入。
+fn invoice_at(invoice_id: &str, amount_micros: i128, cursor: u64) -> ProviderInvoiceImport {
+    let mut import = invoice(Some(D1));
+    import.invoice_id = invoice_id.to_owned();
+    import.amount = money("USD", amount_micros);
+    import.source_cursor = cursor;
+    import.import_key = format!("import:provider-1:{invoice_id}");
+    reseal(&mut import);
+    import
+}
+
+fn evidence(
+    import: &ProviderInvoiceImport,
+    verified_at: u64,
+    epoch: u64,
+) -> InvoiceAuthenticationEvidence {
+    InvoiceAuthenticationEvidence::new(
+        import.provider_account_ref.clone(),
+        import.invoice_id.clone(),
+        import.period_start_unix_ms,
+        import.period_end_unix_ms,
+        import.receipt_digest.clone(),
+        "verifier:provider-1",
+        verified_at,
+        epoch,
+    )
+    .expect("evidence")
+}
+
+/// 与 `invoice(Some(D1))` 完全一致的账本期望：period 1000..2000、model-a、用量 D1、金额 100。
+fn expectation(
+    ledger_entry_digest: &str,
+    ledger_entry_ref: &str,
+    usage_digest: Option<&str>,
+    amount: Option<Money>,
+    cursor: u64,
+) -> InvoiceLedgerExpectation {
+    InvoiceLedgerExpectation::new(
+        ledger_entry_digest,
+        ledger_entry_ref,
+        1_000,
+        2_000,
+        "model-a",
+        usage_digest.map(str::to_owned),
+        amount,
+        cursor,
+    )
+    .expect("expectation")
+}
+
+fn matched_expectation() -> InvoiceLedgerExpectation {
+    expectation(D2, "entry:matched", Some(D1), Some(money("USD", 100)), 9)
 }
 
 fn comparison(state: InvoiceComparisonState) -> InvoiceComparison {
@@ -72,33 +157,1035 @@ fn comparison(state: InvoiceComparisonState) -> InvoiceComparison {
         invoice_model: Some("model-a".to_owned()),
         expected_usage_digest: Some(D1.to_owned()),
         invoice_usage_digest: invoice_usage,
-        expected_amount: Some(Money::new("USD", 100).unwrap()),
-        invoice_amount: Money::new("USD", invoice_amount).unwrap(),
+        expected_amount: Some(money("USD", 100)),
+        invoice_amount: money("USD", invoice_amount),
         state,
         discrepancy_codes: codes,
         correction_ref,
         comparison_digest: String::new(),
     };
-    comparison.comparison_digest = kiana_domain::json_digest(&json!({
-        "schema": comparison.schema,
-        "invoice_digest": comparison.invoice_digest,
-        "ledger_entry_digest": comparison.ledger_entry_digest,
-        "expected_period_start_unix_ms": comparison.expected_period_start_unix_ms,
-        "expected_period_end_unix_ms": comparison.expected_period_end_unix_ms,
-        "invoice_period_start_unix_ms": comparison.invoice_period_start_unix_ms,
-        "invoice_period_end_unix_ms": comparison.invoice_period_end_unix_ms,
-        "expected_model": comparison.expected_model,
-        "invoice_model": comparison.invoice_model,
-        "expected_usage_digest": comparison.expected_usage_digest,
-        "invoice_usage_digest": comparison.invoice_usage_digest,
-        "expected_amount": comparison.expected_amount,
-        "invoice_amount": comparison.invoice_amount,
-        "state": comparison.state,
-        "discrepancy_codes": comparison.discrepancy_codes,
-        "correction_ref": comparison.correction_ref,
-    }));
+    comparison.comparison_digest = comparison.digest();
     comparison
 }
+
+/// 一份已封口的账本目标：BQ-14 draft 命令要求目标可验证且带 attempt。
+fn ledger_entry(estimate_micros: i128) -> CostLedgerEntry {
+    let mut entry = CostLedgerEntry::new(
+        LedgerEntryId::new(),
+        CostLedgerEntryKind::Consumption,
+        RunId::new(),
+        Some(AttemptId::new()),
+        None,
+        "USD",
+        10,
+        EventId::new(),
+        1,
+        1,
+        digest('f'),
+    )
+    .expect("entry")
+    .with_rate_card(RateCardId::new(), 7)
+    .expect("rate card")
+    .with_estimated_cost(money("USD", estimate_micros))
+    .expect("estimate");
+    entry.amount = Some(money("USD", estimate_micros));
+    entry.entry_digest = entry.digest();
+    entry.validate().expect("sealed entry");
+    entry
+}
+
+// ---------------------------------------------------------------------------
+// 先拒绝：认证
+// ---------------------------------------------------------------------------
+
+#[test]
+fn authenticated_import_requires_server_evidence() {
+    let import = invoice(Some(D1));
+    assert!(import
+        .validate_against_authentication(&evidence(&import, NOW, EPOCH), NOW, EPOCH)
+        .is_ok());
+
+    // wire 自报 authenticated=false 的收据在形状层就被拒绝。
+    let mut unauthenticated = invoice(Some(D1));
+    unauthenticated.authenticated = false;
+    reseal(&mut unauthenticated);
+    assert_eq!(
+        unauthenticated.validate(),
+        Err("provider_invoice_import_invalid")
+    );
+    assert_eq!(
+        unauthenticated.validate_against_authentication(
+            &evidence(&unauthenticated, NOW, EPOCH),
+            NOW,
+            EPOCH
+        ),
+        Err("provider_invoice_import_invalid")
+    );
+
+    // 收据摘要必须存在且形状合法。
+    let mut missing_receipt_digest = invoice(Some(D1));
+    missing_receipt_digest.receipt_digest = "receipt-bytes".to_owned();
+    reseal(&mut missing_receipt_digest);
+    assert_eq!(
+        missing_receipt_digest.validate(),
+        Err("provider_invoice_import_invalid")
+    );
+
+    // 证据与导入逐字段绑定：账户、invoice、账期两端、收据摘要任一漂移都拒绝。
+    let baseline = evidence(&import, NOW, EPOCH);
+    let mutators: [fn(&mut InvoiceAuthenticationEvidence); 5] = [
+        |value: &mut InvoiceAuthenticationEvidence| {
+            value.provider_account_ref = "account:provider-2".to_owned()
+        },
+        |value: &mut InvoiceAuthenticationEvidence| value.invoice_id = "invoice:2026-10".to_owned(),
+        |value: &mut InvoiceAuthenticationEvidence| value.period_start_unix_ms = 1_001,
+        |value: &mut InvoiceAuthenticationEvidence| value.period_end_unix_ms = 2_001,
+        |value: &mut InvoiceAuthenticationEvidence| value.receipt_digest = D2.to_owned(),
+    ];
+    for mutate in mutators {
+        let mut drifted = baseline.clone();
+        mutate(&mut drifted);
+        drifted.evidence_digest = drifted.digest();
+        assert_eq!(
+            import.validate_against_authentication(&drifted, NOW, EPOCH),
+            Err("provider_invoice_authentication_binding_mismatch")
+        );
+    }
+
+    // 证据自身的摘要与形状必须自洽：篡改字段但不重签 -> 形状拒绝。
+    let mut tampered = baseline.clone();
+    tampered.invoice_id = "invoice:2026-10".to_owned();
+    assert_eq!(
+        import.validate_against_authentication(&tampered, NOW, EPOCH),
+        Err("provider_invoice_authentication_evidence_invalid")
+    );
+    let mut zero_verified = baseline.clone();
+    zero_verified.verified_at_unix_ms = 0;
+    zero_verified.evidence_digest = zero_verified.digest();
+    assert_eq!(
+        import.validate_against_authentication(&zero_verified, NOW, EPOCH),
+        Err("provider_invoice_authentication_evidence_invalid")
+    );
+
+    // 授权世代：超前与落后都拒绝，只有与当前世代一致才通过。
+    assert_eq!(
+        import.validate_against_authentication(&evidence(&import, NOW, EPOCH + 1), NOW, EPOCH),
+        Err("provider_invoice_authentication_epoch_ahead")
+    );
+    assert_eq!(
+        import.validate_against_authentication(&evidence(&import, NOW, EPOCH - 1), NOW, EPOCH),
+        Err("provider_invoice_authentication_epoch_stale")
+    );
+
+    // 验证时刻：未来时间拒绝；超过最大年龄拒绝；恰好到期边界仍可用。
+    assert_eq!(
+        import.validate_against_authentication(&evidence(&import, NOW + 1, EPOCH), NOW, EPOCH),
+        Err("provider_invoice_authentication_timestamp_invalid")
+    );
+    assert_eq!(
+        import.validate_against_authentication(&evidence(&import, 1, EPOCH), NOW, EPOCH),
+        Err("provider_invoice_authentication_expired")
+    );
+    let boundary = NOW - INVOICE_AUTHENTICATION_MAX_AGE_UNIX_MS;
+    assert!(import
+        .validate_against_authentication(&evidence(&import, boundary, EPOCH), NOW, EPOCH)
+        .is_ok());
+    assert_eq!(
+        import.validate_against_authentication(&evidence(&import, boundary - 1, EPOCH), NOW, EPOCH),
+        Err("provider_invoice_authentication_expired")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 先拒绝：重复 invoice 与来源游标
+// ---------------------------------------------------------------------------
+
+#[test]
+fn duplicate_invoice_identity_and_source_cursor_are_fenced() {
+    let first = invoice(Some(D1));
+    let mut ledger = ProviderInvoiceLedger::new();
+    assert_eq!(ledger.append(&first), Ok(InvoiceImportOutcome::Imported));
+    assert_eq!(ledger.last_source_cursor(), 12);
+    assert_eq!(ledger.imports().count(), 1);
+
+    // 同摘要重放幂等：不新增事实、不推进游标。
+    assert_eq!(ledger.append(&first), Ok(InvoiceImportOutcome::Replayed));
+    assert_eq!(ledger.imports().count(), 1);
+    assert_eq!(ledger.last_source_cursor(), 12);
+
+    // 同一身份换内容（金额变化 -> 摘要变化）不能新增第二条事实。
+    let mut replayed_with_new_amount = invoice(Some(D1));
+    replayed_with_new_amount.amount = money("USD", 120);
+    reseal(&mut replayed_with_new_amount);
+    assert_eq!(
+        ledger.append(&replayed_with_new_amount),
+        Err("provider_invoice_duplicate".to_owned())
+    );
+    assert_eq!(ledger.imports().count(), 1);
+    assert_eq!(ledger.last_source_cursor(), 12);
+
+    // 不同身份复用 import_key 是冲突，不是新事实。
+    let mut shared_key = invoice_at("invoice:2026-10", 100, 13);
+    shared_key.import_key = first.import_key.clone();
+    reseal(&mut shared_key);
+    assert_eq!(
+        ledger.append(&shared_key),
+        Err("provider_invoice_import_key_conflict".to_owned())
+    );
+    assert_eq!(ledger.imports().count(), 1);
+
+    // 来源游标回退/持平拒绝，且不改变账本。
+    let stale_cursor = invoice_at("invoice:2026-11", 100, 12);
+    assert_eq!(
+        ledger.append(&stale_cursor),
+        Err("provider_invoice_source_cursor_regression".to_owned())
+    );
+    assert_eq!(ledger.imports().count(), 1);
+    assert_eq!(ledger.last_source_cursor(), 12);
+
+    // 形状非法不进入账本。
+    let mut malformed = invoice_at("invoice:2026-12", 100, 14);
+    malformed.period_end_unix_ms = malformed.period_start_unix_ms;
+    reseal(&mut malformed);
+    assert_eq!(
+        ledger.append(&malformed),
+        Err("provider_invoice_import_invalid".to_owned())
+    );
+    assert_eq!(ledger.imports().count(), 1);
+
+    // 前进的游标才被接受。
+    let accepted = invoice_at("invoice:2026-13", 100, 13);
+    assert_eq!(ledger.append(&accepted), Ok(InvoiceImportOutcome::Imported));
+    assert_eq!(ledger.imports().count(), 2);
+    assert_eq!(ledger.last_source_cursor(), 13);
+
+    // 既有静态重复围栏与账本规则一致。
+    assert_eq!(
+        kiana_domain::reject_duplicate_provider_invoices(&[first.clone(), first.clone()]),
+        Err("provider_invoice_duplicate")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 先拒绝：比较状态由服务端派生
+// ---------------------------------------------------------------------------
+
+#[test]
+fn server_side_comparison_derives_state_and_discrepancy_codes() {
+    let import = invoice(Some(D1));
+
+    let matched = compare_provider_invoice(&import, &matched_expectation(), None).expect("matched");
+    assert_eq!(matched.state, InvoiceComparisonState::Matched);
+    assert!(matched.discrepancy_codes.is_empty());
+    assert!(matched.correction_ref.is_none());
+    assert!(!matched.requires_review());
+
+    // period / model / usage / amount 漂移都必须落到 CorrectionRequired 且带精确差异码。
+    let period = InvoiceLedgerExpectation::new(
+        D2,
+        "entry:period",
+        1_000,
+        2_001,
+        "model-a",
+        Some(D1.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("period expectation");
+    let refused = compare_provider_invoice(&import, &period, None).unwrap_err();
+    assert_eq!(refused, "provider_invoice_correction_ref_required");
+    let period = compare_provider_invoice(&import, &period, Some("correction:1")).expect("period");
+    assert_eq!(period.state, InvoiceComparisonState::CorrectionRequired);
+    assert_eq!(period.discrepancy_codes, vec!["period_mismatch".to_owned()]);
+
+    let model = expectation(D2, "entry:model", Some(D1), Some(money("USD", 100)), 9);
+    let mut model_named = model.clone();
+    model_named.model = "model-b".to_owned();
+    let model =
+        compare_provider_invoice(&import, &model_named, Some("correction:1")).expect("model");
+    assert_eq!(model.discrepancy_codes, vec!["model_mismatch".to_owned()]);
+
+    let usage = InvoiceLedgerExpectation::new(
+        D2,
+        "entry:usage",
+        1_000,
+        2_000,
+        "model-a",
+        Some(D2.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("usage expectation");
+    let usage = compare_provider_invoice(&import, &usage, Some("correction:1")).expect("usage");
+    assert_eq!(usage.discrepancy_codes, vec!["usage_mismatch".to_owned()]);
+
+    let amount = expectation(D2, "entry:amount", Some(D1), Some(money("USD", 120)), 9);
+    let amount = compare_provider_invoice(&import, &amount, Some("correction:1")).expect("amount");
+    assert_eq!(amount.discrepancy_codes, vec!["amount_mismatch".to_owned()]);
+
+    // 未知（账本侧或账单一侧）只能是 ReviewRequired，且绝不能带修正引用或实测金额。
+    let ledger_unknown_usage =
+        expectation(D2, "entry:unknown-usage", None, Some(money("USD", 100)), 9);
+    let review =
+        compare_provider_invoice(&import, &ledger_unknown_usage, None).expect("review usage");
+    assert_eq!(review.state, InvoiceComparisonState::ReviewRequired);
+    assert_eq!(review.discrepancy_codes, vec!["usage_unknown".to_owned()]);
+    assert!(review.requires_review());
+    assert!(review.correction_ref.is_none());
+    assert_eq!(
+        compare_provider_invoice(&import, &ledger_unknown_usage, Some("correction:1")).unwrap_err(),
+        "provider_invoice_correction_ref_unexpected"
+    );
+
+    let ledger_unknown_amount = expectation(D2, "entry:unknown-amount", Some(D1), None, 9);
+    let review =
+        compare_provider_invoice(&import, &ledger_unknown_amount, None).expect("review amount");
+    assert_eq!(review.state, InvoiceComparisonState::ReviewRequired);
+    assert_eq!(review.discrepancy_codes, vec!["amount_unknown".to_owned()]);
+
+    let invoice_missing_usage = invoice(None);
+    let review = compare_provider_invoice(&invoice_missing_usage, &matched_expectation(), None)
+        .expect("invoice usage unknown");
+    assert_eq!(review.state, InvoiceComparisonState::ReviewRequired);
+    assert_eq!(review.discrepancy_codes, vec!["usage_unknown".to_owned()]);
+
+    // 币种漂移在构造比较事实前就被拒绝。
+    let other_currency = expectation(D2, "entry:currency", Some(D1), Some(money("EUR", 100)), 9);
+    assert_eq!(
+        compare_provider_invoice(&import, &other_currency, None).unwrap_err(),
+        "provider_invoice_currency_mismatch"
+    );
+
+    // 修正引用只能出现在 CorrectionRequired。
+    assert_eq!(
+        compare_provider_invoice(&import, &matched_expectation(), Some("correction:1"))
+            .unwrap_err(),
+        "provider_invoice_correction_ref_unexpected"
+    );
+
+    // 账本期望自身形状不合法时先拒绝。
+    let mut invalid = matched_expectation();
+    invalid.source_cursor = 0;
+    assert_eq!(
+        compare_provider_invoice(&import, &invalid, None).unwrap_err(),
+        "provider_invoice_ledger_expectation_invalid"
+    );
+    let mut invalid = matched_expectation();
+    invalid.usage_digest = Some("not-a-digest".to_owned());
+    assert_eq!(
+        compare_provider_invoice(&import, &invalid, None).unwrap_err(),
+        "provider_invoice_ledger_expectation_invalid"
+    );
+}
+
+#[test]
+fn reported_comparisons_are_recomputed_and_cannot_claim_a_match() {
+    let import = invoice(Some(D1));
+    // 事实是 period 漂移，wire 却自报 Matched 且差异码为空：即使用自洽摘要重签也必须被拒。
+    let period = InvoiceLedgerExpectation::new(
+        D2,
+        "entry:period",
+        1_000,
+        2_001,
+        "model-a",
+        Some(D1.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("period expectation");
+
+    let mut forged = comparison(InvoiceComparisonState::Matched);
+    forged.invoice_digest = import.import_digest.clone();
+    forged.invoice_period_end_unix_ms = 2_001;
+    forged.comparison_digest = forged.digest();
+    assert_eq!(forged.validate(), Err("invoice_comparison_match_invalid"));
+
+    let recomputed =
+        compare_provider_invoice(&import, &period, Some("correction:1")).expect("real");
+    assert_ne!(recomputed, forged);
+    assert_ne!(recomputed.comparison_digest, forged.comparison_digest);
+
+    // 少写差异码 / 多带修正引用 / 状态与事实不符都在比较事实层拒绝。
+    let mut missing_codes = comparison(InvoiceComparisonState::CorrectionRequired);
+    missing_codes.invoice_period_end_unix_ms = 2_000;
+    missing_codes.comparison_digest = missing_codes.digest();
+    assert_eq!(
+        missing_codes.validate(),
+        Err("invoice_comparison_correction_required")
+    );
+
+    let mut review_with_ref = comparison(InvoiceComparisonState::ReviewRequired);
+    review_with_ref.correction_ref = Some("correction:1".to_owned());
+    review_with_ref.comparison_digest = review_with_ref.digest();
+    assert_eq!(
+        review_with_ref.validate(),
+        Err("invoice_comparison_review_required")
+    );
+
+    let mut tampered = comparison(InvoiceComparisonState::Matched);
+    tampered.comparison_digest = D3.to_owned();
+    assert_eq!(tampered.validate(), Err("invoice_comparison_invalid"));
+
+    // 服务端比较与自报值逐字段一致时才通过（摘要一致即事实一致）。
+    let reported = compare_provider_invoice(&import, &matched_expectation(), None).expect("real");
+    let recomputed = compare_provider_invoice(&import, &matched_expectation(), None).expect("re");
+    assert_eq!(reported, recomputed);
+}
+
+// ---------------------------------------------------------------------------
+// 先拒绝：观测事实
+// ---------------------------------------------------------------------------
+
+#[test]
+fn observations_generate_measured_correction_and_keep_unknown_traceable() {
+    let import = invoice(Some(D1));
+
+    let matched =
+        compare_provider_invoice(&import, &matched_expectation(), None).expect("matched compare");
+    let measured = ProviderInvoiceObservation::from_import_comparison(&import, &matched, None)
+        .expect("measured");
+    assert_eq!(measured.kind, InvoiceObservationKind::Measured);
+    assert_eq!(measured.measured_amount, Some(money("USD", 100)));
+    assert_eq!(measured.usage_digest.as_deref(), Some(D1));
+    assert!(measured.correction_ref.is_none());
+    assert!(measured.review_ref.is_none());
+    assert_eq!(measured.invoice_digest, import.import_digest);
+    assert_eq!(measured.source_cursor, import.source_cursor);
+
+    let mut correction = comparison(InvoiceComparisonState::CorrectionRequired);
+    correction.invoice_digest = import.import_digest.clone();
+    correction.comparison_digest = correction.digest();
+    let observation =
+        ProviderInvoiceObservation::from_import_comparison(&import, &correction, Some("review:1"))
+            .unwrap_err();
+    assert_eq!(observation, "provider_invoice_review_ref_unexpected");
+    let correction_observation =
+        ProviderInvoiceObservation::from_import_comparison(&import, &correction, None)
+            .expect("correction observation");
+    assert_eq!(
+        correction_observation.kind,
+        InvoiceObservationKind::CorrectionRequired
+    );
+    assert!(correction_observation.measured_amount.is_none());
+    assert_eq!(
+        correction_observation.correction_ref.as_deref(),
+        Some("correction:invoice-1")
+    );
+
+    let review = compare_provider_invoice(
+        &import,
+        &expectation(D2, "entry:unknown", None, Some(money("USD", 100)), 9),
+        None,
+    )
+    .expect("review compare");
+    assert_eq!(
+        ProviderInvoiceObservation::from_import_comparison(&import, &review, None).unwrap_err(),
+        "provider_invoice_review_ref_required"
+    );
+    let review_observation =
+        ProviderInvoiceObservation::from_import_comparison(&import, &review, Some("review:1"))
+            .expect("review observation");
+    assert_eq!(
+        review_observation.kind,
+        InvoiceObservationKind::ReviewRequired
+    );
+    assert!(review_observation.measured_amount.is_none());
+    assert!(review_observation.usage_digest.is_none());
+    assert_eq!(review_observation.review_ref.as_deref(), Some("review:1"));
+    assert!(review_observation
+        .discrepancy_codes
+        .iter()
+        .any(|code| code.ends_with("_unknown")));
+
+    // 观测必须绑定同一条导入摘要。
+    let other_import = invoice_at("invoice:2026-10", 100, 13);
+    assert_eq!(
+        ProviderInvoiceObservation::from_import_comparison(&other_import, &matched, None)
+            .unwrap_err(),
+        "provider_invoice_observation_invoice_mismatch"
+    );
+
+    // 零额是显式实测观测，不是“未知”的替代品。
+    let mut zero_import = invoice(Some(D1));
+    zero_import.amount = money("USD", 0);
+    reseal(&mut zero_import);
+    let zero_expected = expectation(D2, "entry:zero", Some(D1), Some(money("USD", 0)), 9);
+    let zero_comparison =
+        compare_provider_invoice(&zero_import, &zero_expected, None).expect("zero");
+    let zero_observation =
+        ProviderInvoiceObservation::from_import_comparison(&zero_import, &zero_comparison, None)
+            .expect("zero observation");
+    assert_eq!(zero_observation.measured_amount, Some(money("USD", 0)));
+
+    // 负额、摘要篡改、未知被标实测都在事实层拒绝。
+    let mut negative = measured.clone();
+    negative.measured_amount = Some(money("USD", -1));
+    negative.observation_digest = negative.digest();
+    assert_eq!(
+        negative.validate(),
+        Err("provider_invoice_observation_amount_negative")
+    );
+
+    let mut tampered = measured.clone();
+    tampered.observation_digest = D3.to_owned();
+    assert_eq!(
+        tampered.validate(),
+        Err("provider_invoice_observation_invalid")
+    );
+
+    let mut forged_measured = review_observation.clone();
+    forged_measured.kind = InvoiceObservationKind::Measured;
+    forged_measured.measured_amount = Some(money("USD", 100));
+    forged_measured.usage_digest = Some(D1.to_owned());
+    forged_measured.review_ref = None;
+    forged_measured.discrepancy_codes = vec![];
+    forged_measured.observation_digest = forged_measured.digest();
+    // 形状上自洽，但它改变的是 invoice 摘要对应的既有事实：账本按发票唯一性拒绝第二次观测。
+    let mut ledger = ProviderInvoiceLedger::new();
+    ledger.append(&import).expect("import");
+    ledger
+        .record_observation(&measured)
+        .expect("first observation");
+    assert_eq!(
+        ledger.record_observation(&forged_measured),
+        Err("provider_invoice_measured_overwrite_refused".to_owned())
+    );
+}
+
+#[test]
+fn measured_observations_are_append_only_and_overwrites_are_refused() {
+    let import = invoice(Some(D1));
+    let matched =
+        compare_provider_invoice(&import, &matched_expectation(), None).expect("matched compare");
+    let measured = ProviderInvoiceObservation::from_import_comparison(&import, &matched, None)
+        .expect("measured");
+    let review = compare_provider_invoice(
+        &import,
+        &expectation(D2, "entry:unknown", None, Some(money("USD", 100)), 9),
+        None,
+    )
+    .expect("review compare");
+    let review_observation =
+        ProviderInvoiceObservation::from_import_comparison(&import, &review, Some("review:1"))
+            .expect("review observation");
+
+    let mut ledger = ProviderInvoiceLedger::new();
+    assert_eq!(
+        ledger.record_observation(&measured),
+        Err("provider_invoice_observation_unknown_import".to_owned())
+    );
+    assert_eq!(ledger.observations().count(), 0);
+
+    assert_eq!(ledger.append(&import), Ok(InvoiceImportOutcome::Imported));
+    assert_eq!(
+        ledger.record_observation(&measured),
+        Ok(InvoiceObservationOutcome::Recorded)
+    );
+    assert_eq!(
+        ledger.record_observation(&measured),
+        Ok(InvoiceObservationOutcome::Replayed)
+    );
+    assert_eq!(ledger.observations().count(), 1);
+
+    // 第二次实测即使金额不同也不能覆盖原值。
+    let mut overwrite = measured.clone();
+    overwrite.measured_amount = Some(money("USD", 120));
+    overwrite.ledger_entry_digest = D3.to_owned();
+    overwrite.observation_digest = overwrite.digest();
+    assert_eq!(
+        ledger.record_observation(&overwrite),
+        Err("provider_invoice_measured_overwrite_refused".to_owned())
+    );
+    assert_eq!(ledger.observations().count(), 1);
+    assert_eq!(
+        ledger
+            .observation(&import.import_digest)
+            .map(|value| value.measured_amount.clone()),
+        Some(Some(money("USD", 100)))
+    );
+
+    // 已实测的 invoice 也不能被后来的 review 观测改写（没有降级/替换路径）。
+    assert_eq!(
+        ledger.record_observation(&review_observation),
+        Err("provider_invoice_observation_replay_conflict".to_owned())
+    );
+    assert_eq!(ledger.observations().count(), 1);
+
+    // 未知观测进入另一个 invoice：可追踪且不被当成实测。
+    let unknown_import = invoice_at("invoice:2026-10", 100, 13);
+    let mut unknown_expectation =
+        expectation(D2, "entry:unknown", None, Some(money("USD", 100)), 9);
+    unknown_expectation.usage_digest = None;
+    let unknown_compare = compare_provider_invoice(&unknown_import, &unknown_expectation, None)
+        .expect("unknown compare");
+    let unknown_observation = ProviderInvoiceObservation::from_import_comparison(
+        &unknown_import,
+        &unknown_compare,
+        Some("review:2"),
+    )
+    .expect("unknown observation");
+    assert_eq!(
+        ledger.append(&unknown_import),
+        Ok(InvoiceImportOutcome::Imported)
+    );
+    assert_eq!(
+        ledger.record_observation(&unknown_observation),
+        Ok(InvoiceObservationOutcome::Recorded)
+    );
+    assert_eq!(ledger.observations().count(), 2);
+    assert_eq!(ledger.pending_reviews().len(), 1);
+    assert!(ledger.pending_reviews()[0].measured_amount.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// 先拒绝：注册事件与模型文本
+// ---------------------------------------------------------------------------
+
+#[test]
+fn import_and_observation_facts_are_registered_cost_events() {
+    let import = invoice(Some(D1));
+    let import_event = import
+        .to_runtime_event(RequestId::new(), 1, 1)
+        .expect("import event");
+    assert_eq!(import_event.kind, INVOICE_IMPORT_EVENT);
+    assert_eq!(
+        import_event.aggregate_type.as_deref(),
+        Some("provider_invoice")
+    );
+    assert_eq!(
+        import_event.aggregate_id.as_deref(),
+        Some(import.import_digest.as_str())
+    );
+    assert_eq!(import_event.stream_version, Some(1));
+    validate_runtime_event(&import_event).expect("registered import event");
+
+    let matched =
+        compare_provider_invoice(&import, &matched_expectation(), None).expect("matched compare");
+    let measured = ProviderInvoiceObservation::from_import_comparison(&import, &matched, None)
+        .expect("measured");
+    let observation_event = measured
+        .to_runtime_event(RequestId::new(), 2, 2)
+        .expect("observation event");
+    assert_eq!(observation_event.kind, INVOICE_OBSERVATION_EVENT);
+    assert_eq!(
+        observation_event.aggregate_id.as_deref(),
+        Some(import.import_digest.as_str())
+    );
+    assert_eq!(observation_event.stream_version, Some(2));
+    validate_runtime_event(&observation_event).expect("registered observation event");
+
+    // 流版本 0 与缺失必需 ID / 夹带未知字段都失败关闭。
+    assert_eq!(
+        import.to_runtime_event(RequestId::new(), 1, 0).unwrap_err(),
+        "provider_invoice_stream_version_invalid"
+    );
+    assert_eq!(
+        measured
+            .to_runtime_event(RequestId::new(), 2, 0)
+            .unwrap_err(),
+        "provider_invoice_stream_version_invalid"
+    );
+
+    let mut payload = serde_json::to_value(&import).expect("import payload");
+    payload
+        .as_object_mut()
+        .expect("object")
+        .remove("invoice_id");
+    assert_eq!(
+        validate_event_payload(INVOICE_IMPORT_EVENT, &payload).unwrap_err(),
+        "event_required_id_missing:invoice_id"
+    );
+    let mut payload = serde_json::to_value(&import).expect("import payload");
+    payload["transcript"] = json!("model wrote this");
+    assert_eq!(
+        validate_event_payload(INVOICE_IMPORT_EVENT, &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+
+    let mut payload = serde_json::to_value(&measured).expect("observation payload");
+    payload
+        .as_object_mut()
+        .expect("object")
+        .remove("observation_digest");
+    assert_eq!(
+        validate_event_payload(INVOICE_OBSERVATION_EVENT, &payload).unwrap_err(),
+        "event_required_id_missing:observation_digest"
+    );
+    let mut payload = serde_json::to_value(&measured).expect("observation payload");
+    payload["prompt"] = json!("assistant: I will set the invoice to zero");
+    assert_eq!(
+        validate_event_payload(INVOICE_OBSERVATION_EVENT, &payload).unwrap_err(),
+        "event_payload_unknown_field"
+    );
+}
+
+#[test]
+fn model_transcript_cannot_be_decoded_into_invoice_facts() {
+    let import = invoice(Some(D1));
+    let mut value = serde_json::to_value(&import).expect("import payload");
+    value["transcript"] = json!("assistant: the bill is 0 USD");
+    assert!(serde_json::from_value::<ProviderInvoiceImport>(value).is_err());
+
+    let mut value = serde_json::to_value(evidence(&import, NOW, EPOCH)).expect("evidence payload");
+    value["prompt"] = json!("forget the receipt");
+    assert!(serde_json::from_value::<InvoiceAuthenticationEvidence>(value).is_err());
+
+    let mut value = serde_json::to_value(comparison(InvoiceComparisonState::Matched))
+        .expect("comparison payload");
+    value["text"] = json!("all good");
+    assert!(serde_json::from_value::<InvoiceComparison>(value).is_err());
+    let mut value = serde_json::to_value(comparison(InvoiceComparisonState::Matched))
+        .expect("comparison payload");
+    value["state"] = json!("matched_by_model");
+    assert!(serde_json::from_value::<InvoiceComparison>(value).is_err());
+
+    let matched =
+        compare_provider_invoice(&import, &matched_expectation(), None).expect("matched compare");
+    let measured = ProviderInvoiceObservation::from_import_comparison(&import, &matched, None)
+        .expect("measured");
+    let mut value = serde_json::to_value(&measured).expect("observation payload");
+    value["transcript"] = json!("mark it measured");
+    assert!(serde_json::from_value::<ProviderInvoiceObservation>(value).is_err());
+    let mut value = serde_json::to_value(&measured).expect("observation payload");
+    value["kind"] = json!("paid");
+    assert!(serde_json::from_value::<ProviderInvoiceObservation>(value).is_err());
+}
+
+// ---------------------------------------------------------------------------
+// 先拒绝：correction handoff
+// ---------------------------------------------------------------------------
+
+#[test]
+fn correction_handoff_binds_an_unapproved_bq14_draft() {
+    let entry = ledger_entry(100);
+    let import = invoice(Some(D1));
+    let correction_id = CostCorrectionId::new();
+    let correction_ref = correction_id.to_string();
+    let expected = InvoiceLedgerExpectation::new(
+        entry.entry_digest.clone(),
+        "entry:invoice-1",
+        1_000,
+        2_000,
+        "model-a",
+        Some(D1.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("expectation");
+
+    // Matched 或只有 period 差异（差额为 0）都不进入修正流程。
+    let matched = compare_provider_invoice(&import, &expected, None).expect("matched");
+    assert_eq!(
+        kiana_domain::ProviderInvoiceCorrectionHandoff::from_import_comparison(&import, &matched)
+            .unwrap_err(),
+        "provider_invoice_handoff_requires_correction"
+    );
+
+    let period_only = InvoiceLedgerExpectation::new(
+        entry.entry_digest.clone(),
+        "entry:period",
+        1_000,
+        2_001,
+        "model-a",
+        Some(D1.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("period expectation");
+    let period_only =
+        compare_provider_invoice(&import, &period_only, Some(correction_ref.as_str()))
+            .expect("period");
+    assert_eq!(
+        kiana_domain::ProviderInvoiceCorrectionHandoff::from_import_comparison(
+            &import,
+            &period_only
+        )
+        .unwrap_err(),
+        "provider_invoice_handoff_amount_mismatch_required"
+    );
+
+    // 金额差异：差额是 invoice - expected 的显式签名值。
+    let mut invoice_amount = invoice(Some(D1));
+    invoice_amount.amount = money("USD", 120);
+    reseal(&mut invoice_amount);
+    let compared =
+        compare_provider_invoice(&invoice_amount, &expected, Some(correction_ref.as_str()))
+            .expect("correction compare");
+    assert_eq!(
+        compared.discrepancy_codes,
+        vec!["amount_mismatch".to_owned()]
+    );
+    let handoff = kiana_domain::ProviderInvoiceCorrectionHandoff::from_import_comparison(
+        &invoice_amount,
+        &compared,
+    )
+    .expect("handoff");
+    assert_eq!(handoff.delta_measured, money("USD", 20));
+    assert!(handoff.validate().is_ok());
+
+    // 零额 handoff 不能通过事实校验。
+    let mut zero = handoff.clone();
+    zero.delta_measured = money("USD", 0);
+    zero.handoff_digest = zero.digest();
+    assert_eq!(zero.validate(), Err("provider_invoice_handoff_invalid"));
+
+    // 未批准的 BQ-14 draft：目标摘要、correction id、差额、证据与差异码全部一致时通过。
+    let draft = CostCorrectionCommand::draft(
+        RequestId::new(),
+        correction_id,
+        &entry,
+        None,
+        Some(money("USD", 20)),
+        "invoice amount_mismatch: provider receipt reconciliation",
+        handoff.evidence_refs.clone(),
+        "requester",
+        "bq22-handoff",
+        NOW,
+    )
+    .expect("draft");
+    assert!(handoff.validate_draft_command(&draft).is_ok());
+
+    // 已批准命令不是 handoff 的出口。
+    let approval = CostCorrectionApproval::new(
+        ApprovalId::new(),
+        draft.command_id,
+        draft.command_digest.clone(),
+        entry.entry_digest.clone(),
+        "approver",
+        NOW + 1,
+    )
+    .expect("approval");
+    let approved = draft.clone().with_approval(approval).expect("approved");
+    assert_eq!(
+        handoff.validate_draft_command(&approved).unwrap_err(),
+        "provider_invoice_handoff_command_approved"
+    );
+
+    // 目标摘要漂移。
+    let mut wrong_target = draft.clone();
+    wrong_target.target_entry_digest = D1.to_owned();
+    wrong_target.command_digest = wrong_target.digest();
+    assert_eq!(
+        handoff.validate_draft_command(&wrong_target).unwrap_err(),
+        "provider_invoice_handoff_command_binding_mismatch"
+    );
+
+    // correction id 漂移。
+    let other_id = CostCorrectionId::new();
+    let mut wrong_reference = CostCorrectionCommand::draft(
+        RequestId::new(),
+        other_id,
+        &entry,
+        None,
+        Some(money("USD", 20)),
+        "invoice amount_mismatch",
+        handoff.evidence_refs.clone(),
+        "requester",
+        "bq22-handoff-2",
+        NOW,
+    )
+    .expect("draft");
+    wrong_reference.command_digest = wrong_reference.digest();
+    assert_eq!(
+        handoff
+            .validate_draft_command(&wrong_reference)
+            .unwrap_err(),
+        "provider_invoice_handoff_command_reference_mismatch"
+    );
+
+    // 差额（含 estimated 旁路）与证据、理由漂移。
+    let mut wrong_delta = draft.clone();
+    wrong_delta.delta_measured = Some(money("USD", 21));
+    wrong_delta.command_digest = wrong_delta.digest();
+    assert_eq!(
+        handoff.validate_draft_command(&wrong_delta).unwrap_err(),
+        "provider_invoice_handoff_command_delta_mismatch"
+    );
+    let mut estimated_bypass = draft.clone();
+    estimated_bypass.delta_estimated = Some(money("USD", 20));
+    estimated_bypass.command_digest = estimated_bypass.digest();
+    assert_eq!(
+        handoff
+            .validate_draft_command(&estimated_bypass)
+            .unwrap_err(),
+        "provider_invoice_handoff_command_delta_mismatch"
+    );
+    let mut missing_evidence = draft.clone();
+    missing_evidence.evidence_refs = vec!["receipt:other".to_owned()];
+    missing_evidence.command_digest = missing_evidence.digest();
+    assert_eq!(
+        handoff
+            .validate_draft_command(&missing_evidence)
+            .unwrap_err(),
+        "provider_invoice_handoff_command_evidence_missing"
+    );
+    let mut missing_reason = draft.clone();
+    missing_reason.reason = "invoice reconciliation".to_owned();
+    missing_reason.command_digest = missing_reason.digest();
+    assert_eq!(
+        handoff.validate_draft_command(&missing_reason).unwrap_err(),
+        "provider_invoice_handoff_command_reason_missing"
+    );
+
+    // handoff 自身的摘要篡改。
+    let mut tampered = handoff.clone();
+    tampered.handoff_digest = D2.to_owned();
+    assert_eq!(tampered.validate(), Err("provider_invoice_handoff_invalid"));
+}
+
+// ---------------------------------------------------------------------------
+// 成功列：可追踪
+// ---------------------------------------------------------------------------
+
+#[test]
+fn invoice_ledger_traceability_keeps_measured_corrections_and_reviews_visible() {
+    let entry = ledger_entry(100);
+    let matched_import = invoice(Some(D1));
+    let matched_expectation = InvoiceLedgerExpectation::new(
+        entry.entry_digest.clone(),
+        "entry:matched",
+        1_000,
+        2_000,
+        "model-a",
+        Some(D1.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("matched expectation");
+
+    let correction_import = invoice_at("invoice:2026-10", 120, 13);
+    let correction_expectation = InvoiceLedgerExpectation::new(
+        entry.entry_digest.clone(),
+        "entry:correction",
+        1_000,
+        2_000,
+        "model-a",
+        Some(D1.to_owned()),
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("correction expectation");
+
+    let review_import = invoice_at("invoice:2026-11", 100, 14);
+    let review_expectation = InvoiceLedgerExpectation::new(
+        entry.entry_digest.clone(),
+        "entry:review",
+        1_000,
+        2_000,
+        "model-a",
+        None,
+        Some(money("USD", 100)),
+        9,
+    )
+    .expect("review expectation");
+
+    let mut ledger = ProviderInvoiceLedger::new();
+    assert_eq!(
+        ledger.append(&matched_import),
+        Ok(InvoiceImportOutcome::Imported)
+    );
+    assert_eq!(
+        ledger.append(&correction_import),
+        Ok(InvoiceImportOutcome::Imported)
+    );
+    assert_eq!(
+        ledger.append(&review_import),
+        Ok(InvoiceImportOutcome::Imported)
+    );
+    assert_eq!(ledger.last_source_cursor(), 14);
+
+    let matched_compare =
+        compare_provider_invoice(&matched_import, &matched_expectation, None).expect("matched");
+    let measured =
+        ProviderInvoiceObservation::from_import_comparison(&matched_import, &matched_compare, None)
+            .expect("measured");
+    let correction_id = CostCorrectionId::new();
+    let correction_compare = compare_provider_invoice(
+        &correction_import,
+        &correction_expectation,
+        Some(correction_id.to_string().as_str()),
+    )
+    .expect("correction");
+    let correction_observation = ProviderInvoiceObservation::from_import_comparison(
+        &correction_import,
+        &correction_compare,
+        None,
+    )
+    .expect("correction observation");
+    let review_compare =
+        compare_provider_invoice(&review_import, &review_expectation, None).expect("review");
+    let review_observation = ProviderInvoiceObservation::from_import_comparison(
+        &review_import,
+        &review_compare,
+        Some("review:invoice-11"),
+    )
+    .expect("review observation");
+
+    assert_eq!(
+        ledger.record_observation(&measured),
+        Ok(InvoiceObservationOutcome::Recorded)
+    );
+    assert_eq!(
+        ledger.record_observation(&correction_observation),
+        Ok(InvoiceObservationOutcome::Recorded)
+    );
+    assert_eq!(
+        ledger.record_observation(&review_observation),
+        Ok(InvoiceObservationOutcome::Recorded)
+    );
+
+    // 三类判定各自可追踪，且原始导入事实保持不变（只追加，无 update/delete）。
+    assert_eq!(ledger.imports().count(), 3);
+    assert_eq!(ledger.observations().count(), 3);
+    assert_eq!(ledger.measured_observations().len(), 1);
+    assert_eq!(ledger.open_corrections().len(), 1);
+    assert_eq!(ledger.pending_reviews().len(), 1);
+
+    let measured = ledger.measured_observations()[0];
+    assert_eq!(measured.measured_amount, Some(money("USD", 100)));
+    assert_eq!(measured.usage_digest.as_deref(), Some(D1));
+    assert_eq!(measured.source_cursor, matched_import.source_cursor);
+
+    let correction = ledger.open_corrections()[0];
+    assert_eq!(
+        correction.correction_ref.as_deref(),
+        Some(correction_id.to_string().as_str())
+    );
+    assert_eq!(
+        correction.discrepancy_codes,
+        vec!["amount_mismatch".to_owned()]
+    );
+    assert!(correction.measured_amount.is_none());
+
+    let review = ledger.pending_reviews()[0];
+    assert_eq!(review.review_ref.as_deref(), Some("review:invoice-11"));
+    assert!(review.measured_amount.is_none());
+    assert_eq!(review.discrepancy_codes, vec!["usage_unknown".to_owned()]);
+
+    let handoff = kiana_domain::ProviderInvoiceCorrectionHandoff::from_import_comparison(
+        &correction_import,
+        &correction_compare,
+    )
+    .expect("handoff");
+    assert_eq!(handoff.delta_measured, money("USD", 20));
+    assert_eq!(handoff.correction_ref, correction_id.to_string());
+
+    assert_eq!(
+        ledger
+            .import(&matched_import.import_digest)
+            .map(|value| value.amount.clone()),
+        Some(money("USD", 100))
+    );
+    assert_eq!(
+        ledger.append(&matched_import),
+        Ok(InvoiceImportOutcome::Replayed)
+    );
+    assert_eq!(ledger.imports().count(), 3);
+}
+
+// ---------------------------------------------------------------------------
+// 兼容：既有单条夹具（保留原断言）
+// ---------------------------------------------------------------------------
 
 #[test]
 fn authenticated_invoice_import_is_deterministic_and_duplicates_fail_closed() {
@@ -115,12 +1202,12 @@ fn authenticated_invoice_import_is_deterministic_and_duplicates_fail_closed() {
 fn unauthenticated_or_malformed_receipts_are_rejected() {
     let mut invalid = invoice(Some(D1));
     invalid.authenticated = false;
-    invalid.import_digest = import_digest(&invalid);
+    reseal(&mut invalid);
     assert_eq!(invalid.validate(), Err("provider_invoice_import_invalid"));
 
     let mut invalid = invoice(Some(D1));
     invalid.period_end_unix_ms = invalid.period_start_unix_ms;
-    invalid.import_digest = import_digest(&invalid);
+    reseal(&mut invalid);
     assert_eq!(invalid.validate(), Err("provider_invoice_import_invalid"));
 
     let mut value = serde_json::to_value(invoice(Some(D1))).unwrap();
@@ -142,24 +1229,7 @@ fn comparison_tracks_match_correction_and_unknown_review() {
 
     let mut forged = comparison(InvoiceComparisonState::CorrectionRequired);
     forged.correction_ref = None;
-    forged.comparison_digest = kiana_domain::json_digest(&json!({
-        "schema": forged.schema,
-        "invoice_digest": forged.invoice_digest,
-        "ledger_entry_digest": forged.ledger_entry_digest,
-        "expected_period_start_unix_ms": forged.expected_period_start_unix_ms,
-        "expected_period_end_unix_ms": forged.expected_period_end_unix_ms,
-        "invoice_period_start_unix_ms": forged.invoice_period_start_unix_ms,
-        "invoice_period_end_unix_ms": forged.invoice_period_end_unix_ms,
-        "expected_model": forged.expected_model,
-        "invoice_model": forged.invoice_model,
-        "expected_usage_digest": forged.expected_usage_digest,
-        "invoice_usage_digest": forged.invoice_usage_digest,
-        "expected_amount": forged.expected_amount,
-        "invoice_amount": forged.invoice_amount,
-        "state": forged.state,
-        "discrepancy_codes": forged.discrepancy_codes,
-        "correction_ref": forged.correction_ref,
-    }));
+    forged.comparison_digest = forged.digest();
     assert_eq!(
         forged.validate(),
         Err("invoice_comparison_correction_required")
