@@ -1,7 +1,7 @@
 use kiana_domain::{
     plan_billing_recovery, reconcile_attempt, BillingAttemptDisposition, BillingAttemptSnapshot,
     BillingBootFence, BillingReconciliation, BillingReconciliationOutcome, BillingRecoveryAction,
-    BillingRecoveryApplyOutcome, BillingRecoveryFact, BillingRecoveryLedger, BillingRecoveryPlan,
+    BillingRecoveryApplyOutcome, BillingRecoveryFact, BillingRecoveryLedger,
     BillingRecoveryRequest, BillingRecoveryState, BILLING_RECOVERY_SCHEMA,
 };
 use serde_json::json;
