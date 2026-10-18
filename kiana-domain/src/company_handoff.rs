@@ -116,7 +116,9 @@ impl HandoffPacketRevision {
             "input_refs": self.packet.input_refs,
             "result": self.packet.result,
             "write_scope": self.packet.write_scope,
+            "charter_baseline_version": self.packet.charter_baseline_version,
             "plan_ref": self.packet.plan_ref,
+            "plan_binding": self.packet.plan_binding,
         }))
     }
 

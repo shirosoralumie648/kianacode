@@ -52,6 +52,21 @@ fn department_packets_are_versioned_and_cannot_grant_runtime_authority() {
     assert!(!packets.contains("CapabilityBroker"));
     assert!(!packets.contains("EventStorePort"));
     assert!(!core.contains("DepartmentPacket::execute"));
+    // Each input basis binds exactly one approved reference: a Plan reference outside the Plan
+    // basis, a Charter baseline outside the Charter/Plan bases, and the admission evidence
+    // claiming a baseline its own basis does not have are all refused.
+    for marker in [
+        "department_packet_plan_reference_mismatch",
+        "department_packet_charter_baseline_required",
+        "allowed_write_path",
+        "PacketInputBasis::Charter => {",
+        "PacketInputBasis::Intake | PacketInputBasis::Initiative => {",
+    ] {
+        assert!(
+            packets.contains(marker),
+            "CO-13 basis contract marker missing: {marker}"
+        );
+    }
 }
 
 /// CO-13 completion slice: the admission is one Company transaction, the daemon spine proves the

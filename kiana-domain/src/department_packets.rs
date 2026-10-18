@@ -41,6 +41,17 @@ fn digest(value: &str, reason: &'static str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Whether one normalized write path stays inside the controlled proposal/source root of a work
+/// kind. `.` means the whole workspace (implementation only); every other root is a directory the
+/// kind owns, so both the directory itself and anything below it are allowed.
+fn allowed_write_path(prefix: &str, normalized: &str) -> bool {
+    if prefix == "." {
+        return true;
+    }
+    let root = prefix.trim_end_matches('/');
+    !root.is_empty() && (normalized == root || normalized.starts_with(&format!("{root}/")))
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DepartmentPacketKind {
@@ -368,6 +379,19 @@ impl DepartmentPacketAdmission {
         if self.plan_digest.is_some() != self.plan_node_ref.is_some() {
             return Err("department_packet_admission_invalid");
         }
+        // The recorded evidence has to stay consistent with its own input basis: only a Plan-basis
+        // admission may carry a plan binding, and only the Charter/Plan bases may record an
+        // approved Charter baseline version.
+        let plan_basis = self.input_basis == PacketInputBasis::Plan;
+        let baseline_expected = matches!(
+            self.input_basis,
+            PacketInputBasis::Charter | PacketInputBasis::Plan
+        );
+        if plan_basis != self.plan_digest.is_some()
+            || baseline_expected != (self.charter_baseline_version > 0)
+        {
+            return Err("department_packet_admission_invalid");
+        }
         if self.admission_digest != self.canonical_digest() {
             return Err("department_packet_admission_invalid");
         }
@@ -469,28 +493,44 @@ impl DepartmentPacket {
         if !self.kind.allowed_input(self.input_basis) {
             return Err("department_packet_input_basis_invalid");
         }
-        if self.input_basis == PacketInputBasis::Plan {
-            if self
-                .plan_ref
-                .as_deref()
-                .is_none_or(|reference| required(reference).is_err())
-            {
-                return Err("department_packet_plan_required");
+        // Each input basis binds exactly one approved reference: the Plan basis freezes the plan
+        // node and revision through `plan_binding` (its Charter baseline travels inside that
+        // binding), the Charter basis names the approved Charter baseline version, and the
+        // Intake/Initiative bases carry no approved reference at all. Everything else is a
+        // reference the work kind is not allowed to bind.
+        match self.input_basis {
+            PacketInputBasis::Plan => {
+                if self
+                    .plan_ref
+                    .as_deref()
+                    .is_none_or(|reference| required(reference).is_err())
+                {
+                    return Err("department_packet_plan_required");
+                }
+                if self.charter_baseline_version != 0 {
+                    return Err("department_packet_plan_reference_mismatch");
+                }
+                let binding = self
+                    .plan_binding
+                    .as_ref()
+                    .ok_or("department_packet_plan_required")?;
+                binding.validate()?;
             }
-            let binding = self
-                .plan_binding
-                .as_ref()
-                .ok_or("department_packet_plan_required")?;
-            binding.validate()?;
-        } else {
-            if self.charter_baseline_version != 0
-                || self.plan_ref.is_some()
-                || self.plan_binding.is_some()
-            {
-                return Err("department_packet_plan_reference_mismatch");
+            PacketInputBasis::Charter => {
+                if self.plan_ref.is_some() || self.plan_binding.is_some() {
+                    return Err("department_packet_plan_reference_mismatch");
+                }
+                if self.charter_baseline_version == 0 {
+                    return Err("department_packet_charter_baseline_required");
+                }
             }
-            if self.input_basis == PacketInputBasis::Charter && self.charter_baseline_version == 0 {
-                return Err("department_packet_charter_baseline_required");
+            PacketInputBasis::Intake | PacketInputBasis::Initiative => {
+                if self.charter_baseline_version != 0
+                    || self.plan_ref.is_some()
+                    || self.plan_binding.is_some()
+                {
+                    return Err("department_packet_plan_reference_mismatch");
+                }
             }
         }
         if self.kind == DepartmentPacketKind::Implementation && self.write_scope.is_empty() {
@@ -503,9 +543,12 @@ impl DepartmentPacket {
             if !paths.insert(normalized.clone()) {
                 return Err("department_packet_write_scope_duplicate");
             }
-            if !self.kind.write_prefixes().iter().any(|prefix| {
-                *prefix == "." || normalized == *prefix || normalized.starts_with(prefix)
-            }) {
+            if !self
+                .kind
+                .write_prefixes()
+                .iter()
+                .any(|prefix| allowed_write_path(prefix, &normalized))
+            {
                 return Err("department_packet_write_scope_denied");
             }
         }
@@ -619,7 +662,17 @@ impl DepartmentPacket {
             assignment_ref: self.assignment_ref.clone(),
             assignment_version: appointment.assignment_version,
             input_basis: self.input_basis,
-            charter_baseline_version: self.charter_baseline_version,
+            // The evidence records the approved Charter baseline the admission was actually
+            // checked against: a Plan-basis packet binds it inside its plan binding, a Charter
+            // basis packet names it directly, and the Intake/Initiative bases have none.
+            charter_baseline_version: match self.input_basis {
+                PacketInputBasis::Plan => self
+                    .plan_binding
+                    .as_ref()
+                    .map(|binding| binding.charter_baseline_version)
+                    .unwrap_or_default(),
+                _ => self.charter_baseline_version,
+            },
             plan_digest: self
                 .plan_binding
                 .as_ref()
