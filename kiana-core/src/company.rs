@@ -355,6 +355,16 @@ impl ControlPlane {
                 return self.reject_company(&context, reason).await;
             }
         }
+        // CO-12: admitting a Plan/WorkGraph revision is the approval transaction. The complete
+        // candidate graph (missing dependencies, blocking cycles, cross-project edges, empty
+        // required milestones, isolated required criteria, reading scope) and the frozen
+        // Charter/coverage bindings are revalidated before the transition, so a batch draft may
+        // be assembled in any order and still changes no related object when it is invalid.
+        if let CompanyCommand::FreezePlanGraph { plan } = &request.command {
+            if let Err(reason) = state.plan_graph_freeze_verdict(plan) {
+                return self.reject_company(&context, reason).await;
+            }
+        }
         let command_id = CompanyCommandReceipt::command_id(
             &company_aggregate_id(&context),
             &request.idempotency_key,
