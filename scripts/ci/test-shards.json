@@ -1054,6 +1054,7 @@
    "nm03_event_registry",
    "nm10_notification_actions",
    "nm12_notification_lifecycle",
+   "nm19_external_notification",
    "oa01_contracts",
    "oa02_correlation",
    "oa03_redaction",

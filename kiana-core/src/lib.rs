@@ -385,9 +385,11 @@ pub use notification_delivery::{
     NOTIFICATION_OUTBOX_DRAIN_POLICY_SCHEMA, NOTIFICATION_OUTBOX_DRAIN_SCHEMA,
 };
 pub use notification_external::{
-    admit_external_notification, observe_external_notification_receipt,
-    ExternalNotificationAdmission, ExternalNotificationDisposition,
-    ExternalNotificationReceiptObservation,
+    check_external_notification_signature, observe_external_notification_receipt,
+    ExternalNotificationAdmission, ExternalNotificationAdmissionContext,
+    ExternalNotificationDisposition, ExternalNotificationPolicyRegistry,
+    ExternalNotificationReceiptObservation, ExternalNotificationSignatureCheck,
+    ExternalNotificationSignatureVerification, EXTERNAL_NOTIFICATION_REGISTRY_SCHEMA,
 };
 pub use notification_fault_harness::{
     Nm20FaultCase, Nm20FaultFamily, Nm20FaultHarnessRun, Nm20FaultObservation, Nm20FaultSeam,
