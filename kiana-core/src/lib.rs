@@ -227,7 +227,10 @@ pub use authority_read_model::{
 pub use automation_boot_recovery::validate_boot_recovery;
 pub use automation_cancellation::validate_automation_cancel;
 pub use automation_compensation::validate_compensation_plan;
-pub use automation_dispatch::observe_automation_dispatch;
+pub use automation_dispatch::{
+    dispatch_automation_worker_command, observe_automation_dispatch,
+    AutomationWorkerDispatchOutcome,
+};
 pub use automation_effect_reservation::{
     dispatch_reserved_automation_effect, issue_automation_effect_permit, reserve_automation_effect,
 };

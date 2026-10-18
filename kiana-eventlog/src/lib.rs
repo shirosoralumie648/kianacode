@@ -48,7 +48,8 @@
 //!    观察者包装和 stream 投影如何组合；这些模块仍不决定业务授权。
 //! 3. 最后看 `jsonl` 与 `memory`：前者把事件写成可重新打开的 JSONL，后者只保存进程内
 //!    状态。两者必须遵守同一个端口契约，但故障恢复证据不同。
-//! 4. `integrity`、`retention_store`、`notification_outbox`、`workflow_queue` 等是围绕
+//! 4. `integrity`、`retention_store`、`notification_outbox`、`workflow_queue`、
+//!    `automation_dispatch` 等是围绕
 //!    事实存储的独立本地能力；它们的存在不表示对应的业务流程已经被所有入口接通。
 //!
 //! 一条事件写入通常经历：`ControlPlane` 先做授权/状态转换和事件载荷校验，调用
@@ -58,6 +59,7 @@
 
 mod artifact_store;
 mod audit_contract;
+mod automation_dispatch;
 mod automation_effect_reservation;
 mod credential_rotation;
 mod event_store_core;
@@ -81,6 +83,7 @@ mod writer_queue;
 
 // 【关键适配器】
 pub use artifact_store::MemoryArtifactStore; // 产物存储适配器
+pub use automation_dispatch::MemoryAutomationDispatchStore; // AUT-15 dispatch command CAS 语义存储（CI 语义）
 pub use automation_effect_reservation::{
     AutomationEffectAttemptCommit, AutomationEffectReservationCommit,
     MemoryAutomationEffectReservationStore, StoredAutomationAttempt, StoredAutomationReservation,

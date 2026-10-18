@@ -51,6 +51,7 @@ mod apply_patch;
 #[cfg(test)]
 mod approval_store;
 mod authn;
+mod automation_dispatch;
 mod company_dispatch;
 mod connector_ingress;
 mod connectors;
@@ -133,6 +134,10 @@ mod workspace_checkpoints;
 // ---------------------------------------------------------------------------
 
 pub use authn::LocalAuthnAdapter;
+pub use automation_dispatch::{
+    AutomationDispatchService, AutomationDispatchShutdownReport,
+    AUTOMATION_DISPATCH_CHANNEL_CAPACITY,
+};
 pub use connector_ingress::ConnectorIngressVerifier;
 pub use instance::{
     discover as discover_instance, validate_peer as validate_instance_peer, InstanceLease,
@@ -436,6 +441,7 @@ fn loopback_authority(value: &str) -> bool {
 /// - `run_stream`：给 UI 推送运行帧的**只读**通道。UI 靠它画时间线，但它不是事实来源。
 /// - `observability_queue`：有界观测投递队列，满了可观察地拒绝，不影响业务状态。
 /// - `workflow_service`：确定性 workflow 的队列服务。
+/// - `automation_dispatch_service`：AUT-15 的可重取 worker dispatch/observation 服务；默认未启动。
 /// - `extensions`：**只能是 `Option`**。它只用来构建只读可见性投影；写操作和执行权仍然
 ///   属于 ControlPlane/Broker。宿主如果是被注入了外部 core 构造出来的，就报告「投影不可用」。
 ///
@@ -455,6 +461,8 @@ pub struct DaemonHost {
     run_stream: Arc<RunStreamBus>,
     observability_queue: Arc<ObservabilityQueue>,
     workflow_service: WorkflowQueueService,
+    /// AUT-15 worker dispatch/observation 服务；默认未启动，需显式注入 store 与 runner。
+    automation_dispatch_service: AutomationDispatchService,
     /// Optional registry handle used only to build read-only visibility projections. Mutation
     /// and execution remain owned by ControlPlane/Broker; hosts constructed around an injected
     /// core simply report the projection as unavailable.
@@ -748,6 +756,7 @@ impl DaemonHost {
                     .expect("static observability queue capacity is non-zero"),
             ),
             workflow_service: WorkflowQueueService::new(),
+            automation_dispatch_service: AutomationDispatchService::new(),
             extensions: None,
         }
     }
@@ -1608,6 +1617,7 @@ impl DaemonHost {
     /// `result_unknown` by callers; dropping the host is never treated as a terminal ack.
     pub async fn shutdown(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
         let _ = self.workflow_service.shutdown().await?;
+        let _ = self.automation_dispatch_service.shutdown().await?;
         self.flush_event_store().await?;
         let _ = self.flush_observability().await;
         self.shutdown_observability();
@@ -1646,6 +1656,23 @@ impl DaemonHost {
 
     pub fn workflow_queue_service(&self) -> WorkflowQueueService {
         self.workflow_service.clone()
+    }
+
+    /// Start the one AUT-15 worker dispatch/observation service owned by this DaemonHost.
+    ///
+    /// The service only commits re-fetchable dispatch commands and re-runs their single effect
+    /// attempt through the injected runner; command admission, capability authorization and the
+    /// concrete effect stay on the existing ControlPlane/Broker spine.
+    pub async fn start_automation_dispatch_service(
+        &self,
+        store: Arc<dyn kiana_ports::AutomationDispatchStore>,
+        runner: Arc<dyn kiana_ports::AutomationWorkerEffectRunner>,
+    ) -> Result<(), PortError> {
+        self.automation_dispatch_service.start(store, runner).await
+    }
+
+    pub fn automation_dispatch_service(&self) -> AutomationDispatchService {
+        self.automation_dispatch_service.clone()
     }
 
     pub fn reopen_observability(&self) -> ObservabilityQueueStats {
