@@ -766,8 +766,9 @@ impl AutomationSignalLedger {
     /// 【拒绝面】形状不合法 → `automation_signal_fact_invalid`；同一 signal_id 不同摘要 →
     /// `automation_signal_recovery_conflict`；序号回退/跳号 →
     /// `automation_signal_sequence_regression` / `automation_signal_sequence_gap`；状态转移不在
-    /// pause→resume→consume 白名单内 → `automation_signal_transition_refused`；审批摘要重复出现 →
-    /// `automation_signal_approval_consumed`。
+    /// pause→resume→consume 白名单内 → `automation_signal_transition_refused`；审批摘要重复出现且
+    /// 不是该恢复事实的终态引用 → `automation_signal_approval_consumed`；`Consumed` 事实引用的审批
+    /// 摘要与恢复事实不一致 → `automation_signal_approval_digest_drift`。
     /// 【输出】返回已记录（或同摘要重放命中）的事实副本。
     /// 【副作用】无 I/O、无日志、不创建 checkpoint、不派发 effect；本函数也不证明事实来源真实。
     pub fn record_recovered(
@@ -807,8 +808,12 @@ impl AutomationSignalLedger {
         if transition_refused {
             return Err("automation_signal_transition_refused");
         }
+        let reuse_allowed = approval_reuse_allowed(self.latest(&fact.execution_id), &fact);
+        if fact.state == AutomationSignalState::Consumed && !reuse_allowed {
+            return Err("automation_signal_approval_digest_drift");
+        }
         if let Some(digest) = fact.approval_digest.as_deref() {
-            if self.consumed_approvals.contains(digest) {
+            if self.consumed_approvals.contains(digest) && !reuse_allowed {
                 return Err("automation_signal_approval_consumed");
             }
         }
@@ -823,7 +828,8 @@ impl AutomationSignalLedger {
     /// 单次提交一个已通过 [`plan_automation_signal`] 的计划。
     ///
     /// 【拒绝面】请求/事实形状不合法、计划声称可以派发、signal_id 冲突、序号回退/跳号、
-    /// 状态转移不在白名单、审批已被消费，都返回稳定错误码且不追加任何记录。
+    /// 状态转移不在白名单、审批已被消费（`Consumed` 事实对同一恢复审批摘要的终态引用除外），
+    /// 都返回稳定错误码且不追加任何记录。
     /// 【幂等】同一 signal_id 同一事实摘要返回既有副本并标记 `replayed=true`，不新建记录。
     /// 【副作用】只修改本账本的内存结构；不写 EventLog、不派发 effect、不创建 checkpoint。
     pub fn apply(
@@ -886,8 +892,12 @@ impl AutomationSignalLedger {
         if transition_refused {
             return Err("automation_signal_transition_refused");
         }
+        let reuse_allowed = approval_reuse_allowed(self.latest(&request.execution_id), &plan.fact);
+        if plan.fact.state == AutomationSignalState::Consumed && !reuse_allowed {
+            return Err("automation_signal_approval_digest_drift");
+        }
         if let Some(digest) = plan.fact.approval_digest.as_deref() {
-            if self.consumed_approvals.contains(digest) {
+            if self.consumed_approvals.contains(digest) && !reuse_allowed {
                 return Err("automation_signal_approval_consumed");
             }
         }
@@ -1040,7 +1050,7 @@ pub fn plan_automation_signal(
             if ledger.approval_consumed(&approval.approval_digest) {
                 return Err("automation_signal_approval_consumed");
             }
-            if approval.expires_at_tick < now_tick {
+            if !approval.is_live_at(now_tick) {
                 return Err("automation_signal_approval_expired");
             }
             let checkpoint = checkpoint.ok_or("automation_signal_checkpoint_required")?;
@@ -1099,6 +1109,22 @@ pub fn plan_automation_signal(
         replayed: false,
         dispatch_permitted: false,
     })
+}
+
+/// `Consumed` 事实允许复述其恢复事实的审批摘要；其余状态复用已消费审批一律拒绝。
+///
+/// 这条豁免只覆盖“终态引用同一条恢复审批”：要求上一条事实是 `Resumed`，且两条事实的
+/// `approval_digest` 完全一致。审批本身仍然只支撑一次恢复；消费事实不是第二次授权。
+fn approval_reuse_allowed(
+    previous: Option<&AutomationSignalFact>,
+    fact: &AutomationSignalFact,
+) -> bool {
+    fact.state == AutomationSignalState::Consumed
+        && previous.is_some_and(|previous| {
+            previous.state == AutomationSignalState::Resumed
+                && previous.approval_digest.is_some()
+                && previous.approval_digest == fact.approval_digest
+        })
 }
 
 /// 已记录事实是否完整回答了这条请求（用于同 signal_id 的幂等重放判定）。

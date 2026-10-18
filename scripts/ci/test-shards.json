@@ -65,6 +65,7 @@
    "automation_release_evidence_guard",
    "automation_retry_guard",
    "automation_signal_guard",
+   "automation_signal_worker",
    "automation_snapshot_guard",
    "automation_surface_uat_guard",
    "billing_invoice_guard",

@@ -1,0 +1,53 @@
+name: AUT-18 signal pause/resume generation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signal-generation:
+    name: AUT-18 pause/resume signal, single consume and checkpoint binding
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+
+      # Domain contract: owner/definition/action/path/epoch/checkpoint binding, approval single use,
+      # UI-context refusal, transition whitelist and the strict approval window.
+      - name: Run domain signal fixtures
+        run: cargo test -p kiana-domain --test automation_signal --locked -- --test-threads=1
+      # Core coordinator: rebuilds the ledger from the authoritative store history, commits with a
+      # digest CAS and never dispatches; shape and drift refusals leave the store untouched.
+      - name: Run core signal coordinator fixtures
+        run: cargo test -p kiana-core --test automation_signal_worker --locked -- --test-threads=1
+      - name: Run core signal source guard
+        run: cargo test -p kiana-core --test automation_signal_guard --locked -- --test-threads=1
+      # Eventlog store: content CAS, signal-id dedupe, contiguous sequences, transition whitelist,
+      # monotonic authority epoch and single approval consumption (in-memory CI semantics).
+      - name: Run eventlog signal store fixtures
+        run: cargo test -p kiana-eventlog --test aut18_signal_store --locked -- --test-threads=1
+      # Runner boundary: pure fold from committed facts to Continue/Hold/Resume/Closed; no model
+      # call, tool call, approval consumption or checkpoint creation.
+      - name: Run runner signal gate fixtures
+        run: cargo test -p kiana-runner --test aut18_signal_gate --locked -- --test-threads=1
+
+      - name: Compile domain signal target
+        run: cargo test -p kiana-domain --test automation_signal --no-run --locked
+      - name: Compile core signal coordinator target
+        run: cargo test -p kiana-core --test automation_signal_worker --no-run --locked
+      - name: Compile core signal guard
+        run: cargo test -p kiana-core --test automation_signal_guard --no-run --locked
+      - name: Compile eventlog signal store target
+        run: cargo test -p kiana-eventlog --test aut18_signal_store --no-run --locked
+      - name: Compile runner signal gate target
+        run: cargo test -p kiana-runner --test aut18_signal_gate --no-run --locked
