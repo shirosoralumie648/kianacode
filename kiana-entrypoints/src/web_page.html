@@ -45,6 +45,7 @@
     .timeline-item.timeline-error { border-color:var(--err); color:var(--err); }
     .timeline-item.timeline-unknown { border-style:dashed; border-color:var(--warn); }
     .timeline-item.timeline-terminal { border-color:var(--ok); }
+    .timeline-turn { display:block; border-left:1px dashed var(--border); padding-left:8px; margin:0 0 8px; }
     .timeline-state { max-width:760px; margin:0 auto 12px; padding:8px 12px; border:1px dashed var(--border); border-radius:8px; color:var(--muted); font-size:12px; }
     .timeline-state[data-state="partial"], .timeline-state[data-state="replay"] { border-color:var(--warn); color:var(--warn); }
     .timeline-state[data-state="offline"] { border-color:var(--err); color:var(--err); }
@@ -77,7 +78,7 @@
     .center, .details, .sidebar, pre { overflow-wrap:anywhere; }
     @media (max-width:1100px) { .frame { grid-template-columns:220px minmax(0,1fr); } .details { grid-column:1/-1; border-left:0; border-top:1px solid var(--border); } }
     @media (max-width:650px) { html,body { height:auto; min-height:100%; } .frame { display:flex; flex-direction:column; height:auto; } .sidebar { border-right:0; border-bottom:1px solid var(--border); } .center { min-height:65vh; } .chat { max-height:65vh; padding:12px; } .sessions { max-height:150px; overflow:auto; } .row { flex-wrap:wrap; } .history-row { padding:0 12px; } .composer { padding:12px; } .details { border-left:0; border-top:1px solid var(--border); } .coach .card { max-height:90vh; overflow:auto; } }
-    @media (max-width:400px) { body { font-size:16px; } .frame { display:flex; } .sidebar, .details { padding:12px; } .chat { max-height:none; } .item, .timeline-state, .guide { max-width:none; } button, select, input { min-height:44px; } textarea { min-height:100px; } }
+    @media (max-width:400px) { body { font-size:16px; } .frame { display:flex; } .sidebar, .details { padding:12px; } .chat { max-height:none; } .item, .timeline-state, .timeline-turn, .guide { max-width:none; } button, select, input { min-height:44px; } textarea { min-height:100px; } }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
     @media (prefers-contrast:more) { :root { --muted:#dce3ee; --border:#aab6c7; --accent:#2460be; } button,select,textarea { border-width:2px; } }
     @media (forced-colors:active) { .pill,.banner,.approval { border:1px solid CanvasText; } button.primary { border:2px solid ButtonText; } :focus-visible { outline-color:Highlight; } }
@@ -380,8 +381,12 @@
 
     // UI-20 keeps the Web timeline as a bounded presentation projection.  The server's explicit
     // item kind is the only discriminator; title/body text is never parsed to guess a kind.
+    // The timeline is assembled from one declared component directory (thread, turn, item, status
+    // bar, feed indicator) whose renderer is selected by a server-owned migration contract.
+    // >>> UI-20 timeline components
     const WEB_TIMELINE_SCHEMA = 'kiana.web-timeline.v1';
     const WEB_TIMELINE_ITEM_SCHEMA = 'kiana.web-timeline-item.v1';
+    const WEB_TIMELINE_MIGRATION_SCHEMA = 'kiana.web-timeline-migration.v1';
     const TIMELINE_WINDOW_SIZE = 64;
     const TIMELINE_MAX_ITEMS = 512;
     const TIMELINE_MAX_BODY_BYTES = 16 * 1024;
@@ -391,6 +396,19 @@
       userMessage: 'delta', commandExecution: 'tool', fileChange: 'tool', agentMessage: 'delta'
     });
     const TIMELINE_PROTECTED_KINDS = new Set(['approval', 'unknown']);
+    // Component directory: every timeline component owns exactly one node contract and none of
+    // them may execute a command, decide an approval or hold a second copy of the projection.
+    const TIMELINE_COMPONENT_DIRECTORY = Object.freeze([
+      { name: 'thread', selector: '#chat', component: 'thread' },
+      { name: 'turn', selector: 'section.timeline-turn', component: 'turn' },
+      { name: 'item', selector: 'article.timeline-item', component: 'item' },
+      { name: 'status-bar', selector: '#timelineState', component: 'status-bar' },
+      { name: 'feed-indicator', selector: '#streamBanner', component: 'feed-indicator' }
+    ]);
+    // The migration switch is server-owned: only a renderer named by this reviewed allowlist may
+    // paint timeline items.  Any other value (including a text-guessing renderer) leaves the
+    // projection in a visible partial state that keeps pending/unknown items only.
+    const TIMELINE_ALLOWED_RENDERERS = Object.freeze({ typed_inline: 'typed_inline' });
     const timelineProjection = {
       schema: WEB_TIMELINE_SCHEMA,
       items: new Map(),
@@ -399,7 +417,9 @@
       replay: false,
       partial: false,
       loading: true,
-      cursor: null
+      cursor: null,
+      renderer: 'typed_inline',
+      unsupported: null
     };
 
     // Drafts and submission identities are scoped to this tab. A retry reuses the same identity
@@ -456,6 +476,9 @@
         recordHydrateTrace('hydrate_reject', 'hydrate_session_missing');
         throw new Error('hydrate_session_missing');
       }
+      // The migration switch travels with the snapshot: the browser paints timeline items only
+      // with a renderer the server reviewed for the artifact it just served.
+      applyTimelineContract(snapshot.timeline);
       const key = cacheKeyFor(snapshot.session_id);
       const previous = hydrateCache.get(key);
       if (previous && (previous.instance_id !== envelope.instance_id || previous.epoch !== envelope.epoch)) {
@@ -983,6 +1006,8 @@
         body: boundedTimelineText(item && item.body),
         pending,
         replay: !!(item && item.replay),
+        turn_id: item && typeof item.turn_id === 'string' && item.turn_id
+          ? String(item.turn_id).slice(0, 256) : null,
         sequence: Number.isSafeInteger(item && item.sequence) ? item.sequence : null
       };
     }
@@ -1001,6 +1026,7 @@
       const normalized = normalizeServerTimelineItem(item);
       const el = document.createElement('article');
       el.className = 'item timeline-item timeline-' + normalized.kind;
+      el.dataset.component = 'item';
       el.dataset.renderKey = normalized.id;
       el.dataset.kind = normalized.kind;
       el.dataset.pending = String(normalized.pending);
@@ -1025,7 +1051,17 @@
       });
       return timelineProjection.order.filter(key => visibleKeys.has(key));
     }
+    function timelineUnsupportedDetail() {
+      return '时间线 renderer 未审查（' + String(timelineProjection.unsupported) +
+        '）；仅保留 pending/unknown，等待 hydrate。';
+    }
     function setTimelineState(state, detail) {
+      if (timelineProjection.unsupported) {
+        // An unreviewed renderer may never be reported as ready: the projection stays partial and
+        // keeps only pending/unknown items until a hydrate carries a reviewed contract again.
+        state = 'partial';
+        detail = timelineUnsupportedDetail();
+      }
       const allowed = new Set(['loading', 'partial', 'replay', 'ready', 'offline']);
       timelineProjection.state = allowed.has(state) ? state : 'partial';
       timelineProjection.loading = timelineProjection.state === 'loading';
@@ -1050,6 +1086,14 @@
     function appendTimelineItem(item, state = null) {
       const normalized = normalizeServerTimelineItem(item);
       const existing = timelineProjection.items.has(normalized.id);
+      if (!existing && timelineProjection.unsupported &&
+        !normalized.pending && !TIMELINE_PROTECTED_KINDS.has(normalized.kind)) {
+        // Deny-first: while the renderer is unreviewed only pending/unknown items stay visible;
+        // an ordinary new item may not be painted by a renderer the server did not select.
+        setTimelineState('partial', timelineUnsupportedDetail());
+        renderTimelineProjection();
+        return normalized.id;
+      }
       const hasRemovable = timelineProjection.order.some(key => {
         const current = timelineProjection.items.get(key);
         return current && !current.pending && !TIMELINE_PROTECTED_KINDS.has(current.kind);
@@ -1079,10 +1123,27 @@
     function renderTimelineProjection() {
       const streamNode = streamItem;
       chat.querySelectorAll('.timeline-item').forEach(node => node.remove());
+      chat.querySelectorAll('.timeline-turn').forEach(node => node.remove());
       const fragment = document.createDocumentFragment();
+      let turnNode = null;
+      let turnId = null;
       preserveProtectedTimelineItems().forEach(key => {
         const item = timelineProjection.items.get(key);
-        if (item) fragment.appendChild(renderTimelineItem(item));
+        if (!item) return;
+        if (item.turn_id && item.turn_id !== turnId) {
+          turnNode = document.createElement('section');
+          turnNode.className = 'timeline-turn';
+          turnNode.dataset.component = 'turn';
+          turnNode.dataset.turnId = String(item.turn_id).slice(0, 256);
+          fragment.appendChild(turnNode);
+          turnId = item.turn_id;
+        } else if (!item.turn_id) {
+          // An item without a server turn id stays a direct child of the thread: the renderer
+          // never invents a turn grouping of its own.
+          turnNode = null;
+          turnId = null;
+        }
+        (turnNode || fragment).appendChild(renderTimelineItem(item));
       });
       if (streamNode) fragment.appendChild(streamNode);
       chat.appendChild(fragment);
@@ -1091,6 +1152,52 @@
         started = true;
       }
     }
+    // Mount the declared component directory on the thread, status bar and feed indicator nodes,
+    // emitting the reviewed `data-component` marker for each one.  The directory is a naming
+    // contract only: mounting it never grants a component authority.
+    function mountTimelineComponents() {
+      TIMELINE_COMPONENT_DIRECTORY.forEach(component => {
+        const node = document.querySelector(component.selector);
+        if (node) node.dataset.component = component.component;
+      });
+      chat.dataset.component = 'thread';
+    }
+    function failTimelineRenderer(reason) {
+      timelineProjection.unsupported = sanitizeDisplayText(reason || 'renderer_not_reviewed', 64);
+      timelineProjection.renderer = 'unsupported';
+      setTimelineState('partial', timelineUnsupportedDetail());
+      return false;
+    }
+    // The migration switch is read from the server contract only.  A missing contract keeps the
+    // current selection; a contract that names an unreviewed renderer, a different window or an
+    // over-budget bundle fails closed instead of silently rendering with another renderer.
+    function applyTimelineContract(contract) {
+      if (!contract) return false;
+      if (contract.schema !== WEB_TIMELINE_MIGRATION_SCHEMA) {
+        return failTimelineRenderer('renderer_contract_schema_mismatch');
+      }
+      if (!Object.prototype.hasOwnProperty.call(TIMELINE_ALLOWED_RENDERERS, contract.selected) ||
+        contract.disposition !== 'active') {
+        return failTimelineRenderer('renderer_not_reviewed');
+      }
+      const bounds = contract.window || {};
+      if (Number(bounds.size) !== TIMELINE_WINDOW_SIZE ||
+        Number(bounds.max_items) !== TIMELINE_MAX_ITEMS ||
+        Number(bounds.max_body_bytes) !== TIMELINE_MAX_BODY_BYTES) {
+        return failTimelineRenderer('window_contract_mismatch');
+      }
+      if (!Array.isArray(contract.components) ||
+        contract.components.length !== TIMELINE_COMPONENT_DIRECTORY.length) {
+        return failTimelineRenderer('component_directory_mismatch');
+      }
+      if (!contract.bundle || contract.bundle.within_budget !== true) {
+        return failTimelineRenderer('bundle_not_reviewed');
+      }
+      timelineProjection.renderer = TIMELINE_ALLOWED_RENDERERS[contract.selected];
+      timelineProjection.unsupported = null;
+      return true;
+    }
+    // <<< UI-20 timeline components
     function reportTimelineError(error) {
       appendTimelineItem({
         id: 'local:error:' + Date.now(), kind: 'error', title: '操作未完成',
@@ -1127,6 +1234,7 @@
       const items = [];
       (thread.turns || []).forEach(turn => (turn.items || []).forEach(item => items.push({
         ...item,
+        turn_id: turn.id || null,
         replay: !!s.read_only || !!item.replay,
         sequence: item.sequence || null
       })));
@@ -1718,6 +1826,7 @@
     window.addEventListener('unhandledrejection', event => { event.preventDefault(); reportError(event.reason || '请求失败'); });
     window.addEventListener('offline', () => setHydrateStatus('offline', 'snapshot offline · 保留服务端事实，等待恢复'));
     window.addEventListener('online', () => refresh().catch(reportError));
+    mountTimelineComponents();
     // Closing a browser tab only detaches its feed. It never submits /api/cancel and therefore
     // cannot turn a presentation lifecycle event into an execution mutation.
     window.addEventListener('beforeunload', () => closeEventStream());

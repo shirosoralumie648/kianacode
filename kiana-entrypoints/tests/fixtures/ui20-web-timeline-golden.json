@@ -1,0 +1,127 @@
+{
+  "schema": "kiana.ui20-web-timeline-golden.v1",
+  "step": "UI-20",
+  "renderer": "typed_inline",
+  "source": "kiana-entrypoints/src/web_page.html",
+  "screenshot": {
+    "status": "deferred",
+    "reason": "CI has no browser lane; the DOM golden plus the text-only source guards stand in for a screenshot until a browser runner exists"
+  },
+  "item": {
+    "tag": "article",
+    "base_class": "item timeline-item",
+    "class_prefix": "timeline-",
+    "dataset_component": "item",
+    "dataset_attributes": [
+      "component",
+      "renderKey",
+      "kind",
+      "pending"
+    ],
+    "text_nodes": [
+      "who",
+      "timeline-body"
+    ]
+  },
+  "items": [
+    {
+      "kind": "delta",
+      "class_suffix": "delta",
+      "css_defined": false,
+      "label": "delta",
+      "pending_default": false
+    },
+    {
+      "kind": "tool",
+      "class_suffix": "tool",
+      "css_defined": true,
+      "label": "tool",
+      "pending_default": false
+    },
+    {
+      "kind": "approval",
+      "class_suffix": "approval",
+      "css_defined": true,
+      "label": "approval · pending",
+      "pending_default": true
+    },
+    {
+      "kind": "error",
+      "class_suffix": "error",
+      "css_defined": true,
+      "label": "error",
+      "pending_default": false
+    },
+    {
+      "kind": "unknown",
+      "class_suffix": "unknown",
+      "css_defined": true,
+      "label": "unknown · refresh required",
+      "pending_default": false
+    },
+    {
+      "kind": "terminal",
+      "class_suffix": "terminal",
+      "css_defined": true,
+      "label": "terminal",
+      "pending_default": false
+    }
+  ],
+  "components": [
+    {
+      "name": "thread",
+      "selector": "#chat",
+      "dataset": "thread",
+      "tag": "region"
+    },
+    {
+      "name": "turn",
+      "selector": "section.timeline-turn",
+      "dataset": "turn",
+      "tag": "section",
+      "class": "timeline-turn",
+      "css_defined": true
+    },
+    {
+      "name": "item",
+      "selector": "article.timeline-item",
+      "dataset": "item",
+      "tag": "article",
+      "class": "timeline-item"
+    },
+    {
+      "name": "status-bar",
+      "selector": "#timelineState",
+      "dataset": "status-bar",
+      "tag": "div",
+      "state_attribute": "data-state",
+      "css_class": "timeline-state"
+    },
+    {
+      "name": "feed-indicator",
+      "selector": "#streamBanner",
+      "dataset": "feed-indicator",
+      "tag": "div",
+      "css_class": "banner"
+    }
+  ],
+  "status_bar_states": [
+    "loading",
+    "partial",
+    "replay",
+    "ready",
+    "offline"
+  ],
+  "unsupported_renderer": {
+    "state": "partial",
+    "keeps": [
+      "pending",
+      "unknown"
+    ],
+    "refuses": [
+      "new_ordinary_items",
+      "ready_state",
+      "execution_authority"
+    ]
+  }
+}

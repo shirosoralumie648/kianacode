@@ -1,6 +1,25 @@
 {
-  "schema": "kiana.web-timeline.v1",
+  "schema": "kiana.ui20-web-timeline.v1",
+  "step": "UI-20",
   "item_schema": "kiana.web-timeline-item.v1",
+  "window_schema": "kiana.web-timeline.v1",
+  "component_schema": "kiana.web-timeline-components.v1",
+  "migration_schema": "kiana.web-timeline-migration.v1",
+  "bundle_schema": "kiana.web-timeline-bundle.v1",
+  "selected_renderer": "typed_inline",
+  "reviewed_renderers": [
+    "typed_inline"
+  ],
+  "refused_renderer_requests": {
+    "text_body_kind_guess": {
+      "request": "legacy_text",
+      "code": "web_timeline_renderer_text_guess_forbidden"
+    },
+    "renderer_outside_reviewed_allowlist": {
+      "request": "react_vite_migration",
+      "code": "web_timeline_renderer_unsupported"
+    }
+  },
   "server_item_kinds": [
     "delta",
     "tool",
@@ -15,10 +34,39 @@
     "commandExecution": "tool",
     "fileChange": "tool"
   },
+  "components": [
+    {
+      "name": "thread",
+      "selector": "#chat",
+      "dataset": "thread"
+    },
+    {
+      "name": "turn",
+      "selector": "section.timeline-turn",
+      "dataset": "turn"
+    },
+    {
+      "name": "item",
+      "selector": "article.timeline-item",
+      "dataset": "item"
+    },
+    {
+      "name": "status-bar",
+      "selector": "#timelineState",
+      "dataset": "status-bar"
+    },
+    {
+      "name": "feed-indicator",
+      "selector": "#streamBanner",
+      "dataset": "feed-indicator"
+    }
+  ],
   "rendering": {
     "text_node": "textContent",
     "render_key": "server_item_id",
-    "unknown_policy": "visible_refresh_marker"
+    "unknown_policy": "visible_refresh_marker",
+    "turn_grouping": "server_turn_id",
+    "component_dataset_attribute": "data-component"
   },
   "window": {
     "size": 64,
@@ -36,6 +84,14 @@
     "ready",
     "offline"
   ],
+  "budgets": {
+    "page_bytes": 163840,
+    "component_bytes": 65536,
+    "max_body_bytes": 16384,
+    "max_id_bytes": 512,
+    "window_size": 64,
+    "max_items": 512
+  },
   "deny_first": [
     "text_body_kind_guess",
     "innerHTML_untrusted_timeline",
@@ -45,7 +101,99 @@
     "protected_overflow_stays_bounded",
     "replay_promoted_to_live",
     "timeline_starts_execution_loop",
-    "stream_reconnect_submits_command"
+    "stream_reconnect_submits_command",
+    "web_timeline_renderer_text_guess_forbidden",
+    "web_timeline_renderer_unsupported"
+  ],
+  "server_required": [
+    "web_timeline_contract",
+    "validate_timeline_renderer",
+    "WebTimelineMigration::select",
+    "\"timeline\": web_timeline_contract()",
+    "struct BootstrapQuery",
+    "timeline_renderer: Option<String>"
+  ],
+  "client_required": [
+    "pub fn select(page: &str) -> Self",
+    "WEB_TIMELINE_COMPONENTS",
+    "WEB_TIMELINE_PAGE_MAX_BYTES",
+    "WEB_TIMELINE_COMPONENT_START_MARKER",
+    "web_timeline_component_region_missing",
+    "web_timeline_bundle_over_budget",
+    "web_timeline_renderer_reviewed",
+    "web_timeline_component_authority_denied",
+    "web_timeline_window_bounds_drifted",
+    "web_timeline_migration_unavailable"
+  ],
+  "browser_required": [
+    "WEB_TIMELINE_MIGRATION_SCHEMA",
+    "TIMELINE_COMPONENT_DIRECTORY",
+    "TIMELINE_ALLOWED_RENDERERS",
+    "mountTimelineComponents",
+    "applyTimelineContract",
+    "failTimelineRenderer",
+    "timelineUnsupportedDetail",
+    "SERVER_ITEM_KINDS",
+    "normalizeServerTimelineItem",
+    "renderTimelineItem",
+    "renderTimelineProjection",
+    "preserveProtectedTimelineItems",
+    "TIMELINE_WINDOW_SIZE",
+    "TIMELINE_MAX_ITEMS",
+    "timelineProjection.order.length >= TIMELINE_MAX_ITEMS",
+    "保留 pending/unknown",
+    "textContent",
+    "dataset.renderKey",
+    "dataset.component",
+    "data-component",
+    "requestStreamHydrate",
+    "hydrateCache",
+    "stateCache",
+    "timelineState",
+    "timeline-turn",
+    "loading",
+    "partial",
+    "replay"
+  ],
+  "browser_forbidden": [
+    "localStorage.setItem('kiana.web-timeline",
+    "new KianaHarness",
+    "new CapabilityBroker",
+    "ControlPlane.execute",
+    "location.hash.indexOf('timeline",
+    "searchParams.get('timeline_renderer'",
+    "innerHTML"
+  ],
+  "routes": [
+    {
+      "path": "/api/bootstrap",
+      "method": "GET",
+      "token_required": true,
+      "class": "State"
+    }
+  ],
+  "fixtures": [
+    "ui20_bootstrap_publishes_the_server_owned_timeline_migration_contract",
+    "ui20_timeline_renderer_requests_denied_before_lease_or_projection",
+    "ui20_typed_kind_and_window_contract_never_guess_from_text",
+    "ui20_bundle_and_component_region_fail_closed",
+    "ui20_fixture_binds_the_typed_timeline_and_migration_contract",
+    "ui20_browser_component_directory_and_switch_stay_text_only",
+    "ui20_runtime_fixtures_are_wired_to_the_web_module"
+  ],
+  "required": [
+    "kiana.ui20-web-timeline.v1",
+    "ui20-web-timeline.json",
+    "ui20-web-timeline-golden.json",
+    "ui20_web_timeline",
+    "ui20_web_timeline_guard",
+    "ui20-web-timeline.yml",
+    "kiana.web-timeline-migration.v1",
+    "TIMELINE_COMPONENT_DIRECTORY",
+    "WEB_TIMELINE_PAGE_MAX_BYTES",
+    "web_timeline_renderer_text_guess_forbidden",
+    "proof_level",
+    "limitations"
   ],
   "success": [
     "delta_tool_approval_error_unknown_terminal_are_distinct",
@@ -53,6 +201,14 @@
     "stable_server_item_id_survives_replay",
     "protected_items_survive_recent_window",
     "loading_partial_replay_are_visible",
-    "snapshot_and_sse_share_store_projection"
+    "snapshot_and_sse_share_store_projection",
+    "component_directory_and_migration_switch_are_server_owned",
+    "bundle_baseline_measured_from_the_served_artifact"
+  ],
+  "limitations": [
+    "no browser screenshot or visual-diff lane exists in CI; the DOM golden plus source guards stand in for it",
+    "no real long-stream timing, narrow-screen or deep-link browser measurement",
+    "bundle baseline measures the compile-time artifact and the served bytes, not a JS bundle toolchain size",
+    "replay/hydrate/feed state is owned by UI-17/UI-18; this card renders their state only"
   ]
 }
