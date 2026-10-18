@@ -239,7 +239,7 @@ pub use automation_dispatch::{
 pub use automation_effect_reservation::{
     dispatch_reserved_automation_effect, issue_automation_effect_permit, reserve_automation_effect,
 };
-pub use automation_fanout::validate_fanout_plan;
+pub use automation_fanout::{admit_fanout_plan, merge_fanout_ledger, validate_fanout_plan};
 pub use automation_release_evidence::validate_automation_release_gate;
 pub use automation_retry::classify_retry;
 pub use automation_retry_attempt::{

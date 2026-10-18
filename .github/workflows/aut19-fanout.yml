@@ -1,0 +1,39 @@
+name: AUT-19 bounded fan-out/fan-in
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fanout-ledger:
+    name: AUT-19 scope/budget/role fences, fail-fast skip ledger and stable fan-in
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+      - name: Format gate
+        run: cargo fmt --all --check
+
+      # Domain ledger: deny-first fixtures for child scope widening (intersect/is_subset_of against a
+      # real ScopeSet), budget/role/TTL beyond the parent, cycle parent, duplicate children, start
+      # after fail-fast, unknown/unstarted observe and incomplete/unknown/duplicate fan-in; the
+      # success fixture (two children, one fails, one is skipped, deterministic merge) is last.
+      - name: Run domain fan-out fixtures
+        run: cargo test -p kiana-domain --test automation_fanout --locked -- --test-threads=1
+      # Core facade + source guard: read-only forwarding, refusal-code matrix, no Broker/handler
+      # effect, fixture ordering, lane/shard wiring.
+      - name: Run core fan-out source guard
+        run: cargo test -p kiana-core --test automation_fanout_guard --locked -- --test-threads=1
+
+      - name: Compile domain fan-out target
+        run: cargo test -p kiana-domain --test automation_fanout --no-run --locked
+      - name: Compile core fan-out guard
+        run: cargo test -p kiana-core --test automation_fanout_guard --no-run --locked
