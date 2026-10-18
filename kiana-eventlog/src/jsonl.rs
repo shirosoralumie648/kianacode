@@ -196,6 +196,8 @@ impl JournalFiles {
                 ));
             }
         }
+        #[cfg(windows)]
+        lock_file_exclusive(&file)?;
         self.verify_named_file(&path, &file)?;
         Ok(ProcessEventLogLock(file))
     }
@@ -256,6 +258,41 @@ impl JournalFiles {
         self.verify_parent()
     }
 }
+/// Windows equivalent of `flock(LOCK_EX)` over the whole lock file.
+///
+/// Without it two processes (or two stores in one process) could commit concurrently on Windows,
+/// which is exactly the situation `concurrent_jsonl_idempotent_appends_create_one_record`
+/// exercises.  The handle stays open for the lifetime of `ProcessEventLogLock`, and Windows
+/// releases the lock when the handle closes, including on process death.
+#[cfg(windows)]
+fn lock_file_exclusive(file: &File) -> Result<(), PortError> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::HANDLE;
+    use windows_sys::Win32::Storage::FileSystem::{LockFileEx, LOCKFILE_EXCLUSIVE_LOCK};
+    use windows_sys::Win32::System::IO::OVERLAPPED;
+
+    let handle = file.as_raw_handle() as HANDLE;
+    let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+    // Blocking exclusive lock: the caller waits for the previous writer exactly as `flock` does.
+    if unsafe {
+        LockFileEx(
+            handle,
+            LOCKFILE_EXCLUSIVE_LOCK,
+            0,
+            u32::MAX,
+            u32::MAX,
+            &mut overlapped,
+        )
+    } != 0
+    {
+        return Ok(());
+    }
+    Err(io_error(
+        "eventlog_lock_acquire_failed",
+        std::io::Error::last_os_error(),
+    ))
+}
+
 struct ProcessEventLogLock(File);
 impl Drop for ProcessEventLogLock {
     fn drop(&mut self) {
@@ -487,13 +524,15 @@ impl JsonlEventLog {
 #[async_trait]
 impl EventStorePort for JsonlEventLog {
     fn supports_atomic_transitions(&self) -> bool {
-        // 当前只有 Unix 路径提供本实现要求的原子事务帧能力；非 Unix 调用方必须先检查此值，
-        // commit_transition 会明确返回 unsupported，而不能悄悄退化成多条独立 append。
-        cfg!(unix)
+        // 事务帧本身是平台无关的：一次写入一个完整帧，并且全程持有进程间锁（Unix 用
+        // flock(2)，Windows 用 LockFileEx）。非 Unix 路径额外提供 torn-tail 截断（重新以写
+        // 句柄打开后 SetEndOfFile），所以这里不再按平台关闭能力。若将来某个平台既拿不到
+        // 进程间锁也没有写入审计，应把该平台单独排除，而不是整体关闭。
+        true
     }
     fn capabilities(&self) -> EventStoreCapabilities {
-        let mut result = capabilities(cfg!(unix));
-        result.atomic_transitions = cfg!(unix);
+        let mut result = capabilities(true);
+        result.atomic_transitions = true;
         result
     }
     async fn flush(&self) -> Result<EventStoreHealth, PortError> {
@@ -874,6 +913,37 @@ fn remember_file(file: &File, cache: &mut DiskCache) -> Result<(), PortError> {
     cache.modified = metadata.modified().ok();
     Ok(())
 }
+/// Cut a torn, unterminated tail back to the last verified record boundary.
+///
+/// On Unix the open handle is used directly. Windows refuses `SetEndOfFile` on a handle opened
+/// with append access (it answers ERROR_ACCESS_DENIED), so the portable path reopens the same
+/// file with write access solely for the truncation. The reopen happens under the caller-held
+/// process lock and is followed by the identity check in `load_delta`, so a file swapped in
+/// between is still detected.
+fn truncate_torn_tail(files: &JournalFiles, file: &File, offset: u64) -> Result<(), PortError> {
+    #[cfg(unix)]
+    {
+        let _ = files;
+        return file
+            .set_len(offset)
+            .map_err(|e| io_error("eventlog_repair_failed", e));
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = file;
+        let reopened = OpenOptions::new()
+            .write(true)
+            .open(&files.path)
+            .map_err(|e| io_error("eventlog_repair_failed", e))?;
+        reopened
+            .set_len(offset)
+            .map_err(|e| io_error("eventlog_repair_failed", e))?;
+        reopened
+            .sync_all()
+            .map_err(|e| io_error("eventlog_repair_sync_failed", e))
+    }
+}
+
 fn load_delta(
     files: &JournalFiles,
     file: &mut File,
@@ -953,8 +1023,7 @@ fn load_delta(
             {
                 // 仅对新格式日志（或已有有效旧事件之后）容忍 EOF 截断：此时不完整尾行不可能
                 // 是完整提交记录。将文件裁回本行起点，并同步修复；更早的损坏记录不能走此分支。
-                file.set_len(cache.offset)
-                    .map_err(|e| io_error("eventlog_repair_failed", e))?;
+                truncate_torn_tail(files, file, cache.offset)?;
                 file.sync_all()
                     .map_err(|e| io_error("eventlog_repair_sync_failed", e))?;
                 files.sync_directory()?;

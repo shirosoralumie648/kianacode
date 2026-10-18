@@ -1769,7 +1769,14 @@ fn ingest_artifact_file(
     };
     let source_path = relative_path(source_root, path);
     let content_hash = stable_hash(content.as_bytes());
-    let stored_abs = files_dir.join(&content_hash).join(Path::new(&source_path));
+    // The digest's wire form is `sha256:<hex>`, but a colon is not a legal Windows filename
+    // character (ERROR_INVALID_NAME).  The directory name therefore uses the same digest without
+    // the algorithm prefix, which keeps the tree identical on every platform and still keys the
+    // store by content.
+    let hash_dir = content_hash
+        .strip_prefix("sha256:")
+        .unwrap_or(&content_hash);
+    let stored_abs = files_dir.join(hash_dir).join(Path::new(&source_path));
     if let Some(parent) = stored_abs.parent() {
         fs::create_dir_all(parent).with_context(|| {
             format!(

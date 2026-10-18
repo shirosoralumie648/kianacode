@@ -19,3 +19,13 @@ libc.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 tokio.workspace = true
+
+# The journal lock needs an OS-level exclusive lock on Windows too; `flock(2)` is Unix-only. The
+# same crate version is already pinned by other workspace members, and the dependency is
+# target-scoped so Unix builds are unchanged.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+] }
