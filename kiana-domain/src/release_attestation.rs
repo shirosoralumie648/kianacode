@@ -574,7 +574,16 @@ fn version_tokens(name: &str) -> Vec<&str> {
         {
             let start = index;
             index += 1;
-            while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'.') {
+            // A `.` only continues a version token when another digit follows it; otherwise the
+            // separator before the extension (`kiana-v1.2.3.tar.gz`) would become part of the
+            // version and a correctly named artifact would mismatch its tag.
+            while index < bytes.len()
+                && (bytes[index].is_ascii_digit()
+                    || (bytes[index] == b'.'
+                        && bytes
+                            .get(index + 1)
+                            .is_some_and(|next| next.is_ascii_digit())))
+            {
                 index += 1;
             }
             tokens.push(&name[start..index]);

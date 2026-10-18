@@ -381,6 +381,10 @@ async fn seed_events_log(
     drop(port);
 }
 
+// Connector bind publishes and re-reads the fixture through `LocalDir`, which is implemented only
+// for Unix directory handles; on Windows the platform reports `local_package_platform_unsupported`
+// instead of weakening the bind contract, so these behaviour fixtures are Unix-only.
+#[cfg(unix)]
 #[tokio::test]
 async fn dispatch_and_observation_facts_precede_the_connector_fact_and_replay_is_effect_free() {
     let root = project_dir("split-success");
@@ -523,6 +527,10 @@ async fn dispatch_and_observation_facts_precede_the_connector_fact_and_replay_is
     let _ = fs::remove_dir_all(&root);
 }
 
+// Connector bind publishes and re-reads the fixture through `LocalDir`, which is implemented only
+// for Unix directory handles; on Windows the platform reports `local_package_platform_unsupported`
+// instead of weakening the bind contract, so these behaviour fixtures are Unix-only.
+#[cfg(unix)]
 #[tokio::test]
 async fn wire_supplied_lifecycle_or_observation_material_is_refused_before_any_effect() {
     let root = project_dir("split-wire");
@@ -579,6 +587,10 @@ async fn wire_supplied_lifecycle_or_observation_material_is_refused_before_any_e
     let _ = fs::remove_dir_all(&root);
 }
 
+// Connector bind publishes and re-reads the fixture through `LocalDir`, which is implemented only
+// for Unix directory handles; on Windows the platform reports `local_package_platform_unsupported`
+// instead of weakening the bind contract, so these behaviour fixtures are Unix-only.
+#[cfg(unix)]
 #[tokio::test]
 async fn an_incomplete_or_terminal_attempt_without_a_fact_is_reported_unknown_and_never_reexecutes()
 {

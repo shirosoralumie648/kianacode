@@ -188,6 +188,20 @@ fn status_for_invocation(state: CapabilityExecutionState) -> TraceStatus {
 /// Observed error code of one invocation, derived from the committed terminal result. The result
 /// payload is never echoed; only its bounded leading error token is compared.
 fn observed_error_code(invocation: &InvocationProjection) -> Option<String> {
+    // `execution.result_committed` may carry the stable error code next to (not inside) the
+    // nested result object; the invocation projection only keeps `result`, so an unknown
+    // effect without an inner code still names its code from the terminal fact.
+    if invocation.state == CapabilityExecutionState::Unknown {
+        if let Some(code) = invocation
+            .result
+            .as_ref()
+            .and_then(|result| result.get("error_code").or_else(|| result.get("error")))
+            .and_then(Value::as_str)
+        {
+            return Some(safe_error_code(code));
+        }
+        return Some("result_unknown".to_owned());
+    }
     invocation
         .result
         .as_ref()

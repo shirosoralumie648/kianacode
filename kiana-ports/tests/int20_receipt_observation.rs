@@ -169,7 +169,10 @@ fn observation_projection_binds_attempt_scope_and_ordered_evidence() {
 
     let projection = observation.projection().expect("projection");
     let encoded = serde_json::to_string(&projection).expect("projection json");
-    assert!(encoded.contains("result_digest"));
+    // The observation projection binds digests, never the provider result itself: the receipt
+    // projection is the only place `result_digest` belongs.
+    assert!(encoded.contains("observation_digest"));
+    assert!(encoded.contains("projection_digest"));
     assert!(!encoded.contains("\"result\":"));
     let decoded: kiana_domain::EffectObservationProjection =
         serde_json::from_str(&encoded).expect("projection decode");

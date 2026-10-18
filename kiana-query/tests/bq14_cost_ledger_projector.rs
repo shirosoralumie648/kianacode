@@ -116,6 +116,52 @@ fn events(entry: &CostLedgerEntry, correction: &CostCorrection) -> Vec<RuntimeEv
     ]
 }
 
+/// Re-seal the digest chain after a semantically valid mutation of a correction fact.
+///
+/// A `CostCorrection` carries three digest levels: the command digest (the approval subject), the
+/// approval digest (binding the command digest to the approver) and the correction digest (the
+/// whole fact). Mutating a bound field such as `target_run_id` invalidates all three; recomputing
+/// them keeps the fixture on the intended domain refusal instead of stopping at the generic
+/// `cost_correction_command_digest_mismatch` gate.
+fn reseal(correction: &mut CostCorrection) {
+    // The command digest is computed over the command schema, not the correction fact schema.
+    let command = CostCorrectionCommand {
+        schema: kiana_domain::COST_CORRECTION_COMMAND_SCHEMA.to_owned(),
+        version: kiana_domain::COST_LEDGER_VERSION,
+        command_id: correction.command_id,
+        correction_id: correction.correction_id,
+        target_entry_id: correction.target_entry_id,
+        target_entry_digest: correction.target_entry_digest.clone(),
+        target_run_id: correction.target_run_id,
+        target_attempt_id: correction.target_attempt_id,
+        target_source_cursor: correction.target_source_cursor,
+        target_revision: correction.target_revision,
+        delta_estimated: correction.delta_estimated.clone(),
+        delta_measured: correction.delta_measured.clone(),
+        reason: correction.reason.clone(),
+        evidence_refs: correction.evidence_refs.clone(),
+        requested_by: correction.requested_by.clone(),
+        idempotency_key: correction.idempotency_key.clone(),
+        created_at_unix_ms: correction.created_at_unix_ms,
+        approval: None,
+        command_digest: String::new(),
+    };
+    let command_digest = command.digest();
+    let approval = CostCorrectionApproval::new(
+        correction.approval_id,
+        correction.command_id,
+        command_digest.clone(),
+        correction.target_entry_digest.clone(),
+        correction.approver_id.clone(),
+        correction.approved_at_unix_ms,
+    )
+    .expect("approval");
+    correction.command_digest = command_digest;
+    correction.approval_digest = approval.approval_digest;
+    correction.correction_digest = String::new();
+    correction.correction_digest = correction.digest();
+}
+
 /// 只接受 `Invalid` 分支并返回稳定原因串，其他结局视为夹具写错。
 fn invalid_reason(result: Result<CostLedgerProjection, CostLedgerProjectionError>) -> String {
     match result {
@@ -202,11 +248,22 @@ fn projector_rejects_tampered_correction_payload_bindings() {
         "cost_correction_approval_digest_mismatch"
     );
 
-    let mut run_drift = serde_json::to_value(&correction).expect("json");
-    run_drift["target_run_id"] = json!(RunId::new().to_string());
-    let event = RuntimeEvent::new(RequestId::new(), 2, COST_CORRECTION_EVENT, run_drift)
-        .expect("event")
-        .with_stream_metadata("cost_ledger", entry.entry_id.to_string(), 2);
+    // The correction fact is digest-bound end to end, so a target drift also has to move the
+    // command/approval/correction digests; otherwise the generic command digest check fires first
+    // and this fixture would never reach the target-binding refusal it is meant to pin. The drift
+    // is expressed on the target entry digest: moving `target_run_id` alone would instead trip the
+    // fact's own run binding or the projector's envelope check before the target comparison.
+    let mut target_drift = correction.clone();
+    target_drift.target_entry_digest = format!("sha256:{}", "b".repeat(64));
+    reseal(&mut target_drift);
+    let event = RuntimeEvent::new(
+        RequestId::new(),
+        2,
+        COST_CORRECTION_EVENT,
+        serde_json::to_value(&target_drift).expect("json"),
+    )
+    .expect("event")
+    .with_stream_metadata("cost_ledger", entry.entry_id.to_string(), 2);
     assert_eq!(
         invalid_reason(project_cost_ledger(
             entry.run_id,
@@ -215,15 +272,24 @@ fn projector_rejects_tampered_correction_payload_bindings() {
         "cost_correction_target_binding_mismatch"
     );
 
-    let mut currency_drift = serde_json::to_value(&correction).expect("json");
-    currency_drift["delta_estimated"] = json!({
-        "schema": currency_drift["delta_estimated"]["schema"].clone(),
-        "currency": "EUR",
-        "micros": -100,
-    });
-    let event = RuntimeEvent::new(RequestId::new(), 2, COST_CORRECTION_EVENT, currency_drift)
-        .expect("event")
-        .with_stream_metadata("cost_ledger", entry.entry_id.to_string(), 2);
+    // A currency drift is re-sealed the same way so the fact still passes the digest gate and the
+    // domain currency check (not the generic command digest check) is the refusal under test.
+    let mut currency_drift = correction.clone();
+    let mut delta = currency_drift
+        .delta_estimated
+        .clone()
+        .expect("estimate delta");
+    delta.currency = "EUR".to_owned();
+    currency_drift.delta_estimated = Some(delta);
+    reseal(&mut currency_drift);
+    let event = RuntimeEvent::new(
+        RequestId::new(),
+        2,
+        COST_CORRECTION_EVENT,
+        serde_json::to_value(&currency_drift).expect("json"),
+    )
+    .expect("event")
+    .with_stream_metadata("cost_ledger", entry.entry_id.to_string(), 2);
     assert_eq!(
         invalid_reason(project_cost_ledger(
             entry.run_id,
@@ -279,8 +345,10 @@ fn projector_skips_unrelated_events_and_rejects_empty_or_nil_sources() {
         RuntimeEvent::new(RequestId::new(), sequence, "run.started", json!({})).expect("event")
     };
 
+    // `RunId::new()` is a fresh random v4, never nil; a nil id must be built explicitly.
+    let nil_run = RunId::parse_str("00000000-0000-0000-0000-000000000000").expect("nil run");
     assert!(matches!(
-        project_cost_ledger(RunId::new(), &[]),
+        project_cost_ledger(nil_run, &[]),
         Err(CostLedgerProjectionError::RunInvalid)
     ));
     assert!(matches!(

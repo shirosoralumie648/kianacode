@@ -1,6 +1,16 @@
 use kiana_domain::*;
 use serde_json::json;
 
+/// A portable absolute root for the value-contract fixtures. `/tmp/...` is absolute on Unix but
+/// not on Windows, where a drive-prefixed path is required for `StorageRoot::new` to accept it.
+fn root_path(name: &str) -> String {
+    if cfg!(windows) {
+        format!("C:\\kiana-pd01-{name}")
+    } else {
+        format!("/tmp/kiana-pd01-{name}")
+    }
+}
+
 fn owner(instance: &str) -> StorageOwnerScope {
     StorageOwnerScope::new("daemon-owner", instance, None, 7).unwrap()
 }
@@ -8,14 +18,14 @@ fn owner(instance: &str) -> StorageOwnerScope {
 #[test]
 fn storage_root_namespaces_and_identity_are_stable_and_strict() {
     let scope = owner("instance-a");
-    let root = StorageRoot::new("/tmp/kiana-pd01", StorageBackend::LocalFilesystem, scope).unwrap();
+    let root = StorageRoot::new(root_path("base"), StorageBackend::LocalFilesystem, scope).unwrap();
     root.validate().unwrap();
     assert!(root
         .namespace_path(StorageNamespace::Facts)
         .unwrap()
         .ends_with("/facts"));
     let same = StorageRoot::new(
-        "/tmp/kiana-pd01",
+        root_path("base"),
         StorageBackend::LocalFilesystem,
         owner("instance-a"),
     )
@@ -35,13 +45,13 @@ fn storage_root_namespaces_and_identity_are_stable_and_strict() {
 #[test]
 fn storage_root_rejects_id_not_derived_from_path_even_with_recomputed_digest() {
     let mut forged = StorageRoot::new(
-        "/tmp/kiana-pd01-forged-id",
+        root_path("forged-id"),
         StorageBackend::LocalFilesystem,
         owner("instance-a"),
     )
     .unwrap();
     let other = StorageRoot::new(
-        "/tmp/kiana-pd01-other-id",
+        root_path("other-id"),
         StorageBackend::LocalFilesystem,
         owner("instance-a"),
     )
@@ -64,7 +74,7 @@ fn storage_root_rejects_relative_network_and_owner_mismatch() {
         "storage_root_path_invalid"
     );
     let local = StorageRoot::new(
-        "/tmp/kiana-pd01-network",
+        root_path("network"),
         StorageBackend::LocalFilesystem,
         owner("a"),
     )
@@ -81,7 +91,7 @@ fn storage_root_rejects_relative_network_and_owner_mismatch() {
         identity
             .validate(
                 &StorageRoot::new(
-                    "/tmp/kiana-pd01-network",
+                    root_path("network"),
                     StorageBackend::LocalFilesystem,
                     owner("b")
                 )
@@ -95,7 +105,7 @@ fn storage_root_rejects_relative_network_and_owner_mismatch() {
 #[test]
 fn storage_identity_and_lock_reject_zero_time_and_nested_scope_drift() {
     let root = StorageRoot::new(
-        "/tmp/kiana-pd01-time",
+        root_path("time"),
         StorageBackend::LocalFilesystem,
         owner("instance-a"),
     )

@@ -414,12 +414,15 @@ fn validate_digest(value: &str, field: &str) -> Result<(), String> {
 }
 
 fn validate_absolute_path(value: &str) -> Result<(), String> {
+    // `Component::Prefix` is how Windows spells the drive/UNC root of an absolute path, so it
+    // cannot mean "escapes the root". Traversal is still refused through `ParentDir`, and
+    // `is_absolute()` keeps Unix anchored at `/` and Windows anchored at a prefix + root.
     if value.trim().is_empty()
         || value.len() > MAX_STORAGE_PATH_BYTES
         || !Path::new(value).is_absolute()
         || Path::new(value)
             .components()
-            .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)))
+            .any(|component| matches!(component, Component::ParentDir))
     {
         return Err("storage_root_path_invalid".to_owned());
     }

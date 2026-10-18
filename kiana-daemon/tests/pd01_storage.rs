@@ -25,6 +25,9 @@ fn fixture_root(label: &str) -> (PathBuf, StorageRoot) {
     (path, root)
 }
 
+// The single-writer lease opens directory handles that daemon-local packaging only implements
+// on Unix; the resolver half still runs everywhere through the surface tests below.
+#[cfg(unix)]
 #[test]
 fn daemon_storage_resolver_and_lock_reject_scope_conflicts() {
     let project = temp_root("project");
@@ -94,8 +97,12 @@ fn daemon_storage_resolver_rejects_existing_non_directory_root() {
     let _ = fs::remove_file(storage_file);
 }
 
+#[cfg(unix)]
 #[test]
 fn daemon_storage_resolver_rejects_filesystem_root() {
+    // On Windows `/` has no drive prefix and is therefore not absolute at all; the resolver
+    // refuses it earlier with `storage_root_must_be_absolute`, so only Unix can express the
+    // filesystem-root shape this fixture pins.
     let project = temp_root("filesystem-root-project");
     fs::create_dir_all(&project).unwrap();
     let previous = std::env::var_os("KIANA_HOME");
@@ -455,6 +462,7 @@ fn daemon_storage_surface_binding_rejects_scope_and_digest_tampering() {
     let _ = fs::remove_dir_all(home);
 }
 
+#[cfg(unix)]
 #[test]
 fn daemon_storage_identity_survives_a_new_process() {
     const CHILD_ENV: &str = "KIANA_PD01_RESTART_CHILD";

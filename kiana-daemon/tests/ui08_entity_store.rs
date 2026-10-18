@@ -353,11 +353,29 @@ async fn raw_run_stream_frames_are_refused_without_an_entity_envelope() {
         64,
     )
     .expect("ui08 store");
-    let mut boundary = None;
+    // The store starts unhydrated: the boundary is the position marker that lets a following
+    // delta reach entity parsing instead of failing closed with `GapRequired`.
+    let boundary = live
+        .frames
+        .iter()
+        .find(|frame| frame.kind == UiFeedFrameKind::SnapshotBoundary)
+        .cloned()
+        .expect("live run starts with a boundary");
+    let boundary_scope = store.scope().clone();
+    assert_eq!(
+        store
+            .apply(UiStoreEvent::feed(boundary_scope, boundary.clone()))
+            .expect("the daemon's initial boundary is adoptable"),
+        UiStoreChange::SnapshotHydrated
+    );
     let mut entity_bearing = 0usize;
     for frame in &live.frames {
-        if frame.kind == UiFeedFrameKind::SnapshotBoundary {
-            boundary = Some(frame.clone());
+        if matches!(
+            frame.kind,
+            UiFeedFrameKind::SnapshotBoundary | UiFeedFrameKind::Heartbeat
+        ) {
+            // Position marker frames carry no entity payload; only data frames are refused for
+            // the missing entity namespace this test proves.
             continue;
         }
         // 真实 run-stream 载荷只有 RunStreamEvent，没有 entity 命名空间：先证明这一点，
@@ -371,8 +389,25 @@ async fn raw_run_stream_frames_are_refused_without_an_entity_envelope() {
             "a raw run-stream frame must not carry an entity envelope: {payload}"
         );
         entity_bearing += 1;
-        let frame_scope = store.scope().clone();
-        match store.apply(UiStoreEvent::feed(frame_scope, frame.clone())) {
+        // Each refused frame leaves the shared store's position untouched (a refusal is not a
+        // fact), so a later frame would trip the sequence fence before entity parsing. Probe with
+        // a fresh hydrated store per frame so every raw payload is proven to fail on its missing
+        // entity namespace rather than on the gap the previous refusal created.
+        let mut probe = UiEntityStore::new(store.scope().clone(), 64).expect("ui08 probe store");
+        let probe_scope = probe.scope().clone();
+        let position = frame.cursor.feed_sequence;
+        let preceding = marker_frame(
+            &live.instance,
+            &live.epoch,
+            position.saturating_sub(1),
+            "probe-boundary",
+            UiFeedFrameKind::SnapshotBoundary,
+        );
+        probe
+            .apply(UiStoreEvent::feed(probe_scope, preceding))
+            .expect("probe boundary");
+        let frame_scope = probe.scope().clone();
+        match probe.apply(UiStoreEvent::feed(frame_scope, frame.clone())) {
             Err(UiStoreError::Invalid(code)) => {
                 assert_eq!(code, "ui_feed_entity_kind_missing");
             }
@@ -385,23 +420,9 @@ async fn raw_run_stream_frames_are_refused_without_an_entity_envelope() {
     );
     assert!(store.is_empty());
     assert_eq!(store.count_of_kind(UiEntityKind::Run), 0);
-    assert_eq!(store.epoch(), "");
-    assert_eq!(store.feed_sequence(), 0);
-
-    // 边界帧本身是位置 marker：store 采纳它，但采纳它不会凭空造出实体。
-    let boundary_scope = store.scope().clone();
-    assert_eq!(
-        store
-            .apply(UiStoreEvent::feed(
-                boundary_scope,
-                boundary.expect("boundary frame")
-            ))
-            .expect("the daemon's initial boundary is adoptable"),
-        UiStoreChange::SnapshotHydrated
-    );
+    // 边界帧本身是位置 marker：store 采纳了它，但采纳它不会凭空造出实体，也不移动位置。
     assert_eq!(store.epoch(), live.epoch.as_str());
     assert_eq!(store.feed_sequence(), 0);
-    assert!(store.is_empty());
 
     // 投影不追加事实，也不重新调用模型：事实仍归 EventStore/ControlPlane。
     assert_eq!(
@@ -470,10 +491,12 @@ async fn store_projection_is_scope_bound_and_never_writes_facts() {
         if index == 0 {
             assert_eq!(change, UiStoreChange::SnapshotHydrated);
         }
-        let tab_two_scope = tab_two.scope().clone();
+        // The frame is bound to tab-1's scope; handing it to tab-2 must fail closed instead of
+        // projecting the same authoritative fact into a second tab.
+        let tab_one_scope = tab_one.scope().clone();
         assert_eq!(
             tab_two
-                .apply(UiStoreEvent::feed(tab_two_scope, projected))
+                .apply(UiStoreEvent::feed(tab_one_scope, projected))
                 .unwrap_err(),
             UiStoreError::ScopeMismatch
         );

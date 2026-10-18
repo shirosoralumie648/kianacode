@@ -394,7 +394,7 @@ fn projection_contracts_are_read_only() {
         "std::process",
         "tokio::spawn",
         "unsafe",
-        "#[ignore",
+        concat!("#[", "ignore"),
     ] {
         assert!(
             !source.contains(forbidden),
