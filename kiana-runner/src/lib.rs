@@ -90,8 +90,10 @@ pub use compact::{
 // RuntimeConfig 控制步数、连续重复调用阈值、挂钟和压缩等参数；
 // KianaHarnessError 是错误类型，两个 HARNESS_* 常量用于标识实现和结果格式。
 pub use harness::{
-    KianaHarness, KianaHarnessError, RuntimeConfig, HARNESS_ID, HARNESS_RESULT_SCHEMA,
+    KianaHarness, KianaHarnessError, RetainedRunSnapshot, RetentionBudget, RuntimeConfig,
+    HARNESS_ID, HARNESS_RESULT_SCHEMA,
 };
+pub use kiana_runner_protocol::{HarnessPanicRecord, HarnessPanicResource, HARNESS_PANIC_ERROR};
 
 // ■ 收件箱
 // insert/insert_for_run 接收文本，claim 在指定边界取走消息；这里不解释命令或授予权限。

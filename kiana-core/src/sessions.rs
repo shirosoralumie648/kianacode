@@ -345,6 +345,31 @@ impl ControlPlane {
             .remove(&path_lock_session_key(project_root, session_id));
     }
 
+    /// 释放 Builder 路径锁，但只在 run 的停止证据确认后才允许。
+    ///
+    /// 【为什么需要单独入口】`BuilderPathLockGuard` 的 Drop 只知道 session，无法区分
+    /// 「run 已确认停止」与「调用栈被 drop / Host 关闭」。后者不是停止证明：如果在这里
+    /// 直接释放锁，下一个 Builder 就可能进入一个仍然存活的外部写者正在修改的路径。
+    /// 所以这里先读 run 的执行停止集合；只有 `Confirmed` 才真正释放，否则保留 fencing。
+    ///
+    /// 【输出】`true` 表示锁已释放；`false` 表示缺停止证据，锁被保留（调用方必须按
+    /// `result_unknown` / 对账语义处理，而不是当作已清理）。
+    /// 【边界】本方法只操作进程内路径锁与 durable lease；不杀进程、不等待外部副作用。
+    pub(crate) fn release_builder_path_locks_if_confirmed(
+        &self,
+        run_id: RunId,
+        project_root: &str,
+        session_id: &str,
+    ) -> bool {
+        if self.execution_stop_snapshot(run_id).resolution()
+            != kiana_domain::StopSetResolution::Confirmed
+        {
+            return false;
+        }
+        self.release_builder_path_locks(project_root, session_id);
+        true
+    }
+
     pub(crate) fn watch_cancel(&self, run_id: RunId) -> watch::Receiver<bool> {
         let mut cancellations = self
             .cancellations

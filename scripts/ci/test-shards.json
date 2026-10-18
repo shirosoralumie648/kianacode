@@ -436,6 +436,7 @@
    "h28_progress_guard",
    "h30_retrieval_guard",
    "h31_child_harness_guard",
+   "h33_resource_cleanup_behavior",
    "h33_resource_cleanup_guard",
    "h34_legacy_compat_guard",
    "h35_harness_eval_guard",

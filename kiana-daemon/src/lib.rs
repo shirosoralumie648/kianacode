@@ -258,6 +258,33 @@ const ENV_HARNESS_TASK_WALL_TIME_MS: &str = "KIANA_HARNESS_TASK_WALL_TIME_MS";
 /// 「观测失败不能改变业务状态」约定。
 const OBSERVABILITY_QUEUE_CAPACITY: usize = 1_024;
 
+/// 关闭时排空观测队列的上限；超时按「排空未完成」记录 `LogFailure` 证据。
+const OBSERVABILITY_SHUTDOWN_FLUSH_TIMEOUT: Duration = Duration::from_millis(250);
+
+/// 观测队列关闭后的稳定失败原因。
+///
+/// - `observability_flush_cancelled`：flush 被取消（超时或内部取消）；
+/// - `observability_flush_incomplete`：关闭时队列仍有深度；
+/// - `observability_critical_rejected`：关键项曾被拒绝，说明有事实未及时投递。
+///
+/// 这些码只描述**投递**失败；EventLog 里已提交的事实不受影响。
+fn observability_failure_reason(
+    cancelled: bool,
+    stats: &ObservabilityQueueStats,
+    _drained_sequence: u64,
+) -> Option<String> {
+    if cancelled {
+        return Some("observability_flush_cancelled".to_owned());
+    }
+    if stats.depth > 0 {
+        return Some("observability_flush_incomplete".to_owned());
+    }
+    if stats.critical_rejected_total > 0 {
+        return Some("observability_critical_rejected".to_owned());
+    }
+    None
+}
+
 /// 在任何请求触达 ControlPlane **之前**，校验「受保护传输」的可选元数据。
 ///
 /// 【作用】
@@ -1717,17 +1744,66 @@ impl DaemonHost {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    /// Graceful shutdown boundary: flush committed facts before draining the best-effort
-    /// observability queue, then close the EventStore. A close/flush error is returned as
-    /// `result_unknown` by callers; dropping the host is never treated as a terminal ack.
+    /// Graceful shutdown boundary: cancel in-flight runs and record cleanup evidence, flush
+    /// committed facts, drain the best-effort observability queue with a bound, then close the
+    /// EventStore. A close/flush error is returned as `result_unknown` by callers; dropping the
+    /// host is never treated as a terminal ack.
+    ///
+    /// 【顺序为什么不能调换】EventLog 是事实边界：先落清理报告，再 flush 事实，再排空观测，
+    /// 最后关账本。观测队列排空失败不能让已经提交的清理报告消失，也不能把关闭升格成成功。
+    /// 【为什么同时调用 `flush_observability`】它是无界排空入口；关闭路径先用带时限的
+    /// `drain_observability_bounded` 避免消费者已死时永久挂起，再调用无界入口收尾仍留在
+    /// 队列里的条目。两者都不改变关闭结果。
     pub async fn shutdown(&self) -> Result<kiana_domain::EventStoreHealth, PortError> {
         let _ = self.workflow_service.shutdown().await?;
         let _ = self.automation_dispatch_service.shutdown().await?;
         let _ = self.automation_cancellation_service.shutdown().await?;
+        // 先取消仍在执行的 run 并写 Shutdown 证据；这里不等待外部副作用，也不把
+        // 「已发送取消」当成停止确认——报告里的资源仍是 IsolatedUnknown。
+        let shutdown_runs = self
+            .core
+            .shutdown_in_flight_runs(kiana_domain::RequestId::new())
+            .await;
         self.flush_event_store().await?;
-        let _ = self.flush_observability().await;
-        self.shutdown_observability();
+        // Bounded first: a queue whose consumer is gone must not hang the close path.
+        let (drained, cancelled) = self.drain_observability_bounded().await;
+        // Then the unbounded drain entry point, but only when the bounded drain was not
+        // cancelled: a cancelled drain means no consumer exists, and `flush()` would wait
+        // forever on the remaining items instead of letting shutdown finish.
+        if !cancelled {
+            let _ = self.flush_observability().await;
+        }
+        let stats = self.shutdown_observability();
+        if let Some(reason) = observability_failure_reason(cancelled, &stats, drained) {
+            // 观测投递失败是独立事实：为受影响的 run 追加 LogFailure 证据，再 flush 一次，
+            // 保证证据在 close 之前落账。写入失败只保留 Unknown 语义，不改变关闭结果。
+            if !shutdown_runs.is_empty() {
+                self.core
+                    .record_shutdown_log_failures(&shutdown_runs, reason)
+                    .await;
+                let _ = self.flush_event_store().await;
+            }
+        }
         self.close_event_store().await
+    }
+
+    /// 有界地排空观测队列：超时或关闭时返回 `(drained_sequence, cancelled)`。
+    ///
+    /// 无界 `flush()` 在消费者已死时会永久挂起，关闭路径不能被它拖住。
+    async fn drain_observability_bounded(&self) -> (u64, bool) {
+        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let queue = self.observability_queue.clone();
+        let flush = tokio::spawn(async move { queue.flush_cancellable(cancel_rx).await });
+        match tokio::time::timeout(OBSERVABILITY_SHUTDOWN_FLUSH_TIMEOUT, flush).await {
+            Ok(Ok(Ok(sequence))) => (sequence, false),
+            Ok(Ok(Err(_))) => (self.observability_queue.stats().flush_sequence, true),
+            Ok(Err(_)) => (self.observability_queue.stats().flush_sequence, true),
+            Err(_) => {
+                // 超时后通知 flush 退出；队列本身仍由 shutdown() 标记关闭。
+                let _ = cancel_tx.send(true);
+                (self.observability_queue.stats().flush_sequence, true)
+            }
+        }
     }
 
     /// Enqueue a redacted observation without blocking the ControlPlane or EventStore commit.
@@ -2021,13 +2097,11 @@ impl DaemonHost {
 
     pub fn local_with_model_config(config: LocalModelConfig) -> Result<Self, PortError> {
         let runtime_config = runtime_config_from_env()?;
-        Self::with_runner_and_events(
-            Arc::new(KianaHarness::with_config(
-                model_client::from_config(config),
-                runtime_config,
-            )),
-            Arc::new(JsonlEventLog::open_default()?),
-        )
+        let harness = apply_default_resource_retention(KianaHarness::with_config(
+            model_client::from_config(config),
+            runtime_config,
+        ))?;
+        Self::with_runner_and_events(Arc::new(harness), Arc::new(JsonlEventLog::open_default()?))
     }
 
     pub fn local_with_project_authority(
@@ -2633,9 +2707,22 @@ impl HarnessRuntimeConfig {
     }
 }
 
+/// 把控制面的默认资源留存预算应用到 runner。
+///
+/// 【为什么在组合根翻译】`kiana_domain::ResourceRetention` 是控制面预算；runner 只接收
+/// 自己的 `RetentionBudget`，不反向依赖控制面 DTO。这里的上限只约束**进程内留存**的
+/// 已终态 run/frame/history 字节，不杀进程、不释放 OS 锁，也不改变 EventLog 事实。
+/// 任一维度为零时 runner 返回 `resource_retention_invalid`，组合根直接拒绝启动。
+fn apply_default_resource_retention(harness: KianaHarness) -> Result<KianaHarness, PortError> {
+    let (runs, frames, history_bytes) = kiana_core::DEFAULT_RESOURCE_RETENTION;
+    let budget = kiana_runner::RetentionBudget::new(runs, frames, history_bytes)
+        .map_err(PortError::Failed)?;
+    Ok(harness.with_retention(budget))
+}
+
 fn configured_env_harness() -> Result<KianaHarness, PortError> {
     let config = runtime_config_from_env()?;
-    Ok(KianaHarness::with_config(model_client::from_env(), config))
+    apply_default_resource_retention(KianaHarness::with_config(model_client::from_env(), config))
 }
 
 pub fn runtime_config_from_env() -> Result<RuntimeConfig, PortError> {
@@ -2871,6 +2958,27 @@ mod tests {
 
     fn harness_with_config(config: RuntimeConfig) -> KianaHarness {
         KianaHarness::with_config(Arc::new(UnavailableModel::default()), config)
+    }
+
+    /// 默认资源留存预算必须能被 runner 接受；零维度会在组合根直接失败。
+    ///
+    /// 这里断言的是「预算已被翻译并接受」，不是「已经裁剪过」——裁剪仍由 runner 在
+    /// 终态事件排空后执行，且只动进程内留存。
+    #[test]
+    fn default_resource_retention_is_accepted_by_the_runner() {
+        let (runs, frames, history_bytes) = kiana_core::DEFAULT_RESOURCE_RETENTION;
+        assert!(runs > 0 && frames > 0 && history_bytes > 0);
+        let harness =
+            apply_default_resource_retention(harness_with_config(RuntimeConfig::default()))
+                .expect("default retention must be valid");
+        assert_eq!(
+            harness.retained_snapshot(),
+            kiana_runner::RetainedRunSnapshot {
+                retained_runs: 0,
+                retained_frames: 0,
+                history_bytes: 0,
+            }
+        );
     }
 
     #[test]

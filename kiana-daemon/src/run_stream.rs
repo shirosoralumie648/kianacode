@@ -882,6 +882,14 @@ impl RunnerPort for RunStreamRunner {
         self.inner.restore(run_id, checkpoint).await
     }
 
+    fn take_panic_evidence(
+        &self,
+        run_id: RunId,
+    ) -> Option<kiana_runner_protocol::RunnerPanicRecord> {
+        // 同 SkillAwareRunner：证据必须穿过流式包装层，否则 Core 会把它当成无证据。
+        self.inner.take_panic_evidence(run_id)
+    }
+
     async fn send(&self, command: RunnerCommand) -> Result<Vec<RunnerEvent>, PortError> {
         self.prepare(&command);
         if !self.bus.has_subscribers(command.run_id()) {

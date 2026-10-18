@@ -90,6 +90,14 @@ impl RunStopChannel {
     pub(crate) fn resolution(&self) -> StopSetResolution {
         self.lock_set().resolution()
     }
+
+    /// 当前集合快照，供清理计划读取每项的停止状态。
+    ///
+    /// 这是只读副本：调用方据此决定资源应记为 `Released` 还是 `IsolatedUnknown`，
+    /// 不会因读取而改变任何执行状态。
+    pub(crate) fn snapshot(&self) -> RunExecutionStopSet {
+        self.lock_set().clone()
+    }
 }
 
 impl ControlPlane {
@@ -121,6 +129,19 @@ impl ControlPlane {
         if let Some(channel) = channel {
             channel.resolve(execution_id, stop_requested, confirmed);
         }
+    }
+
+    /// 读取一个 Run 的停止集合快照；没有登记过执行时返回空集合。
+    ///
+    /// 空集合表示「本进程没有已知在飞执行」，它**不是**外部副作用的停止证明；清理路径必须
+    /// 结合资源自身的 `requires_stop_confirmation` 判断。
+    pub(crate) fn execution_stop_snapshot(&self, run_id: RunId) -> RunExecutionStopSet {
+        self.capability_stops
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&run_id)
+            .map(|channel| channel.snapshot())
+            .unwrap_or_else(|| RunExecutionStopSet::new(run_id))
     }
 
     fn run_stop_channel(&self, run_id: RunId) -> Arc<RunStopChannel> {
