@@ -19,6 +19,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format gate
         run: cargo fmt --all --check
+      - name: Check affected targets
+        run: cargo check -p kiana-domain -p kiana-core --tests --locked
       - name: Run kiana-core dep05_operation_lifecycle_guard
         run: cargo test -p kiana-core --test dep05_operation_lifecycle_guard --locked -- --test-threads=1
       - name: Run kiana-domain dep05_operation_lifecycle

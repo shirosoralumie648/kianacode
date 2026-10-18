@@ -16,9 +16,11 @@
 //! 当前 Core 门面（facade）尚无生产调用者，DEP-05 的部署（deployment）接入仍为 partial；
 //! Domain 测试夹具（fixture）证明合同样例，不代表启动或操作路径已经接线。
 //!
-//! 状态之间有先后约束：必须先完成 preflight，才能 drain 或 execute；drain 超时进入终态
-//! `Unknown`，因为超时只证明等待窗口已过，不能证明底层进程确实停止。所有 digest 都是
-//! 无密钥 SHA-256 内容指纹，不是身份签名、授权凭证或外部对象真实性证明。
+//! 状态之间有先后约束：必须先完成 preflight，才能 drain 或 execute。终态 `Unknown` 有两条
+//! 路径：一是 drain deadline 到期（`DrainTimeout`，只证明等待窗口已过），二是上游报告结果
+//! 不确定（`ResultUnknown`，可从 Draining 或 Executing 到达）；两者都不能证明底层进程确实
+//! 停止，也不会产生 `Stopped` 状态。所有 digest 都是无密钥 SHA-256 内容指纹，不是身份签名、
+//! 授权凭证或外部对象真实性证明。
 //!
 //! Serde 的 `Serialize` 把结构体/枚举写成 JSON 等 wire 数据，`Deserialize` 执行反向读取；
 //! 枚举上的 `rename_all = "snake_case"` 固定协议中的变体名称，结构体上的
@@ -229,7 +231,7 @@ pub struct OperationTransition {
     pub kind: OperationTransitionKind,
     /// 面向诊断和上层展示的单行原因码/文本。
     pub reason: String,
-    /// 上游提供的证据引用列表；当前校验允许空列表，非空引用也只校验格式/去重。
+    /// 上游提供的证据引用列表；非空列表中的每一项只校验格式/去重。
     pub evidence_refs: Vec<String>,
     /// 对 `evidence_refs` 列表计算的摘要，不证明引用目标存在。
     pub evidence_digest: String,
@@ -251,7 +253,8 @@ impl OperationTransition {
     /// - `operation_id`、`revision_id`、`revision_digest`：固定操作和部署修订版身份。
     /// - `sequence`、`source_cursor`：本操作内的序号和上游事件存储游标，分别用于检查连续性/前进。
     /// - `from_state`、`kind`：当前状态声明和请求记录的迁移种类，由白名单推导目标状态。
-    /// - `reason`、`evidence_refs`：上游给出的原因与证据引用；当前合同允许引用列表为空。
+    /// - `reason`、`evidence_refs`：上游给出的原因与证据引用；证据列表必须非空，
+    ///   首个 bootstrap 事实由 `OperationJournal::new()` 的 `operation.created` 提供。
     /// - `observed_at_unix_ms`、`deadline`：上游观察时间和可选阶段截止时间，用于超时关系校验。
     ///
     /// 【输出】成功返回带当前 schema/version、推导后 `state`/`phase`、evidence digest 和
@@ -302,8 +305,10 @@ impl OperationTransition {
     /// 校验 transition 的头部、单条迁移映射、deadline、evidence 和自摘要。
     ///
     /// 这是单条记录校验，不知道此前 journal 的 preflight 标记或 active deadline；通过并不
-    /// 单独表示可将其应用到某个 operation。上游通过 `append()` 后遇到错误时应按原错误处理，
-    /// 本方法不会重试、记录日志或补偿外部效果。
+    /// 单独表示可将其应用到某个 operation。每条 transition 必须携带至少一个 evidence
+    /// 引用（`operation_evidence_required`）；只有 `OperationJournal::new()` 的
+    /// `operation.created` 初始投影不经过此方法。上游通过 `append()` 后遇到错误时应按原
+    /// 错误处理，本方法不会重试、记录日志或补偿外部效果。
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != OPERATION_LIFECYCLE_SCHEMA
             || self.version != OPERATION_LIFECYCLE_VERSION
@@ -458,8 +463,9 @@ impl OperationJournal {
     /// deadline 校验。成功返回重放后的内存投影。
     ///
     /// 【失败与限制】第一条不合法 transition 会停止并返回其稳定错误字符串。输入是一个从头
-    /// 开始的 transition iterator，不是 expected persisted snapshot；此方法不与某个外部 journal
-    /// 比较，也不读取 EventStore、补齐缺失事实或持久化重建结果。
+    /// 开始的 transition iterator；此方法只返回重放结果，不与某个外部 journal 比较，也不读取
+    /// EventStore、补齐缺失事实或持久化重建结果。需要与 persisted snapshot 比较时用
+    /// `kiana-core` 的 `replay_operation_journal()`。
     pub fn replay(
         operation_id: OperationId,
         revision_id: impl Into<String>,
@@ -480,14 +486,16 @@ impl OperationJournal {
     /// preflight 和 deadline 条件，更新投影字段/transition 列表并重算 journal 摘要。
     ///
     /// 【失败与副作用】正常拒绝以稳定 `String` 返回；不重试、记日志、写 EventStore 或调用
-    /// supervisor。此方法会修改传入的内存对象，不是事务或持久化提交。
+    /// supervisor。容量上限在任何投影字段被修改之前检查（`MAX_OPERATION_TRANSITIONS`），
+    /// 并且所有更新先写入克隆副本、只有副本自检通过后才整体替换 `self`。因此任何 `Err`
+    /// 都保证原 journal 逐字段未变，不会留下半更新的投影或 transition 列表。
     /// `Ok(())` 表示 transition 已被折叠到这个内存对象；它不表示外部部署效果成功或已持久提交。
-    ///
-    /// ⚠ 当前容量上限由最后的 `self.validate()` 检查，而不是在 append 前拒绝。正常状态机路径
-    /// 不能累积到 256 条；但当前 `validate()` 对嵌套 transition 的检查不完整，畸形 journal
-    /// 可能先被接受并到达该边界。此时追加第 257 条会在投影字段和列表已修改后返回
-    /// `operation_transition_limit_or_sequence_invalid`，没有自动回滚；`Err` 不能被当作原状态未变。
     pub fn append(&mut self, transition: OperationTransition) -> Result<(), String> {
+        // 容量围栏必须在自检/投影写入之前执行：畸形 journal 达到上界时也只会返回稳定错误，
+        // 不会先修改字段再失败；Err 之后 journal 必须保持原样。
+        if self.transitions.len() >= MAX_OPERATION_TRANSITIONS {
+            return Err("operation_transition_limit_or_sequence_invalid".to_owned());
+        }
         self.validate()?;
         if self.current_state.is_terminal() {
             return Err("operation_terminal_immutable".to_owned());
@@ -513,19 +521,22 @@ impl OperationJournal {
             self.active_deadline.as_ref(),
             &transition,
         )?;
-        self.current_state = state;
-        self.current_phase = state.phase();
-        self.preflight_completed = preflight_completed;
-        self.sequence = transition.sequence;
-        self.source_cursor = transition.source_cursor;
-        self.reason = transition.reason.clone();
-        self.evidence_refs = transition.evidence_refs.clone();
-        self.evidence_digest = transition.evidence_digest.clone();
-        self.active_deadline = active_deadline;
-        self.transitions.push(transition);
-        self.journal_digest = self.digest();
-        // 这是更新后的完整投影自检。若这里失败，前面的原地更新已经发生，不会自动恢复旧值。
-        self.validate()
+        // 先写入克隆副本并完成自检，成功后才替换 self；这样任何 Err 都不会留下半更新状态。
+        let mut candidate = self.clone();
+        candidate.current_state = state;
+        candidate.current_phase = state.phase();
+        candidate.preflight_completed = preflight_completed;
+        candidate.sequence = transition.sequence;
+        candidate.source_cursor = transition.source_cursor;
+        candidate.reason = transition.reason.clone();
+        candidate.evidence_refs = transition.evidence_refs.clone();
+        candidate.evidence_digest = transition.evidence_digest.clone();
+        candidate.active_deadline = active_deadline;
+        candidate.transitions.push(transition);
+        candidate.journal_digest = candidate.digest();
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     /// 从头重算 transition 链，并验证当前投影字段和 journal 摘要是否与该链自洽。
@@ -534,15 +545,16 @@ impl OperationJournal {
     /// 外层直接从 wire 解码的调用方也可以显式调用它。
     ///
     /// 校验顺序为：header/文本/evidence → 数量与序号 → active deadline → 每条 transition 的
-    /// operation/revision/sequence/cursor 连续性与状态折叠 → 当前 state/phase/preflight/cursor/
-    /// deadline 和重算投影比较 → 最终摘要。第一个不满足条件的环节返回专属稳定字符串。
-    /// 这是结构和内部一致性检查，不会访问 EventStore、验证 source cursor 的提交存在性或认证 digest。
+    /// 自身校验（`OperationTransition::validate()`：schema/version、reason/evidence 形状、自摘要、
+    /// expected state/phase 与 deadline 规则）及其 operation/revision/sequence/cursor 连续性与
+    /// 状态折叠 → 当前 state/phase/preflight/cursor/deadline 和重算投影比较 → 最终摘要。
+    /// 第一个不满足条件的环节返回专属稳定字符串。这是结构和内部一致性检查，不会访问
+    /// EventStore、验证 source cursor 的提交存在性或认证 digest。
     ///
-    /// ⚠ 当前代码的重放循环调用 `validate_against()`，但没有逐条调用
-    /// `OperationTransition::validate()`；因此 wire 解码后的 journal 直接进入此方法时，嵌套
-    /// transition 的 schema/version、reason/evidence 形状、自摘要及 expected state/phase 不会
-    /// 全部重新校验。外层 digest 又是无密钥摘要，调用方可以重算它，不能把 `Ok(())` 当成
-    /// 每条内层事实都经过完整验证。
+    /// 由于重放循环对每条嵌套 transition 调用完整自身校验，wire 解码后即使重新计算了
+    /// `journal_digest`，篡改内层字段而未同步 `transition_digest` 仍会以
+    /// `operation_transition_digest_mismatch` 失败。无密钥摘要仍只能证明载荷自洽，不能证明
+    /// 事实曾写入 EventStore。
     ///
     /// 当前代码还会独立验证顶层 reason/evidence_digest，却未将顶层 reason/evidence_refs 与最后
     /// 一条 transition 对照。因此自摘要正确仍不足以证明这两项来自同一条已提交 transition。
@@ -575,6 +587,8 @@ impl OperationJournal {
         let mut cursor = 0;
         let mut expected_sequence = 1;
         for transition in &self.transitions {
+            // 每条嵌套事实先做完整自身校验；只重算外层 journal_digest 不能伪造内层 transition。
+            transition.validate()?;
             // sequence 必须从 1 开始无间隙；source cursor 可以跳号，但不允许重复或倒退。
             if transition.operation_id != self.operation_id
                 || transition.revision_id != self.revision_id
@@ -788,11 +802,16 @@ fn validate_against(
     Ok((transition.state, next_preflight, next_deadline))
 }
 
-/// 检查 evidence 引用列表的数量、单项文本、重复项和列表摘要。
+/// 检查 evidence 引用列表的非空性、数量、单项文本、重复项和列表摘要。
 ///
-/// 失败返回稳定的 evidence 错误码，由 transition/journal 校验传播。当前合同允许 `refs` 为空；
-/// 因此成功只说明空列表或所给列表的摘要自洽，不代表每个引用目标存在、可读取或已提交。
+/// 失败返回稳定的 evidence 错误码，由 transition/journal 校验传播。除 `OperationJournal::new()`
+/// 写入的 `operation.created` bootstrap 投影外，每条 transition 和每个非初始 journal 投影都
+/// 必须至少引用一项证据（`operation_evidence_required`）；成功只说明引用列表非空且摘要自洽，
+/// 不代表每个引用目标存在、可读取或已提交。
 fn validate_evidence(refs: &[String], digest: &str) -> Result<(), String> {
+    if refs.is_empty() {
+        return Err("operation_evidence_required".to_owned());
+    }
     if refs.len() > MAX_OPERATION_EVIDENCE_REFS {
         return Err("operation_evidence_limit".to_owned());
     }
