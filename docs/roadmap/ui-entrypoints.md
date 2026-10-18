@@ -935,6 +935,27 @@ inbox/card revision、owner/tab mismatch、重复卡、隐藏字段/载荷 diges
 重试均 fail-closed；incident/limitation/Unknown 在结果面板可见。GitHub-only fixture、source
 guard 与 workflow 已接入；浏览器 E2E、durable/live/physical proof 留后续。
 
+完成切片（2026-10-18，base `e4611ee3`）：`human.resolve` 实际只派发 approval approve/deny、
+company/company.business 与 failure/feedback review，`ApprovalDecision` 无 amend 变体，restore
+与 continue 分别是独立 `workspace.checkpoint.restore`/`continue_run` 命令。因此不再把 `edit`/
+`restore`/`continue` 作为意图转发后静默落入 `unmapped`，而是由服务端有界表
+`[WebHumanActionRefusal; 3]`（`WEB_HUMAN_REFUSALS`）与客户端 `WEB_HUMAN_UNSUPPORTED_ACTIONS`
+以稳定码 `web_human_resolve_action_unsupported:<id>` 明确拒绝，审计 disposition 记为 `refused`
+并带 `refusal_code`/`refusal_reason`（`no_approval_amend_authority`/
+`restore_is_a_separate_checkpoint_command`/`continue_is_a_separate_resume_command`），既不新增
+后端不存在的动作，也不伪造 dangerous/effect_dispatch。表单 schema 先拒绝补齐：缺必填项与
+必填项显式 `null` → `web_human_required_field_missing`，类型/空串/枚举/长度/列表上限/未知字段
+各自稳定拒绝，均不产生 intent。重复点击复用同一 browser action id + `idempotency_key`，第二次
+提交走服务端 `WebActionClaim::Replay` 回放原响应（`replayed:true`、`retry:query_original`），
+不产生第二次效果；响应丢失/`unknown`/`result_unknown` 只允许以同一 key 查询原 command。
+审计表仍为 `[WebHumanAuditRule; 14]`（未新增行），拒绝表 `[WebHumanActionRefusal; 3]` 与
+fixture 逐行绑定。本地实测三个聚焦 target 全绿（client 8、entrypoints fixture 6、guard 8），
+proof_level `local_behavior`；live `web::tests::ui21_` 两个 staging 夹具在到达审批前被
+base 已有的 `run.tool_call` 事件契约缺陷（CAP-25 写入 `input_digest` 但
+`RUN_TOOL_CALL_FIELDS` 未扩）阻断为 `event_contract_event_payload_unknown_field`，该缺陷本卡
+范围外且同样使无关的 live `loopback_health_and_cassette_write_go_through_daemon_host` 失败，
+故行保持 🔄；浏览器 E2E、durable/live/physical proof 仍开放。
+
 <a id="step-ui-22"></a>
 
 

@@ -45,21 +45,61 @@
     "forged_actor_scope_or_grant_field_refused",
     "unknown_field_type_fails_closed",
     "illegal_field_value_never_forms_intent",
+    "required_field_missing_never_forms_intent",
     "denied_approval_never_dispatches_effect",
-    "replay_returns_recorded_result"
+    "replay_returns_recorded_result",
+    "duplicate_click_never_creates_a_second_effect",
+    "unsupported_edit_restore_continue_refused_with_stable_code",
+    "response_unknown_never_auto_retries"
   ],
   "success": [
     "approve",
     "deny",
-    "edit",
-    "restore",
-    "continue",
+    "edit_refused_with_stable_code",
+    "restore_refused_with_stable_code",
+    "continue_refused_with_stable_code",
     "required_fields_from_server_card",
+    "required_values_accepted_when_present_and_typed",
     "original_command_result_on_replay",
+    "duplicate_click_replays_original_result",
     "unknown_visible_with_query_original",
     "audit_event_and_disposition_visible",
     "dangerous_action_collapsed_with_effect_scope"
   ],
+  "unsupported_actions": [
+    {
+      "command": "approval",
+      "action_id": "edit",
+      "refusal_code": "web_human_resolve_action_unsupported",
+      "reason": "no_approval_amend_authority"
+    },
+    {
+      "command": "approval",
+      "action_id": "restore",
+      "refusal_code": "web_human_resolve_action_unsupported",
+      "reason": "restore_is_a_separate_checkpoint_command"
+    },
+    {
+      "command": "approval",
+      "action_id": "continue",
+      "refusal_code": "web_human_resolve_action_unsupported",
+      "reason": "continue_is_a_separate_resume_command"
+    }
+  ],
+  "response_loss_classes": {
+    "applied": "applied",
+    "accepted": "accepted",
+    "rejected": "rejected",
+    "unknown": "unknown",
+    "unknown_statuses": ["unknown", "result_unknown"],
+    "reconcile": "query_original_same_idempotency_key"
+  },
+  "duplicate_click": {
+    "identity": "browser_action_id",
+    "key": "same_action_id_and_payload_digest",
+    "second_submit": "recorded_result_replay",
+    "second_effect": "never"
+  },
   "audit_matrix": [
     {
       "command": "approval",

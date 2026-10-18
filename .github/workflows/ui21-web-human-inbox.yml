@@ -36,6 +36,31 @@ jobs:
         run: cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked -- --test-threads=1
       - name: Run the Core human.resolve recheck guard
         run: cargo test -p kiana-core --test ui21_human_inbox_guard --locked -- --test-threads=1
+      # Completion slice: unsupported edit/restore/continue must be refused by name rather than
+      # unmapped, required/illegal form values must never form an intent, and a duplicate click or
+      # lost response must reuse one stable submission identity. These run before the live staging
+      # filter so the card's deny-first matrix is gated even where the loopback fixture cannot run.
+      - name: Run the unsupported-decision refusal fixtures
+        run: >-
+          cargo test -p kiana-client --test ui21_human_inbox --locked --
+          --test-threads=1 unsupported
+      - name: Run the required/illegal value refusal fixtures
+        run: >-
+          cargo test -p kiana-client --test ui21_human_inbox --locked --
+          --test-threads=1 required_and_illegal
+      - name: Run the duplicate-click and response-loss guards
+        run: >-
+          cargo test -p kiana-entrypoints --test ui21_web_human_inbox_guard --locked --
+          --test-threads=1 duplicate_click
+      - name: Run the server refusal-table fixture
+        run: >-
+          cargo test -p kiana-entrypoints --test ui21_web_human_inbox --locked --
+          --test-threads=1 unsupported_actions
+      # Known baseline blocker, not introduced by this slice: `kiana-core` writes `input_digest`
+      # into `run.tool_call` while `RUN_TOOL_CALL_FIELDS` in `kiana-domain` was not extended, so
+      # every live harness tool call is refused as `event_contract_event_payload_unknown_field`
+      # before the approval stage. This step stays red until that base defect is fixed; the
+      # focused refusal/duplicate-click fixtures above still gate the card's own behavior.
       - name: Run the live loopback inbox/deny/replay fixtures
         run: cargo test -p kiana-entrypoints --lib web::tests::ui21_ --locked -- --test-threads=1
       - name: Compile the affected targets without running

@@ -351,6 +351,92 @@ fn ui21_submission_key_is_stable_and_carries_no_authority() {
 }
 
 #[test]
+fn ui21_unsupported_edit_restore_continue_are_refused_with_a_stable_code() {
+    // The backend honors only approve/deny inside `human.resolve`: approval amend, workspace
+    // restore and run continue are separate commands.  A card claiming one of those ids must be
+    // refused before any intent exists, never silently accepted or classified as unmapped.
+    for action_id in kiana_client::WEB_HUMAN_UNSUPPORTED_ACTIONS {
+        let mut unsupported = card("approval:1", action_id);
+        unsupported.command = "approval".to_owned();
+        let state = loaded(vec![unsupported.clone()]);
+        assert_eq!(
+            prepare(&state, &unsupported, json!({})).unwrap_err(),
+            format!("web_human_resolve_action_unsupported:{action_id}"),
+            "{action_id} must be refused with its own stable code"
+        );
+        assert_eq!(
+            state
+                .submission_key("approval:1", action_id, &json!({}))
+                .map(|key| key.starts_with("web-human:")),
+            Ok(true),
+            "the submission key stays derivable so a lost response can still be queried"
+        );
+    }
+    assert_eq!(
+        kiana_client::WEB_HUMAN_UNSUPPORTED_ACTIONS,
+        ["edit", "restore", "continue"]
+    );
+    assert_eq!(
+        kiana_client::WEB_HUMAN_REFUSAL_ACTION_UNSUPPORTED,
+        "web_human_resolve_action_unsupported"
+    );
+}
+
+#[test]
+fn ui21_required_and_illegal_values_never_form_an_intent() {
+    let mut typed = card("approval:1", "approve");
+    typed.fields = vec![
+        field("reason_code", "string", true),
+        field("evidence_refs", "string_list", true),
+    ];
+    let state = loaded(vec![typed.clone()]);
+
+    // A missing required field is refused before any value is interpreted.
+    assert_eq!(
+        prepare(&state, &typed, json!({"evidence_refs": []})).unwrap_err(),
+        "web_human_required_field_missing".to_owned()
+    );
+    // An explicit `null` counts as present but cannot clear a required field.
+    assert_eq!(
+        prepare(
+            &state,
+            &typed,
+            json!({"reason_code": null, "evidence_refs": []})
+        )
+        .unwrap_err(),
+        "web_human_required_field_missing".to_owned()
+    );
+    // Illegal values of each declared type never produce an intent.
+    assert_eq!(
+        prepare(
+            &state,
+            &typed,
+            json!({"reason_code": 7, "evidence_refs": []})
+        )
+        .unwrap_err(),
+        "web_human_field_value_type_invalid".to_owned()
+    );
+    assert_eq!(
+        prepare(
+            &state,
+            &typed,
+            json!({"reason_code": "x".repeat(4 * 1024 + 1), "evidence_refs": []})
+        )
+        .unwrap_err(),
+        "web_human_field_value_too_long".to_owned()
+    );
+    // Only a fully typed, fully present form becomes an intent.
+    assert_eq!(
+        prepare(
+            &state,
+            &typed,
+            json!({"reason_code": "accepted", "evidence_refs": ["artifact:1"]})
+        ),
+        Ok(())
+    );
+}
+
+#[test]
 fn ui21_prepare_intent_succeeds_without_actor_scope_or_grant_material() {
     let mut change = card("company-change:1", "decide_change");
     change.command = "company.business".to_owned();
