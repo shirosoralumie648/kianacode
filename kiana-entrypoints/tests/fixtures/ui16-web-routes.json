@@ -265,6 +265,16 @@
       "class": "request"
     },
     {
+      "code": "web_timeline_renderer_text_guess_forbidden",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_timeline_renderer_unsupported",
+      "status": 400,
+      "class": "request"
+    },
+    {
       "code": "web_turn_id_invalid",
       "status": 400,
       "class": "request"

@@ -51,6 +51,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
 use futures_util::Stream;
+use kiana_client::web_timeline::{
+    WebTimelineMigration, WEB_TIMELINE_RENDERER_TEXT_GUESS, WEB_TIMELINE_RENDERER_TYPED_INLINE,
+};
 use kiana_daemon::{DaemonHost, StreamingRedactor};
 use kiana_protocol::{
     EntryPointKind, ResponseEnvelope, RoleSpec, RunId, RunStreamEnvelope, RunStreamEvent,
@@ -594,6 +597,16 @@ pub const WEB_ERROR_MATRIX: &[WebErrorContract] = &[
         class: "request",
     },
     WebErrorContract {
+        code: "web_timeline_renderer_text_guess_forbidden",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_timeline_renderer_unsupported",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
         code: "web_turn_id_invalid",
         status: 400,
         class: "request",
@@ -954,6 +967,16 @@ struct RunBody {
 struct SessionBody {
     #[serde(default)]
     session_id: Option<String>,
+}
+
+/// Hydrate/bootstrap query.  `timeline_renderer` is the optional migration-switch request; it is
+/// validated against the reviewed allowlist before any lease or projection work.
+#[derive(Deserialize)]
+struct BootstrapQuery {
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    timeline_renderer: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1720,6 +1743,9 @@ impl WebApp {
             "parity": parity.output,
             "parity_response_status": parity.status,
             "hydrate": hydrate,
+            // UI-20: the timeline migration switch travels with every snapshot, so the browser can
+            // refuse a renderer/window the server did not review for the artifact it just served.
+            "timeline": web_timeline_contract(),
             "history": {
                 "schema": WEB_HISTORY_SCHEMA,
                 "status": history_status,
@@ -2416,10 +2442,14 @@ async fn csp_report(
 async fn bootstrap(
     State(app): State<Arc<WebApp>>,
     headers: HeaderMap,
-    Query(query): Query<SessionBody>,
+    Query(query): Query<BootstrapQuery>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
+    // The timeline migration switch is server-owned: an unreviewed renderer value is refused here,
+    // before any lease is claimed or projection is read, so a browser cannot select a renderer (or
+    // a text-guessing fallback) that the server did not review for the artifact it serves.
+    validate_timeline_renderer(query.timeline_renderer.as_deref())?;
     let session_id = resolve_human_session(&app, query.session_id.as_deref()).await?;
     // Only a live in-memory session has a mutable lease to claim. A session that exists only as
     // committed history is a read-only EventLog projection: hydrate it without creating or
@@ -4516,6 +4546,44 @@ fn validate_web_page_limit(limit: usize) -> Result<(), ApiError> {
         return Err(ApiError::bad("web_page_limit_invalid"));
     }
     Ok(())
+}
+
+/// Select the reviewed Web timeline renderer for a surface request.
+///
+/// The allowlist is deliberately tiny: only the typed inline projection may paint timeline items.
+/// A text-guessing renderer is refused with its own code, and every other value is unsupported, so
+/// a migration request can never turn a body/title string into an item kind.
+fn validate_timeline_renderer(requested: Option<&str>) -> Result<&'static str, ApiError> {
+    let requested = requested.map(str::trim).filter(|value| !value.is_empty());
+    match requested {
+        None => Ok(WEB_TIMELINE_RENDERER_TYPED_INLINE),
+        Some(value) if value == WEB_TIMELINE_RENDERER_TYPED_INLINE => {
+            Ok(WEB_TIMELINE_RENDERER_TYPED_INLINE)
+        }
+        Some(value) if value == WEB_TIMELINE_RENDERER_TEXT_GUESS => {
+            Err(ApiError::bad("web_timeline_renderer_text_guess_forbidden"))
+        }
+        Some(_) => Err(ApiError::bad("web_timeline_renderer_unsupported")),
+    }
+}
+
+/// Server-owned timeline migration contract for the artifact that is about to be served.
+///
+/// The contract is derived from the embedded page text: it publishes the reviewed component
+/// directory, the window bounds, the measured bundle baseline and the selected renderer.  A page
+/// whose component region is missing or over budget is published as `unavailable` so the browser
+/// stays visible-partial instead of painting with an unreviewed renderer.  It never carries a
+/// credential, a prompt or an item payload.
+fn web_timeline_contract() -> Value {
+    match serde_json::to_value(WebTimelineMigration::select(PAGE)) {
+        Ok(value) => value,
+        Err(_) => json!({
+            "schema": kiana_client::web_timeline::WEB_TIMELINE_MIGRATION_SCHEMA,
+            "selected": "unavailable",
+            "disposition": "unavailable",
+            "reason": "web_timeline_contract_unencodable",
+        }),
+    }
 }
 
 fn web_now_unix_ms() -> u64 {
@@ -7791,5 +7859,200 @@ mod tests {
             assert!(!body.contains("x-kiana-web-token"), "{body}");
             assert!(!body.contains("Authorization"), "{body}");
         }
+    }
+
+    // ------------------------------------------------------------------
+    // UI-20: Web timeline component migration (completion slice).
+    //
+    // The runtime fixtures drive the real loopback router and the embedded page artifact: the
+    // timeline migration switch is a server-owned part of every snapshot, the component region and
+    // bundle baseline are measured from the served page, and a renderer request outside the
+    // reviewed allowlist is refused before any lease is claimed or projection is read.
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn ui20_bootstrap_publishes_the_server_owned_timeline_migration_contract() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+
+        let (status, body) = ui17_json(
+            client
+                .get("/api/bootstrap", "ui20-contract-tab")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let timeline = &body["timeline"];
+        assert_eq!(
+            timeline["schema"],
+            json!(kiana_client::web_timeline::WEB_TIMELINE_MIGRATION_SCHEMA)
+        );
+        assert_eq!(
+            timeline["selected"],
+            json!(kiana_client::web_timeline::WEB_TIMELINE_RENDERER_TYPED_INLINE)
+        );
+        assert_eq!(timeline["disposition"], json!("active"));
+        assert_eq!(timeline["reason"], json!("web_timeline_renderer_reviewed"));
+        assert_eq!(
+            timeline["renderers"],
+            json!([kiana_client::web_timeline::WEB_TIMELINE_RENDERER_TYPED_INLINE])
+        );
+        assert_eq!(timeline["window"]["size"], json!(64));
+        assert_eq!(timeline["window"]["max_items"], json!(512));
+        assert_eq!(timeline["window"]["max_body_bytes"], json!(16 * 1024));
+        assert_eq!(
+            timeline["window"]["protected"],
+            json!(["pending", "unknown"])
+        );
+        assert_eq!(
+            timeline["window"]["older_page"],
+            json!("hydrate_or_history_cursor")
+        );
+        assert_eq!(timeline["components"].as_array().unwrap().len(), 5);
+        for component in timeline["components"].as_array().unwrap() {
+            assert_eq!(component["may_execute"], json!(false));
+            assert!(!component["name"].as_str().unwrap().is_empty());
+            assert!(!component["selector"].as_str().unwrap().is_empty());
+            assert!(!component["dataset_component"].as_str().unwrap().is_empty());
+        }
+        assert_eq!(
+            timeline["server_item_kinds"],
+            json!(["delta", "tool", "approval", "error", "unknown", "terminal"])
+        );
+        assert_eq!(
+            timeline["visible_states"],
+            json!(["loading", "partial", "replay", "ready", "offline"])
+        );
+
+        // The measured bundle baseline is derived from the embedded artifact the server serves, and
+        // it stays inside the reviewed budgets.
+        let bundle = &timeline["bundle"];
+        assert_eq!(
+            bundle["schema"],
+            json!(kiana_client::web_timeline::WEB_TIMELINE_BUNDLE_SCHEMA)
+        );
+        assert_eq!(bundle["page_bytes"], json!(PAGE.len()));
+        assert_eq!(bundle["within_budget"], json!(true));
+        assert!(bundle["component_bytes"].as_u64().unwrap() > 0, "{bundle}");
+        assert!(PAGE.len() <= kiana_client::web_timeline::WEB_TIMELINE_PAGE_MAX_BYTES);
+
+        // The typed contract still validates, and the migration switch never carried a credential,
+        // a prompt or an item payload.
+        let migration: kiana_client::web_timeline::WebTimelineMigration =
+            serde_json::from_value(timeline.clone()).expect("typed timeline migration");
+        assert_eq!(migration.validate(), Ok(()));
+        assert_eq!(migration.components.len(), 5);
+        for marker in [
+            "x-kiana-web-token",
+            "__KIANA_WEB_TOKEN_VALUE__",
+            "__KIANA_CSP_NONCE__",
+            "prompt",
+        ] {
+            assert!(
+                !timeline.to_string().contains(marker),
+                "the migration contract must not carry {marker}"
+            );
+        }
+
+        // The state route serves the same switch as the bootstrap route.
+        let (status, state) = ui17_json(
+            client
+                .get("/api/state", "ui20-contract-tab")
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{state}");
+        assert_eq!(state["timeline"], *timeline);
+
+        // The served artifact keeps its component markers and stays inside the page budget even
+        // after the per-process token and nonce were substituted.
+        let served = client
+            .get("/", "ui20-contract-tab")
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        for marker in [
+            kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_START_MARKER,
+            kiana_client::web_timeline::WEB_TIMELINE_COMPONENT_END_MARKER,
+            "TIMELINE_COMPONENT_DIRECTORY",
+            "TIMELINE_ALLOWED_RENDERERS",
+        ] {
+            assert!(served.contains(marker), "served page lost: {marker}");
+        }
+        assert!(
+            served.len() <= kiana_client::web_timeline::WEB_TIMELINE_PAGE_MAX_BYTES,
+            "the served page left its reviewed bundle budget: {} bytes",
+            served.len()
+        );
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn ui20_timeline_renderer_requests_denied_before_lease_or_projection() {
+        let server = ui17_server().await;
+        let client = ui17_client(&server).await;
+
+        // A text-guessing renderer is refused with its own stable code, and an unknown value is
+        // unsupported: neither may select a renderer, and neither may claim the session lease.
+        let (status, body) = ui17_json(
+            client
+                .get(
+                    "/api/bootstrap?timeline_renderer=legacy_text",
+                    "ui20-denied-tab",
+                )
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(
+            body["error"],
+            json!("web_timeline_renderer_text_guess_forbidden")
+        );
+
+        let (status, body) = ui17_json(
+            client
+                .get(
+                    "/api/bootstrap?timeline_renderer=react_vite_migration",
+                    "ui20-denied-tab",
+                )
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(body["error"], json!("web_timeline_renderer_unsupported"));
+
+        // The reviewed renderer request is accepted, and the denial above never touched the lease:
+        // this tab is the first one to claim the active session.
+        let (status, body) = ui17_json(
+            client
+                .get(
+                    "/api/bootstrap?timeline_renderer=typed_inline",
+                    "ui20-owner-tab",
+                )
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["timeline"]["selected"], json!("typed_inline"));
+        assert_eq!(body["lease"]["disposition"], json!("owner"));
+        assert_eq!(body["lease"]["owner_tab_id"], json!("ui20-owner-tab"));
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
     }
 }
