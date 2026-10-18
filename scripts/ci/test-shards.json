@@ -53,6 +53,7 @@
    "automation_baseline",
    "automation_boot_recovery_guard",
    "automation_cancellation_guard",
+   "automation_cancellation_worker",
    "automation_compensation_guard",
    "automation_dispatch_guard",
    "automation_dispatch_worker",

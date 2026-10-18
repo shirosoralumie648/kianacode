@@ -4059,3 +4059,58 @@ pub trait AutomationWorkerEffectRunner: Send + Sync {
         command: &kiana_domain::AutomationDispatchCommand,
     ) -> kiana_domain::AutomationWorkerEffectOutcome;
 }
+
+/// AUT-17 cancellation fact store: the durable unit of one cancel generation per execution attempt.
+///
+/// A fact is re-fetchable by `(execution_id, attempt)`, so a crash after a stop was requested returns
+/// the same authoritative copy instead of letting the caller invent a new generation. Implementations
+/// must make the commit atomic with respect to their own state and must enforce, in this order:
+/// a content CAS on `expected_digest` (`None` means "no fact recorded yet"), cancel-generation
+/// monotonicity (a lower generation is stale and never advances the fact), the same-generation
+/// transition whitelist from [`kiana_domain::automation_cancel_transition_allowed`] (a closed fact
+/// cannot be reopened by a late stop report or a late result), and an identical-content re-commit is
+/// a safe replay that returns the stored copy with `replayed = true`.
+/// The store never signals a worker, executes an effect, authorizes a cancellation or turns an
+/// uncertain commit into a success. An in-memory implementation is CI semantics and must not be
+/// called durable or cross-process fencing evidence.
+#[async_trait]
+pub trait AutomationCancellationStore: Send + Sync {
+    async fn fetch_cancellation(
+        &self,
+        _execution_id: &str,
+        _attempt: u32,
+    ) -> Result<Option<kiana_domain::AutomationCancellationFact>, PortError> {
+        Err(PortError::Unavailable(
+            "automation_cancellation_fetch_unsupported".to_owned(),
+        ))
+    }
+
+    async fn commit_cancellation(
+        &self,
+        _fact: kiana_domain::AutomationCancellationFact,
+        _expected_digest: Option<&str>,
+    ) -> Result<kiana_domain::AutomationCancellationCommit, PortError> {
+        Err(PortError::Unavailable(
+            "automation_cancellation_commit_unsupported".to_owned(),
+        ))
+    }
+}
+
+/// Stop boundary for one in-flight automation attempt.
+///
+/// The controller is invoked only for a command that already recorded a cancellation intent, and it
+/// may only answer with an [`kiana_domain::AutomationStopReport`]: a stopped report carries an
+/// evidence digest, an unconfirmed report stays unconfirmed. The controller is not an authorization
+/// boundary: it must not re-derive scope, execute the cancelled effect or decide that the
+/// cancellation succeeded, and a returned report is a declaration rather than proof. Requesting a
+/// stop for the same cancel generation twice must be safe (idempotent stop request); a missing
+/// controller must fail closed instead of silently reporting a stop. Implementors answer
+/// explicitly: there is no default that could turn a missing controller into a confirmed stop.
+#[async_trait]
+pub trait AutomationWorkerStopController: Send + Sync {
+    async fn request_stop(
+        &self,
+        command: &kiana_domain::AutomationDispatchCommand,
+        request: &kiana_domain::AutomationCancelRequest,
+    ) -> Result<kiana_domain::AutomationStopReport, PortError>;
+}

@@ -59,6 +59,7 @@
 
 mod artifact_store;
 mod audit_contract;
+mod automation_cancellation;
 mod automation_dispatch;
 mod automation_effect_reservation;
 mod credential_rotation;
@@ -83,6 +84,7 @@ mod writer_queue;
 
 // 【关键适配器】
 pub use artifact_store::MemoryArtifactStore; // 产物存储适配器
+pub use automation_cancellation::MemoryAutomationCancellationStore; // AUT-17 cancel fact CAS 语义存储（CI 语义）
 pub use automation_dispatch::MemoryAutomationDispatchStore; // AUT-15 dispatch command CAS 语义存储（CI 语义）
 pub use automation_effect_reservation::{
     AutomationEffectAttemptCommit, AutomationEffectReservationCommit,
