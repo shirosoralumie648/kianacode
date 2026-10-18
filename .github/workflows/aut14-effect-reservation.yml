@@ -10,16 +10,39 @@ jobs:
   effect-reservation:
     name: AUT-14 effect reservation fence
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
+
+      # Domain ledger: execution bindings gate scope/approval/budget/path drift, permits are
+      # single-consume and one reservation yields exactly one attempt; deny-first.
       - name: Run domain effect reservation fixtures
         run: cargo test -p kiana-domain --test automation_effect_reservation --locked -- --test-threads=1
+      # Core dispatch gate: every denial (no reservation, unknown execution, stale epoch,
+      # scope drift, replayed/conflicting attempt) leaves the injected broker counter at zero;
+      # the first allowed dispatch reaches it exactly once.
+      - name: Run core effect reservation fixtures
+        run: cargo test -p kiana-core --test automation_effect_reservation --locked -- --test-threads=1
       - name: Run core effect reservation source guard
         run: cargo test -p kiana-core --test automation_effect_reservation_guard --locked -- --test-threads=1
+      # EventLog store: CAS commit, idempotent safe re-fetch, one attempt per reservation and
+      # concurrent commits leaving exactly one winning record.
+      - name: Run eventlog effect reservation store fixtures
+        run: cargo test -p kiana-eventlog --test aut14_effect_reservation_store --locked -- --test-threads=1
+
+      - name: Compile domain effect reservation target
+        run: cargo test -p kiana-domain --test automation_effect_reservation --no-run --locked
+      - name: Compile core effect reservation target
+        run: cargo test -p kiana-core --test automation_effect_reservation --no-run --locked
+      - name: Compile core effect reservation source guard
+        run: cargo test -p kiana-core --test automation_effect_reservation_guard --no-run --locked
+      - name: Compile eventlog effect reservation store target
+        run: cargo test -p kiana-eventlog --test aut14_effect_reservation_store --no-run --locked
