@@ -6856,13 +6856,252 @@ async fn anti_meeting_writes_artifacts_without_runner() {
     );
 }
 
+/// Deny first: a member turn that returns only transcript text is not a contribution. Core
+/// refuses the meeting, records `run.rejected`, and never writes the decision artifacts.
+#[tokio::test]
+async fn convene_refuses_unstructured_member_contribution() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "choose the vertical slice"},
+        {"text": "agree with one slice", "structured": {
+            "kind": "vote", "text": "agree", "evidence_refs": ["plan/agenda.md"]
+        }}
+    ])));
+    let root = temp_project();
+    let convened = harness
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "one vertical slice vs two packets".to_owned(),
+            false,
+            Some(1),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert_eq!(
+        convened.error.as_deref(),
+        Some("symposium_contribution_required")
+    );
+    assert!(!root.join("plan/DECISION.json").exists());
+    assert!(!root.join("packet/TASK.json").exists());
+    let events = harness.events.read_all().await.unwrap();
+    assert!(
+        events.iter().any(|event| event.kind == "run.rejected"
+            && event.data["reason"] == "symposium_contribution_required"),
+        "{events:?}"
+    );
+}
+
+/// Deny first: evidence-free or unknown-field payloads are refused with a stable code and no
+/// decision artifact is written.
+#[tokio::test]
+async fn convene_refuses_evidence_free_and_unknown_field_contributions() {
+    for (script, reason) in [
+        (
+            json!([
+                {"text": "claim", "structured": {"kind": "claim", "text": "choose one slice"}},
+                {"text": "agree", "structured": {"kind": "vote", "text": "agree",
+                    "evidence_refs": ["plan/agenda.md"]}}
+            ]),
+            "symposium_evidence_required",
+        ),
+        (
+            json!([
+                {"text": "claim", "structured": {"kind": "claim", "text": "choose one slice",
+                    "evidence_refs": ["plan/agenda.md"], "may_decide": true}},
+                {"text": "agree", "structured": {"kind": "vote", "text": "agree",
+                    "evidence_refs": ["plan/agenda.md"]}}
+            ]),
+            "symposium_contribution_invalid",
+        ),
+    ] {
+        let harness = CoreHarness::with_runner(scripted_runner(script));
+        let root = temp_project();
+        let convened = harness
+            .core
+            .convene_symposium(
+                trusted_write_pm(&root),
+                "one vertical slice vs two packets".to_owned(),
+                false,
+                Some(1),
+                Some("workspace-write".to_owned()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+        assert_eq!(convened.error.as_deref(), Some(reason));
+        assert!(!root.join("plan/DECISION.json").exists());
+    }
+}
+
+/// Deny first: an architect may not publish private scratch to the broadcast board, and a failed
+/// member blocks the meeting instead of being silently replaced by another speaker.
+#[tokio::test]
+async fn convene_refuses_private_scratch_broadcast_and_failed_member_substitution() {
+    let private = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "claim", "structured": {"kind": "claim", "text": "choose one slice",
+            "evidence_refs": ["plan/agenda.md"]}},
+        {"text": "note", "structured": {"kind": "claim", "text": "private note",
+            "evidence_refs": ["plan/agenda.md"], "visibility": "private_brief"}}
+    ])));
+    let root = temp_project();
+    let convened = private
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "one vertical slice vs two packets".to_owned(),
+            false,
+            Some(1),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert_eq!(
+        convened.error.as_deref(),
+        Some("symposium_private_brief_visibility_denied")
+    );
+    assert!(!root.join("plan/DECISION.json").exists());
+
+    // The schedule names two distinct members. One scripted output cannot complete both, so the
+    // second member fails; Core cancels the ledger and refuses the decision rather than
+    // substituting another role's contribution.
+    let exhausted = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "claim", "structured": {"kind": "claim", "text": "choose one slice",
+            "evidence_refs": ["plan/agenda.md"]}}
+    ])));
+    let root = temp_project();
+    let convened = exhausted
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "one vertical slice vs two packets".to_owned(),
+            false,
+            Some(1),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Blocked, "{convened:?}");
+    assert!(
+        convened
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("symposium_member_failed"),
+        "{convened:?}"
+    );
+    assert!(!root.join("plan/DECISION.json").exists());
+    let events = exhausted.events.read_all().await.unwrap();
+    assert!(
+        events.iter().any(|event| event.kind == "run.rejected"
+            && event.data["reason"] == "symposium_member_failed"),
+        "{events:?}"
+    );
+}
+
+/// Success last: the convened bounded meeting and the anti-meeting shortcut report the same
+/// decision gate, and both write the same `DecisionRecord` contract through `meeting.close()`.
+#[tokio::test]
+async fn convened_and_anti_meeting_share_one_decision_gate() {
+    let harness = CoreHarness::with_runner(scripted_runner(json!([
+        {"text": "claim", "structured": {"kind": "claim", "text": "choose one slice",
+            "evidence_refs": ["plan/agenda.md"]}},
+        {"text": "vote", "structured": {"kind": "vote", "text": "agree",
+            "evidence_refs": ["plan/agenda.md"]}}
+    ])));
+    let root = temp_project();
+    let convened = harness
+        .core
+        .convene_symposium(
+            trusted_write_pm(&root),
+            "one vertical slice vs two packets".to_owned(),
+            false,
+            Some(1),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(convened.status, ExecutionStatus::Completed, "{convened:?}");
+    assert_eq!(convened.output["decision_gate"], "symposium_run_budget");
+    assert_eq!(convened.output["skipped_meeting"], false);
+    assert_eq!(
+        convened.output["contributions"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(convened.output["budget"]["messages_used"], 2);
+    assert!(convened.output["budget"]["cancelled"] == false);
+
+    let anti_root = temp_project();
+    let anti = harness
+        .core
+        .convene_symposium(
+            trusted_write_pm(&anti_root),
+            "one vertical slice vs two packets".to_owned(),
+            true,
+            Some(1),
+            Some("workspace-write".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(anti.status, ExecutionStatus::Completed, "{anti:?}");
+    assert_eq!(anti.output["decision_gate"], "symposium_run_budget");
+    assert_eq!(anti.output["skipped_meeting"], true);
+    assert_eq!(anti.output["budget"]["messages_used"], 0);
+    assert_eq!(
+        convened.output["decision"]["schema"],
+        anti.output["decision"]["schema"]
+    );
+    for field in [
+        "id",
+        "summary",
+        "decision",
+        "work_packet_id",
+        "skipped_meeting",
+    ] {
+        assert!(
+            convened.output["decision"].get(field).is_some()
+                && anti.output["decision"].get(field).is_some(),
+            "DecisionRecord field missing: {field}"
+        );
+    }
+    assert!(root.join("plan/DECISION.json").exists());
+    assert!(anti_root.join("plan/DECISION.json").exists());
+
+    // Both paths are replayable from the same recorded terminal fact: each `symposium.closed`
+    // payload validates against the event contract and carries the same DecisionRecord shape.
+    let events = harness.events.read_all().await.unwrap();
+    let closed: Vec<_> = events
+        .iter()
+        .filter(|event| event.kind == "symposium.closed")
+        .collect();
+    assert_eq!(closed.len(), 2, "{closed:?}");
+    for event in &closed {
+        validate_runtime_event(event).expect("symposium.closed must validate");
+        assert_eq!(event.data["decision"]["schema"], "kiana.decision-record.v1");
+    }
+}
+
 #[tokio::test]
 async fn convene_two_rounds_uses_private_speaker_sessions() {
     let harness = CoreHarness::with_runner(scripted_runner(json!([
-        {"text": "choose the vertical slice"},
-        {"text": "agree with one slice"},
-        {"text": "keep the slice"},
-        {"text": "still agree"}
+        {"text": "choose the vertical slice", "structured": {
+            "kind": "claim", "text": "choose the vertical slice",
+            "evidence_refs": ["plan/agenda.md"]
+        }},
+        {"text": "agree with one slice", "structured": {
+            "kind": "vote", "text": "agree with one slice",
+            "evidence_refs": ["plan/agenda.md"]
+        }},
+        {"text": "keep the slice", "structured": {
+            "kind": "claim", "text": "keep the slice",
+            "evidence_refs": ["plan/agenda.md"]
+        }},
+        {"text": "still agree", "structured": {
+            "kind": "vote", "text": "still agree",
+            "evidence_refs": ["plan/agenda.md"]
+        }}
     ])));
     let root = temp_project();
     let context = trusted_write_pm(&root);

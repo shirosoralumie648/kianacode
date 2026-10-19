@@ -289,7 +289,7 @@ impl Symposium {
             "Do not invite the Builder."
         };
         format!(
-            "{} symposium {}\nChair: {}\nAttendees: {}\nSpeak as {}\nAgenda: {}\n{}\nReply with a claim or vote. Do not patch source. {}",
+            "{} symposium {}\nChair: {}\nAttendees: {}\nSpeak as {}\nAgenda: {}\n{}\nReply with one structured contribution: {{\"kind\":\"claim|vote|draft\",\"text\":\"...\",\"evidence_refs\":[\"ref\"]}}. Evidence is required. Do not patch source. {}",
             self.department_id.trim(),
             self.id.trim(),
             self.chair.trim(),

@@ -17,9 +17,25 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
       - name: Format gate
         run: cargo fmt --all --check
       - name: Run kiana-core co15_symposium_runtime_guard
         run: cargo test -p kiana-core --test co15_symposium_runtime_guard --locked -- --test-threads=1
       - name: Run kiana-domain co15_symposium_runtime
         run: cargo test -p kiana-domain --test co15_symposium_runtime --locked -- --test-threads=1
+      - name: Run kiana-core convene and shared-gate fixtures on the same Harness path
+        run: >-
+          cargo test -p kiana-core --test control_plane --locked
+          convene -- --test-threads=1
+      - name: Run kiana-core anti-meeting fixtures on the same Harness path
+        run: >-
+          cargo test -p kiana-core --test control_plane --locked
+          anti_meeting -- --test-threads=1
+      - name: Compile kiana-core co15_symposium_runtime_guard target
+        run: cargo test -p kiana-core --test co15_symposium_runtime_guard --no-run --locked
+      - name: Compile kiana-domain co15_symposium_runtime target
+        run: cargo test -p kiana-domain --test co15_symposium_runtime --no-run --locked
+      - name: Compile kiana-core control_plane target
+        run: cargo test -p kiana-core --test control_plane --no-run --locked

@@ -27,7 +27,7 @@ use kiana_domain::{
 };
 
 /// Re-export the domain recovery validator under the crate-facing name `kiana-core` exposes.
-pub use kiana_domain::validate_billing_recovery as validate_billing_recovery;
+pub use kiana_domain::validate_billing_recovery;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 /// Stable refusal classification for restart/recovery admission.
