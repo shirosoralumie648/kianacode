@@ -470,6 +470,10 @@ pub(crate) fn write_private_json(path: &Path, value: &impl Serialize) -> Result<
     serde_json::to_writer(&mut file, value).map_err(|_| error("journal_encode_failed"))?;
     file.write_all(b"\n").map_err(io_error)?;
     file.sync_all().map_err(io_error)?;
+    // Directory fsync makes the new entry durable on Unix. Windows cannot open a directory as a
+    // `File` (`File::open` returns access-denied), and that platform has no equivalent here, so
+    // only the file itself is synced there.
+    #[cfg(unix)]
     if let Some(parent) = path.parent() {
         File::open(parent)
             .and_then(|file| file.sync_all())

@@ -235,7 +235,7 @@ pub use automation_cancellation::{
     cancel_automation_worker_command, record_automation_late_result, validate_automation_cancel,
     AutomationCancellationOutcome,
 };
-pub use automation_compensation::validate_compensation_plan;
+pub use automation_compensation::{admit_compensation_plan, validate_compensation_plan};
 pub use automation_dispatch::{
     dispatch_automation_worker_command, observe_automation_dispatch,
     AutomationWorkerDispatchOutcome,

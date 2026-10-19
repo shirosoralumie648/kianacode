@@ -136,7 +136,9 @@ mod tests {
     }
 }
 
+mod compensation;
 mod durable;
 mod retry;
+pub use compensation::*;
 pub use durable::*;
 pub use retry::*;
