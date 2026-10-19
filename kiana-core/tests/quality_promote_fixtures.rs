@@ -2,16 +2,17 @@
 //!
 //! Every test builds real argument values, drives the public `ControlPlane::handle_command` entry
 //! and asserts the structured reason code the gate itself returns. The command only re-derives
-//! authority and appends an admission fact: it never switches a provider route or a grant. So this
-//! module is a contract fixture over an in-memory event log and a scripted approval store, not
-//! runtime evidence, and it proves nothing about a live promotion.
+//! authority, consumes the approved challenge and appends an admission fact: it never switches a
+//! provider route or a grant. So this module is a contract fixture over an in-memory event log and
+//! a scripted approval store, not runtime evidence, and it proves nothing about a live promotion.
 
 use async_trait::async_trait;
 use kiana_core::ControlPlane;
 use kiana_domain::{
-    json_digest, ApprovalChallenge, ApprovalDecision, ApprovalDecisionRecord, ApprovalId,
-    ApprovalState, AuthorizedCapabilityRequest, CapabilityRequest, CapabilityResult, CommandIntent,
-    CoreResponse, ExecutionStatus, PendingApproval, PermissionProfile, RequestContext, RequestId,
+    json_digest, AggregateVersion, ApprovalChallenge, ApprovalConsumptionFact, ApprovalDecision,
+    ApprovalDecisionRecord, ApprovalId, ApprovalState, AuthorizedCapabilityRequest, CapabilityKind,
+    CapabilityRequest, CapabilityResult, CommandIntent, CoreResponse, ExecutionStatus,
+    PendingApproval, PermissionProfile, PreparedApprovalConsumption, RequestContext, RequestId,
     RiskLevel, RuntimeEvent, APPROVAL_CHALLENGE_SCHEMA,
 };
 use kiana_eventlog::MemoryEventLog;
@@ -20,7 +21,7 @@ use kiana_policy::DefaultPolicyEngine;
 use kiana_ports::{ApprovalStorePort, CapabilityBrokerPort, EventStorePort, PortError, RunnerPort};
 use kiana_runner_protocol::{RunnerCommand, RunnerEvent};
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
@@ -28,16 +29,31 @@ use tokio::sync::Mutex;
 const PROMOTE: &str = "quality.promote";
 const ROLLBACK: &str = "quality.rollback";
 const MUTATION_SCHEMA: &str = "kiana.quality-mutation.v1";
+const APPROVAL_SCHEMA: &str = "kiana.approval-journal.v1";
 const SESSION: &str = "eq43-session";
 const ACTOR: &str = "eq43-promoter";
 const APPROVER: &str = "eq43-approver";
+const TARGET: &str = "src/engine/route.json";
 
-/// Approval store that hands back exactly one scripted decision and counts how often the gate
-/// bothered to read it; a gate that short-circuits earlier must never touch it.
+/// Approval store that hands back exactly one scripted decision, prepares an Approved -> Consumed
+/// transition for it, and counts both reads and consumptions. A gate that short-circuits earlier
+/// must never touch either counter.
 #[derive(Default)]
 struct ScriptedApprovalStore {
     decision: Mutex<Option<ApprovalDecisionRecord>>,
+    authority: Mutex<Option<AggregateVersion>>,
     reads: AtomicUsize,
+    consumptions: AtomicUsize,
+    consumption_supported: AtomicBool,
+}
+
+impl ScriptedApprovalStore {
+    fn new() -> Self {
+        Self {
+            consumption_supported: AtomicBool::new(true),
+            ..Self::default()
+        }
+    }
 }
 
 #[async_trait]
@@ -60,7 +76,9 @@ impl ApprovalStorePort for ScriptedApprovalStore {
         _context: &RequestContext,
         _approval_id: ApprovalId,
     ) -> Result<PendingApproval, PortError> {
-        Err(PortError::Failed("eq43_fixture_never_consumes".to_owned()))
+        Err(PortError::Failed(
+            "eq43_fixture_never_consumes_in_place".to_owned(),
+        ))
     }
 
     async fn read_decision(
@@ -74,6 +92,91 @@ impl ApprovalStorePort for ScriptedApprovalStore {
             .await
             .clone()
             .ok_or_else(|| PortError::Unavailable("approval_not_found".to_owned()))
+    }
+
+    async fn prepare_consumption(
+        &self,
+        _context: &RequestContext,
+        approval_id: ApprovalId,
+        dispatch_command_id: RequestId,
+    ) -> Result<PreparedApprovalConsumption, PortError> {
+        if !self.consumption_supported.load(Ordering::SeqCst) {
+            return Err(PortError::Unavailable(
+                "approval_atomic_consumption_unsupported".to_owned(),
+            ));
+        }
+        self.consumptions.fetch_add(1, Ordering::SeqCst);
+        let authority = self
+            .authority
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| PortError::Failed("eq43_fixture_authority_missing".to_owned()))?;
+        let mut guard = self.decision.lock().await;
+        let record = guard
+            .as_mut()
+            .ok_or_else(|| PortError::Unavailable("approval_not_found".to_owned()))?;
+        if record.state != ApprovalState::Approved {
+            return Err(PortError::Failed("approval_not_approved".to_owned()));
+        }
+        let decision_command_id = record
+            .decision_command_id
+            .ok_or_else(|| PortError::Failed("approval_decision_command_missing".to_owned()))?;
+        let now = unix_ms();
+        let fact = ApprovalConsumptionFact::new(
+            approval_id,
+            record.challenge.request_id,
+            record.challenge.request_hash.clone(),
+            decision_command_id,
+            dispatch_command_id,
+            record.version,
+            authority.clone(),
+            now,
+            record.challenge.expires_at_unix_ms,
+        )
+        .map_err(PortError::Failed)?;
+        let data = json!({
+            "schema": APPROVAL_SCHEMA,
+            "approval_id": approval_id,
+            "previous_state": record.state,
+            "state": ApprovalState::Consumed,
+            "request_hash": record.challenge.request_hash,
+            "at_unix_ms": now,
+            "dispatch_command_id": dispatch_command_id,
+            "decision_command_id": decision_command_id,
+            "decided_by": record.decided_by,
+            "consumption_fact": fact,
+        });
+        let event = RuntimeEvent::new(
+            dispatch_command_id,
+            record.version + 1,
+            "approval.consumed",
+            data,
+        )
+        .map_err(|error| PortError::Failed(error.to_string()))?
+        .with_stream_metadata("approval", approval_id.to_string(), record.version + 1);
+        let expected_version =
+            AggregateVersion::new("approval", approval_id.to_string(), record.version);
+        let pending = PendingApproval {
+            challenge: record.challenge.clone(),
+            request: CapabilityRequest::new(
+                RequestId::new(),
+                CapabilityKind::Other("quality.mutation".to_owned()),
+                "quality.mutate",
+                json!({}),
+            ),
+        };
+        // The scripted store spends the record exactly like the journal would: a later prepare for
+        // the same approval must see Consumed, never Approved again.
+        record.state = ApprovalState::Consumed;
+        record.version += 1;
+        record.dispatch_command_id = Some(dispatch_command_id);
+        Ok(PreparedApprovalConsumption {
+            expected_version,
+            authority_versions: vec![authority],
+            event,
+            pending,
+        })
     }
 }
 
@@ -110,6 +213,13 @@ fn digest(seed: char) -> String {
     )
 }
 
+fn unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
+}
+
 /// A fresh project root, already canonicalized so the fixture hashes exactly what the gate hashes
 /// after `ControlPlane::canonical_project_root` normalizes it.
 fn temp_root() -> String {
@@ -126,14 +236,15 @@ fn temp_root() -> String {
 }
 
 /// Mirrors `quality_scope_digest`: the scope is the canonical root plus the exact
-/// session/actor/role/department tuple that asked for the promotion.
-fn scope_digest(root: &str, context: &RequestContext) -> String {
+/// session/actor/role/department tuple that asked for the promotion and the explicit target.
+fn scope_digest(root: &str, context: &RequestContext, target: &str) -> String {
     json_digest(&json!({
         "project_root": root,
         "session_id": context.session_id,
         "actor_id": context.actor_id,
         "role_id": context.role_id,
         "department_id": context.department_id,
+        "target_path": target,
     }))
 }
 
@@ -155,6 +266,7 @@ fn arguments(
     approval_id: &ApprovalId,
     approval_request_hash: &str,
     scope: &str,
+    target: &str,
     epoch: u64,
 ) -> Value {
     json!({
@@ -164,6 +276,7 @@ fn arguments(
         "approval_ref": format!("approval:{approval_id}"),
         "approval_request_hash": approval_request_hash,
         "scope_digest": scope,
+        "target_path": target,
         "expected_authority_epoch": epoch,
     })
 }
@@ -208,24 +321,20 @@ struct Promotion {
     candidate: String,
     gate: String,
     scope: String,
+    target: String,
     epoch: u64,
 }
 
 impl Promotion {
     fn arguments(&self, command: &str) -> Value {
-        let hash = request_hash(
-            command,
-            &self.candidate,
-            &self.gate,
-            &self.scope,
-            self.epoch,
-        );
+        let hash = self.bound_hash(command);
         arguments(
             &self.candidate,
             &self.gate,
             &self.approval_id,
             &hash,
             &self.scope,
+            &self.target,
             self.epoch,
         )
     }
@@ -257,7 +366,12 @@ impl Fixture {
         for version in 1..=epoch {
             append_authority_revision(&events, &root, version).await;
         }
-        let approvals = Arc::new(ScriptedApprovalStore::default());
+        let approvals = Arc::new(ScriptedApprovalStore::new());
+        *approvals.authority.lock().await = Some(AggregateVersion::new(
+            "authority",
+            json_digest(&json!({"project_root": root})),
+            epoch.max(1),
+        ));
         let core = ControlPlane::new(
             Arc::new(DefaultPolicyEngine),
             Arc::new(DefaultGateEngine),
@@ -284,7 +398,8 @@ impl Fixture {
             approval_id: ApprovalId::new(),
             candidate: digest('c'),
             gate: digest('g'),
-            scope: scope_digest(&self.root, context),
+            scope: scope_digest(&self.root, context, TARGET),
+            target: TARGET.to_owned(),
             epoch,
         }
     }
@@ -293,22 +408,76 @@ impl Fixture {
         *self.approvals.decision.lock().await = Some(record);
     }
 
-    /// Approve exactly the operation `promotion` describes, decided by a second party.
+    /// Approve exactly the operation `promotion` describes, decided by a second party. The approved
+    /// state is also written to the journal at stream version 1, so the consumption CAS has a real
+    /// prior version to compare against.
     async fn approve(&self, promotion: &Promotion, command: &str) {
         let hash = promotion.bound_hash(command);
-        self.script_approval(approval(
+        let record = approval(
             promotion.approval_id,
             ApprovalState::Approved,
             Some(ApprovalDecision::Approve),
             APPROVER,
             &hash,
             u64::MAX,
-        ))
-        .await;
+        );
+        self.script_approval(record.clone()).await;
+        let data = json!({
+            "schema": APPROVAL_SCHEMA,
+            "approval_id": promotion.approval_id,
+            "previous_state": ApprovalState::Active,
+            "state": ApprovalState::Approved,
+            "request_hash": hash,
+            "at_unix_ms": unix_ms(),
+            "decision": ApprovalDecision::Approve,
+            "decision_command_id": record.decision_command_id,
+            "decided_by": APPROVER,
+            "decision_fact": Value::Null,
+        });
+        self.events
+            .append(
+                RuntimeEvent::new(
+                    record.decision_command_id.expect("decision command"),
+                    1,
+                    "approval.approved",
+                    data,
+                )
+                .expect("EQ-43 approval approved event")
+                .with_stream_metadata(
+                    "approval",
+                    promotion.approval_id.to_string(),
+                    1,
+                ),
+            )
+            .await
+            .expect("EQ-43 approval approved append");
     }
 
     fn approval_reads(&self) -> usize {
         self.approvals.reads.load(Ordering::SeqCst)
+    }
+
+    fn approval_consumptions(&self) -> usize {
+        self.approvals.consumptions.load(Ordering::SeqCst)
+    }
+
+    async fn approval_state(&self) -> Option<ApprovalState> {
+        self.approvals
+            .decision
+            .lock()
+            .await
+            .as_ref()
+            .map(|record| record.state)
+    }
+
+    async fn events_of_kind(&self, kind: &str) -> Vec<RuntimeEvent> {
+        self.events
+            .read_all()
+            .await
+            .expect("EQ-43 event read")
+            .into_iter()
+            .filter(|event| event.kind == kind)
+            .collect()
     }
 
     async fn submit(
@@ -393,6 +562,7 @@ async fn passing_eval_cannot_promote_without_authority() {
         0,
         "the missing authority epoch must be caught before the approval is consulted"
     );
+    assert_eq!(fixture.approval_consumptions(), 0);
 }
 
 #[tokio::test]
@@ -439,6 +609,62 @@ async fn scope_digest_from_another_session_cannot_promote() {
 }
 
 #[tokio::test]
+async fn target_outside_the_actor_scope_cannot_be_promoted() {
+    // A scope digest can be perfectly self-consistent and still name a target the actor may not
+    // touch. The path allow-list must cover the explicit target before the approval is spent.
+    let fixture = Fixture::with_epoch(1).await;
+    let mut context = fixture.context();
+    context.path_allow = vec!["docs".to_owned()];
+    let promotion = fixture.promotion(&context, 1);
+    fixture.approve(&promotion, PROMOTE).await;
+
+    let response = fixture
+        .submit(context, PROMOTE, promotion.arguments(PROMOTE))
+        .await;
+
+    assert_blocked(&response, "quality_target_outside_scope");
+    assert_eq!(
+        fixture.approval_reads(),
+        0,
+        "a target outside the actor scope must be caught before the approval is consulted"
+    );
+    assert_eq!(
+        fixture.approval_consumptions(),
+        0,
+        "a rejected target must not spend the approval"
+    );
+}
+
+#[tokio::test]
+async fn target_path_traversal_is_rejected_before_any_authority_check() {
+    // An absolute or parent-traversing target is not a project-relative target at all; it is
+    // rejected with the argument contract before authority is even read.
+    let fixture = Fixture::with_epoch(1).await;
+    let context = fixture.context();
+    let promotion = fixture.promotion(&context, 1);
+    fixture.approve(&promotion, PROMOTE).await;
+
+    let response = fixture
+        .submit(
+            context,
+            PROMOTE,
+            arguments(
+                &promotion.candidate,
+                &promotion.gate,
+                &promotion.approval_id,
+                &promotion.bound_hash(PROMOTE),
+                &promotion.scope,
+                "../outside.json",
+                promotion.epoch,
+            ),
+        )
+        .await;
+
+    assert_blocked(&response, "quality_mutation_arguments_invalid");
+    assert_eq!(fixture.approval_reads(), 0);
+}
+
+#[tokio::test]
 async fn tampered_candidate_cannot_reuse_the_original_approval_binding() {
     // A report swapped after approval keeps the original request hash, so the hash the gate
     // recomputes over the tampered candidate no longer matches the approval being presented.
@@ -458,6 +684,7 @@ async fn tampered_candidate_cannot_reuse_the_original_approval_binding() {
                 &promotion.approval_id,
                 &promotion.bound_hash(PROMOTE),
                 &promotion.scope,
+                &promotion.target,
                 promotion.epoch,
             ),
         )
@@ -494,6 +721,7 @@ async fn tampered_report_cannot_self_authorize_with_a_matching_request_hash() {
                 &promotion.approval_id,
                 &forged_hash,
                 &promotion.scope,
+                &promotion.target,
                 promotion.epoch,
             ),
         )
@@ -515,6 +743,27 @@ async fn missing_approval_record_cannot_promote() {
         .await;
 
     assert_blocked(&response, "quality_approval_unavailable");
+    assert_eq!(fixture.approval_consumptions(), 0);
+}
+
+#[tokio::test]
+async fn approval_store_without_atomic_consumption_cannot_promote() {
+    // An adapter that can read a decision but cannot prepare the Approved -> Consumed transition
+    // must fail closed. Reading consent is not spending it.
+    let fixture = Fixture::with_epoch(1).await;
+    let context = fixture.context();
+    let promotion = fixture.promotion(&context, 1);
+    fixture.approve(&promotion, PROMOTE).await;
+    fixture
+        .approvals
+        .consumption_supported
+        .store(false, Ordering::SeqCst);
+
+    let response = fixture
+        .submit(context, PROMOTE, promotion.arguments(PROMOTE))
+        .await;
+
+    assert_blocked(&response, "quality_approval_consumption_unavailable");
 }
 
 #[tokio::test]
@@ -541,6 +790,7 @@ async fn consumed_approval_cannot_promote_a_second_candidate() {
         .await;
 
     assert_blocked(&response, "quality_secondary_approval_invalid");
+    assert_eq!(fixture.approval_consumptions(), 0);
 }
 
 #[tokio::test]
@@ -704,6 +954,7 @@ async fn malformed_report_digest_is_rejected_before_any_authority_check() {
                 &promotion.approval_id,
                 &hash,
                 &promotion.scope,
+                &promotion.target,
                 promotion.epoch,
             ),
         )
@@ -731,6 +982,7 @@ async fn rollback_cannot_bypass_the_same_secondary_authority() {
         .await;
 
     assert_blocked(&response, "quality_approval_request_hash_mismatch");
+    assert_eq!(fixture.approval_consumptions(), 0);
 }
 
 #[tokio::test]
@@ -766,39 +1018,104 @@ async fn rejected_promotion_cannot_be_replayed_into_a_later_authority_epoch() {
 }
 
 #[tokio::test]
-async fn approved_promotion_with_live_authority_is_admitted() {
-    // The success path, reached only after trust, actor, role, epoch, scope, request-hash binding
-    // and a fresh second-party approval have all been rechecked; the result is an admission fact
-    // carrying the authority epoch, not a route or grant change.
+async fn approved_promotion_with_live_authority_is_admitted_and_replays_idempotently() {
+    // The success path, reached only after trust, actor, role, epoch, scope, target coverage,
+    // request-hash binding and a fresh independent approval have all been rechecked. The approval
+    // is consumed in the same atomic batch as the admission fact, so the mutation lands exactly
+    // once; resubmitting the identical mutation returns the committed admission without spending
+    // a second approval.
     let fixture = Fixture::with_epoch(1).await;
     let context = fixture.context();
     let promotion = fixture.promotion(&context, 1);
     fixture.approve(&promotion, PROMOTE).await;
+    let args = promotion.arguments(PROMOTE);
 
-    let response = fixture
-        .submit(context, PROMOTE, promotion.arguments(PROMOTE))
-        .await;
+    let first = fixture.submit(context.clone(), PROMOTE, args.clone()).await;
 
-    assert_eq!(response.status, ExecutionStatus::Completed);
-    assert_eq!(response.error, None);
-    assert_eq!(response.output["status"], "admitted");
-    assert_eq!(response.output["operation"], "promote");
-    assert_eq!(response.output["candidate_digest"], promotion.candidate);
-    assert_eq!(response.output["gate_decision_digest"], promotion.gate);
-    assert_eq!(response.output["authority_epoch"], 1);
-    let recorded = fixture
-        .events
-        .read_all()
-        .await
-        .expect("EQ-43 event read")
-        .into_iter()
-        .find(|event| event.kind == PROMOTE)
-        .expect("EQ-43 admission fact is recorded in the EventLog");
-    assert_eq!(recorded.data["status"], "admitted");
-    assert_eq!(recorded.data["operation"], "promote");
-    assert_eq!(recorded.data["authority_epoch"], 1);
+    assert_eq!(first.status, ExecutionStatus::Completed);
+    assert_eq!(first.error, None);
+    assert_eq!(first.output["status"], "admitted");
+    assert_eq!(first.output["operation"], "promote");
+    assert_eq!(first.output["candidate_digest"], promotion.candidate);
+    assert_eq!(first.output["gate_decision_digest"], promotion.gate);
+    assert_eq!(first.output["target_path"], promotion.target);
+    assert_eq!(first.output["authority_epoch"], 1);
+    assert_eq!(first.output["replayed"], false);
+    assert_eq!(fixture.approval_consumptions(), 1);
     assert_eq!(
-        recorded.data["approval_ref"],
+        fixture.approval_state().await,
+        Some(ApprovalState::Consumed),
+        "the approved challenge must be spent by the admission"
+    );
+
+    let consumed = fixture.events_of_kind("approval.consumed").await;
+    assert_eq!(consumed.len(), 1, "the approval is consumed exactly once");
+    let admitted = fixture.events_of_kind(PROMOTE).await;
+    assert_eq!(
+        admitted.len(),
+        1,
+        "the admission fact is written exactly once"
+    );
+    assert_eq!(admitted[0].data["status"], "admitted");
+    assert_eq!(admitted[0].data["operation"], "promote");
+    assert_eq!(admitted[0].data["authority_epoch"], 1);
+    assert_eq!(admitted[0].data["target_path"], promotion.target);
+    assert_eq!(
+        admitted[0].data["approval_ref"],
         format!("approval:{}", promotion.approval_id)
     );
+
+    // Replay of the very same mutation identity: idempotent, not a second admission and not a
+    // second consumption of an already-spent approval.
+    let replay = fixture.submit(context, PROMOTE, args).await;
+
+    assert_eq!(replay.status, ExecutionStatus::Completed);
+    assert_eq!(replay.output["status"], "admitted");
+    assert_eq!(replay.output["replayed"], true);
+    assert_eq!(fixture.approval_consumptions(), 1);
+    assert_eq!(fixture.events_of_kind(PROMOTE).await.len(), 1);
+    assert_eq!(fixture.events_of_kind("approval.consumed").await.len(), 1);
+}
+
+#[tokio::test]
+async fn admitted_mutation_cannot_be_reused_for_a_different_candidate() {
+    // After a successful admission the approval is spent. A different candidate derives a
+    // different command identity and request hash, so it neither replays nor finds a fresh
+    // approval: it is refused as secondary-approval invalid.
+    let fixture = Fixture::with_epoch(1).await;
+    let context = fixture.context();
+    let promotion = fixture.promotion(&context, 1);
+    fixture.approve(&promotion, PROMOTE).await;
+    let admitted = fixture
+        .submit(context.clone(), PROMOTE, promotion.arguments(PROMOTE))
+        .await;
+    assert_eq!(admitted.status, ExecutionStatus::Completed);
+
+    let other_candidate = digest('d');
+    let other_hash = request_hash(
+        PROMOTE,
+        &other_candidate,
+        &promotion.gate,
+        &promotion.scope,
+        promotion.epoch,
+    );
+    let response = fixture
+        .submit(
+            context,
+            PROMOTE,
+            arguments(
+                &other_candidate,
+                &promotion.gate,
+                &promotion.approval_id,
+                &other_hash,
+                &promotion.scope,
+                &promotion.target,
+                promotion.epoch,
+            ),
+        )
+        .await;
+
+    assert_blocked(&response, "quality_secondary_approval_invalid");
+    assert_eq!(fixture.approval_consumptions(), 1);
+    assert_eq!(fixture.events_of_kind(PROMOTE).await.len(), 1);
 }
