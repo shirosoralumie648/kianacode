@@ -302,7 +302,7 @@
 
 
 
-#### CO-16 · 角色提案进入业务命令，原子批准计划　🔄
+#### CO-16 · 角色提案进入业务命令，原子批准计划　✅
 
 - **归属**：`P3-I-02`、`P1-E-02`、`P1-D-02`。
 - **依赖**：CO-07、CO-12、CO-13、CO-15。
@@ -310,6 +310,7 @@
 - **实现顺序**：①只接收授权角色任务的明确结构化结果；②校验输入版本、图、范围、预算与标准覆盖，生成待批准的完整 Plan 预览；③一次 CAS 固定 Plan/Milestone/Packet 引用集合，产生后续 Handoff 意图。
 - **先拒绝**：`proposal_text_cannot_execute_commands_and_invalid_plan_commits_nothing`；README、stdout 或 assistant 文本里的命令 JSON 不触发副作用；第 N 个 packet 校验失败不留下半套批准计划。
 - **再成功 / 退出**：`approved_plan_materializes_the_exact_reviewed_packet_graph_once`；用户看到并批准的计划 hash 与生效图一致，重复批准不重复创建包。
+- **2026-10-19 收口切片（local_behavior）**：`company_proposals.rs` 把卡片三步补成可执行合同——①`CompanyRoleTaskResult`（`kiana.company-role-task-result.v1`）绑定 task/assignment/角色/session/提案摘要，仅 `pm`/`architect` 可产出（Builder 被 `company_proposal_source_role_denied` 拒绝）；`CompanyPlanProposalIntake` 只接受 `role_task(...)`，`text_surface(...)` 的 `Readme`/`Stdout`/`AssistantMessage`/`Transcript` 一律 `company_proposal_source_not_role_task_result`，`observed_text` 仅审计存储、从不解析；②`CompanyPlanPreview::build` 在任何账本写入前校验项目/baseline/coverage、必需标准、节点与 packet 预算、逐节点版本、每 packet 单一父里程碑（`company_plan_preview_packet_parent_invalid`）、阻塞依赖与摘要；`submit` 先建完整预览再落事实，第 N 个 packet 失败时 proposals/previews/approvals/materializations 全空且 revision=0；③`approve` 校验 preview digest/修订/重复后**先** `preview.materialize(...)` 再 `self.revision += 1` 与两次插入，`approved_plan_digest == preview.plan_digest == FrozenPlanGraph.plan_digest`，精确重放幂等且不重复 packet/handoff，handoff 的 `runtime_authority=false`、不创建 Milestone/Packet/Claim/Run/预算/租约；聚合侧新增 `CompanyCommand::ApproveCompanyPlan { intake, basis, approval }`（事件 `CompanyPlanApproved`、仅 `sponsor`、Project 变更类、`CompanyState::company_proposals`），`kiana-core` 在 `state.transition` 之前跑 `company_plan_approval_verdict`（可写项目、冻结 Charter baseline、CO-11 coverage `bind_plan`、预算、冻结 Plan graph 与逐节点版本、CAS 修订），`approve_company_plan` 在克隆账本上 submit+approve 成功后才赋值回聚合，精确重放在修订 CAS 之前幂等返回。夹具：domain `co16_company_proposals` 3 条（四条 prose 面 + 未整形 intake + Builder 角色 + 第 N packet 全部零事实；版本/预算/coverage/digest/修订/非 Sponsor 矩阵；成功末位且精确重放不重复），新增 `co16_company_proposals_command` 2 条真实 `CompanyState::transition` 先拒绝优先夹具；core guard 1 → 2 条（合同/marker/禁用标识、`materialize` 先于修订与插入、`build` 先于插入、两文件先拒绝顺序、lane 与 shard 绑定、无第二执行面）；lane 补 `cargo fetch --locked`、`co16_company_proposals_command` 与三条 `--no-run`（仍 `workflow_dispatch` only + `permissions: contents: read`）；`scripts/ci/test-shards.json` 登记 `co16_company_proposals_command`。本地三 target 实跑通过（`--offline --test-threads=1`），CI 回执未等待。
 
 <a id="co-17"></a>
 

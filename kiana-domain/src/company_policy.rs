@@ -649,6 +649,9 @@ fn command_policy_roles(command: &CompanyCommand) -> Vec<String> {
         // CO-13: a department work contract is admitted through the planning path; the PM or the
         // Sponsor admits it, and the department/role pair still has to match the packet kind.
         CompanyCommand::AdmitDepartmentPacket { .. } => &["pm", "sponsor"],
+        // CO-16: only the Sponsor approves the exact reviewed Plan preview; the planning roles
+        // supply the structured role-task result inside the same command.
+        CompanyCommand::ApproveCompanyPlan { .. } => &["sponsor"],
         CompanyCommand::RequestCancelProject { .. }
         | CompanyCommand::ConfirmCancelProject { .. }
         | CompanyCommand::FailProject { .. }
@@ -830,6 +833,7 @@ impl CompanyMutationClass {
             | CompanyCommand::FreezeCriterionCoverage { .. }
             | CompanyCommand::FreezePlanGraph { .. }
             | CompanyCommand::AdmitDepartmentPacket { .. }
+            | CompanyCommand::ApproveCompanyPlan { .. }
             | CompanyCommand::PauseProject { .. }
             | CompanyCommand::ResumeProject { .. }
             | CompanyCommand::RequestCancelProject { .. }
@@ -1097,6 +1101,24 @@ impl CompanyMutationPermission {
                 "department_packet_plan_mismatch",
                 "department_packet_plan_node_unknown",
                 "department_packet_already_admitted",
+                // CO-16 structured proposal intake and atomic Plan approval: prose surfaces are
+                // refused, the reviewed preview digest has to match the effective graph, the
+                // basis has to name the server-side node versions, and the approval consumes one
+                // Company revision.
+                "company_proposal_source_not_role_task_result",
+                "company_proposal_source_role_denied",
+                "company_plan_baseline_missing",
+                "company_plan_baseline_mismatch",
+                "company_plan_budget_missing",
+                "company_plan_preview_plan_not_frozen",
+                "company_plan_preview_node_version_missing",
+                "company_plan_preview_node_version_mismatch",
+                "company_plan_preview_packet_budget_exceeded",
+                "company_plan_preview_packet_parent_invalid",
+                "company_plan_preview_criteria_mismatch",
+                "company_plan_approval_preview_mismatch",
+                "company_plan_approval_revision_conflict",
+                "company_plan_approval_duplicate",
             ],
             CompanyMutationClass::Budget => &[
                 "company_project_not_budgetable",
