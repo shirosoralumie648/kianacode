@@ -433,6 +433,8 @@ const RUN_FIELDS: &[&str] = &[
     "owner_digest",
     "lease_digest",
     "resource_digest",
+    "approval_id",
+    "not_executed",
 ];
 // run.completed 可以保留 Harness 交付的模型标识、token 用量以及凭证引用。
 // 这些数据只在完成事件中有明确语义，所以不能直接扩充通用 RUN_FIELDS，
