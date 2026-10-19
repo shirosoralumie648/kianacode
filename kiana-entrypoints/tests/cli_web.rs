@@ -487,6 +487,10 @@ async fn web_sse_streams_ordered_deltas_and_terminal_with_auth() {
     let _ = child.kill().await;
 }
 
+// The scripted run calls the `shell` tool, and the daemon's confined shell backend is
+// bubblewrap (`sandbox_unavailable:bwrap` elsewhere). Keep the reconnect assertion on platforms
+// that can actually execute the tool instead of turning a missing OS backend into a failed run.
+#[cfg(unix)]
 #[tokio::test]
 async fn web_sse_reconnect_emits_stream_gap_without_replaying_delta_items() {
     let root = git_fixture();

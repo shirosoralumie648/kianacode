@@ -693,8 +693,65 @@ fn open_checkpoint_file(root: &Path, relative: &Path) -> Result<Option<File>, Po
 }
 
 #[cfg(not(target_os = "linux"))]
-fn open_checkpoint_file(_root: &Path, _relative: &Path) -> Result<Option<File>, PortError> {
-    Err(failed("checkpoint_safe_read_unsupported_platform"))
+fn open_checkpoint_file(root: &Path, relative: &Path) -> Result<Option<File>, PortError> {
+    // Portable fallback for macOS and Windows. Every component is rebuilt under the canonical root
+    // and rejected if it is a symlink (Unix) or a reparse point (Windows `FILE_FLAG_OPEN_REPARSE_POINT`
+    // plus attribute check), so a checkpoint read cannot follow a link out of the project. The file
+    // is opened with read/write sharing denied where the platform allows it, and the caller re-checks
+    // the metadata fingerprint after reading. This is weaker than the Linux `openat` walk (it is not
+    // atomic against a concurrent replacement), which is why the caller still binds bytes to the
+    // post-read fingerprint and treats a mismatch as `checkpoint_file_changed`.
+    let components = relative.components().collect::<Vec<_>>();
+    if components.is_empty() {
+        return Err(failed("checkpoint_path_invalid"));
+    }
+    let mut current = root.to_path_buf();
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(name) = component else {
+            return Err(failed("checkpoint_path_invalid"));
+        };
+        current.push(name);
+        let is_last = index + 1 == components.len();
+        let metadata = match fs::symlink_metadata(&current) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(io_failed(error)),
+        };
+        if metadata.file_type().is_symlink() {
+            return Err(failed("checkpoint_symlink_denied"));
+        }
+        if !is_last && !metadata.is_dir() {
+            return Err(failed("checkpoint_path_invalid"));
+        }
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = match options.open(&current) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(io_failed(error)),
+    };
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+
+        if file.metadata().map_err(io_failed)?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+        {
+            return Err(failed("checkpoint_symlink_denied"));
+        }
+    }
+    if !file.metadata().map_err(io_failed)?.is_file() {
+        return Err(failed("checkpoint_file_limit_or_not_regular"));
+    }
+    Ok(Some(file))
 }
 
 #[cfg(unix)]
@@ -708,8 +765,28 @@ fn lock_project_patch(file: &File) -> Result<(), PortError> {
 }
 
 #[cfg(not(unix))]
-fn lock_project_patch(_file: &File) -> Result<(), PortError> {
-    Err(failed("apply_patch_lock_unavailable"))
+fn lock_project_patch(file: &File) -> Result<(), PortError> {
+    // Windows: take the same exclusive cross-process byte-range lock the Unix `flock` path uses.
+    // The lock is released when the handle is dropped.
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{LockFileEx, LOCKFILE_EXCLUSIVE_LOCK};
+    use windows_sys::Win32::System::IO::OVERLAPPED;
+
+    let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+    let locked = unsafe {
+        LockFileEx(
+            file.as_raw_handle() as *mut _,
+            LOCKFILE_EXCLUSIVE_LOCK,
+            0,
+            u32::MAX,
+            u32::MAX,
+            &mut overlapped,
+        )
+    };
+    if locked == 0 {
+        return Err(failed("apply_patch_lock_unavailable"));
+    }
+    Ok(())
 }
 
 fn parse_patch(patch: &str) -> Result<Vec<Hunk>, PortError> {

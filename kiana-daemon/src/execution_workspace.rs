@@ -246,7 +246,7 @@ pub(crate) fn read_regular(path: &Path) -> Result<Vec<u8>, PortError> {
     Ok(bytes)
 }
 fn walk(
-    root: &Path,
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] root: &Path,
     directory: &Path,
     destination: Option<&Path>,
     manifest: &mut BTreeMap<String, FileVersion>,
@@ -373,16 +373,81 @@ fn walk(
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = (
-            root,
-            directory,
-            destination,
-            manifest,
-            total,
-            revoked,
-            depth,
-        );
-        Err(error("snapshot_handle_backend_unsupported"))
+        // Portable snapshot walk for Windows and macOS. It has no descriptor-relative open, so it
+        // re-checks every entry with `symlink_metadata`, refuses symlinks/reparse points and special
+        // files, and re-reads `read_regular` (which itself re-verifies type and size) instead of
+        // trusting the directory listing. Limits and skip rules are identical to the Linux walk.
+        let mut pending = vec![(directory.to_path_buf(), PathBuf::new())];
+        while let Some((current, relative)) = pending.pop() {
+            if depth + relative.components().count() > 64 {
+                return Err(error("path_depth_limit"));
+            }
+            let mut entries = fs::read_dir(&current)
+                .map_err(io_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(io_error)?;
+            entries.sort_by_key(|entry| entry.file_name());
+            for entry in entries {
+                let name = entry.file_name();
+                let text = name.to_str().ok_or_else(|| error("path_not_utf8"))?;
+                let child_relative = relative.join(&name);
+                let key = child_relative
+                    .to_str()
+                    .ok_or_else(|| error("path_not_utf8"))?
+                    .to_owned();
+                if crate::harness_sandbox::private_component(text)
+                    || text == ".git"
+                    || revoked
+                        .iter()
+                        .any(|source| key == *source || key.starts_with(&format!("{source}/")))
+                {
+                    continue;
+                }
+                let path = current.join(&name);
+                let metadata = fs::symlink_metadata(&path).map_err(io_error)?;
+                if metadata.file_type().is_symlink() {
+                    return Err(error("special_file_requires_explicit_adapter"));
+                }
+                #[cfg(windows)]
+                {
+                    use std::os::windows::fs::MetadataExt;
+                    use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+                    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+                        return Err(error("special_file_requires_explicit_adapter"));
+                    }
+                }
+                if metadata.is_dir() {
+                    if let Some(destination) = destination {
+                        create_private_directory(&destination.join(&child_relative))?;
+                    }
+                    pending.push((path, child_relative));
+                    continue;
+                }
+                if !metadata.is_file() {
+                    return Err(error("special_file_requires_explicit_adapter"));
+                }
+                if manifest.len() >= FILE_LIMIT {
+                    return Err(error("file_count_limit"));
+                }
+                let bytes = read_regular(&path)?;
+                *total = total.saturating_add(bytes.len() as u64);
+                if *total > TOTAL_BYTES {
+                    return Err(error("workspace_byte_limit"));
+                }
+                if let Some(destination) = destination {
+                    let target = destination.join(&child_relative);
+                    let mut options = OpenOptions::new();
+                    options.write(true).create_new(true);
+                    options
+                        .open(&target)
+                        .map_err(|error| io_error_at("snapshot_write", error))?
+                        .write_all(&bytes)
+                        .map_err(|error| io_error_at("snapshot_write_bytes", error))?;
+                }
+                manifest.insert(key, file_version(&bytes, false));
+            }
+        }
+        Ok(())
     }
 }
 pub(crate) fn create_private_directory(path: &Path) -> Result<(), PortError> {
@@ -405,6 +470,10 @@ pub(crate) fn write_private_json(path: &Path, value: &impl Serialize) -> Result<
     serde_json::to_writer(&mut file, value).map_err(|_| error("journal_encode_failed"))?;
     file.write_all(b"\n").map_err(io_error)?;
     file.sync_all().map_err(io_error)?;
+    // Directory fsync makes the new entry durable on Unix. Windows cannot open a directory as a
+    // `File` (`File::open` returns access-denied), and that platform has no equivalent here, so
+    // only the file itself is synced there.
+    #[cfg(unix)]
     if let Some(parent) = path.parent() {
         File::open(parent)
             .and_then(|file| file.sync_all())
@@ -417,4 +486,9 @@ fn error(reason: &str) -> PortError {
 }
 fn io_error(error: std::io::Error) -> PortError {
     PortError::Failed(format!("execution_workspace_io:{error}"))
+}
+/// IO failure tagged with the operation that failed, so a platform-specific permission error can
+/// be attributed without guessing.
+fn io_error_at(operation: &str, error: std::io::Error) -> PortError {
+    PortError::Failed(format!("execution_workspace_io:{operation}:{error}"))
 }

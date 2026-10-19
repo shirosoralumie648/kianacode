@@ -1973,6 +1973,12 @@ fn partial_jwt_start(text: &str, overlap_len: usize) -> Option<usize> {
         let Some(start) = text.len().checked_sub(prefix.len()) else {
             continue;
         };
+        // `start` is a byte length subtraction: with multi-byte text (e.g. an em dash just before a
+        // lone "e") it can land inside a character. Slicing there would panic, so treat it as "no
+        // partial prefix" instead.
+        if !text.is_char_boundary(start) {
+            continue;
+        }
         if start < overlap_len || !text[start..].eq_ignore_ascii_case(prefix) {
             continue;
         }

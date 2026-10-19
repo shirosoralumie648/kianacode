@@ -1447,6 +1447,15 @@ fn validate_record_parent(path: &Path, create: bool) -> Result<(), PortError> {
     let mut current = PathBuf::new();
     for component in parent.components() {
         current.push(component);
+        // Windows drive roots are not probeable entries; skip them and start at the first real
+        // component so the alias check applies to the filesystem object that exists.
+        #[cfg(windows)]
+        if matches!(
+            component,
+            std::path::Component::Prefix(_) | std::path::Component::RootDir
+        ) {
+            continue;
+        }
         match fs::symlink_metadata(&current) {
             Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
                 return Err(failed("memory_path_alias_denied"))

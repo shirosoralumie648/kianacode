@@ -95,7 +95,7 @@ fn memory_declaration() -> AdapterConformance {
 fn jsonl_declaration() -> AdapterConformance {
     AdapterConformance::new(
         AdapterKind::Jsonl,
-        capabilities_with(cfg!(unix), true),
+        capabilities_with(cfg!(any(unix, windows)), true),
         ProofCeiling::LocalBehavior,
         UnsupportedProbe::ProjectionApply,
         vec![

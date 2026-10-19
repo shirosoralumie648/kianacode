@@ -459,7 +459,40 @@ pub(crate) fn acquire_durable_path_locks(
                 return Err("path_lock_conflict");
             }
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            // Windows has no shared/exclusive `flock`; `LockFileEx` provides the same contract:
+            // an exclusive range when the leaf is locked, and a shared range for ancestor locks
+            // that only excludes an exclusive holder. `LOCKFILE_FAIL_IMMEDIATELY` keeps the
+            // non-blocking semantics the Unix path gets from `LOCK_NB`.
+            use std::os::windows::io::AsRawHandle;
+            use windows_sys::Win32::Storage::FileSystem::{
+                LockFileEx, LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY,
+            };
+            use windows_sys::Win32::System::IO::OVERLAPPED;
+
+            let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+            let flags = LOCKFILE_FAIL_IMMEDIATELY
+                | if exclusive {
+                    LOCKFILE_EXCLUSIVE_LOCK
+                } else {
+                    0
+                };
+            let locked = unsafe {
+                LockFileEx(
+                    file.as_raw_handle() as *mut _,
+                    flags,
+                    0,
+                    u32::MAX,
+                    u32::MAX,
+                    &mut overlapped,
+                )
+            };
+            if locked == 0 {
+                return Err("path_lock_conflict");
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = exclusive;
             return Err("path_lock_platform_unsupported");

@@ -401,6 +401,15 @@ fn read_config(path: &Path) -> Result<Option<String>, PortError> {
     let mut current = PathBuf::new();
     for part in path.components() {
         current.push(part);
+        // On Windows a bare drive prefix or root separator is not a filesystem entry; probing it
+        // fails with `ERROR_INVALID_FUNCTION`. Probe only once the path names a real component.
+        #[cfg(windows)]
+        if matches!(
+            part,
+            std::path::Component::Prefix(_) | std::path::Component::RootDir
+        ) {
+            continue;
+        }
         match std::fs::symlink_metadata(&current) {
             Ok(meta) if meta.file_type().is_symlink() => {
                 return Err(failed("hook_config_symlink_denied"))

@@ -384,12 +384,14 @@ fn bounded(value: &str, field: &str) -> Result<(), String> {
 }
 
 fn absolute_path(value: &str, field: &str) -> Result<(), String> {
+    // A Windows drive/share prefix (`C:\...`, `\\server\share\...`) is part of a valid absolute
+    // path; only `..` traversal is rejected here. `is_absolute()` still rejects relative input.
     if value.trim().is_empty()
         || value.len() > 4_096
         || !Path::new(value).is_absolute()
         || Path::new(value)
             .components()
-            .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)))
+            .any(|component| matches!(component, Component::ParentDir))
     {
         return Err(format!("{field}_invalid"));
     }
