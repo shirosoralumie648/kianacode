@@ -437,6 +437,22 @@ pub(crate) fn receipt_from_events(
     redact_event_value(&receipt)
 }
 
+/// Events that only re-state already committed facts must not become inputs of the next receipt.
+///
+/// `run.receipt` and `run.snapshot` are appended *after* a run reaches its terminal outcome: the
+/// receipt is built from the facts that decided the run, then persisted, then the resume snapshot
+/// is written.  Including them in the next projection would change `source_cursor`,
+/// `source_event_ids` and therefore `receipt_digest` for the same run, so a receipt recomputed in
+/// a fresh process could never reproduce the digest the completing process returned.  The golden
+/// trace path already excludes `run.snapshot` for the same reason; the receipt source set keeps
+/// both out and stays a projection of the decisions, not of its own output.
+fn receipt_source_events(events: &[RuntimeEvent]) -> Vec<&RuntimeEvent> {
+    events
+        .iter()
+        .filter(|event| !matches!(event.kind.as_str(), "run.receipt" | "run.snapshot"))
+        .collect()
+}
+
 fn typed_run_receipt(
     context: &RequestContext,
     run_id: RunId,
@@ -470,8 +486,9 @@ fn typed_run_receipt(
         .and_then(|event| event.data.get("error"))
         .and_then(Value::as_str)
         .map(redact_event_text);
+    let source_events = receipt_source_events(events);
     let mut seen_event_ids = HashSet::new();
-    let source_event_ids = events
+    let source_event_ids = source_events
         .iter()
         .rev()
         .map(|event| event.event_id)
@@ -491,7 +508,7 @@ fn typed_run_receipt(
         })),
         status,
         terminal_reason,
-        events.len().min(u64::MAX as usize) as u64,
+        source_events.len().min(u64::MAX as usize) as u64,
         source_event_ids,
         profile.profile_digest,
         "implemented",

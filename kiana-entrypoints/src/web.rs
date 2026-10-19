@@ -130,6 +130,13 @@ pub const WEB_ACTION_PAYLOAD_SCHEMA: &str = "kiana.web-action-payload.v1";
 const MAX_WEB_HISTORY_PAGE: usize = 64;
 const MAX_WEB_PAGE_CURSORS: usize = 256;
 const MAX_WEB_PAGE_CURSOR_BYTES: usize = 256;
+/// A server-issued page cursor is a short-lived capability to read one bounded page; it is not a
+/// durable reference.  After the TTL the server refuses it with `web_page_cursor_expired` so a
+/// stale browser tab cannot silently rebind an old offset to a newer projection.
+const WEB_PAGE_CURSOR_TTL: Duration = Duration::from_secs(15 * 60);
+/// Detail pages are bounded like artifact listing pages.  Anything larger is reported through a
+/// limitation instead of being streamed into the read-only projection.
+const WEB_ARTIFACT_MAX_DETAIL_BYTES: u64 = 64 * 1024;
 const MAX_WEB_TAB_BYTES: usize = 128;
 /// Bounded roster of tabs the server has observed for one session.  The owner edge is always
 /// retained; older observer edges are evicted first, so a flood of tabs cannot grow the projection.
@@ -929,6 +936,11 @@ struct ArtifactDetailQuery {
     after: Option<String>,
     #[serde(default = "default_web_history_page")]
     limit: usize,
+    /// A partial-file selection is *not* a read-only detail parameter.  Accepting it here would
+    /// let a diff viewer narrow an approval payload while the page still looks authorized, so the
+    /// route refuses any non-empty selection with a stable code.
+    #[serde(default)]
+    files: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -939,6 +951,8 @@ struct DiffQuery {
     after: Option<String>,
     #[serde(default = "default_web_history_page")]
     limit: usize,
+    #[serde(default)]
+    files: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -2169,13 +2183,32 @@ impl WebApp {
             "source_cursor": source_cursor,
             "revision": revision
         });
+        // The ledger records artifact identity and digest, not the artifact bytes.  The projection
+        // therefore reports a server-owned *reference* plus explicit size/MIME/truncation
+        // limitations; it never substitutes a client-side copy of the content.
+        let declared_size = first.get("size_bytes").and_then(Value::as_u64).unwrap_or(0);
+        let declared_mime = first
+            .get("mime")
+            .and_then(Value::as_str)
+            .unwrap_or("application/octet-stream")
+            .to_owned();
+        let binary = !mime_is_text(&declared_mime);
+        let oversized = declared_size > WEB_ARTIFACT_MAX_DETAIL_BYTES;
+        let truncated = oversized || binary;
+        let mut limitations = vec!["artifact_content_requires_authorized_server_page"];
+        if binary {
+            limitations.push("artifact_binary_content_not_rendered");
+        }
+        if oversized {
+            limitations.push("artifact_size_limit_exceeded");
+        }
         let artifact = json!({
             "schema": "kiana.ui-artifact-ref.v1",
             "artifact_id": artifact_id,
             "version": 1,
             "artifact_schema": first.get("schema").cloned().unwrap_or_else(|| json!("unknown")),
-            "mime": "text/plain",
-            "size_bytes": 0,
+            "mime": declared_mime,
+            "size_bytes": declared_size,
             "content_hash": digest,
             "scope_digest": digest,
             "revision": revision,
@@ -2194,9 +2227,9 @@ impl WebApp {
             "page_digest": digest,
             "content_encoding": "none",
             "content": Value::Null,
-            "truncated": false,
+            "truncated": truncated,
             "next_cursor": next_cursor,
-            "limitations": ["artifact_content_requires_authorized_server_page"]
+            "limitations": limitations
         });
         self.ensure_page_source_unchanged(&epoch, source_cursor)?;
         Ok(json!({
@@ -2206,7 +2239,7 @@ impl WebApp {
             "diff": Value::Null,
             "receipt": Value::Null,
             "status": "partial",
-            "limitations": ["artifact_content_requires_authorized_server_page", "diff_requires_server_projection"]
+            "limitations": limitations
         }))
     }
 
@@ -2283,12 +2316,33 @@ impl WebApp {
             .unwrap_or("unknown");
         let unknown =
             matches!(status, "unknown" | "result_unknown") || receipt_value.get("error").is_some();
-        let digest = receipt_value
+        // Detail consumes the typed `run_receipt` projection, never a top-level digest that could
+        // be reassembled from a different event set.  A missing/malformed typed receipt stays
+        // Unknown instead of being replaced with a zero digest that looks authoritative.
+        let typed = receipt_value
             .get("output")
-            .and_then(|output| output.get("receipt_digest"))
+            .and_then(|output| output.get("run_receipt"))
+            .cloned();
+        let typed_digest = typed
+            .as_ref()
+            .and_then(|typed| typed.get("receipt_digest"))
             .and_then(Value::as_str)
-            .filter(|digest| digest.starts_with("sha256:"))
+            .filter(|digest| digest.starts_with("sha256:"));
+        let typed_cursor = typed
+            .as_ref()
+            .and_then(|typed| typed.get("source_cursor"))
+            .and_then(Value::as_u64);
+        let unknown = unknown || typed_digest.is_none();
+        let digest = typed_digest
             .unwrap_or("sha256:0000000000000000000000000000000000000000000000000000000000000000");
+        let receipt_source_cursor = typed_cursor.unwrap_or(source_cursor);
+        let mut limitations = vec!["detail_entries_are_server_projection_only"];
+        if typed_cursor.is_some() {
+            limitations.push("receipt_source_is_typed_run_projection");
+        }
+        if unknown {
+            limitations.push("receipt_result_unknown_or_error; query original receipt");
+        }
         Ok(json!({
             "schema": WEB_RECEIPT_DETAIL_SCHEMA,
             "scope": {
@@ -2307,12 +2361,12 @@ impl WebApp {
             "receipt_digest": digest,
             "status": status,
             "unknown": unknown,
-            "source_cursor": source_cursor,
+            "source_cursor": receipt_source_cursor,
             "entries": [],
             "artifact_ids": [],
             "timeline_ids": [],
             "inbox_ids": [],
-            "limitations": if unknown { json!(["receipt_result_unknown_or_error; query original receipt"]) } else { json!(["detail_entries_are_server_projection_only"]) },
+            "limitations": limitations,
             "receipt": receipt_value
         }))
     }
@@ -2405,6 +2459,12 @@ impl WebApp {
             // A malformed follow-up limit must not burn the owner's cursor: reject it before the
             // token is consumed so the same page can be retried with its issued bound.
             return Err(ApiError::bad("web_page_cursor_limit_mismatch"));
+        }
+        if cursor.issued_at.elapsed() > WEB_PAGE_CURSOR_TTL {
+            // Expiry is a refusal, not a silent restart at offset zero: replaying an expired
+            // reference could mix an old page with a newer projection.
+            cursors.remove(token);
+            return Err(ApiError::bad("web_page_cursor_expired"));
         }
         // Validate the full scope before consuming the token. A foreign tab or stale source
         // cursor must fail closed without burning a still-valid cursor for its owner.
@@ -2779,6 +2839,19 @@ async fn artifact(
     Ok(Json(page))
 }
 
+/// Refuse a client-supplied partial-file selection on the read-only detail surface.
+///
+/// An approval payload is authorized as a whole; a viewer may display the server's file list but
+/// it must not submit a narrowed subset and keep the original revision.  Partial-file approval
+/// therefore stays with `human.resolve` (which re-checks the payload digest), and this route
+/// answers with one stable refusal instead of silently ignoring the parameter.
+fn refuse_partial_file_selection(files: Option<&str>) -> Result<(), ApiError> {
+    match files.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(_) => Err(ApiError::bad("web_partial_file_approval_unsupported")),
+        None => Ok(()),
+    }
+}
+
 async fn artifact_detail(
     State(app): State<Arc<WebApp>>,
     headers: HeaderMap,
@@ -2786,6 +2859,7 @@ async fn artifact_detail(
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
+    refuse_partial_file_selection(query.files.as_deref())?;
     let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
     authorize_feed_tab(&app, &session_id, &tab_id)?;
     let page = app
@@ -2807,6 +2881,7 @@ async fn diff_detail(
 ) -> Result<Json<Value>, ApiError> {
     authorize_mutation(&app, &headers)?;
     let tab_id = require_web_tab(&headers)?;
+    refuse_partial_file_selection(query.files.as_deref())?;
     let session_id = resolve_human_session(&app, Some(&query.session_id)).await?;
     authorize_feed_tab(&app, &session_id, &tab_id)?;
     let page = app
@@ -4890,6 +4965,25 @@ fn history_thread_is_limited(events: &[LedgerEvent], run_id: &str) -> bool {
         > MAX_WEB_TURNS_PER_SESSION
 }
 
+/// Server-side MIME classification used only to report a limitation.
+///
+/// Artifact bytes are never served here, so a non-text MIME is reported as
+/// `artifact_binary_content_not_rendered` instead of being decoded into the browser.
+fn mime_is_text(mime: &str) -> bool {
+    let base = mime.split(';').next().unwrap_or(mime).trim();
+    base.starts_with("text/")
+        || matches!(
+            base,
+            "application/json"
+                | "application/xml"
+                | "application/yaml"
+                | "application/x-yaml"
+                | "application/toml"
+                | "application/javascript"
+                | "application/x-ndjson"
+        )
+}
+
 fn artifact_entry(event: &LedgerEvent, requested: Option<&str>) -> Option<Value> {
     let object = event
         .data
@@ -4916,6 +5010,14 @@ fn artifact_entry(event: &LedgerEvent, requested: Option<&str>) -> Option<Value>
             .or_else(|| event.data.get("artifact_digest"))
             .cloned()
             .or_else(|| object.and_then(|value| value.get("content_hash")).cloned())
+            .unwrap_or(Value::Null),
+        "mime": event.data.get("mime")
+            .or_else(|| object.and_then(|value| value.get("mime")))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "size_bytes": event.data.get("size_bytes")
+            .or_else(|| object.and_then(|value| value.get("size_bytes")))
+            .cloned()
             .unwrap_or(Value::Null),
         "content": Value::Null
     }))
@@ -9746,6 +9848,459 @@ mod tests {
             !after.to_string().contains("(cancel)"),
             "no cancel fact may follow a closed tab"
         );
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+    // ------------------------------------------------------------------
+    // UI-22: Web artifact / diff / receipt detail.
+    //
+    // The real loopback router, the host-only token and the run-scoped ledger projection are the
+    // subjects.  Deny-first: a partial-file selection, a missing token, a foreign Origin and
+    // another session's artifact reference are refused before any page is built.  Only then does
+    // the success fixture assert the server-owned reference, declared MIME/size, the explicit
+    // binary/oversize limitations, the server-only diff and the typed receipt digest.
+    // ------------------------------------------------------------------
+
+    const UI22_TAB: &str = "ui22-detail-tab";
+    const UI22_TEXT_SESSION: &str = "ui22-text-session";
+    const UI22_BINARY_SESSION: &str = "ui22-binary-session";
+    const UI22_LARGE_SESSION: &str = "ui22-large-session";
+    const UI22_OTHER_SESSION: &str = "ui22-other-session";
+    const UI22_TEXT_DIGEST: &str =
+        "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+
+    struct Ui22Server {
+        addr: SocketAddr,
+        host: Arc<DaemonHost>,
+        root: PathBuf,
+        home: PathBuf,
+        _env: crate::test_support::ScopedEnv<'static>,
+    }
+
+    fn ui22_seed_events(root: &Path) -> Vec<Value> {
+        let mut events = Vec::new();
+        let mut sequence = 1u64;
+        let seeds = [
+            (UI22_TEXT_SESSION, "ui22-artifact-text", "text/plain", 11u64),
+            (
+                UI22_BINARY_SESSION,
+                "ui22-artifact-binary",
+                "application/octet-stream",
+                11,
+            ),
+            (
+                UI22_LARGE_SESSION,
+                "ui22-artifact-large",
+                "text/plain",
+                256 * 1024,
+            ),
+            (UI22_OTHER_SESSION, "ui22-artifact-other", "text/plain", 11),
+        ];
+        for (session, artifact, mime, size) in seeds {
+            let run_id = RunId::new().to_string();
+            ui17_push_event(
+                &mut events,
+                &mut sequence,
+                "run.authorized",
+                json!({
+                    "run_id": run_id,
+                    "session_id": session,
+                    "actor_id": "local-user",
+                    "project_root": root.to_string_lossy(),
+                    "role_id": ROLE_BUILDER,
+                    "department_id": kiana_protocol::DEPARTMENT_EXECUTING,
+                    "sandbox": "read-only",
+                }),
+            );
+            ui17_push_event(
+                &mut events,
+                &mut sequence,
+                "run.prompt",
+                json!({"run_id": run_id, "session_id": session, "text": "ui22 detail"}),
+            );
+            ui17_push_event(
+                &mut events,
+                &mut sequence,
+                "run.completed",
+                json!({"run_id": run_id, "session_id": session, "text": "done"}),
+            );
+            ui17_push_event(
+                &mut events,
+                &mut sequence,
+                "run.artifact",
+                json!({
+                    "run_id": run_id,
+                    "session_id": session,
+                    "artifact_id": artifact,
+                    "artifact_schema": "kiana.ui-artifact-ref.v1",
+                    "content_hash": UI22_TEXT_DIGEST,
+                    "mime": mime,
+                    "size_bytes": size,
+                }),
+            );
+        }
+        events
+    }
+
+    async fn ui22_server() -> Ui22Server {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("ui22-home");
+        let root = unique_dir("ui22-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script = unique_dir("ui22-script").join("script.json");
+        fs::write(&script, r#"[{"text":"ui22 noop"}]"#).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        std::env::remove_var("KIANA_PROVIDER");
+        std::env::remove_var("KIANA_STREAMING");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+        write_ledger(&home, &ui22_seed_events(&root));
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::local().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        Ui22Server {
+            addr,
+            host,
+            root,
+            home,
+            _env: env,
+        }
+    }
+
+    struct Ui22Client {
+        client: reqwest::Client,
+        base: String,
+        token: String,
+    }
+
+    async fn ui22_client(server: &Ui22Server) -> Ui22Client {
+        let client = reqwest::Client::new();
+        let token = ui16_page_token(&client, server.addr).await;
+        Ui22Client {
+            client,
+            base: format!("http://{}", server.addr),
+            token,
+        }
+    }
+
+    impl Ui22Client {
+        fn get(&self, path: &str) -> reqwest::RequestBuilder {
+            self.client
+                .get(format!("{}{path}", self.base))
+                .header("x-kiana-web-token", &self.token)
+                .header("x-kiana-ui-tab", UI22_TAB)
+        }
+    }
+
+    /// 【拒绝】partial-file、缺失 token、foreign Origin、跨会话 artifact、未知会话、过期游标。
+    #[tokio::test]
+    async fn ui22_detail_denials_precede_any_projection() {
+        let server = ui22_server().await;
+        let client = ui22_client(&server).await;
+        let detail = format!(
+            "/api/artifact/detail?session_id={UI22_TEXT_SESSION}&artifact_id=ui22-artifact-text"
+        );
+
+        // A narrowed file selection is not a read-only parameter on either detail route.
+        let (status, denied) = ui17_json(
+            client
+                .get(&format!("{detail}&files=src%2Fsecret.rs"))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{denied}");
+        assert_eq!(
+            denied["error"],
+            json!("web_partial_file_approval_unsupported")
+        );
+        let (status, denied) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/diff?session_id={UI22_TEXT_SESSION}&artifact_id=ui22-artifact-text&files=a.rs"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{denied}");
+        assert_eq!(
+            denied["error"],
+            json!("web_partial_file_approval_unsupported")
+        );
+
+        // No token and a foreign Origin are both unauthorized, identically.
+        let no_token = client
+            .client
+            .get(format!("{}{detail}", client.base))
+            .header("x-kiana-ui-tab", UI22_TAB)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(no_token.status(), StatusCode::UNAUTHORIZED);
+        let foreign = client
+            .get(&detail)
+            .header("origin", "http://evil.example")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(foreign.status(), StatusCode::UNAUTHORIZED);
+
+        // Another session's artifact is not enumerable from this session's detail request.
+        let (status, unknown) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact/detail?session_id={UI22_TEXT_SESSION}&artifact_id=ui22-artifact-other"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{unknown}");
+        assert_eq!(unknown["error"], json!("artifact_not_found"));
+
+        // A session that does not exist fails closed instead of returning an empty detail.
+        let (status, missing) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact/detail?session_id=ui22-nobody&artifact_id=ui22-artifact-text"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{missing}");
+        assert_eq!(missing["error"], json!("session_unknown"));
+
+        // An expired server cursor is refused, not silently restarted at offset zero.
+        {
+            let app = WebApp::new(
+                Arc::clone(&server.host),
+                server.root.clone(),
+                "read-only".to_owned(),
+                ROLE_BUILDER.to_owned(),
+                "127.0.0.1:0".parse().unwrap(),
+            );
+            let cursor_cursor = app.host.ui_cursor();
+            let cursor = app
+                .issue_page_cursor(WebPageCursor {
+                    schema: WEB_PAGE_CURSOR_SCHEMA,
+                    kind: "artifact_detail",
+                    token: String::new(),
+                    session_id: UI22_TEXT_SESSION.to_owned(),
+                    tab_id: UI22_TAB.to_owned(),
+                    instance_id: app.host.feed_instance_id(),
+                    epoch: cursor_cursor.epoch.clone(),
+                    source_cursor: cursor_cursor.sequence,
+                    offset: 1,
+                    limit: 8,
+                    issued_at: Instant::now() - WEB_PAGE_CURSOR_TTL - Duration::from_secs(1),
+                })
+                .expect("expired cursor");
+            let denied = app
+                .consume_page_cursor(
+                    Some(&cursor),
+                    "artifact_detail",
+                    UI22_TEXT_SESSION,
+                    UI22_TAB,
+                    &app.host.feed_instance_id(),
+                    &cursor_cursor.epoch,
+                    cursor_cursor.sequence,
+                    8,
+                )
+                .expect_err("an expired cursor is refused");
+            assert_eq!(denied.error, "web_page_cursor_expired");
+        }
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    /// 【成功】服务端引用/声明尺寸/显式限制，且 diff 与 receipt 只是只读投影。
+    #[tokio::test]
+    async fn ui22_detail_success_keeps_server_refs_and_limitations() {
+        let server = ui22_server().await;
+        let client = ui22_client(&server).await;
+
+        let (status, detail) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact/detail?session_id={UI22_TEXT_SESSION}&artifact_id=ui22-artifact-text"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{detail}");
+        assert_eq!(detail["schema"], json!(WEB_ARTIFACT_DETAIL_SCHEMA));
+        assert_eq!(detail["status"], json!("partial"));
+        assert_eq!(detail["scope"]["schema"], json!(WEB_DETAIL_SCOPE_SCHEMA));
+        let page = &detail["artifact_page"];
+        assert_eq!(page["schema"], json!("kiana.ui-artifact-page.v2"));
+        assert_eq!(
+            page["artifact"]["schema"],
+            json!(kiana_protocol::UI_ARTIFACT_REF_SCHEMA)
+        );
+        assert_eq!(page["artifact"]["mime"], json!("text/plain"));
+        assert_eq!(page["artifact"]["size_bytes"], json!(11));
+        assert_eq!(page["artifact"]["content_hash"], json!(UI22_TEXT_DIGEST));
+        assert_eq!(page["content"], Value::Null);
+        assert_eq!(page["content_encoding"], json!("none"));
+        assert_eq!(page["truncated"], json!(false));
+        assert_eq!(
+            detail["limitations"],
+            json!(["artifact_content_requires_authorized_server_page"])
+        );
+        assert_eq!(detail["diff"], Value::Null);
+        assert_eq!(detail["receipt"], Value::Null);
+
+        // Binary: octet-stream is reported as a limitation, never decoded into the page.
+        let (status, binary) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact/detail?session_id={UI22_BINARY_SESSION}&artifact_id=ui22-artifact-binary"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{binary}");
+        assert_eq!(
+            binary["artifact_page"]["artifact"]["mime"],
+            json!("application/octet-stream")
+        );
+        assert_eq!(binary["artifact_page"]["truncated"], json!(true));
+        assert_eq!(
+            binary["limitations"],
+            json!([
+                "artifact_content_requires_authorized_server_page",
+                "artifact_binary_content_not_rendered"
+            ])
+        );
+        assert_eq!(binary["artifact_page"]["content"], Value::Null);
+
+        // Oversize: the size limit is stated, and no partial byte range is served.
+        let (status, large) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/artifact/detail?session_id={UI22_LARGE_SESSION}&artifact_id=ui22-artifact-large"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{large}");
+        assert_eq!(
+            large["artifact_page"]["artifact"]["size_bytes"],
+            json!(256 * 1024)
+        );
+        assert_eq!(large["artifact_page"]["truncated"], json!(true));
+        assert!(
+            large["limitations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "artifact_size_limit_exceeded"),
+            "{large}"
+        );
+
+        // Diff: server statistics only, with an explicit unavailable limitation.
+        let (status, diff) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/diff?session_id={UI22_TEXT_SESSION}&artifact_id=ui22-artifact-text"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{diff}");
+        assert_eq!(diff["schema"], json!(WEB_DIFF_DETAIL_SCHEMA));
+        assert_eq!(diff["status"], json!("unknown"));
+        assert_eq!(diff["diff"]["status"], json!("unknown"));
+        assert_eq!(diff["diff"]["total_additions"], json!(0));
+        assert_eq!(diff["diff"]["total_deletions"], json!(0));
+        assert_eq!(diff["diff"]["files"], json!([]));
+        assert_eq!(diff["limitations"], json!(["server_diff_not_available"]));
+        assert_eq!(diff["artifact_page"]["content"], Value::Null);
+
+        // Receipt: the digest comes from the typed `run_receipt` projection or the page stays
+        // Unknown; it is never assembled from the top-level envelope.
+        let (status, receipt) = ui17_json(
+            client
+                .get(&format!(
+                    "/api/receipt/detail?session_id={UI22_TEXT_SESSION}"
+                ))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{receipt}");
+        assert_eq!(receipt["schema"], json!(WEB_RECEIPT_DETAIL_SCHEMA));
+        assert!(receipt["limitations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "detail_entries_are_server_projection_only"));
+        let typed = receipt["receipt"]
+            .get("output")
+            .and_then(|output| output.get("run_receipt"))
+            .and_then(|typed| typed.get("receipt_digest"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        match typed {
+            Some(digest) => {
+                assert_eq!(receipt["receipt_digest"], json!(digest));
+                assert!(receipt["limitations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|value| value == "receipt_source_is_typed_run_projection"));
+            }
+            None => {
+                assert_eq!(receipt["unknown"], json!(true));
+                assert_eq!(
+                    receipt["receipt_digest"],
+                    json!(
+                        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                    )
+                );
+            }
+        }
 
         let _ = fs::remove_dir_all(&server.root);
         let _ = fs::remove_dir_all(&server.home);

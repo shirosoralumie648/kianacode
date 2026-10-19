@@ -79,10 +79,27 @@ fn ui22_detail_fixture_keeps_unknown_and_security_cases_explicit() {
         "html_svg_ansi_injection",
         "client_computed_diff",
         "arbitrary_url_fetch",
+        "expired_server_cursor",
+        "partial_file_approval_refused",
+        "unsupported_receipt_cursor",
     ] {
         assert!(
             deny.iter().any(|value| value == expected),
             "missing {expected}"
+        );
+    }
+    for marker in [
+        "web_page_cursor_expired",
+        "web_partial_file_approval_unsupported",
+        "artifact_binary_content_not_rendered",
+        "artifact_size_limit_exceeded",
+        "receipt_source_is_typed_run_projection",
+        "mime_is_text",
+        "WEB_ARTIFACT_MAX_DETAIL_BYTES",
+    ] {
+        assert!(
+            include_str!("../src/web.rs").contains(marker),
+            "server marker missing: {marker}"
         );
     }
     let page = include_str!("../src/web_page.html");
