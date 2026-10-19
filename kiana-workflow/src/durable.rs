@@ -612,8 +612,10 @@ fn reconcile_subworkflow_children(state: &mut AutomationState, parent_id: &str) 
 /// 【调用者】`Start`、trigger firing 和 `SubWorkflow`/`Compensate` 规划分支使用。
 /// 【校验】实例 ID 唯一且有界，全局实例数少于 4096；定义版本已登记；actor 属于定义允许角色；
 /// 必需 input key 均存在。当前实现只要求声明的 keys 都在 inputs 中，不拒绝额外 key。
-/// 有 parent 时另校验 owner 相同、子定义 max_steps 不超过父实例剩余预算，并把 depth 限制在
-/// `MAX_WORKFLOW_DEPTH`（8）。
+/// 有 parent 时另校验 owner 相同，并把 depth 限制在 `MAX_WORKFLOW_DEPTH`（8）。
+/// 只有真正嵌套执行的调用方（`SubWorkflow`/trigger child）才要求子定义 `max_steps` 不超过父实例
+/// 剩余预算；补偿实例是独立的原实例引用而不是嵌套 child，`charge_parent_budget=false`，否则一个
+/// 已消耗 step 的失败源实例永远无法补偿（其剩余预算必然小于完整定义）。
 /// 【状态变化】把 owner/role/创建时间/deadline/输入/可选 trigger 和 parent 记入新实例，初始为
 /// Ready；deadline 是创建时刻加定义最大持续时间。所有失败只丢弃调用方的 planner 副本。
 fn create_instance(
@@ -625,6 +627,7 @@ fn create_instance(
     a: &AutomationAuthority,
     trigger_id: Option<String>,
     parent_instance_id: Option<String>,
+    charge_parent_budget: bool,
 ) -> Result<()> {
     require(
         !id.trim().is_empty() && id.len() <= 256 && !state.instances.contains_key(id),
@@ -654,13 +657,15 @@ fn create_instance(
                 parent.definition_version,
             ))
             .ok_or("workflow_definition_not_found")?;
-        require(
-            d.max_steps
-                <= parent_definition
-                    .max_steps
-                    .saturating_sub(parent.steps_used),
-            "workflow_child_budget_exceeded",
-        )?;
+        if charge_parent_budget {
+            require(
+                d.max_steps
+                    <= parent_definition
+                        .max_steps
+                        .saturating_sub(parent.steps_used),
+                "workflow_child_budget_exceeded",
+            )?;
+        }
         parent
             .depth
             .checked_add(1)
@@ -1039,6 +1044,7 @@ pub fn plan_command(
             a,
             None,
             None,
+            true,
         )?,
         AutomationCommand::Advance { instance_id } => {
             // 先把已结束的子实例状态带回父节点，之后才计算 ready nodes；不读取或启动子流程。
@@ -1211,6 +1217,7 @@ pub fn plan_command(
                     a,
                     None,
                     Some(instance_id.clone()),
+                    true,
                 )?;
             }
         }
@@ -1463,6 +1470,7 @@ pub fn plan_command(
                 a,
                 None,
                 Some(instance_id.clone()),
+                false,
             )?;
             let compensation = next.instances.get_mut(compensation_instance_id).unwrap();
             // `selected_nodes` 让 ready_node_ids 仅运行已选中的补偿节点；definition 仍保持原样。
@@ -1727,6 +1735,7 @@ fn fire_trigger(
             a,
             Some(id.into()),
             None,
+            true,
         )?;
         let current = state.triggers.get_mut(id).unwrap();
         current.fired.insert(key.clone(), instance_id);
