@@ -25,6 +25,16 @@ thiserror.workspace = true
 tokio.workspace = true
 libc.workspace = true
 
+# Durable path locks need an OS-level shared/exclusive lock on Windows as well; `flock(2)` is
+# Unix-only.  Target-scoped, same pinned version as the other workspace members, so Unix builds
+# are unchanged.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+] }
+
 [dev-dependencies]
 kiana-capability-broker.workspace = true
 kiana-eventlog.workspace = true

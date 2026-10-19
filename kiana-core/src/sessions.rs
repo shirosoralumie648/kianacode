@@ -484,7 +484,9 @@ pub(crate) fn acquire_durable_path_locks(
                 return Err("path_lock_conflict");
             }
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        try_lock_path_file_windows(&file, exclusive)?;
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = exclusive;
             return Err("path_lock_platform_unsupported");
@@ -492,6 +494,36 @@ pub(crate) fn acquire_durable_path_locks(
         leases.push(PathLockLease { _file: file });
     }
     Ok(leases)
+}
+
+/// Non-blocking Windows counterpart of `flock(LOCK_EX | LOCK_NB)` / `LOCK_SH | LOCK_NB`.
+///
+/// The Unix path takes a shared lock on ancestors and an exclusive lock on the leaf so unrelated
+/// subtrees can proceed concurrently while overlapping paths conflict.  Windows expresses the same
+/// two modes through the shared/exclusive bits of `LockFileEx`; `LOCKFILE_FAIL_IMMEDIATELY` keeps
+/// the call non-blocking, so a conflict surfaces as `path_lock_conflict` exactly as on Unix.
+/// The lock is released when the handle closes, which `PathLockLease` guarantees.
+#[cfg(windows)]
+fn try_lock_path_file_windows(file: &File, exclusive: bool) -> Result<(), &'static str> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::HANDLE;
+    use windows_sys::Win32::Storage::FileSystem::{
+        LockFileEx, LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY,
+    };
+    use windows_sys::Win32::System::IO::OVERLAPPED;
+
+    let handle = file.as_raw_handle() as HANDLE;
+    let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+    let flags = LOCKFILE_FAIL_IMMEDIATELY
+        | if exclusive {
+            LOCKFILE_EXCLUSIVE_LOCK
+        } else {
+            0
+        };
+    if unsafe { LockFileEx(handle, flags, 0, u32::MAX, u32::MAX, &mut overlapped) } == 0 {
+        return Err("path_lock_conflict");
+    }
+    Ok(())
 }
 
 #[cfg(all(unix, test))]
