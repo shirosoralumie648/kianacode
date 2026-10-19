@@ -28,6 +28,8 @@ mod automation_surface_uat;
 mod billing_allocation;
 mod billing_invoice;
 mod billing_projection;
+mod billing_query_admission;
+mod billing_receipt_view;
 mod billing_recovery;
 mod bq26_fault_harness;
 mod capabilities;
@@ -263,6 +265,14 @@ pub use billing_invoice::{
 };
 pub use billing_projection::{
     BillingProjectionFence, BillingProjectionFenceError, BILLING_PROJECTION_FENCE_NO_FACT_WRITES,
+};
+pub use billing_query_admission::{
+    BillingQueryAdmission, BillingQueryAdmissionError, BillingQueryEffectWitness,
+    BILLING_QUERY_ADMISSION_NO_EFFECTS,
+};
+pub use billing_receipt_view::{
+    BillingQueryReceiptView, BillingReceiptViewError, BILLING_RECEIPT_VIEW_NO_FACT_WRITES,
+    BILLING_RECEIPT_VIEW_SCHEMA,
 };
 pub use billing_recovery::{
     validate_billing_recovery, BillingRecoveryAdmission, BillingRecoveryAdmissionError,

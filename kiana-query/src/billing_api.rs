@@ -49,6 +49,10 @@ pub enum BillingQueryError {
     /// 请求的 after_cursor 超出当前 snapshot 的 source cursor。
     #[error("billing_query_cursor_out_of_range")]
     CursorOutOfRange,
+    /// 投影没有可用的来源游标（cursor 0 / 未完成重建）。此时不能渲染成“空账单成功”，
+    /// 因为 `BillingQueryResponse` 不允许 source_cursor 0，也不存在可绑定的 freshness。
+    #[error("billing_query_projection_source_cursor_missing")]
+    ProjectionSourceMissing,
 }
 
 /// 从已准备好的 billing projection 和数据边界构造统一的只读账单响应。
@@ -94,6 +98,11 @@ pub fn query_billing_projection(
     }
 
     let source_cursor = snapshot.source.source_cursor;
+    // 没有来源游标的投影不能渲染成“零行成功”：Domain response 拒绝 source_cursor 0，
+    // 调用方也无法区分“账本没有事实”和“投影从未推进/读取失败”。必须显式拒绝。
+    if source_cursor == 0 || snapshot.source.source_epoch == 0 {
+        return Err(BillingQueryError::ProjectionSourceMissing);
+    }
     // after_cursor 指向的进度不能超过当前快照；等于末尾是合法的空后续页。
     if request.after_cursor > source_cursor {
         return Err(BillingQueryError::CursorOutOfRange);

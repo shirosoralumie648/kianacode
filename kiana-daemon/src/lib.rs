@@ -55,6 +55,7 @@ mod automation_boot_recovery;
 mod automation_cancellation;
 mod automation_dispatch;
 mod billing_invoice_import;
+mod billing_query_service;
 mod company_dispatch;
 mod connector_ingress;
 mod connector_ingress_replay;
@@ -2483,10 +2484,24 @@ impl DaemonHost {
                 std::env::var("KIANA_MEMORY_DISTILL_AUTO").as_deref(),
                 Ok("1" | "true")
             );
+        // BQ-23 read-only query services resolve their project identity and data epoch from the
+        // server-verified context; neither is ever taken from the wire body/arguments.
+        let billing_query_project = project_identity.clone();
+        let billing_query_data_epoch = security_context.data_epoch;
         let mut distill_context = context.clone();
         distill_context.request_id = kiana_domain::RequestId::new();
         let response = match request.body {
             RequestBody::Command(command) => {
+                if command.name == billing_query_service::BILLING_QUERY_COMMAND {
+                    return billing_query_service::serve_billing_query_command(
+                        self,
+                        &context,
+                        &billing_query_project,
+                        billing_query_data_epoch,
+                        &command.arguments,
+                    )
+                    .await;
+                }
                 self.core
                     .handle_command(context, CommandIntent::new(command.name, command.arguments))
                     .await
@@ -2587,8 +2602,17 @@ impl DaemonHost {
                     .entrypoint_parity(&context, parity.entrypoint, parity.run_id)
                     .await
             }
-            RequestBody::BillingQuery(_) => {
-                return ResponseEnvelope::rejected(request_id, "billing_query_projection_not_wired")
+            RequestBody::BillingQuery(query) => {
+                // Read-only query: served directly so the terminal-run publish and memory
+                // distillation paths below never run for a query.
+                return billing_query_service::serve_billing_query(
+                    self,
+                    &context,
+                    &billing_query_project,
+                    billing_query_data_epoch,
+                    query,
+                )
+                .await;
             }
             RequestBody::Spawn(spawn) => {
                 self.core
@@ -2863,7 +2887,8 @@ fn request_may_execute(body: &RequestBody) -> bool {
             | "trace.replay"
             | "memory.proposals"
             | "workspace.checkpoint.list"
-            | "workspace.checkpoint.preview" => false,
+            | "workspace.checkpoint.preview"
+            | "budget.query.v1" => false,
             "memory.distill" | "extension.manage" | "connector.manage" | "connector.health"
             | "data.governance" => !matches!(
                 command.arguments["action"].as_str(),

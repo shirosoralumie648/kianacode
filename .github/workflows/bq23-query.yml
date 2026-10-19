@@ -19,8 +19,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format gate
         run: cargo fmt --all --check
+      - name: Run kiana-core bq23_billing_query_guard
+        run: cargo test -p kiana-core --test bq23_billing_query_guard --locked -- --test-threads=1
       - name: Run kiana-daemon bq23_billing_query_guard
         run: cargo test -p kiana-daemon --test bq23_billing_query_guard --locked -- --test-threads=1
+      - name: Run kiana-daemon bq23_billing_query_surfaces
+        run: cargo test -p kiana-daemon --test bq23_billing_query_surfaces --locked -- --test-threads=1
+      - name: Run kiana-entrypoints bq23_budget_query_surfaces
+        run: cargo test -p kiana-entrypoints --test bq23_budget_query_surfaces --locked -- --test-threads=1
       - name: Run kiana-protocol bq23_billing_query
         run: cargo test -p kiana-protocol --test bq23_billing_query --locked -- --test-threads=1
       - name: Run kiana-query bq23_billing_api
