@@ -258,6 +258,15 @@ fn ensure_directory(path: &Path) -> Result<(), PortError> {
     let mut current = PathBuf::new();
     for component in path.components() {
         current.push(component);
+        // A Windows drive prefix or root separator alone is not a directory entry to probe; only
+        // start checking once the path names a real component.
+        #[cfg(windows)]
+        if matches!(
+            component,
+            std::path::Component::Prefix(_) | std::path::Component::RootDir
+        ) {
+            continue;
+        }
         match fs::symlink_metadata(&current) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(PortError::Failed("ui_instance_directory_alias".to_owned()))

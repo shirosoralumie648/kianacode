@@ -18,12 +18,38 @@ use kiana_entrypoints::{cli, init};
 /// 【失败边界】如果初始化返回 `Err`，`?` 会直接返回，CLI 和下方清理步骤都不会执行；当前 `init()`
 /// 对可恢复初始化异常主要记录状态/日志并返回成功。若 CLI panic 或进程被强制终止，也不会走到常规清理。
 /// ⚠ 不要把 cleanup 错误改成覆盖 `result`：那会让命令本身的退出结果被次级收尾错误改写。
-#[tokio::main]
-async fn main() -> Result<()> {
-    init::init().await?;
-    let result = cli::main().await;
-    if let Err(error) = init::run_cleanup_handlers().await {
+/// 命令主线程的栈大小：16 MiB。
+///
+/// 【为什么需要显式指定】Windows 上进程主线程默认只有 1 MiB 栈。CLI 分派、配置加载和 `run`
+/// 路径上的 `DaemonHost` 组合根都跑在这条线程上，调试构建下深层调用叠加会触发
+/// `has overflowed its stack`，表现为本地命令直接失败。栈大小属于进程入口的职责，不能靠下游
+/// 模块「少用一点栈」来解决。
+const MAIN_THREAD_STACK_BYTES: usize = 16 * 1024 * 1024;
+
+/// 在专用线程上建立运行时并执行 CLI；只由 `main` 调用。
+fn run() -> Result<()> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let result = runtime.block_on(async {
+        init::init().await?;
+        cli::main().await
+    });
+    if let Err(error) = runtime.block_on(init::run_cleanup_handlers()) {
         eprintln!("session cleanup error: {error}");
     }
     result
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // The CLI does its work on a thread with an explicit stack size rather than on the process
+    // main thread, whose 1 MiB Windows default is too small for the composition root.
+    std::thread::Builder::new()
+        .name("kiana-main".to_owned())
+        .stack_size(MAIN_THREAD_STACK_BYTES)
+        .spawn(run)
+        .map_err(|error| anyhow::anyhow!("main_thread_spawn_failed: {error}"))?
+        .join()
+        .map_err(|_| anyhow::anyhow!("main_thread_panicked"))?
 }

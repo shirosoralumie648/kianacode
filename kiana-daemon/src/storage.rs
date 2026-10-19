@@ -440,6 +440,13 @@ fn reject_symlink_components(path: &Path, reason: &str) -> Result<(), PortError>
             }
             Component::Normal(part) => current.push(part),
         }
+        // A bare drive prefix (`C:`) or the root separator alone is not a filesystem object on
+        // Windows; probing it returns ERROR_INVALID_FUNCTION. Only probe the path once it names a
+        // real entry, i.e. once a normal component has been appended.
+        #[cfg(windows)]
+        if !matches!(component, Component::Normal(_)) {
+            continue;
+        }
         match fs::symlink_metadata(&current) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 return Err(PortError::Failed(reason.to_owned()));

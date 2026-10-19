@@ -234,11 +234,17 @@ impl ControlPlane {
         };
         let identity = events.iter().find(|event| event.kind == "run.authorized");
         if let Some(identity) = identity {
-            let session_matches = identity
-                .data
-                .get("session_id")
-                .and_then(Value::as_str)
-                .is_none_or(|session| session == author_session_id);
+            // The caller may identify the author either by session id or by run id; packet and
+            // symposium runs have distinct session/run ids, so matching the recorded session
+            // against the raw argument alone would reject a correct run reference.
+            let referenced_run =
+                run_id.is_some_and(|run_id| run_id.to_string() == author_session_id);
+            let session_matches = referenced_run
+                || identity
+                    .data
+                    .get("session_id")
+                    .and_then(Value::as_str)
+                    .is_none_or(|session| session == author_session_id);
             let project_matches = identity
                 .data
                 .get("project_root")
