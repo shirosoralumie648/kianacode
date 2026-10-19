@@ -61,12 +61,12 @@ async fn memory_and_jsonl_share_eventstore_conformance_semantics() {
 
     let path = temp_path("jsonl");
     let jsonl = JsonlEventLog::open(&path).unwrap();
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         assert_conformance(&jsonl).await;
         jsonl.flush().await.unwrap();
     }
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     assert!(!jsonl.supports_atomic_transitions());
     drop(jsonl);
     cleanup(&path);

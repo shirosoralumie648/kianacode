@@ -409,6 +409,7 @@ fn run_tool_contracts_match_cancel_and_dispatch_producers() {
             "step_id",
             "invocation_id",
             "execution_scope",
+            "input_digest",
             "tool",
             "operation",
         ][..]
@@ -421,6 +422,7 @@ fn run_tool_contracts_match_cancel_and_dispatch_producers() {
         "step_id": kiana_domain::StepId::new(),
         "invocation_id": kiana_domain::InvocationId::new(),
         "execution_scope": null,
+        "input_digest": null,
         "tool": "shell",
         "operation": "shell.exec",
     });
@@ -431,6 +433,7 @@ fn run_tool_contracts_match_cancel_and_dispatch_producers() {
         "event_payload_unknown_field"
     );
     call_payload.as_object_mut().unwrap().remove("arguments");
+    call_payload.as_object_mut().unwrap().remove("input_digest");
     call_payload
         .as_object_mut()
         .unwrap()
@@ -2357,6 +2360,7 @@ fn run_capability_and_approval_contracts_match_all_producers() {
                 "stop_state",
                 "fenced",
                 "action_digest",
+                "input_digest",
                 "turn_id",
                 "step_id",
                 "invocation_id",
@@ -2386,6 +2390,7 @@ fn run_capability_and_approval_contracts_match_all_producers() {
                 "stop_state",
                 "fenced",
                 "action_digest",
+                "input_digest",
                 "turn_id",
                 "step_id",
                 "invocation_id",

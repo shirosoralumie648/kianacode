@@ -689,6 +689,12 @@ pub fn capability_request_paths(request: &CapabilityRequest) -> Vec<String> {
             }
         }
     }
+    // The same file may legitimately appear twice: once in the optional `path` hint and once as a
+    // `*** ... File:` header (or in two patch sections, e.g. a move plus an add). Scope dimensions
+    // reject duplicates, so collapse repeats here while keeping the first-seen order; the target
+    // set is unchanged, only its textual multiplicity is removed.
+    let mut seen = std::collections::BTreeSet::new();
+    paths.retain(|path| seen.insert(path.clone()));
     paths
 }
 

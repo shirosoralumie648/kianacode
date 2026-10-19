@@ -414,12 +414,16 @@ fn validate_digest(value: &str, field: &str) -> Result<(), String> {
 }
 
 fn validate_absolute_path(value: &str) -> Result<(), String> {
+    // Windows absolute paths carry a `Prefix` component (`C:\...`, `\\server\share\...`); that
+    // component is part of a legitimate absolute path, not traversal. `RootDir` + `Prefix` are
+    // still the only components allowed before the ordinary segments, and `ParentDir` anywhere
+    // remains rejected. On Unix the same predicate reduces to "absolute, no `..`".
     if value.trim().is_empty()
         || value.len() > MAX_STORAGE_PATH_BYTES
         || !Path::new(value).is_absolute()
         || Path::new(value)
             .components()
-            .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)))
+            .any(|component| matches!(component, Component::ParentDir))
     {
         return Err("storage_root_path_invalid".to_owned());
     }

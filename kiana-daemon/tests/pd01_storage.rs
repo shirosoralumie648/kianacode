@@ -99,7 +99,24 @@ fn daemon_storage_resolver_rejects_filesystem_root() {
     let project = temp_root("filesystem-root-project");
     fs::create_dir_all(&project).unwrap();
     let previous = std::env::var_os("KIANA_HOME");
-    std::env::set_var("KIANA_HOME", "/");
+    // The filesystem root is `/` on Unix and a drive root such as `C:\` on Windows; `"/"` alone
+    // is not an absolute path there and would be rejected earlier as `must_be_absolute`.
+    #[cfg(unix)]
+    let filesystem_root = "/";
+    #[cfg(windows)]
+    let filesystem_root = {
+        let drive = std::env::current_dir().unwrap();
+        drive
+            .components()
+            .find_map(|component| match component {
+                std::path::Component::Prefix(prefix) => {
+                    Some(format!("{}\\", prefix.as_os_str().to_string_lossy()))
+                }
+                _ => None,
+            })
+            .expect("windows drive root")
+    };
+    std::env::set_var("KIANA_HOME", filesystem_root);
 
     assert_eq!(
         resolve_storage_root(&project, "owner", "instance", 1).unwrap_err(),

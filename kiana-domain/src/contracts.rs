@@ -4408,6 +4408,7 @@ mod tests {
                 "kiana-domain",
                 "kiana-protocol",
                 "kiana-eventlog",
+                "kiana-client",
                 "kiana-core",
                 "kiana-daemon",
                 "kiana-policy",

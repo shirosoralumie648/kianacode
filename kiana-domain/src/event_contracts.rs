@@ -100,6 +100,9 @@ const RUN_CAPABILITY_REQUESTED_FIELDS: &[&str] = &[
     "stop_state",
     "fenced",
     "action_digest",
+    // See `RUN_TOOL_CALL_FIELDS::input_digest`: the control plane emits the canonical action
+    // input digest here as well, bound to the same admitted request.
+    "input_digest",
     "turn_id",
     "step_id",
     "invocation_id",
@@ -541,6 +544,10 @@ const RUN_TOOL_CALL_FIELDS: &[&str] = &[
     "step_id",
     "invocation_id",
     "execution_scope",
+    // Canonical digest of the admitted action input. The control plane emits it on the tool call
+    // and on the following capability request so receipts can bind the exact input; the contract
+    // must admit it or every local tool call fails closed as an unknown payload field.
+    "input_digest",
     "tool",
     "operation",
 ];

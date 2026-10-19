@@ -196,6 +196,32 @@ impl JournalFiles {
                 ));
             }
         }
+        // Windows takes the same exclusive cross-process lock through `LockFileEx`, which blocks
+        // until the byte range is free just like `flock(LOCK_EX)`. The handle is released on drop.
+        #[cfg(windows)]
+        {
+            use std::os::windows::io::AsRawHandle;
+            use windows_sys::Win32::Storage::FileSystem::{LockFileEx, LOCKFILE_EXCLUSIVE_LOCK};
+            use windows_sys::Win32::System::IO::OVERLAPPED;
+
+            let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+            let locked = unsafe {
+                LockFileEx(
+                    file.as_raw_handle() as *mut _,
+                    LOCKFILE_EXCLUSIVE_LOCK,
+                    0,
+                    u32::MAX,
+                    u32::MAX,
+                    &mut overlapped,
+                )
+            };
+            if locked == 0 {
+                return Err(io_error(
+                    "eventlog_lock_acquire_failed",
+                    std::io::Error::last_os_error(),
+                ));
+            }
+        }
         self.verify_named_file(&path, &file)?;
         Ok(ProcessEventLogLock(file))
     }
@@ -228,6 +254,26 @@ impl JournalFiles {
             }
         }
         Ok(())
+    }
+    /// Cut an incomplete tail record back to the last committed byte boundary.
+    ///
+    /// The append handle cannot truncate on Windows (`FILE_APPEND_DATA`-only handles are denied
+    /// `SetEndOfFile`), so open a second handle with plain write access, verify it names the same
+    /// file, and only then set the length. On Unix `set_len` on the append handle is allowed and
+    /// the extra handle is unnecessary, but the same path is safe there too.
+    fn truncate_to(&self, length: u64) -> Result<(), PortError> {
+        self.verify_parent()?;
+        let mut options = OpenOptions::new();
+        options.write(true);
+        let file = options
+            .open(&self.path)
+            .map_err(|e| io_error("eventlog_repair_failed", e))?;
+        self.verify_named_file(&self.path, &file)?;
+        file.set_len(length)
+            .map_err(|e| io_error("eventlog_repair_failed", e))?;
+        file.sync_all()
+            .map_err(|e| io_error("eventlog_repair_sync_failed", e))?;
+        self.sync_directory()
     }
     /// 在支持的平台上同步**目录本身**，而不只是文件。
     ///
@@ -263,6 +309,9 @@ impl Drop for ProcessEventLogLock {
         {
             let _ = unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
         }
+        // Windows releases `LockFileEx` ranges when the handle closes; `File`'s own drop does that
+        // immediately after this impl returns. An explicit unlock is unnecessary and would need a
+        // second `OVERLAPPED` with the same byte range.
     }
 }
 
@@ -487,13 +536,15 @@ impl JsonlEventLog {
 #[async_trait]
 impl EventStorePort for JsonlEventLog {
     fn supports_atomic_transitions(&self) -> bool {
-        // 当前只有 Unix 路径提供本实现要求的原子事务帧能力；非 Unix 调用方必须先检查此值，
-        // commit_transition 会明确返回 unsupported，而不能悄悄退化成多条独立 append。
-        cfg!(unix)
+        // Unix uses `flock` + directory fsync; Windows uses `LockFileEx` plus
+        // `FILE_FLAG_WRITE_THROUGH` so a fully written transition frame reaches the device before
+        // the append returns. Neither path may silently degrade into several independent appends;
+        // other platforms still report unsupported and `commit_transition` refuses.
+        cfg!(any(unix, windows))
     }
     fn capabilities(&self) -> EventStoreCapabilities {
-        let mut result = capabilities(cfg!(unix));
-        result.atomic_transitions = cfg!(unix);
+        let mut result = capabilities(cfg!(any(unix, windows)));
+        result.atomic_transitions = cfg!(any(unix, windows));
         result
     }
     async fn flush(&self) -> Result<EventStoreHealth, PortError> {
@@ -810,6 +861,21 @@ fn write_frame(
         .map_err(|e| io_error("eventlog_flush_failed", e))?;
     file.sync_all()
         .map_err(|e| io_error("eventlog_sync_failed", e))?;
+    // `sync_all` does not flush the device cache on Windows, so a transition frame appended with
+    // plain buffered I/O is not durable yet. Flush the file's write-through buffer now; failure
+    // is a real unknown-write and must surface as `Unknown`, exactly like a failed `sync_all`.
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Storage::FileSystem::FlushFileBuffers;
+
+        if unsafe { FlushFileBuffers(file.as_raw_handle() as *mut _) } == 0 {
+            return Err(io_error(
+                "eventlog_sync_failed",
+                std::io::Error::last_os_error(),
+            ));
+        }
+    }
     files.sync_directory()?;
     files.verify_named_file(&files.path, &file)?;
     // remember_file 成功后才推进缓存 offset/line：游标一旦发布，后续增量读取就会从新位置开始。
@@ -953,11 +1019,7 @@ fn load_delta(
             {
                 // 仅对新格式日志（或已有有效旧事件之后）容忍 EOF 截断：此时不完整尾行不可能
                 // 是完整提交记录。将文件裁回本行起点，并同步修复；更早的损坏记录不能走此分支。
-                file.set_len(cache.offset)
-                    .map_err(|e| io_error("eventlog_repair_failed", e))?;
-                file.sync_all()
-                    .map_err(|e| io_error("eventlog_repair_sync_failed", e))?;
-                files.sync_directory()?;
+                files.truncate_to(cache.offset)?;
                 cache.repaired_tail = true;
                 cache.repaired_bytes = cache.repaired_bytes.saturating_add(bytes.len() as u64);
                 break;
