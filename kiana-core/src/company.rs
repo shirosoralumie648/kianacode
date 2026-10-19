@@ -375,6 +375,21 @@ impl ControlPlane {
                 return self.reject_company(&context, reason).await;
             }
         }
+        // CO-16: the structured role-task intake, the reviewed Plan preview and the Sponsor
+        // approval are one CAS. The complete reference set, the frozen Charter/coverage/plan
+        // bindings, the server-side node versions, the project budget and the Company revision
+        // are revalidated before the transition, so prose surfaces and any invalid later packet
+        // change no related object and no half-approved plan is left behind.
+        if let CompanyCommand::ApproveCompanyPlan {
+            intake,
+            basis,
+            approval,
+        } = &request.command
+        {
+            if let Err(reason) = state.company_plan_approval_verdict(intake, basis, approval) {
+                return self.reject_company(&context, reason).await;
+            }
+        }
         let command_id = CompanyCommandReceipt::command_id(
             &company_aggregate_id(&context),
             &request.idempotency_key,

@@ -992,6 +992,15 @@ pub enum CompanyCommand {
     AdmitDepartmentPacket {
         packet: crate::DepartmentPacket,
     },
+    /// CO-16: the planning roles submit an explicit structured role-task result and the Sponsor
+    /// approves the exact reviewed Plan preview. One CAS freezes the Plan/Milestone/Packet
+    /// reference set and the follow-on handoff intents; text surfaces are refused by the intake
+    /// contract and a failure on any packet commits nothing.
+    ApproveCompanyPlan {
+        intake: crate::CompanyPlanProposalIntake,
+        basis: crate::CompanyPlanMaterializationBasis,
+        approval: crate::CompanyPlanApproval,
+    },
     AcknowledgeHandoff {
         handoff_id: String,
         accept: bool,
@@ -1152,6 +1161,7 @@ impl CompanyCommand {
             Self::FreezeCriterionCoverage { .. } => "CriterionCoverageFrozen",
             Self::FreezePlanGraph { .. } => "PlanGraphFrozen",
             Self::AdmitDepartmentPacket { .. } => "DepartmentPacketAdmitted",
+            Self::ApproveCompanyPlan { .. } => "CompanyPlanApproved",
             Self::AcknowledgeHandoff { .. } => "HandoffAcknowledged",
             Self::ReviewPacket { .. } => "PacketReviewed",
             Self::ConfigureBudget { .. } => "ProjectBudgetConfigured",
@@ -1231,6 +1241,9 @@ impl CompanyCommand {
             // CO-13: admitting a department work contract is a planning-side act; the assigned PM
             // and the Sponsor admit it, while a Builder subject is denied by the role gate.
             Self::AdmitDepartmentPacket { .. } => &["pm", "sponsor"],
+            // CO-16: the proposal is submitted from an authorized planning role task, but only
+            // the Sponsor signs the approval CAS that freezes the reference set.
+            Self::ApproveCompanyPlan { .. } => &["sponsor"],
             // CO-10: the chartering role drafts; the Sponsor (or an assigned PM) records it, and
             // only the Sponsor can approve the exact draft version.
             Self::DraftCharter { .. } => &["sponsor", "pm"],
@@ -1361,6 +1374,11 @@ pub struct CompanyState {
     /// binding). An admission conveys no capability, path, budget or lease authority.
     #[serde(default)]
     pub department_packets: BTreeMap<String, crate::DepartmentPacketAdmission>,
+    /// CO-16 structured role-task proposals, validated Plan previews and the reference set frozen
+    /// by one Sponsor approval CAS. An approval creates references and inert handoff intents; it
+    /// grants no capability, path, budget, lease or run.
+    #[serde(default)]
+    pub company_proposals: crate::CompanyProposalLedger,
     pub revision: u64,
     pub objectives: BTreeMap<String, Objective>,
     pub initiatives: BTreeMap<String, Initiative>,
@@ -1970,6 +1988,99 @@ impl CompanyState {
             plan.project_id.clone(),
             crate::FrozenPlanGraph::from_plan(plan)?,
         );
+        Ok(())
+    }
+
+    /// CO-16 combined intake + approval CAS verdict. Everything is checked against the
+    /// aggregate's own frozen facts: the intake must be a structured role-task result, the
+    /// proposal must bind a writable project with a matching frozen Charter baseline and coverage
+    /// graph, the submitted basis must name the server-side node dependency versions, and the
+    /// approval must consume the next Company revision. No field is mutated.
+    pub fn company_plan_approval_verdict(
+        &self,
+        intake: &crate::CompanyPlanProposalIntake,
+        basis: &crate::CompanyPlanMaterializationBasis,
+        approval: &crate::CompanyPlanApproval,
+    ) -> CompanyResult<()> {
+        intake.validate()?;
+        basis.validate()?;
+        approval.validate()?;
+        let task = intake
+            .task
+            .as_ref()
+            .ok_or("company_proposal_source_not_role_task_result")?;
+        let proposal = &task.proposal;
+        if approval.expected_revision != self.revision {
+            return Err("company_plan_approval_revision_conflict");
+        }
+        if basis.expected_revision != self.revision {
+            return Err("company_plan_approval_revision_conflict");
+        }
+        self.require_project_writable(&proposal.project_id)?;
+        let baseline = self
+            .charter_baselines
+            .get(&proposal.project_id)
+            .ok_or("company_plan_baseline_missing")?;
+        if baseline.version != proposal.plan.charter_baseline_version {
+            return Err("company_plan_baseline_mismatch");
+        }
+        if let Some(coverage) = self.criterion_coverages.get(&proposal.project_id) {
+            coverage.bind_plan(&proposal.plan)?;
+        }
+        if self.project_budgets_missing(&proposal.project_id) {
+            return Err("company_plan_budget_missing");
+        }
+        let frozen = self
+            .plan_graphs
+            .get(&proposal.project_id)
+            .ok_or("company_plan_preview_plan_not_frozen")?;
+        frozen.verify(&proposal.plan)?;
+        Ok(())
+    }
+
+    fn project_budgets_missing(&self, project_id: &str) -> bool {
+        self.budgets.get(project_id).is_none()
+    }
+
+    /// CO-16 approval CAS. The verdict runs again, then the proposal ledger builds the whole
+    /// preview and materialization before committing. A duplicate exact approval is idempotent.
+    fn approve_company_plan(
+        &mut self,
+        intake: &crate::CompanyPlanProposalIntake,
+        basis: &crate::CompanyPlanMaterializationBasis,
+        approval: &crate::CompanyPlanApproval,
+    ) -> CompanyResult<()> {
+        // Repeating the exact approval is idempotent: the committed materialization is reused and
+        // no reference set is duplicated. This is checked before the revision CAS, because the
+        // approval's own digest binds the revision it consumed.
+        if let Some(existing) = self.company_proposals.approvals.get(&approval.proposal_id) {
+            if existing.digest == approval.digest
+                && self
+                    .company_proposals
+                    .materializations
+                    .contains_key(&approval.proposal_id)
+            {
+                return Ok(());
+            }
+        }
+        self.company_plan_approval_verdict(intake, basis, approval)?;
+        let mut next = self.company_proposals.clone();
+        next.revision = self.revision;
+        let task = intake
+            .task
+            .as_ref()
+            .ok_or("company_proposal_source_not_role_task_result")?;
+        let preview = next.submit(intake.clone(), basis.clone())?;
+        if preview.proposal_id != task.proposal.proposal_id
+            || preview.project_id != task.proposal.project_id
+        {
+            return Err("company_plan_preview_proposal_mismatch");
+        }
+        let mut approval = approval.clone();
+        approval.expected_revision = preview.expected_revision;
+        approval.digest = approval.canonical_digest();
+        next.approve(approval)?;
+        self.company_proposals = next;
         Ok(())
     }
 
@@ -2943,6 +3054,13 @@ impl CompanyState {
             }
             CompanyCommand::AdmitDepartmentPacket { packet } => {
                 self.admit_department_packet(packet, a.now_ms)?;
+            }
+            CompanyCommand::ApproveCompanyPlan {
+                intake,
+                basis,
+                approval,
+            } => {
+                self.approve_company_plan(intake, basis, approval)?;
             }
             CompanyCommand::AcknowledgeHandoff {
                 handoff_id,
