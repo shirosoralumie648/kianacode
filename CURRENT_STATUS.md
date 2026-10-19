@@ -21707,6 +21707,21 @@ limitations: candidate/gate durable stores and actual provider route/grant mutat
 reviewer: Codex EQ-43 source review; checked unique DaemonHost/ControlPlane route, approval state/identity/request hash, scope digest, authority epoch and event schema; no local runtime test reviewer
 ```
 
+### EQ-43 quality promote/rollback atomic consumption evidence (2026-10-19)
+
+```text
+source_snapshot: worktree step/eq43-20261018-1 at e3ad600e plus this card's completion slice; kiana-core/src/quality_gate.rs; kiana-core/tests/{quality_promote_fixtures.rs,eq43_quality_mutation_guard.rs}; kiana-domain/src/event_contracts.rs; .github/workflows/eq43-quality-mutation.yml; docs/roadmap/evaluation-quality-mutation-baseline.md; docs/roadmap.md; CURRENT_STATUS.md
+worktree_status: quality.promote/quality.rollback now require an explicit project-relative target_path that is folded into the server-derived scope digest and separately covered by the actor's path_allow; the approved challenge is prepared through ApprovalStorePort::prepare_consumption and committed with the admission fact in one TransitionBatch via commit_confirmed, so consumption and admission are atomic; the command identity is derived from the request hash, so an identical replay is answered from the committed receipt (replayed=true) instead of consuming a second approval. No entrypoint, evaluator, Broker or Runner path was added and kiana-quality stays pure.
+command_argv: cargo check -p kiana-core --tests --offline; cargo test -p kiana-core --test quality_promote_fixtures --offline -- --test-threads=1; cargo test -p kiana-core --test eq43_quality_mutation_guard --offline -- --test-threads=1; rustfmt --edition 2021 --check on the touched Rust files
+cwd·environment: D:/code/kiana-steps/eq43 (worktree, branch step/eq43-20261018-1); Windows 11 / Git Bash; CARGO_TARGET_DIR=D:/code/kiana-steps/target-eq43; CARGO_BUILD_JOBS=4; locked offline dependencies
+fixture·cassette: kiana-core/tests/quality_promote_fixtures.rs 21 deny-first fixtures (card acceptance name first; target-outside-scope, target traversal, no-atomic-consumption, consumed/denied/expired/self-approved approval, tampered candidate/report, untrusted project, wrong role, anonymous actor, malformed digest, rollback hash reuse, cross-epoch replay) with the approved current-epoch success + idempotent replay fixture last; scripted approval store plus MemoryEventLog, no provider, filesystem effect or Broker call
+exit_code: cargo check 0; quality_promote_fixtures 21 passed exit 0; eq43_quality_mutation_guard 2 passed exit 0; whole-workspace cargo fmt --all --check fails on this host with os error 206 (path too long) so per-file rustfmt was used; GitHub Actions receipt not awaited
+status_change: roadmap row 573 (queue 573, W7) EQ-43 🔄 -> ✅; the mutation entry point now enforces current epoch, explicit target scope coverage and a consumed approval, and an admitted mutation is applied exactly once
+proof-level_change: feature_status=implemented; proof_level=local_behavior for the two focused core fixture targets only; no durable, live or physical promotion
+limitations: the mutation still records an admission fact rather than changing a provider route or grant; no durable candidate/gate/approval store, second effect receipt, entrypoint wiring or live/physical evidence; the scripted approval store is a test double and does not prove a production journal round trip
+reviewer: root integration agent; focused kiana-core reviewer checked epoch/scope/target admission order, atomic consumption batching, receipt replay idempotency, refusal-code stability and the no-Broker/no-Runner boundary
+```
+
 ### EQ-44 shadow admission and rollback evidence (2026-09-26)
 
 ```text

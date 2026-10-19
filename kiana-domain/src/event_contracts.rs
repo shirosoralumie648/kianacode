@@ -778,6 +778,7 @@ const QUALITY_FIELDS: &[&str] = &[
     "scope_digest",
     "authority_epoch",
     "operation",
+    "target_path",
 ];
 const RECOVERY_FIELDS: &[&str] = &["run_id", "recovery"];
 macro_rules! invocation_fields {
