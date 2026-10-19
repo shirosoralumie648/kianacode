@@ -96,6 +96,7 @@
    "bq19_cost_allocation",
    "bq19_cost_allocation_guard",
    "bq20_ledger_projector_guard",
+   "bq23_billing_query_guard",
    "bq25_telemetry_separation",
    "bq25_telemetry_separation_guard",
    "bq26_fault_harness_guard",
