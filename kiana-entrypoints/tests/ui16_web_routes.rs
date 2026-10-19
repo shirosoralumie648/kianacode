@@ -184,6 +184,9 @@ fn registered_routes(source: &str) -> Vec<RegisteredRoute> {
             method: methods.join("/"),
             handlers,
         });
+        // Advance past this registration: the scan is line-oriented, so leaving `rest` untouched
+        // re-reads the same first route forever.
+        rest = &after[line_end..];
     }
     routes
 }
@@ -507,6 +510,8 @@ fn ui16_per_route_authorization_precedes_any_host_access() {
                     "{handler} is host-only and must still check the bound Host"
                 );
             }
+            // NM-15: a handler that emits an SSE stream awaits the feed subscription for the
+            // lifetime of the connection, so the helper call itself is the sensitive read.
             let sensitive = [
                 "app.host.",
                 "app.snapshot(",
@@ -514,6 +519,7 @@ fn ui16_per_route_authorization_precedes_any_host_access() {
                 "app.options()",
                 "app.read_session_ledger(",
                 "app.history_sessions(",
+                "stream_attach_state(",
             ]
             .iter()
             .filter_map(|marker| region.find(*marker))

@@ -9,10 +9,28 @@
     "source_cursor",
     "items",
     "next_after_item_id",
+    "next_page_token",
     "page_digest",
     "unknown_visible",
     "limitations"
   ],
+  "page_cursor": {
+    "kind": "notification",
+    "single_use": true,
+    "bound_to": [
+      "session_id",
+      "tab_id",
+      "instance_id",
+      "authority_epoch",
+      "source_cursor",
+      "limit"
+    ],
+    "replayed": "web_page_cursor_replayed",
+    "unknown": "web_page_cursor_unknown",
+    "scope_mismatch": "web_page_cursor_scope_mismatch",
+    "limit_mismatch": "web_page_cursor_limit_mismatch",
+    "source_changed": "web_page_source_changed"
+  },
   "sse_events": [
     "snapshot_boundary",
     "delta",
@@ -26,36 +44,49 @@
     "header": "Last-Event-ID",
     "query_fallback": "last_event_id",
     "bounded_bytes": 2048,
-    "conflict": "web_notification_cursor_conflict"
+    "conflict": "web_notification_cursor_conflict",
+    "terminal_reconnect": "snapshot_boundary_only",
+    "retention": "terminal_replayed_to_late_subscriber"
   },
   "limits": {
     "page_items": 30,
     "actions_per_item": 16,
     "sse_event_bytes": 262144,
-    "reconnect_backoff_seconds": [1, 30]
+    "reconnect_backoff_ms": [250, 8000],
+    "reconnect_attempts": 6,
+    "sse_heartbeat_ms": 15000
   },
   "deny_first": [
     "wrong_host",
     "wrong_origin",
     "wrong_bearer_or_web_token",
     "cross_session_tab",
+    "missing_tab",
+    "unknown_session",
     "foreign_or_stale_cursor",
     "cursor_conflict",
+    "malformed_or_forged_cursor",
     "unbounded_page",
+    "page_cursor_replay_or_scope_shift",
+    "stale_source_cursor",
     "payload_or_action_argument_leak",
     "gap_as_completion",
     "sse_reconnect_submits_command",
+    "notification_command_execution",
     "terminal_then_delta"
   ],
   "source_boundary": {
     "page": "DaemonHost.authenticated_principal.EventStore.NotificationStore",
+    "page_durability": "DaemonHost.last_durable_cursor",
     "stream": "DaemonHost.RunStreamFeedSubscription",
     "actions": "display_only_until_ControlPlane_re_admission",
+    "notification_command_route": "command_unregistered_before_any_run_authorization",
     "gap": "snapshot_hydration_required"
   },
   "limitations": [
     "notification_projection_read_state_is_rebuildable_and_not_durable_in_this_slice",
     "SSE_cursor_and_subscription_are_process_local",
+    "runtime_notification_deltas_are_only_projected_from_committed_events_in_this_slice",
     "no_browser_or_cross_process_live_delivery_proof",
     "no_external_connector_or_physical_receipt_proof"
   ]

@@ -215,6 +215,16 @@
       "class": "request"
     },
     {
+      "code": "web_page_cursor_replayed",
+      "status": 400,
+      "class": "request"
+    },
+    {
+      "code": "web_page_cursor_unknown",
+      "status": 400,
+      "class": "request"
+    },
+    {
       "code": "web_page_cursor_limit_mismatch",
       "status": 400,
       "class": "request"

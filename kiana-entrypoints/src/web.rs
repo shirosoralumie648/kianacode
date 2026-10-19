@@ -567,6 +567,16 @@ pub const WEB_ERROR_MATRIX: &[WebErrorContract] = &[
         class: "request",
     },
     WebErrorContract {
+        code: "web_page_cursor_replayed",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
+        code: "web_page_cursor_unknown",
+        status: 400,
+        class: "request",
+    },
+    WebErrorContract {
         code: "web_page_cursor_limit_mismatch",
         status: 400,
         class: "request",
@@ -905,6 +915,9 @@ struct WebPageCursor {
     source_cursor: u64,
     offset: usize,
     limit: usize,
+    /// The server's own next-row marker for item-keyed pages (notifications).  Offset-keyed
+    /// pages leave this `None`; a follow-up page must never trust a client-supplied row id.
+    item_marker: Option<String>,
     issued_at: Instant,
 }
 
@@ -1051,6 +1064,10 @@ struct NotificationQuery {
     session_id: String,
     #[serde(default)]
     after_item_id: Option<String>,
+    /// Server-issued single-use token for the next page.  Follow-up pages present this instead of
+    /// a raw row id, so the next boundary is the server's claim and not a client assertion.
+    #[serde(default)]
+    after_page_token: Option<String>,
     #[serde(default = "default_web_notification_page")]
     limit: u16,
     #[serde(default)]
@@ -1154,6 +1171,19 @@ impl IntoResponse for ApiError {
     }
 }
 
+/// A composed store that cannot report a committed cursor (the in-memory adapter reports
+/// `event_store_health_unsupported`) has no durable projection to page.  That is a stable,
+/// retry-later refusal, not an internal error whose port text would leak to the browser.
+fn notification_source_cursor_error(error: impl std::fmt::Display) -> ApiError {
+    let text = error.to_string();
+    if text.contains("event_store_health_unsupported")
+        || text.contains("cursor_snapshot_unsupported")
+    {
+        return notification_api_error("notification_projection_unavailable".to_owned());
+    }
+    notification_api_error(text)
+}
+
 fn notification_api_error(error: String) -> ApiError {
     if error.contains("unavailable") || error.contains("unsupported") {
         return ApiError {
@@ -1163,6 +1193,11 @@ fn notification_api_error(error: String) -> ApiError {
     }
     if error.contains("cursor_stale") || error.contains("scope_mismatch") {
         return ApiError::conflict(error);
+    }
+    // An unknown/fabricated row marker is a request error, not a server fault: the browser has
+    // to drop the page and hydrate a snapshot instead of retrying the same bad id.
+    if error.contains("cursor_invalid") {
+        return ApiError::bad("web_notification_cursor_invalid");
     }
     ApiError::fail(error)
 }
@@ -1934,7 +1969,7 @@ impl WebApp {
                 }
                 (Vec::new(), false)
             };
-        let (offset, _cursor_limit) = self.consume_page_cursor(
+        let (offset, _cursor_limit, _item_marker) = self.consume_page_cursor(
             after,
             "history",
             session_id,
@@ -1964,6 +1999,7 @@ impl WebApp {
                 source_cursor,
                 offset: end,
                 limit,
+                item_marker: None,
                 issued_at: Instant::now(),
             })?)
         } else {
@@ -2029,7 +2065,7 @@ impl WebApp {
             } else {
                 return Err(ApiError::bad("session_unknown"));
             };
-        let (offset, _cursor_limit) = self.consume_page_cursor(
+        let (offset, _cursor_limit, _item_marker) = self.consume_page_cursor(
             after,
             "artifact",
             session_id,
@@ -2055,6 +2091,7 @@ impl WebApp {
                 source_cursor,
                 offset: end,
                 limit,
+                item_marker: None,
                 issued_at: Instant::now(),
             })?)
         } else {
@@ -2120,7 +2157,7 @@ impl WebApp {
             // Do not turn a private/nonexistent reference into an enumerable empty page.
             return Err(ApiError::bad("artifact_not_found"));
         }
-        let (offset, _cursor_limit) = self.consume_page_cursor(
+        let (offset, _cursor_limit, _item_marker) = self.consume_page_cursor(
             after,
             "artifact_detail",
             session_id,
@@ -2153,6 +2190,7 @@ impl WebApp {
                 source_cursor,
                 offset: end,
                 limit,
+                item_marker: None,
                 issued_at: Instant::now(),
             })?)
         } else {
@@ -2417,9 +2455,9 @@ impl WebApp {
         epoch: &str,
         source_cursor: u64,
         limit: usize,
-    ) -> Result<(usize, usize), ApiError> {
+    ) -> Result<(usize, usize, Option<String>), ApiError> {
         let Some(token) = token else {
-            return Ok((0, 0));
+            return Ok((0, 0, None));
         };
         if token.trim().is_empty()
             || token.len() > MAX_WEB_PAGE_CURSOR_BYTES
@@ -2439,11 +2477,11 @@ impl WebApp {
                 .lock()
                 .map_err(|_| ApiError::fail("web_page_cursor_state_unavailable"))?
                 .contains_key(token);
-            return Err(ApiError::bad(if replayed {
-                "web_page_cursor_replayed"
-            } else {
-                "web_page_cursor_unknown"
-            }));
+            // Literal constructors keep both refusal codes inside the scanned error catalogue.
+            if replayed {
+                return Err(ApiError::bad("web_page_cursor_replayed"));
+            }
+            return Err(ApiError::bad("web_page_cursor_unknown"));
         };
         if cursor.schema != WEB_PAGE_CURSOR_SCHEMA
             || cursor.kind != kind
@@ -2484,7 +2522,7 @@ impl WebApp {
             }
         }
         consumed.insert(token.to_owned(), Instant::now());
-        Ok((cursor.offset, cursor.limit))
+        Ok((cursor.offset, cursor.limit, cursor.item_marker))
     }
 
     // 为每次 daemon 调用重建显式选项，避免把可变 Web 状态隐式散落到 handler 中。
@@ -2792,26 +2830,95 @@ async fn notifications(
     if let Some(after) = query.after_item_id.as_deref() {
         validate_web_opaque_id(after, "after_item_id")?;
     }
+    // A follow-up notification page is only addressable through the server's single-use token.
+    // The raw `after_item_id` remains a first-request argument for the CLI/parity shape, but it
+    // cannot be combined with a token: that would let a browser staple a foreign row onto an
+    // otherwise valid page.
+    if query.after_item_id.is_some() && query.after_page_token.is_some() {
+        return Err(ApiError::bad("web_notification_cursor_conflict"));
+    }
+    // The page is bound to the same feed instance/epoch/tab as every other paged surface.  The
+    // source cursor is the daemon's committed EventStore cursor (the notification projection is
+    // built from `persisted_events`), so a later commit invalidates a still-open page token
+    // instead of letting a stale page look complete.
+    let (instance_id, epoch, _feed_cursor) = app.page_context()?;
+    let source_cursor = app
+        .host
+        .last_durable_cursor()
+        .await
+        .map_err(notification_source_cursor_error)?;
+    if source_cursor == 0 {
+        return Err(notification_api_error(
+            "notification_projection_unavailable".to_owned(),
+        ));
+    }
+    let limit = usize::from(query.limit);
+    let mut after_item_id = query.after_item_id;
+    if let Some(token) = query.after_page_token.as_deref() {
+        let (_offset, _cursor_limit, cursor_item) = app.consume_page_cursor(
+            Some(token),
+            "notification",
+            &session_id,
+            &tab_id,
+            &instance_id,
+            &epoch,
+            source_cursor,
+            limit,
+        )?;
+        after_item_id = cursor_item;
+    }
     let page = app
         .host
-        .notification_page(
-            query.limit,
-            query.after_item_id,
-            query.expected_source_cursor,
-        )
+        .notification_page(query.limit, after_item_id, query.expected_source_cursor)
         .await
         .map_err(|error| notification_api_error(error.to_string()))?;
     let page = serde_json::to_value(page)
         .map_err(|_| ApiError::fail("web_notification_page_encode_failed"))?;
-    let cursor = app.host.ui_cursor();
-    let payload = crate::web_notifications::present_notification_page(
+    // A commit between the read and the response must not be reported as a complete page.  The
+    // notification projection is rebuilt from `persisted_events`, so its only honesty check is
+    // the durable cursor it consumed: if that moved, the browser has to hydrate a fresh snapshot
+    // instead of treating this page as the current state.
+    let committed_after = app
+        .host
+        .last_durable_cursor()
+        .await
+        .map_err(notification_source_cursor_error)?;
+    if committed_after != source_cursor {
+        return Err(ApiError::conflict("web_page_source_changed"));
+    }
+    let mut payload = crate::web_notifications::present_notification_page(
         &page,
         &session_id,
         &tab_id,
-        &app.host.feed_instance_id(),
-        &cursor.epoch,
+        &instance_id,
+        &epoch,
     )
     .map_err(|error| ApiError::fail(error))?;
+    // Only a full page has a next boundary.  The token carries that boundary; the presentable
+    // page still exposes `next_after_item_id` so a non-browser client can request the next page.
+    if let Some(next_after) = payload
+        .get("next_after_item_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+    {
+        let token = app.issue_page_cursor(WebPageCursor {
+            schema: WEB_PAGE_CURSOR_SCHEMA,
+            kind: "notification",
+            token: String::new(),
+            session_id: session_id.clone(),
+            tab_id: tab_id.clone(),
+            instance_id: instance_id.clone(),
+            epoch: epoch.clone(),
+            source_cursor,
+            offset: 0,
+            limit,
+            item_marker: Some(next_after),
+            issued_at: Instant::now(),
+        })?;
+        payload["next_page_token"] = Value::String(token);
+    } else {
+        payload["next_page_token"] = Value::Null;
+    }
     Ok(Json(payload))
 }
 
@@ -7700,6 +7807,1043 @@ mod tests {
                 Ok(Some(Err(error))) => panic!("display stream chunk error: {error:?}"),
             }
         }
+    }
+
+    // -------------------------------------------------------------------------------------
+    // NM-15: live loopback fixtures for `/api/notifications` and `/api/notifications/events`.
+    //
+    // These drive the real router and a real `DaemonHost::local()` (Jsonl EventLog), so the page
+    // path sees the durable committed cursor and the SSE path sees the real run-stream bus.  The
+    // fixtures are deny-first: every refusal path is asserted before the success shape.
+    // -------------------------------------------------------------------------------------
+
+    const NM15_TAB: &str = "nm15-tab";
+    const NM15_OBSERVER_TAB: &str = "nm15-observer-tab";
+
+    struct Nm15Server {
+        addr: SocketAddr,
+        host: Arc<DaemonHost>,
+        root: PathBuf,
+        home: PathBuf,
+        session: String,
+        options: HashMap<String, Value>,
+        _env: crate::test_support::ScopedEnv<'static>,
+    }
+
+    fn nm15_action() -> kiana_domain::HumanAction {
+        kiana_domain::HumanAction {
+            id: "approve".to_owned(),
+            label: "Approve".to_owned(),
+            command: "notification.approve".to_owned(),
+            arguments: json!({"approval_ref": "opaque-nm15-argument"}),
+            required_fields: Vec::new(),
+        }
+    }
+
+    /// One committed `approval.requested` fact carrying an explicit `source:eventlog` marker, a
+    /// contiguous `source_cursor`, the critical-fact owner and a display-only materialization.
+    fn nm15_notification_event(
+        sequence: u64,
+        kind: &str,
+        recipient: &str,
+        now_unix_ms: u64,
+        title: &str,
+    ) -> Value {
+        use kiana_domain::{
+            EventId, HumanInboxKind, HumanTaskBridge, MessageId, Notification, NotificationChannel,
+            NotificationMaterialization,
+        };
+        let event_id = EventId::new();
+        let due_at_unix_ms = now_unix_ms + 60_000;
+        let expires_at_unix_ms = now_unix_ms + 7 * 24 * 60 * 60 * 1_000;
+        let notification = Notification::new(
+            MessageId::new(),
+            recipient,
+            None,
+            vec!["project/nm15".to_owned()],
+            NotificationChannel::InApp,
+            now_unix_ms,
+            expires_at_unix_ms,
+            1,
+            None,
+        )
+        .unwrap();
+        let action = nm15_action();
+        let bridge = HumanTaskBridge::new(
+            format!("nm15-task-{sequence}"),
+            "approval",
+            format!("nm15-approval-{sequence}"),
+            1,
+            "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            event_id,
+            sequence,
+            recipient,
+            due_at_unix_ms,
+            expires_at_unix_ms,
+            vec![format!("event:nm15-evidence-{sequence}")],
+            vec![action.clone()],
+        )
+        .unwrap();
+        let materialization = NotificationMaterialization::new(
+            notification,
+            event_id,
+            sequence,
+            HumanInboxKind::Approval,
+            title,
+            "A redacted approval is waiting",
+            due_at_unix_ms,
+            expires_at_unix_ms,
+            vec![format!("event:nm15-evidence-{sequence}")],
+            vec![action],
+            Some(bridge),
+        )
+        .unwrap();
+        json!({
+            "event_id": event_id.to_string(),
+            "request_id": uuid::Uuid::new_v4().to_string(),
+            "sequence": sequence,
+            "kind": kind,
+            "data": {
+                "source": "eventlog",
+                "owner_id": recipient,
+                "source_cursor": sequence,
+                "run_id": format!("nm15-run-{sequence}"),
+                "notification_materialization": materialization,
+            },
+        })
+    }
+
+    async fn nm15_server(item_titles: &[&str]) -> Nm15Server {
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("nm15-home");
+        let root = unique_dir("nm15-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let script = unique_dir("nm15-script").join("script.json");
+        fs::write(&script, r#"[{"text":"nm15 live answer"}]"#).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var("KIANA_HARNESS_SCRIPT", &script);
+        env.set_var("KIANA_PROVIDER", "");
+        env.set_var("KIANA_STREAMING", "off");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+
+        // `DaemonHost::local()` opens the Jsonl EventStore; the notification projection replays
+        // the whole ledger, so every seeded family event carries its committed source marker.
+        let now_unix_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_millis() as u64;
+        let events = item_titles
+            .iter()
+            .enumerate()
+            .map(|(index, title)| {
+                nm15_notification_event(
+                    index as u64 + 1,
+                    "approval.requested",
+                    "local-user",
+                    now_unix_ms,
+                    title,
+                )
+            })
+            .collect::<Vec<_>>();
+        if !events.is_empty() {
+            write_ledger(&home, &events);
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::local().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        let session = lock_string(&app.active).unwrap();
+        let options = app.options().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        Nm15Server {
+            addr,
+            host,
+            root,
+            home,
+            session,
+            options,
+            _env: env,
+        }
+    }
+
+    async fn nm15_claim(server: &Nm15Server, client: &reqwest::Client, token: &str, tab: &str) {
+        let response = client
+            .get(format!("http://{}/api/bootstrap", server.addr))
+            .query(&[("session_id", server.session.as_str())])
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", tab)
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        assert_eq!(status, StatusCode::OK, "bootstrap: {body}");
+    }
+
+    fn nm15_page_request(
+        server: &Nm15Server,
+        client: &reqwest::Client,
+        token: &str,
+        tab: &str,
+        extra: &[(&str, String)],
+    ) -> reqwest::RequestBuilder {
+        let mut request = client
+            .get(format!("http://{}/api/notifications", server.addr))
+            .query(&[("session_id", server.session.as_str())])
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", tab);
+        for (key, value) in extra {
+            request = request.query(&[(*key, value.as_str())]);
+        }
+        request
+    }
+
+    async fn nm15_stream_request(
+        server: &Nm15Server,
+        client: &reqwest::Client,
+        token: &str,
+        tab: &str,
+        header_cursor: Option<&str>,
+        query_cursor: Option<&str>,
+    ) -> reqwest::Response {
+        let mut request = client
+            .get(format!("http://{}/api/notifications/events", server.addr))
+            .query(&[("session_id", server.session.as_str()), ("tab_id", tab)])
+            .header("x-kiana-web-token", token);
+        if let Some(cursor) = header_cursor {
+            request = request.header("last-event-id", cursor);
+        }
+        if let Some(cursor) = query_cursor {
+            request = request.query(&[("last_event_id", cursor)]);
+        }
+        request.send().await.unwrap()
+    }
+
+    async fn nm15_json(response: reqwest::Response) -> (StatusCode, Value) {
+        let status = response.status();
+        let body = response.json().await.unwrap_or(Value::Null);
+        (status, body)
+    }
+
+    /// Submit one turn through the real Web run route as the tab that owns the session lease.
+    async fn nm15_run_turn(
+        cursor: &kiana_protocol::UiCursor,
+        client: &reqwest::Client,
+        base: &str,
+        token: &str,
+        session: &str,
+        prompt: &str,
+    ) -> (StatusCode, Value) {
+        let response = client
+            .post(format!("{base}/api/run"))
+            .header("x-kiana-web-token", token)
+            .header("x-kiana-ui-tab", NM15_TAB)
+            .header("x-kiana-ui-epoch", &cursor.epoch)
+            .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+            .header("x-kiana-action-id", uuid::Uuid::new_v4().to_string())
+            .header("x-kiana-action-target", session)
+            .json(&json!({"prompt": prompt, "session_id": session}))
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.json().await.unwrap_or(Value::Null);
+        (status, body)
+    }
+
+    /// Drive one real harness turn through the same host (not through the Web action route) so a
+    /// fixture can advance the committed source cursor deterministically.
+    async fn nm15_advance_cursor(server: &Nm15Server, prompt: &str) -> u64 {
+        let before = server.host.ui_cursor();
+        let response = harness_run::run_envelope_on_host(
+            Arc::clone(&server.host),
+            server.session.clone(),
+            prompt,
+            &server.options,
+        )
+        .await
+        .expect("fixture harness turn");
+        assert_eq!(
+            response.status,
+            kiana_protocol::ExecutionStatus::Completed,
+            "{response:?}"
+        );
+        let after = server.host.ui_cursor();
+        assert!(
+            after.sequence > before.sequence,
+            "a committed turn must advance the display cursor"
+        );
+        after.sequence
+    }
+
+    #[tokio::test]
+    async fn nm15_notification_page_is_authenticated_bounded_and_redacted() {
+        let server = nm15_server(&["Approval alpha", "Approval beta", "Approval gamma"]).await;
+        let client = reqwest::Client::new();
+        let token = ui16_page_token(&client, server.addr).await;
+        nm15_claim(&server, &client, &token, NM15_TAB).await;
+
+        // Deny-first: missing token, foreign Origin/Host, unknown session and missing tab are
+        // refused before the notification projection is read.
+        let no_token = client
+            .get(format!("http://{}/api/notifications", server.addr))
+            .query(&[("session_id", server.session.as_str())])
+            .header("x-kiana-ui-tab", NM15_TAB)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(no_token.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            no_token.json::<Value>().await.unwrap()["error"],
+            "web_auth_required"
+        );
+        let foreign_origin = nm15_page_request(&server, &client, &token, NM15_TAB, &[])
+            .header("origin", "http://evil.example")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(foreign_origin.status(), StatusCode::UNAUTHORIZED);
+        let foreign_host = nm15_page_request(&server, &client, &token, NM15_TAB, &[])
+            .header("host", "evil.example")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(foreign_host.status(), StatusCode::UNAUTHORIZED);
+        let missing_tab = client
+            .get(format!("http://{}/api/notifications", server.addr))
+            .query(&[("session_id", server.session.as_str())])
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(missing_tab.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            missing_tab.json::<Value>().await.unwrap()["error"],
+            "web_tab_required"
+        );
+        let unknown_session = client
+            .get(format!("http://{}/api/notifications", server.addr))
+            .query(&[("session_id", "nm15-unknown-session")])
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", NM15_TAB)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unknown_session.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            unknown_session.json::<Value>().await.unwrap()["error"],
+            "session_unknown"
+        );
+        for limit in ["0", "31", "65535"] {
+            let (status, body) = nm15_json(
+                nm15_page_request(
+                    &server,
+                    &client,
+                    &token,
+                    NM15_TAB,
+                    &[("limit", limit.to_owned())],
+                )
+                .send()
+                .await
+                .unwrap(),
+            )
+            .await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "limit {limit}");
+            assert_eq!(body["error"], "web_notification_page_limit_invalid");
+        }
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("expected_source_cursor", "0".to_owned())],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"], "web_notification_cursor_invalid");
+        // A client-supplied row id is not a cursor: a fabricated one is a request error.
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("after_item_id", "notification:fabricated-row".to_owned())],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"], "web_notification_cursor_invalid");
+
+        // Success: the page is server-scoped, bounded and redacted.
+        let (status, page) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("limit", "2".to_owned())],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert_eq!(page["schema"], "kiana.web-notification-page.v1");
+        assert_eq!(page["session_id"], server.session.as_str());
+        assert_eq!(page["tab_id"], NM15_TAB);
+        assert_eq!(page["instance_id"], server.host.feed_instance_id());
+        assert_eq!(page["items"].as_array().unwrap().len(), 2);
+        let encoded = page.to_string();
+        assert!(!encoded.contains("opaque-nm15-argument"));
+        assert!(!encoded.contains("A redacted approval is waiting"));
+        assert!(!encoded.contains("event:nm15-evidence"));
+        assert!(!encoded.contains("source_ref"));
+        assert_eq!(
+            page["items"][0]["actions"][0]["command"],
+            "notification.approve"
+        );
+        assert!(page["items"][0]["actions"][0].get("arguments").is_none());
+        assert!(page["next_after_item_id"].as_str().is_some());
+        let token_next = page["next_page_token"]
+            .as_str()
+            .expect("a full page issues the server's next-page token")
+            .to_owned();
+        let next_after = page["next_after_item_id"].as_str().unwrap().to_owned();
+        assert!(page["limitations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "actions_are_display_only_until_re_admitted_by_control_plane"));
+
+        // A raw row id stapled onto a token is a conflict, not a supported combination.
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[
+                    ("limit", "2".to_owned()),
+                    ("after_page_token", token_next.clone()),
+                    ("after_item_id", next_after),
+                ],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"], "web_notification_cursor_conflict");
+
+        // The token is consumed exactly once.
+        let (status, second) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[
+                    ("limit", "2".to_owned()),
+                    ("after_page_token", token_next.clone()),
+                ],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{second}");
+        assert_eq!(second["items"].as_array().unwrap().len(), 1);
+        assert!(second["next_page_token"].is_null());
+        let (status, replayed) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("limit", "2".to_owned()), ("after_page_token", token_next)],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(replayed["error"], "web_page_cursor_replayed");
+
+        // A token is bound to its issuing tab and limit; a refused follow-up does not burn it.
+        let (status, owner_page) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("limit", "1".to_owned())],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let owner_token = owner_page["next_page_token"].as_str().unwrap().to_owned();
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_OBSERVER_TAB,
+                &[
+                    ("limit", "1".to_owned()),
+                    ("after_page_token", owner_token.clone()),
+                ],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["error"], "web_page_cursor_scope_mismatch");
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[
+                    ("limit", "2".to_owned()),
+                    ("after_page_token", owner_token.clone()),
+                ],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"], "web_page_cursor_limit_mismatch");
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("limit", "1".to_owned()), ("after_page_token", owner_token)],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn nm15_notification_page_token_is_bound_to_the_committed_source_cursor() {
+        let server = nm15_server(&["Approval alpha", "Approval beta"]).await;
+        let client = reqwest::Client::new();
+        let token = ui16_page_token(&client, server.addr).await;
+        nm15_claim(&server, &client, &token, NM15_TAB).await;
+        let before = server.host.last_durable_cursor().await.unwrap();
+        assert!(before > 0, "the seeded ledger commits events");
+        let (status, page) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[
+                    ("limit", "1".to_owned()),
+                    ("expected_source_cursor", before.to_string()),
+                ],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert_eq!(page["source_cursor"].as_u64(), Some(before));
+        let token_after = page["next_page_token"].as_str().unwrap().to_owned();
+
+        // A real committed turn advances the durable cursor.  The open token must then fail
+        // closed instead of serving a page mixed with newer committed facts.
+        nm15_advance_cursor(&server, "nm15 advance").await;
+        let (status, body) = nm15_json(
+            nm15_page_request(
+                &server,
+                &client,
+                &token,
+                NM15_TAB,
+                &[("limit", "1".to_owned()), ("after_page_token", token_after)],
+            )
+            .send()
+            .await
+            .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["error"], "web_page_cursor_scope_mismatch");
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn nm15_notification_page_refuses_a_projection_that_is_not_durable() {
+        // `with_env_harness()` composes a MemoryEventLog: there is no durable committed cursor,
+        // so the page must fail closed instead of presenting an empty inbox as the truth.
+        let env = crate::test_support::scoped_env(&[
+            "KIANA_HOME",
+            "HOME",
+            "KIANA_HARNESS_SCRIPT",
+            "KIANA_PROVIDER",
+            "KIANA_STREAMING",
+            "KIANA_FAKE_PROVIDER_SCRIPT",
+            "ANTHROPIC_API_KEY",
+            "KIANA_OPENAI_API_KEY",
+            "OPENAI_API_KEY",
+        ]);
+        let home = unique_dir("nm15-memory-home");
+        let root = unique_dir("nm15-memory-fixture");
+        fs::create_dir_all(root.join(".git")).unwrap();
+        env.set_var("KIANA_HOME", &home);
+        env.set_var("HOME", &home);
+        env.set_var(
+            "KIANA_HARNESS_SCRIPT",
+            unique_dir("nm15-memory-script").join("none.json"),
+        );
+        std::env::remove_var("KIANA_PROVIDER");
+        std::env::remove_var("KIANA_STREAMING");
+        std::env::remove_var("KIANA_FAKE_PROVIDER_SCRIPT");
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("KIANA_OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_API_KEY");
+        write_project_trust(&root, ProjectTrust::Trusted).unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let host = Arc::new(DaemonHost::with_env_harness().unwrap());
+        let app = WebApp::new(
+            Arc::clone(&host),
+            root.clone(),
+            "read-only".to_owned(),
+            ROLE_BUILDER.to_owned(),
+            addr,
+        );
+        let session = lock_string(&app.active).unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, router(app)).await.unwrap();
+        });
+        let client = reqwest::Client::new();
+        let token = ui16_page_token(&client, addr).await;
+        let claim = client
+            .get(format!("http://{addr}/api/bootstrap"))
+            .query(&[("session_id", session.as_str())])
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", NM15_TAB)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(claim.status(), StatusCode::OK);
+        let (status, body) = nm15_json(
+            client
+                .get(format!("http://{addr}/api/notifications"))
+                .query(&[("session_id", session.as_str())])
+                .header("x-kiana-web-token", &token)
+                .header("x-kiana-ui-tab", NM15_TAB)
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+        assert!(
+            body["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("notification_projection_unavailable"),
+            "{body}"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[tokio::test]
+    async fn nm15_notification_sse_reconnects_without_duplicating_and_retains_the_terminal() {
+        let server = nm15_server(&["Approval alpha"]).await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        nm15_claim(&server, &client, &token, NM15_TAB).await;
+
+        // Deny-first: no token, foreign Origin, missing tab and conflicting/malformed cursors
+        // never open a display stream.
+        let no_token = client
+            .get(format!("{base}/api/notifications/events"))
+            .query(&[
+                ("session_id", server.session.as_str()),
+                ("tab_id", NM15_TAB),
+            ])
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(no_token.status(), StatusCode::UNAUTHORIZED);
+        let foreign = client
+            .get(format!("{base}/api/notifications/events"))
+            .query(&[
+                ("session_id", server.session.as_str()),
+                ("tab_id", NM15_TAB),
+            ])
+            .header("x-kiana-web-token", &token)
+            .header("origin", "http://evil.example")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(foreign.status(), StatusCode::UNAUTHORIZED);
+        let missing_tab = client
+            .get(format!("{base}/api/notifications/events"))
+            .query(&[("session_id", server.session.as_str())])
+            .header("x-kiana-web-token", &token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(missing_tab.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            missing_tab.json::<Value>().await.unwrap()["error"],
+            "web_tab_required"
+        );
+        // Two different cursors in the header and the query are a conflict; a byte that is not
+        // a typed feed cursor fails closed at whichever decoder the request shape selects.
+        let authority_epoch = server.host.ui_cursor().epoch;
+        let encoded_cursor = |feed_sequence: u64| {
+            kiana_protocol::UiFeedCursorV1::new(
+                server.host.feed_instance_id(),
+                &authority_epoch,
+                feed_sequence,
+                kiana_protocol::UiCursor {
+                    epoch: String::new(),
+                    sequence: 0,
+                },
+            )
+            .unwrap()
+            .encode()
+            .unwrap()
+        };
+        let valid_cursor = encoded_cursor(1);
+        let other_cursor = encoded_cursor(2);
+        let conflict = nm15_stream_request(
+            &server,
+            &client,
+            &token,
+            NM15_TAB,
+            Some(valid_cursor.as_str()),
+            Some(other_cursor.as_str()),
+        )
+        .await;
+        assert_eq!(conflict.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            conflict.json::<Value>().await.unwrap()["error"],
+            "web_notification_cursor_conflict"
+        );
+        let malformed = nm15_stream_request(
+            &server,
+            &client,
+            &token,
+            NM15_TAB,
+            Some("not-a-cursor"),
+            None,
+        )
+        .await;
+        assert_eq!(malformed.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            malformed.json::<Value>().await.unwrap()["error"],
+            "ui_feed_cursor_decode_failed"
+        );
+        let forged = kiana_protocol::UiFeedCursorV1::new(
+            server.host.feed_instance_id(),
+            &authority_epoch,
+            1,
+            kiana_protocol::UiCursor {
+                epoch: String::new(),
+                sequence: 0,
+            },
+        )
+        .unwrap();
+        let mut forged_value = serde_json::to_value(&forged).unwrap();
+        forged_value["cursor_digest"] = Value::String("sha256:forged".to_owned());
+        let forged_cursor = forged_value.to_string();
+        let forged_response = nm15_stream_request(
+            &server,
+            &client,
+            &token,
+            NM15_TAB,
+            Some(forged_cursor.as_str()),
+            None,
+        )
+        .await;
+        assert_eq!(forged_response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            forged_response.json::<Value>().await.unwrap()["error"],
+            "ui_feed_cursor_digest_invalid"
+        );
+
+        // A fresh listener receives the snapshot boundary first.
+        let response = nm15_stream_request(&server, &client, &token, NM15_TAB, None, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream"));
+        let mut stream = response.bytes_stream();
+        let mut buffer = Vec::new();
+        let boundary = ui18_next_frame(&mut stream, &mut buffer).await;
+        assert_eq!(boundary.event, "snapshot_boundary", "{boundary:?}");
+        assert_eq!(boundary.data["schema"], "kiana.web-notification-sse.v1");
+        assert_eq!(boundary.data["kind"], "snapshot_boundary");
+        let boundary_id = boundary.id.clone();
+        drop(stream);
+
+        // Reconnect with that id: no frame is re-delivered.
+        let reconnect = nm15_stream_request(
+            &server,
+            &client,
+            &token,
+            NM15_TAB,
+            Some(boundary_id.as_str()),
+            None,
+        )
+        .await;
+        assert_eq!(reconnect.status(), StatusCode::OK);
+        let mut reconnect_stream = reconnect.bytes_stream();
+        let mut reconnect_buffer = Vec::new();
+        // The server answers a reconnect with a fresh cursor boundary, never with the delta the
+        // tab already rendered: the boundary is a cursor handshake, not a replayed event.
+        let reconnect_boundary =
+            ui18_next_frame(&mut reconnect_stream, &mut reconnect_buffer).await;
+        assert_eq!(reconnect_boundary.event, "snapshot_boundary");
+        assert_eq!(reconnect_boundary.id, boundary_id);
+        ui18_expect_no_frame(
+            &mut reconnect_stream,
+            &mut reconnect_buffer,
+            Duration::from_millis(300),
+        )
+        .await;
+
+        // A committed turn publishes redacted deltas and exactly one terminal.
+        let run_cursor = server.host.ui_cursor();
+        let run_task = tokio::spawn({
+            let client = client.clone();
+            let base = base.clone();
+            let token = token.clone();
+            let session = server.session.clone();
+            async move {
+                nm15_run_turn(&run_cursor, &client, &base, &token, &session, "nm15 stream").await
+            }
+        });
+        let mut terminal = None;
+        while terminal.is_none() {
+            let frame = ui18_next_frame(&mut reconnect_stream, &mut reconnect_buffer).await;
+            assert_eq!(frame.data["schema"], "kiana.web-notification-sse.v1");
+            assert!(!frame.data.to_string().contains(&token));
+            assert!(frame.data.get("event").is_none(), "{frame:?}");
+            if frame.event == "terminal" {
+                terminal = Some(frame);
+            } else {
+                assert_eq!(frame.data["retry"], "do_not_retry");
+                assert!(!frame.data["kind"].as_str().unwrap_or_default().is_empty());
+            }
+        }
+        let terminal = terminal.expect("terminal frame");
+        assert_eq!(terminal.data["terminal"], true);
+        assert_eq!(terminal.data["retry"], "do_not_retry");
+        assert_eq!(terminal.data["kind"], "terminal");
+        assert!(!terminal.data.to_string().contains("nm15 live answer"));
+        let terminal_id = terminal.id.clone();
+        drop(reconnect_stream);
+        let (status, run) = run_task.await.unwrap();
+        assert_eq!(status, StatusCode::OK, "{run}");
+        assert_eq!(run["response"]["status"], "completed", "{run}");
+
+        // A late subscriber still receives the retained terminal: a slow tab cannot lose it.
+        let late = nm15_stream_request(&server, &client, &token, NM15_TAB, None, None).await;
+        assert_eq!(late.status(), StatusCode::OK);
+        let mut late_stream = late.bytes_stream();
+        let mut late_buffer = Vec::new();
+        let first_late = ui18_next_frame(&mut late_stream, &mut late_buffer).await;
+        assert_eq!(first_late.event, "snapshot_boundary");
+        let terminal_late = ui18_next_frame(&mut late_stream, &mut late_buffer).await;
+        assert_eq!(terminal_late.event, "terminal", "{terminal_late:?}");
+        assert_eq!(terminal_late.id, terminal_id);
+        drop(late_stream);
+
+        // Reconnecting from the terminal id duplicates nothing.
+        let after_terminal = nm15_stream_request(
+            &server,
+            &client,
+            &token,
+            NM15_TAB,
+            Some(terminal_id.as_str()),
+            None,
+        )
+        .await;
+        assert_eq!(after_terminal.status(), StatusCode::OK);
+        let mut after_stream = after_terminal.bytes_stream();
+        let mut after_buffer = Vec::new();
+        let after_boundary = ui18_next_frame(&mut after_stream, &mut after_buffer).await;
+        assert_eq!(after_boundary.event, "snapshot_boundary");
+        assert_eq!(after_boundary.id, terminal_id);
+        ui18_expect_no_frame(
+            &mut after_stream,
+            &mut after_buffer,
+            Duration::from_millis(300),
+        )
+        .await;
+        drop(after_stream);
+
+        // A foreign instance/epoch cursor is a snapshot-required gap, never a silent continuation.
+        let gap_cursor = kiana_protocol::UiFeedCursorV1::new(
+            "nm15-foreign-instance",
+            "nm15-foreign-epoch",
+            1,
+            kiana_protocol::UiCursor {
+                epoch: "nm15-foreign-epoch".to_owned(),
+                sequence: 1,
+            },
+        )
+        .unwrap()
+        .encode()
+        .unwrap();
+        let gap = nm15_stream_request(
+            &server,
+            &client,
+            &token,
+            NM15_TAB,
+            Some(gap_cursor.as_str()),
+            None,
+        )
+        .await;
+        assert_eq!(gap.status(), StatusCode::OK);
+        let mut gap_stream = gap.bytes_stream();
+        let mut gap_buffer = Vec::new();
+        let gap_frame = ui18_next_frame(&mut gap_stream, &mut gap_buffer).await;
+        assert_eq!(gap_frame.event, "stream_gap", "{gap_frame:?}");
+        assert_eq!(gap_frame.data["kind"], "gap");
+        assert_eq!(gap_frame.data["snapshot_required"], true);
+        assert_eq!(gap_frame.data["retry"], "query_original");
+        drop(gap_stream);
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
+    }
+
+    #[tokio::test]
+    async fn nm15_web_notification_surface_cannot_execute_an_action() {
+        let server = nm15_server(&["Approval alpha"]).await;
+        let client = reqwest::Client::new();
+        let base = format!("http://{}", server.addr);
+        let token = ui16_page_token(&client, server.addr).await;
+        nm15_claim(&server, &client, &token, NM15_TAB).await;
+        let events_before = server.host.ui_events().await.unwrap().unwrap_or_default();
+        let runs_before = events_before
+            .iter()
+            .filter(|event| event.kind == "run.authorized")
+            .count();
+        let count_before = events_before.len();
+
+        // The display page advertises `notification.approve`.  The Web command surface must not
+        // execute it: only `human.inbox`/`human.resolve` route into the ControlPlane command path
+        // and no `notification.*` handler exists, so the request is blocked by name.
+        let cursor = server.host.ui_cursor();
+        let response = client
+            .post(format!("{base}/api/command"))
+            .header("x-kiana-web-token", &token)
+            .header("x-kiana-ui-tab", NM15_TAB)
+            .header("x-kiana-ui-epoch", &cursor.epoch)
+            .header("x-kiana-ui-cursor", cursor.sequence.to_string())
+            .header("x-kiana-action-id", "nm15-action-1")
+            .header("x-kiana-action-target", "workspace")
+            .json(&json!({
+                "session_id": server.session,
+                "name": "notification.approve",
+                "arguments": {"item_id": "notification:1"},
+            }))
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.json::<Value>().await.unwrap_or(Value::Null);
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["response"]["status"], "blocked", "{body}");
+        assert_eq!(body["response"]["error"], "command_unregistered", "{body}");
+
+        // No run was authorized and no run-executing fact appeared.
+        let events = server.host.ui_events().await.unwrap().unwrap_or_default();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.kind == "run.authorized")
+                .count(),
+            runs_before
+        );
+        for kind in [
+            "run.prompt",
+            "run.completed",
+            "capability.requested",
+            "approval.approved",
+            "approval.denied",
+        ] {
+            assert!(
+                !events.iter().any(|event| event.kind == kind),
+                "a blocked notification command must not commit {kind}"
+            );
+        }
+        assert!(
+            events.len() <= count_before + 8,
+            "a blocked command may append only bounded rejection facts"
+        );
+
+        let _ = fs::remove_dir_all(&server.root);
+        let _ = fs::remove_dir_all(&server.home);
     }
 
     #[tokio::test]

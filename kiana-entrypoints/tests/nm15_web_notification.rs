@@ -1,3 +1,4 @@
+use kiana_entrypoints::web::WEB_ERROR_MATRIX;
 use kiana_entrypoints::web_notifications::{
     decode_notification_cursor, encode_notification_cursor, notification_gap_frame,
     present_notification_frame, present_notification_page,
@@ -143,6 +144,19 @@ fn fixture_captures_web_notification_contract() {
     assert_eq!(fixture["transport"], "sse");
     assert_eq!(fixture["limits"]["page_items"], 30);
     assert_eq!(fixture["limits"]["actions_per_item"], 16);
+    // The page cursor is a server-owned, single-use boundary and the browser backoff is the one
+    // the shipped page actually uses (the older 1-30s claim was never implemented).
+    assert_eq!(fixture["page_cursor"]["single_use"], true);
+    assert_eq!(fixture["page_cursor"]["kind"], "notification");
+    assert_eq!(
+        fixture["limits"]["reconnect_backoff_ms"],
+        serde_json::json!([250, 8000])
+    );
+    assert_eq!(fixture["limits"]["reconnect_attempts"], 6);
+    let web_page = include_str!("../src/web_page.html");
+    assert!(web_page.contains("const SSE_RECONNECT_BASE_MS = 250;"));
+    assert!(web_page.contains("const SSE_RECONNECT_MAX_MS = 8000;"));
+    assert!(web_page.contains("const SSE_MAX_RECONNECTS = 6;"));
     assert_eq!(fixture["cursor"]["header"], "Last-Event-ID");
     for event in [
         "snapshot_boundary",
@@ -158,14 +172,42 @@ fn fixture_captures_web_notification_contract() {
             .iter()
             .any(|value| value == event));
     }
+    // Every refusal named by the fixture is a catalogued Web error class, so the page/stream
+    // cannot invent an uncatalogued status for a new refusal path.
+    for code in [
+        &fixture["page_cursor"]["replayed"],
+        &fixture["page_cursor"]["unknown"],
+        &fixture["page_cursor"]["scope_mismatch"],
+        &fixture["page_cursor"]["limit_mismatch"],
+        &fixture["page_cursor"]["source_changed"],
+        &fixture["cursor"]["conflict"],
+    ] {
+        let code = code.as_str().expect("fixture refusal code");
+        assert!(
+            WEB_ERROR_MATRIX
+                .iter()
+                .any(|contract| contract.code == code),
+            "{code} is not in WEB_ERROR_MATRIX"
+        );
+    }
     for denial in [
         "wrong_host",
         "wrong_origin",
         "wrong_bearer_or_web_token",
         "cross_session_tab",
+        "missing_tab",
+        "unknown_session",
         "foreign_or_stale_cursor",
+        "cursor_conflict",
+        "malformed_or_forged_cursor",
+        "unbounded_page",
+        "page_cursor_replay_or_scope_shift",
+        "stale_source_cursor",
         "payload_or_action_argument_leak",
         "gap_as_completion",
+        "sse_reconnect_submits_command",
+        "notification_command_execution",
+        "terminal_then_delta",
     ] {
         assert!(fixture["deny_first"]
             .as_array()

@@ -60,3 +60,53 @@ fn web_notification_routes_reuse_auth_feed_and_have_no_execution_authority() {
         );
     }
 }
+
+/// The page cursor is consumed before the projection read, so a replay, a foreign tab or a stale
+/// source cursor is refused without ever serving a page. The `notification.*` command names the
+/// page advertises never gain a Web handler: they remain display-only strings.
+#[test]
+fn notification_page_cursor_is_consumed_before_the_read_and_grants_no_command_authority() {
+    let web = include_str!("../src/web.rs");
+    let handler = web
+        .split("async fn notifications(")
+        .nth(1)
+        .and_then(|rest| rest.split("async fn artifact(").next())
+        .expect("notification page handler");
+    let token_index = handler
+        .find("consume_page_cursor")
+        .expect("the page handler consumes the single-use cursor");
+    let read_index = handler
+        .find("notification_page(")
+        .expect("the page handler reads the projection");
+    assert!(
+        token_index < read_index,
+        "the single-use cursor must be consumed before the projection read"
+    );
+    // The server's own next boundary is issued only after a successful read, and only when the
+    // page is full: a partial page must not mint a cursor that has nowhere to go.
+    let issue_index = handler
+        .find("issue_page_cursor")
+        .expect("the page handler issues the next cursor");
+    assert!(issue_index > read_index);
+    assert!(handler.contains("if let Some(next_after)"));
+    assert!(handler.contains("payload[\"next_page_token\"] = Value::Null"));
+    // A committed source cursor that is not durable is a stable 503, never a raw port string.
+    assert!(handler.contains("notification_source_cursor_error"));
+    assert!(web.contains("notification_projection_unavailable"));
+    assert!(!handler.contains("notification.approve"));
+    assert!(!handler.contains("harness_run::run_envelope_on_host"));
+
+    // No route or handler dispatches a notification command: only the Human Inbox command names
+    // are recognized by the ControlPlane command path.
+    for forbidden in [
+        "\"/api/notifications/resolve\"",
+        "\"/api/notifications/approve\"",
+        "\"notification.resolve\"",
+        "notification.approve\" =>",
+    ] {
+        assert!(
+            !web.contains(forbidden),
+            "the Web notification surface must not route a command: {forbidden}"
+        );
+    }
+}
