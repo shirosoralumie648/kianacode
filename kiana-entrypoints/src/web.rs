@@ -11267,6 +11267,8 @@ mod tests {
                     source_cursor: cursor_cursor.sequence,
                     offset: 1,
                     limit: 8,
+                    // Artifact detail is offset-keyed, not item-keyed, so it carries no row marker.
+                    item_marker: None,
                     issued_at: Instant::now() - WEB_PAGE_CURSOR_TTL - Duration::from_secs(1),
                 })
                 .expect("expired cursor");
