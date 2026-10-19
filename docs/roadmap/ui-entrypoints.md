@@ -972,8 +972,32 @@ base 已有的 `run.tool_call` 事件契约缺陷（CAP-25 写入 `input_digest`
 slice 在 UI-21 server-owned card/session projection 上补充 typed ArtifactRef/page/detail、server
 diff statistics、receipt cross-links、bounded cursor/revision/session/tab fencing 与 text-only
 detail renderer。坏 digest、stale ref、跨会话枚举、HTML/SVG/ANSI/raw path/secret、任意 URL fetch、
-客户端 diff 与 Unknown 绿色成功均 fail-closed；GitHub-only fixture/source guard/workflow 已接入，
-浏览器 E2E、完整 durable artifact/diff index、跨进程 receipt 重算与 live/physical proof 留后续。
+客户端 diff 与 Unknown 绿色成功均 fail-closed；GitHub-only fixture/source guard/workflow 已接入。
+
+完成切片（2026-10-19，base `b172ed17`）：①收据 digest 的可复现性修复——`kiana-core/src/receipts.rs`
+新增 `receipt_source_events()`，把终态之后才追加的 `run.receipt`/`run.snapshot` 排除在
+`source_event_ids`/`source_cursor` 之外（此前 `events.len()` 与全量 id 使同一 run 每次重读都换
+digest，新进程永远无法复算），与 `versioning.rs` 已有的 `run.snapshot` 排除同源；临时还原该过滤
+会让新夹具直接报两个不同 digest。②`kiana-core/tests/ui22_receipt_detail.rs` 用子进程
+（`--exact` 重新执行测试二进制）重开同一 JSONL 日志，重算出与在线投影完全相同的
+`receipt_digest`/`source_cursor`/`source_event_ids`，并断言子进程不修改日志字节；
+另一条夹具证明收据自己的输出事件不改变 digest、Unknown 不能被提升为 completed、外部会话读
+收据被 `run_owner_mismatch` 拒绝且不返回 body。③`web.rs` 的 detail 路由补服务端围栏：分页游标
+15 分钟 TTL（`web_page_cursor_expired`）、`files=` 部分文件选择在 artifact/diff 两侧一律以
+`web_partial_file_approval_unsupported` 拒绝（不把审批载荷收窄成客户端参数）、detail 页显式
+给出 `mime`/`size_bytes`/`content: null`/`content_encoding: none`/`truncated` 与
+`artifact_binary_content_not_rendered`/`artifact_size_limit_exceeded`，receipt detail 只消费 typed
+`run_receipt.receipt_digest`/`source_cursor`，缺失时保持 unknown 而不是给一个看起来权威的零 digest。
+④两个 live loopback 夹具（真实 `router`/`WebApp`/`DaemonHost`）覆盖 partial-file、缺失
+token/foreign Origin、跨会话 artifact、未知会话、过期游标，以及 text/binary/oversize/diff/receipt
+投影。本地实测：entrypoints fixture 2、guard 1、client 7、core 4、live lib 2 全绿，
+proof_level `local_behavior`。
+
+**行 438 保持 🔄**：卡片还要求「按 ref 分页拉取文本/patch」、部分文件审批与 server diff/file
+status，而当前 detail 页只给 metadata（`content` 恒为 null，字节在 Web router 未读取的
+`LocalArtifactStore` 里）、`/api/diff` 是 `unknown`/0/0/空 files 的常量桩、部分文件审批是显式拒绝
+而非实现、`UiArtifactRefV1` 无 expiry 字段（只证明了游标过期与 stale revision）；浏览器 E2E、
+durable artifact store 与 live/physical proof 仍开放。
 
 <a id="step-ui-23"></a>
 

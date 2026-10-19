@@ -17,7 +17,10 @@
     "total_additions",
     "total_deletions",
     "receipt_digest",
-    "limitations"
+    "limitations",
+    "content_encoding",
+    "truncated",
+    "unknown"
   ],
   "deny_first": [
     "client_payload_mutation",
@@ -33,7 +36,10 @@
     "raw_path_leak",
     "html_svg_ansi_injection",
     "client_computed_diff",
-    "arbitrary_url_fetch"
+    "arbitrary_url_fetch",
+    "expired_server_cursor",
+    "partial_file_approval_refused",
+    "unsupported_receipt_cursor"
   ],
   "success": [
     "server_artifact_ref",
@@ -42,8 +48,16 @@
     "timeline_diff_receipt_links",
     "receipt_digest_projection",
     "partial_binary_redacted_page",
-    "unknown_visible"
+    "unknown_visible",
+    "binary_artifact_limitation",
+    "oversized_artifact_limitation",
+    "typed_receipt_digest"
   ],
   "authority": "Web read-only projection -> DaemonHost -> EventLog/Receipt facts",
-  "proof_level": "source"
+  "proof_level": "local_behavior",
+  "limitations": [
+    "artifact bytes are never served by the read-only projection",
+    "receipt detail is a typed run_receipt projection, not a second authority",
+    "diff statistics are server-owned and currently reported unavailable"
+  ]
 }
